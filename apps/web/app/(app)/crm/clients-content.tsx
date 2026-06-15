@@ -657,6 +657,7 @@ function toNameSearch(name: string): string {
   return name
     .trim()
     .toLowerCase()
+    .replace(/\s+/g, " ") // collapse internal whitespace so "John  Smith" == "John Smith"
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "") // strip combining diacritical marks
     .replace(/[''ʼ]/g, "'");          // normalize apostrophe variants
@@ -716,7 +717,8 @@ function parseTags(raw: string): string[] {
  */
 function parsePrice(raw: string): number | null {
   const num = parseMoneyLoose(raw);
-  return isNaN(num) || num <= 0 ? null : num;
+  // Reject NaN AND ±Infinity (bare isNaN lets Infinity through) and non-positive.
+  return !Number.isFinite(num) || num <= 0 ? null : num;
 }
 
 /**
@@ -1801,12 +1803,37 @@ export function ClientsContent({
       }
       const prevClient = localClients.find((c) => c.id === clientId);
       const prevValue = prevClient ? (prevClient as unknown as Record<string, unknown>)[field] : undefined;
+      // Cap known text fields to their DB column limits. The add + import write
+      // paths slice on write (#170); this inline-edit path was the missing
+      // sibling — an over-length inline edit otherwise errors at the DB.
+      const FIELD_CAPS: Record<string, number> = {
+        name: FIELD_LIMITS.clientName,
+        notes: FIELD_LIMITS.notes,
+        email: FIELD_LIMITS.email,
+        phone: FIELD_LIMITS.phone,
+        street_address: FIELD_LIMITS.address,
+      };
+      const writeValue =
+        typeof value === "string" && FIELD_CAPS[field] != null
+          ? value.slice(0, FIELD_CAPS[field])
+          : value;
+      // Renaming a client must recompute name_search, else dedup (add + import
+      // upsert key on name_search) silently misses the corrected name and
+      // creates a duplicate. Keep the derived column in sync with name.
+      const renameSearch =
+        field === "name" && typeof writeValue === "string" ? toNameSearch(writeValue) : null;
       setLocalClients((prev) =>
-        prev.map((c) => (c.id === clientId ? { ...c, [field]: value } : c)),
+        prev.map((c) =>
+          c.id === clientId
+            ? { ...c, [field]: writeValue, ...(renameSearch !== null ? { name_search: renameSearch } : {}) }
+            : c,
+        ),
       );
-      const { error } = await supabase.from("clients").update({ [field]: value, updated_at: new Date().toISOString() }).eq("id", clientId).eq("user_id", userId!);
+      const updatePayload: Record<string, unknown> = { [field]: writeValue, updated_at: new Date().toISOString() };
+      if (renameSearch !== null) updatePayload.name_search = renameSearch;
+      const { error } = await supabase.from("clients").update(updatePayload).eq("id", clientId).eq("user_id", userId!);
       if (error) {
-        console.error("[CRM] updateClientField failed:", field, value, error.message, error.code);
+        console.error("[CRM] updateClientField failed:", field, writeValue, error.message, error.code);
         setLocalClients((prev) =>
           prev.map((c) => (c.id === clientId ? { ...c, [field]: prevValue } : c)),
         );
@@ -1898,7 +1925,9 @@ export function ClientsContent({
         client_id:            selectedClient.id,
         appointment_date:     newApptForm.appointment_date,
         property_address:     newApptForm.property_address || null,
-        estimated_list_price: newApptForm.estimated_list_price ? Number(newApptForm.estimated_list_price) : null,
+        // parsePrice (not raw Number()) so "$500,000" / garbage → null, never NaN.
+        // A NaN list price poisons the canonical pipeline-forecast aggregate.
+        estimated_list_price: newApptForm.estimated_list_price ? parsePrice(newApptForm.estimated_list_price) : null,
         notes:                newApptForm.notes || null,
         status:               "scheduled",
       })
@@ -1917,11 +1946,24 @@ export function ClientsContent({
 
   const updateApptField = useCallback(async (id: string, field: string, value: unknown) => {
     if (!ALLOWED_APPT_FIELDS.has(field)) { toast.error("Invalid field"); return; }
+    // Sanitize price fields: a NaN/Infinity list price poisons the canonical
+    // pipeline-forecast aggregate. Parse via parsePrice (handles "$"/commas),
+    // reject non-finite/≤0, allow blank to clear.
+    let safeValue = value;
+    if (field === "estimated_list_price" || field === "actual_list_price") {
+      if (value === "" || value == null) {
+        safeValue = null;
+      } else {
+        const parsed = parsePrice(String(value));
+        if (parsed == null) { toast.error("Enter a valid price"); return; }
+        safeValue = parsed;
+      }
+    }
     const prev = localListingAppointments.find((a) => a.id === id);
     setLocalListingAppointments((p) =>
-      p.map((a) => (a.id === id ? { ...a, [field]: value } : a)),
+      p.map((a) => (a.id === id ? { ...a, [field]: safeValue } : a)),
     );
-    const { error } = await supabase.from("listing_appointments").update({ [field]: value }).eq("id", id).eq("user_id", userId);
+    const { error } = await supabase.from("listing_appointments").update({ [field]: safeValue }).eq("id", id).eq("user_id", userId);
     if (error) {
       toast.error("Failed to update appointment");
       if (prev) setLocalListingAppointments((p) => p.map((a) => (a.id === id ? prev : a)));

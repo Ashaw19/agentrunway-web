@@ -42,7 +42,7 @@ import { fmtCurrency } from "@/lib/formatters";
 import { computeGCI, type HistoryItem, type Transaction, type UserSettings } from "@/lib/types/database";
 import { cn } from "@/lib/utils";
 import type { ImportResult } from "@/app/api/import-history/route";
-import { computeImportExternalId } from "@/lib/import/external-id";
+import { computeImportExternalId, dedupeByImportExternalId } from "@/lib/import/external-id";
 import dynamic from "next/dynamic";
 import type { YoYDataPoint } from "@/components/year-over-year-chart";
 
@@ -624,7 +624,7 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
 
       } else if (fileType === "csv") {
         // ── CSV: read as plain text ──────────────────────────────────────────
-        textContent = (await file.text()).replace(/^\uFEFF/, ""); // strip UTF-8 BOM
+        textContent = (await file.text()).replace(/\uFEFF/g, ""); // strip ALL UTF-8 BOMs (Excel multi-sheet exports embed them at every sheet boundary)
         // Detect potential Latin-1 / Windows-1252 encoding: UTF-8 decode failures
         // produce U+FFFD replacement chars. Common with CSVs from older Canadian
         // real-estate software (Lone Wolf, RE/MAX legacy exports). Mirrors the
@@ -823,7 +823,7 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
         );
         if (crToUpsert.length > 0) {
           const { error: crErr } = await supabase.from("client_records").upsert(
-            crToUpsert,
+            dedupeByImportExternalId(crToUpsert),
             { onConflict: "user_id,import_external_id" },
           );
           if (crErr) {
@@ -885,7 +885,7 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
           );
           if (txToUpsert.length > 0) {
             const { error: txInsertErr } = await supabase.from("transactions").upsert(
-              txToUpsert,
+              dedupeByImportExternalId(txToUpsert),
               { onConflict: "user_id,import_external_id" },
             );
             if (txInsertErr) {
@@ -1041,7 +1041,7 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
         );
         if (crToUpsert.length > 0) {
           const { error: crErr } = await supabase.from("client_records").upsert(
-            crToUpsert,
+            dedupeByImportExternalId(crToUpsert),
             { onConflict: "user_id,import_external_id" },
           );
           if (crErr) throw crErr;
@@ -1097,7 +1097,7 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
           );
           if (txToUpsert.length > 0) {
             const { error: txInsertErr } = await supabase.from("transactions").upsert(
-              txToUpsert,
+              dedupeByImportExternalId(txToUpsert),
               { onConflict: "user_id,import_external_id" },
             );
             if (txInsertErr) throw txInsertErr;
