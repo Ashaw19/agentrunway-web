@@ -856,8 +856,18 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
               user_id: user.id,
               date: d.date,
               address: d.address || "",
-              sale_price: d.sale_price ?? null,
-              commission_pct: d.commission_percent ?? null,
+              // Clamp to DB CHECK ranges (chk_tx_sale_price_reasonable / chk_tx_commission_pct_range):
+              // an out-of-range LLM misread (e.g. 30% commission, column-swapped price) would otherwise
+              // reject the ENTIRE upsert batch with no user recovery. gci_override carries the real GCI,
+              // so nulling an invalid secondary field loses no economic data.
+              sale_price:
+                d.sale_price != null && d.sale_price >= 0 && d.sale_price <= 100_000_000
+                  ? d.sale_price
+                  : null,
+              commission_pct:
+                d.commission_percent != null && d.commission_percent >= 0 && d.commission_percent <= 0.25
+                  ? d.commission_percent
+                  : null,
               gci_override: d.gci,
               side: (d.side ?? "buyer") as "buyer" | "seller" | "both",
               status: "closed" as const,
@@ -1068,8 +1078,18 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
               user_id: user.id,
               date: d.date,
               address: d.address || "",
-              sale_price: d.sale_price ?? null,
-              commission_pct: d.commission_percent ?? null,
+              // Clamp to DB CHECK ranges (chk_tx_sale_price_reasonable / chk_tx_commission_pct_range):
+              // an out-of-range LLM misread (e.g. 30% commission, column-swapped price) would otherwise
+              // reject the ENTIRE upsert batch with no user recovery. gci_override carries the real GCI,
+              // so nulling an invalid secondary field loses no economic data.
+              sale_price:
+                d.sale_price != null && d.sale_price >= 0 && d.sale_price <= 100_000_000
+                  ? d.sale_price
+                  : null,
+              commission_pct:
+                d.commission_percent != null && d.commission_percent >= 0 && d.commission_percent <= 0.25
+                  ? d.commission_percent
+                  : null,
               gci_override: d.gci,     // store GCI directly
               side: (d.side ?? "buyer") as "buyer" | "seller" | "both",
               status: "closed" as const,
