@@ -68,13 +68,21 @@ export default async function PipelinePage() {
   const buyerClients: BuyerClient[] = (clientsResult.data ?? [])
     .filter(
       (c) =>
-        (c.buyer_pre_approval_amount ?? 0) > 0 || (c.property_interest ?? 0) > 0,
+        // Only treat `property_interest` as a buyer budget when the client is a
+        // buyer (`property_interest_type === "budget"`). When the type is
+        // "listing", `property_interest` is a seller's LISTING price and must not
+        // be counted as a buyer budget — that inflates the weighted-GCI forecast.
+        // Mirrors the gate already applied in crm/tabs/insights-tab.tsx.
+        (c.buyer_pre_approval_amount ?? 0) > 0 ||
+        (c.property_interest_type === "budget" && (c.property_interest ?? 0) > 0),
     )
     .map((c) => ({
       id: c.id,
       name: c.name,
       status: c.status,
-      budget: (c.buyer_pre_approval_amount ?? 0) || (c.property_interest ?? 0),
+      budget:
+        (c.buyer_pre_approval_amount ?? 0) ||
+        (c.property_interest_type === "budget" ? (c.property_interest ?? 0) : 0),
       preApproved: c.buyer_pre_approved ?? false,
       targetCloseDate: c.buyer_target_close_date ?? null,
       statusChangedAt: c.updated_at ?? null,

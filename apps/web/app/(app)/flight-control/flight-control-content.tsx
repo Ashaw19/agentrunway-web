@@ -941,7 +941,7 @@ function EmptyState({
         )}
       </Button>
       <p className="text-[11px] text-muted-foreground/50">
-        Scans run automatically each morning at 8 AM.
+        Scans run automatically each morning.
       </p>
     </div>
   );
