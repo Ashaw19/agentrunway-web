@@ -77,7 +77,7 @@ export async function POST(req: NextRequest) {
     .select("account_id, access_token, token_expires_at")
     .eq("user_id", user.id)
     .eq("platform", "instagram")
-    .single();
+    .maybeSingle();
 
   if (!connection?.access_token || !connection?.account_id) {
     return NextResponse.json(
