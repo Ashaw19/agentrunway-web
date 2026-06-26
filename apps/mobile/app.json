@@ -27,8 +27,17 @@
       "edgeToEdgeEnabled": true
     },
     "web": {
+      "bundler": "metro",
       "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/favicon.png",
+      "name": "Agent Runway",
+      "shortName": "Agent Runway",
+      "lang": "en",
+      "themeColor": "#0A0A0F",
+      "backgroundColor": "#0A0A0F",
+      "display": "standalone",
+      "description": "Agent Runway — the business financial layer for Canadian real estate agents.",
+      "startUrl": "/"
     },
     "plugins": [
       "expo-router",
