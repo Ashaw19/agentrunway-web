@@ -45,6 +45,7 @@ import type { ImportResult, ExtractedDeal } from "@/app/api/import-history/route
 import type { ExtractionQuality } from "@/lib/import/types";
 import { applyValidation } from "@/lib/import/validation/validate-transactions";
 import { computeImportExternalId, dedupeByImportExternalId } from "@/lib/import/external-id";
+import { clampSalePrice, clampCommissionPct } from "@/lib/import/clamp-db-range";
 import dynamic from "next/dynamic";
 import type { YoYDataPoint } from "@/components/year-over-year-chart";
 
@@ -987,17 +988,12 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
             user_id:        user.id,
             date:           deal.date,
             address:        deal.address || "",
-            // Clamp to DB CHECK ranges (chk_tx_sale_price_reasonable / chk_tx_commission_pct_range):
-            // an out-of-range value would otherwise reject the ENTIRE upsert batch with no user
-            // recovery. gci_override carries the real GCI, so falling back loses no economic data.
-            sale_price:
-              deal.sale_price != null && deal.sale_price >= 0 && deal.sale_price <= 100_000_000
-                ? deal.sale_price
-                : 0,
-            commission_pct:
-              deal.commission_percent != null && deal.commission_percent >= 0 && deal.commission_percent <= 0.25
-                ? deal.commission_percent
-                : 0.025,
+            // Clamp to DB CHECK ranges (chk_tx_sale_price_reasonable / chk_tx_commission_pct_range)
+            // via the single-source-of-truth helper: an out-of-range value would otherwise reject
+            // the ENTIRE upsert batch with no user recovery. gci_override carries the real GCI, so
+            // falling back loses no economic data.
+            sale_price:     clampSalePrice(deal.sale_price, 0),
+            commission_pct: clampCommissionPct(deal.commission_percent, 0.025),
             gci_override:   deal.gci,
             side:           txSide,
             status:         "closed" as const,
@@ -1254,17 +1250,12 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
               user_id: user.id,
               date: d.date,
               address: d.address || "",
-              // Clamp to DB CHECK ranges (chk_tx_sale_price_reasonable / chk_tx_commission_pct_range):
-              // an out-of-range value would otherwise reject the ENTIRE upsert batch with no user
-              // recovery. gci_override carries the real GCI, so falling back loses no economic data.
-              sale_price:
-                d.sale_price != null && d.sale_price >= 0 && d.sale_price <= 100_000_000
-                  ? d.sale_price
-                  : 0,
-              commission_pct:
-                d.commission_percent != null && d.commission_percent >= 0 && d.commission_percent <= 0.25
-                  ? d.commission_percent
-                  : 0.025,
+              // Clamp to DB CHECK ranges (chk_tx_sale_price_reasonable / chk_tx_commission_pct_range)
+              // via the single-source-of-truth helper: an out-of-range value would otherwise reject
+              // the ENTIRE upsert batch with no user recovery. gci_override carries the real GCI, so
+              // falling back loses no economic data.
+              sale_price:     clampSalePrice(d.sale_price, 0),
+              commission_pct: clampCommissionPct(d.commission_percent, 0.025),
               gci_override: d.gci,     // gci = PRE-split gross commission income
               side: (d.side ?? "buyer") as "buyer" | "seller" | "both",
               status: "closed" as const,
