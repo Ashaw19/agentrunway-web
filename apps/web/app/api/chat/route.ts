@@ -62,7 +62,7 @@ import { getPlaybooks } from "@/lib/troubleshooting-playbooks";
 import { buildDiagnostics } from "@/lib/chat-diagnostics";
 import { logChatAnalytics, countTopicFollowUps } from "@/lib/chat-analytics";
 import { models, heliconeHeaders, TASK_BUDGETS_BETA_HEADER } from "@/lib/ai/provider";
-import { selectModelTier } from "@/lib/ai/router";
+import { selectModelTier, personaEffort } from "@/lib/ai/router";
 import { buildPromptParts, injectCanary, validateNavigatorOutput } from "@/lib/ai/security";
 import { fetchMemories, addMemory } from "@/lib/ai/memory";
 import { createPersonaAgentTools, NEEDS_APPROVAL_TOOLS, APPROVAL_DESCRIPTIONS } from "@/lib/ai/tools";
@@ -1518,30 +1518,67 @@ Be the expert — explain metrics, suggest features, direct to pages. Think abou
         maxOutputTokens: maxTokens,
         // Opus 4.8 rejects non-default temperature values (throws 400); omit for complex tier.
         ...(tier !== "complex" ? { temperature: 0.7 } : {}),
-        // Task Budgets (public beta) — Opus-only soft-cap of 40K tokens per
-        // agentic turn, with the model self-regulating toward graceful close
-        // as the budget depletes. The task budget itself is injected into
-        // the request body by the Opus provider's fetch passthrough (see
-        // lib/ai/provider.ts). This providerOptions entry ensures the
-        // matching `anthropic-beta` header is sent by the SDK — belt and
-        // suspenders with the fetch-layer header merge.
+        // Provider options (Anthropic):
+        // - effort (output_config.effort): per-persona reasoning depth on the
+        //   Opus/Sonnet tiers. Navigator=high (tax accuracy is the wedge),
+        //   Captain=medium, Dispatcher=low. `@ai-sdk/anthropic` (≥3.0.74)
+        //   serializes this into `output_config.effort` and auto-adds the
+        //   `effort-2025-11-24` beta header. Gated by `personaEffort` so it is
+        //   never sent on the `fast` (Haiku) tier — Haiku 400s on effort.
+        // - anthropicBeta (Task Budgets): Opus-only. The task_budget body is
+        //   injected by the Opus provider's fetch passthrough (lib/ai/provider.ts);
+        //   this entry guarantees the matching `anthropic-beta` header. The fetch
+        //   passthrough spreads any existing `output_config` (i.e. the effort the
+        //   SDK already serialized) before adding task_budget, so the two compose.
         // Paired with `maxOutputTokens` above as the hard ceiling.
-        ...(tier === "complex"
-          ? {
-              providerOptions: {
-                anthropic: {
-                  anthropicBeta: [TASK_BUDGETS_BETA_HEADER],
-                },
-              },
-            }
-          : {}),
+        ...(() => {
+          const effort = personaEffort(persona, tier);
+          const anthropic: {
+            effort?: string;
+            anthropicBeta?: string[];
+          } = {};
+          if (effort) anthropic.effort = effort;
+          if (tier === "complex") anthropic.anthropicBeta = [TASK_BUDGETS_BETA_HEADER];
+          return Object.keys(anthropic).length > 0
+            ? { providerOptions: { anthropic } }
+            : {};
+        })(),
         abortSignal: abortController.signal,
         headers: heliconeHeaders({
           userId: user.id,
           feature: "chat",
           sessionId: requestId,
         }),
-        onFinish: ({ text }) => {
+        onFinish: ({ text, totalUsage }) => {
+          // ── Token-usage telemetry (incl. thinking/reasoning tokens) ───────
+          // Helicone GA captures usage at the proxy HTTP layer (including
+          // reasoning tokens billed as output), so per-user cost attribution
+          // already flows through Helicone. This app-side log is the
+          // Helicone-independent signal the Director Cockpit burn metric can
+          // consume, and it surfaces reasoning-token volume per tier/persona
+          // for tuning the per-persona `effort` budgets. Non-blocking and
+          // fully guarded — usage telemetry must never break chat persistence.
+          try {
+            const u = totalUsage;
+            log.info(
+              {
+                requestId,
+                userId: user.id,
+                tier,
+                persona,
+                inputTokens: u?.inputTokens,
+                outputTokens: u?.outputTokens,
+                totalTokens: u?.totalTokens,
+                reasoningTokens: u?.outputTokenDetails?.reasoningTokens,
+                cacheReadTokens: u?.inputTokenDetails?.cacheReadTokens,
+                cacheWriteTokens: u?.inputTokenDetails?.cacheWriteTokens,
+              },
+              "[chat] token usage",
+            );
+          } catch (err) {
+            log.warn({ err, requestId }, "[chat] usage telemetry log failed");
+          }
+
           // ── Navigator post-stream validation (safety net) ────────────────
           // Persona system prompts are the primary enforcement for the
           // tax-information-not-advice rule. This is an infrastructure-layer
