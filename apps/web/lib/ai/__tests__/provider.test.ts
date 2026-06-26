@@ -15,6 +15,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { validateTaxCopy } from "@agent-runway/core/tax-copy";
 import {
   opusWithTaskBudgetFetch,
   OPUS_TASK_BUDGET_TOKENS,
@@ -468,5 +469,17 @@ describe("opusWithTaskBudgetFetch — mid-conversation tax-safety system message
     const last = forwardedBody.messages[forwardedBody.messages.length - 1]!;
     expect(last.role).toBe("system");
     expect(last.content).toBe(TAX_SAFETY_SYSTEM_MESSAGE);
+  });
+
+  it("the tax-safety system message itself passes the info-not-advice lint (no forbidden-verb creep)", () => {
+    // Self-consistency: the string that ENFORCES info-not-advice must itself
+    // clear AR's canonical tax-copy lint. Mirrors tax-copy/disclaimer.test.ts.
+    // Locks the wording against re-introducing a negated forbidden-verb list
+    // (which seeds the banned tokens into the model's most-recent context and
+    // would fail validateTaxCopy hard).
+    const errors = validateTaxCopy(TAX_SAFETY_SYSTEM_MESSAGE).filter(
+      (d) => d.level === "error",
+    );
+    expect(errors).toEqual([]);
   });
 });
