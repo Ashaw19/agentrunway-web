@@ -15,11 +15,18 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { checkIsPro } from "./pro-gate.ts";
-import { buildToolRegistry, type McpTool } from "./tools/index.ts";
+import { buildToolRegistry } from "./tools/index.ts";
+import {
+  handleRpcMessage,
+  toHttpResponseInit,
+  type JsonRpcRequest,
+  type JsonRpcResponse,
+  type ProtocolTool,
+  type UsageLogger,
+} from "./protocol.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
-const PROTOCOL_VERSION = "2024-11-05";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -27,22 +34,6 @@ const CORS_HEADERS = {
     "authorization, x-client-info, apikey, content-type, mcp-session-id",
   "Access-Control-Allow-Methods": "POST, GET, DELETE, OPTIONS",
 };
-
-// ── Types ──────────────────────────────────────────────────────────────────
-
-interface JsonRpcRequest {
-  jsonrpc: "2.0";
-  id: string | number | null;
-  method: string;
-  params?: unknown;
-}
-
-interface JsonRpcResponse {
-  jsonrpc: "2.0";
-  id: string | number | null;
-  result?: unknown;
-  error?: { code: number; message: string; data?: unknown };
-}
 
 // ── Request handler ────────────────────────────────────────────────────────
 
@@ -97,115 +88,29 @@ Deno.serve(async (req: Request) => {
     return mcpError(null, -32700, "Parse error");
   }
 
+  // NOTE: only a single JSON-RPC message is supported (no array/batch). A
+  // batched array fails the `jsonrpc !== "2.0"` guard below and returns
+  // Invalid Request — this is pre-existing behavior, unchanged here.
   if (rpcRequest.jsonrpc !== "2.0") {
     return mcpError(rpcRequest.id ?? null, -32600, "Invalid Request");
   }
 
   // ── MCP: build tool registry & route ─────────────────────────────────────
-  const tools = buildToolRegistry(supabase, user.id);
-  const response = await routeRequest(rpcRequest, tools, supabase, user.id);
+  // McpTool is structurally compatible with ProtocolTool (same fields the
+  // router reads); cast keeps the protocol layer free of the npm: import.
+  const tools = buildToolRegistry(supabase, user.id) as unknown as ProtocolTool[];
+  const handled = await handleRpcMessage(
+    rpcRequest,
+    tools,
+    supabase as unknown as UsageLogger,
+    user.id,
+  );
 
-  return new Response(JSON.stringify(response), {
-    status: 200,
-    headers: { "Content-Type": "application/json", ...CORS_HEADERS },
-  });
+  // Notifications (no id) → 202 Accepted, empty body, no JSON-RPC envelope.
+  // Requests (with id) → 200 OK, JSON-RPC result/error envelope.
+  const { status, body, headers } = toHttpResponseInit(handled, CORS_HEADERS);
+  return new Response(body, { status, headers });
 });
-
-// ── MCP protocol router ────────────────────────────────────────────────────
-
-async function routeRequest(
-  req: JsonRpcRequest,
-  tools: McpTool[],
-  supabase: ReturnType<typeof createClient>,
-  userId: string,
-): Promise<JsonRpcResponse> {
-  const { method, id, params } = req;
-
-  try {
-    switch (method) {
-      // MCP handshake
-      case "initialize":
-        return {
-          jsonrpc: "2.0",
-          id,
-          result: {
-            protocolVersion: PROTOCOL_VERSION,
-            capabilities: { tools: {} },
-            serverInfo: { name: "Agent Runway", version: "1.0.0" },
-          },
-        };
-
-      case "notifications/initialized":
-        // Notification — no response body needed, but MCP spec allows empty result
-        return { jsonrpc: "2.0", id, result: {} };
-
-      case "ping":
-        return { jsonrpc: "2.0", id, result: {} };
-
-      // Tool discovery
-      case "tools/list":
-        return {
-          jsonrpc: "2.0",
-          id,
-          result: {
-            tools: tools.map(({ name, description, inputSchema, annotations }) => ({
-              name,
-              description,
-              inputSchema,
-              ...(annotations ? { annotations } : {}),
-            })),
-          },
-        };
-
-      // Tool invocation
-      case "tools/call": {
-        const p = params as { name?: string; arguments?: unknown };
-        const toolName = p?.name;
-        const toolArgs = p?.arguments ?? {};
-
-        const tool = tools.find((t) => t.name === toolName);
-        if (!tool) {
-          return {
-            jsonrpc: "2.0",
-            id,
-            error: { code: -32602, message: `Unknown tool: ${toolName}` },
-          };
-        }
-
-        const t0 = Date.now();
-        let isError = false;
-        let result;
-        try {
-          result = await tool.handler(toolArgs);
-        } catch (handlerErr) {
-          isError = true;
-          throw handlerErr;
-        } finally {
-          // Fire-and-forget usage logging — never block the response
-          supabase
-            .from("mcp_events")
-            .insert({ user_id: userId, tool_name: toolName!, latency_ms: Date.now() - t0, is_error: isError })
-            .then(({ error: logErr }) => { if (logErr) console.warn("[mcp-server] event log failed:", logErr.message); });
-        }
-        return { jsonrpc: "2.0", id, result };
-      }
-
-      default:
-        return {
-          jsonrpc: "2.0",
-          id,
-          error: { code: -32601, message: "Method not found" },
-        };
-    }
-  } catch (err: unknown) {
-    console.error("[mcp-server] Tool error:", err);
-    return {
-      jsonrpc: "2.0",
-      id,
-      error: { code: -32603, message: "Internal error" },
-    };
-  }
-}
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
