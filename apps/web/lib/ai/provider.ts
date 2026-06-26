@@ -31,12 +31,24 @@ const anthropic = createAnthropic({
 // soft token ceiling for an entire agentic turn. Claude self-regulates as
 // the budget depletes (wraps up gracefully rather than hard-cutting).
 //
-// The Vercel AI SDK's Anthropic provider (3.0.66) does not yet expose
-// `output_config` in its providerOptions schema — unknown fields are stripped
-// by zod before serialization. To inject it today, we use the provider's
-// `fetch` passthrough to patch the outgoing request body right before it
-// hits Anthropic's API. This is the same pattern Andrew's existing Helicone
-// proxy uses (hooking at the HTTP layer) and leaves all other provider
+// HISTORY / STATUS (2026-06-26): the Vercel AI SDK's Anthropic provider at
+// 3.0.66 did NOT expose `output_config` in its providerOptions schema — unknown
+// fields were stripped by zod before serialization — which is WHY the task
+// budget is injected via this `fetch` passthrough rather than providerOptions.
+//
+// As of `@ai-sdk/anthropic` 3.0.74 the SDK now natively serializes BOTH
+// `providerOptions.anthropic.effort` → `output_config.effort` (auto-adds the
+// `effort-2025-11-24` beta) AND `providerOptions.anthropic.taskBudget` →
+// `output_config.task_budget` (auto-adds `task-budgets-2026-03-13`). So this
+// fetch hack is no longer strictly required for task_budget — a follow-up
+// could migrate it to providerOptions and delete this passthrough. It is left
+// in place for now because (a) it is battle-tested and regression-covered
+// (see provider.test.ts), and (b) migrating it is a separate refactor with its
+// own risk surface. The two paths COMPOSE safely: the SDK serializes
+// `output_config.effort` before this hook runs, and the hook spreads the
+// existing `output_config` before adding `task_budget` (verified by the
+// "preserves an existing output_config.effort" test). This hooks at the HTTP
+// layer like Andrew's existing Helicone proxy and leaves all other provider
 // behaviour (cache_control, helicone headers, standard streaming) untouched.
 //
 // Pairing constraint (from Anthropic docs): task_budget is ADVISORY, not a

@@ -196,6 +196,36 @@ describe("opusWithTaskBudgetFetch", () => {
     expect(occurrences).toBe(1);
   });
 
+  it("preserves an existing output_config.effort when injecting task_budget (composition with per-persona effort)", async () => {
+    // In production the SDK serializes `providerOptions.anthropic.effort` into
+    // `output_config.effort` BEFORE this fetch hook runs. The hook must spread
+    // the existing output_config (keeping effort) and add task_budget alongside
+    // it — never clobber effort. This guards the P2-B + Task Budgets composition.
+    const { calls } = installFetchStub();
+
+    await opusWithTaskBudgetFetch(ANTHROPIC_URL, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        model: "claude-opus-4-8",
+        max_tokens: 4096,
+        output_config: { effort: "high" },
+        messages: [{ role: "user", content: "hello" }],
+      }),
+    });
+
+    const forwardedBody = JSON.parse(calls[0]!.init!.body as string) as Record<
+      string,
+      unknown
+    >;
+    const outputConfig = forwardedBody.output_config as Record<string, unknown>;
+    expect(outputConfig.effort).toBe("high");
+    expect(outputConfig.task_budget).toEqual({
+      type: "tokens",
+      total: OPUS_TASK_BUDGET_TOKENS,
+    });
+  });
+
   it("never sets task_budget.remaining — the server tracks countdown and setting it invalidates prompt cache prefix", async () => {
     const { calls } = installFetchStub();
 
