@@ -83,7 +83,7 @@ export function buildToolRegistry(
                   // Outreach + Settings (Step 9)
                   "get_flight_control_priorities", "get_user_settings",
                 ],
-                phase: "Phase 1 complete — 17 tools live",
+                phase: "Phase 1 complete — 16 tools live",
               },
               null,
               2,

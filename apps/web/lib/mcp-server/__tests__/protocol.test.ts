@@ -50,8 +50,9 @@ const CORS_HEADERS = {
  *   = 16 tools total.
  *
  * Verified 2026-06-26 against tools/*.ts (grep of `name:`) + tools/index.ts.
- * NOTE: the investigation finding said "17", and tools/index.ts's own `phase`
- * string still reads "17 tools live" — both are STALE. The real count is 16.
+ * NOTE: an earlier investigation finding said "17"; tools/index.ts's `phase`
+ * string was corrected from "17 tools live" to "16 tools live" to match the
+ * real count (16) verified here.
  */
 const EXPECTED_TOOL_NAMES = [
   "get_server_info",
