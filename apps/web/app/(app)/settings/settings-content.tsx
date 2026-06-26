@@ -59,6 +59,10 @@ import {
   PRICE_RANGE_OPTIONS,
   computeBusinessIdentityCompleted,
 } from "@agent-runway/core/business-identity";
+import {
+  SUPPRESSED_TOPIC_OPTIONS,
+  computeAgentGoalsCompleted,
+} from "@agent-runway/core/agent-goals";
 import { cn } from "@/lib/utils";
 
 type GoogleConnection = {
@@ -315,7 +319,7 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
     };
     const updatedGoals: AgentGoals = {
       ...agentGoals,
-      completed: !!(agentGoals.primary_goal || agentGoals.signature_phrases || agentGoals.hard_nogos),
+      completed: computeAgentGoalsCompleted(agentGoals),
     };
     const { error } = await supabase
       .from("user_settings")
@@ -1008,12 +1012,7 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
               <div className="space-y-2">
                 <Label className="text-sm">Topics to suppress in AI responses:</Label>
                 <div className="flex flex-wrap gap-2">
-                  {([
-                    { val: "tax_advice", label: "Tax Advice" },
-                    { val: "pricing", label: "Pricing Conversations" },
-                    { val: "business_growth", label: "Business Growth Tips" },
-                    { val: "crm_health", label: "CRM Advice" },
-                  ] as const).map(({ val, label }) => (
+                  {SUPPRESSED_TOPIC_OPTIONS.map(({ val, label }) => (
                     <button
                       key={val}
                       type="button"

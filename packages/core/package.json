@@ -15,7 +15,8 @@
     "./tax-copy/forbidden-verbs": "./tax-copy/forbidden-verbs.ts",
     "./tax-copy/validate": "./tax-copy/validate.ts",
     "./voice-quiz": "./voice-quiz/index.ts",
-    "./business-identity": "./business-identity/index.ts"
+    "./business-identity": "./business-identity/index.ts",
+    "./agent-goals": "./agent-goals/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
