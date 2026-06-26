@@ -33,11 +33,18 @@ export async function fetchMemories(
   if (!client) return "";
 
   try {
-    const results = await client.search(query, {
-      user_id: userId,
-      limit: 12,
+    // mem0ai v3: `limit` -> `topK`; entity scoping (user_id) moved out of the
+    // top level into a `filters` object. v3's search() actively THROWS if you
+    // pass `user_id`/`userId` at the top level (rejectTopLevelEntityParams).
+    // The response shape also changed: v2 returned Memory[] directly, v3 wraps
+    // it as `{ results: Memory[] }`. Verified against node_modules/mem0ai
+    // dist/index.d.ts (search signature) + dist/index.mjs (runtime payload).
+    const response = await client.search(query, {
+      topK: 12,
+      filters: { user_id: userId },
     });
 
+    const results = response?.results;
     if (!results || results.length === 0) return "";
 
     const lines = results
@@ -65,7 +72,13 @@ export async function addMemory(
   if (!client) return;
 
   try {
-    await client.add(messages, { user_id: userId });
+    // mem0ai v3: snake_case -> camelCase options. add() takes the entity id as
+    // a top-level camelCase `userId` (EntityOptions), NOT inside `filters` and
+    // NOT as snake_case `user_id`. (Unlike search(), add() does NOT reject a
+    // top-level entity param, but the typed surface is `userId`.) Verified
+    // against node_modules/mem0ai dist/index.d.ts (AddMemoryOptions extends
+    // EntityOptions { userId? }).
+    await client.add(messages, { userId });
   } catch {
     // Non-critical — never break the chat if memory storage fails
   }
