@@ -122,7 +122,9 @@ export default async function OverheadPage() {
   const legacyMonthlyRecurring = expenseItems.reduce((sum, i) => sum + Number(i.monthly_recurring ?? 0), 0);
   const monthlyRecurring = legacyMonthlyRecurring + recurringExpMonthly;
   const now = new Date();
-  const expMonthsElapsed = now.getMonth() + (now.getDate() / 30);
+  // Integer months elapsed (1-12) — matches the dashboard. See
+  // dashboard_metric_divergence_fix_2026-06-26.md.
+  const expMonthsElapsed = now.getMonth() + 1;
   const expensesYTD = Math.max(receiptYTD, legacyMonthlyRecurring * expMonthsElapsed) + recurringExpYTD;
   const qPcts = rawSettings?.national_quarter_pcts ?? [0.25, 0.25, 0.25, 0.25];
   const fraction = seasonalFractionElapsed(qPcts);

@@ -148,6 +148,63 @@ export function seasonalFractionElapsed(
   return Math.min(0.999, Math.max(0.01, fraction));
 }
 
+// ── Listing-Weighted GCI ──────────────────────────────────────────────────
+
+/**
+ * Canonical conversion probabilities for listing appointments by status.
+ *
+ * Single source of truth for the listing-weighted GCI contribution that feeds
+ * `projectedYearEndGCI`. Before 2026-06-26 this table was open-coded as a
+ * `LISTING_PROBS` literal in the dashboard, forecast, and reports components,
+ * while the chat route + chat-diagnostics + the MCP analytics tools omitted
+ * listing-weighted GCI from the projection entirely — so a listing-heavy
+ * agent saw a materially higher projected GCI on the dashboard than in
+ * Captain's chat answer or the Connector. This export collapses all of those
+ * to one definition.
+ *
+ * A status not present here contributes 0 (e.g. "sold" listings are excluded
+ * from forward projection — their GCI lands in closed transactions instead).
+ *
+ * Spec: memory/findings/dashboard_metric_divergence_fix_2026-06-26.md
+ */
+export const LISTING_PROBABILITIES: Record<string, number> = {
+  scheduled: 0.15,
+  active: 0.40,
+};
+
+/** Minimal shape `computeListingWeightedGCI` reads off each listing row. */
+export interface ListingWeightInput {
+  estimated_list_price: number | null | undefined;
+  estimated_commission_pct: number | null | undefined;
+  status: string;
+}
+
+/**
+ * Probability-weighted GCI contribution from active listing appointments.
+ *
+ *   Σ over listings of: list_price × commission_pct × P(status)
+ *
+ * Mirrors the formula the dashboard, forecast, and reports components used
+ * inline. `estimated_commission_pct` falls back to 0.025 (the DB default and
+ * the value those UIs used) when null/undefined; price falls back to 0.
+ * Non-{scheduled,active} statuses weight to 0 via `LISTING_PROBABILITIES`.
+ *
+ * Callers pass the SAME `scheduled`/`active`-filtered listing rows the
+ * dashboard reads (listing_appointments where status in
+ * ['scheduled','active']). Rows of other statuses contribute 0 even if passed.
+ */
+export function computeListingWeightedGCI(
+  listings: ReadonlyArray<ListingWeightInput> | null | undefined,
+): number {
+  if (!listings || listings.length === 0) return 0;
+  return listings.reduce((sum, la) => {
+    const price = Number(la.estimated_list_price ?? 0);
+    const commPct = la.estimated_commission_pct ?? 0.025;
+    const prob = LISTING_PROBABILITIES[la.status] ?? 0;
+    return sum + price * commPct * prob;
+  }, 0);
+}
+
 // ── GCI / Transaction Projections ───────────────────────────────────────────
 
 /**

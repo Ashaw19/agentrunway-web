@@ -24,6 +24,8 @@ import {
   paceVsGoalPercent,
   trendDirection,
   monthlyGCITotals,
+  computeListingWeightedGCI,
+  LISTING_PROBABILITIES,
 } from "../projection-engine";
 import { TEST_TRANSACTIONS, EXPECTED_GCI, EXPECTED_MONTHLY_GCI } from "./test-data";
 
@@ -427,5 +429,46 @@ describe("trendDirection", () => {
     const trend = trendDirection(upTx);
     // Result depends on monthly distribution - at minimum verify it runs
     expect(["up", "flat", "down"]).toContain(trend);
+  });
+});
+
+// ── Listing-Weighted GCI (cross-surface divergence fix 2026-06-26) ───────────
+
+describe("computeListingWeightedGCI", () => {
+  it("LISTING_PROBABILITIES match the historical inline LISTING_PROBS table", () => {
+    expect(LISTING_PROBABILITIES.scheduled).toBe(0.15);
+    expect(LISTING_PROBABILITIES.active).toBe(0.40);
+  });
+
+  it("returns 0 for null/undefined/empty", () => {
+    expect(computeListingWeightedGCI(null)).toBe(0);
+    expect(computeListingWeightedGCI(undefined)).toBe(0);
+    expect(computeListingWeightedGCI([])).toBe(0);
+  });
+
+  it("weights scheduled at 0.15 and active at 0.40", () => {
+    // scheduled: 500_000 * 0.025 * 0.15 = 1875
+    // active:    600_000 * 0.03  * 0.40 = 7200
+    const listings = [
+      { estimated_list_price: 500_000, estimated_commission_pct: 0.025, status: "scheduled" },
+      { estimated_list_price: 600_000, estimated_commission_pct: 0.03, status: "active" },
+    ];
+    expect(computeListingWeightedGCI(listings)).toBeCloseTo(1875 + 7200, 5);
+  });
+
+  it("falls back to 0.025 commission when null (DB default) and 0 price when null", () => {
+    const listings = [
+      { estimated_list_price: 400_000, estimated_commission_pct: null, status: "active" },
+      { estimated_list_price: null, estimated_commission_pct: 0.03, status: "active" },
+    ];
+    // first: 400_000 * 0.025 * 0.40 = 4000 ; second: 0
+    expect(computeListingWeightedGCI(listings)).toBeCloseTo(4000, 5);
+  });
+
+  it("weights non-{scheduled,active} statuses (e.g. sold) to 0", () => {
+    const listings = [
+      { estimated_list_price: 700_000, estimated_commission_pct: 0.025, status: "sold" },
+    ];
+    expect(computeListingWeightedGCI(listings)).toBe(0);
   });
 });

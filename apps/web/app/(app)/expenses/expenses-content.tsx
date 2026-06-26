@@ -820,8 +820,12 @@ export function ExpensesContent({
   );
 
   // ── Months elapsed for recurring YTD estimates ──────────────────────
+  // Integer months elapsed (1-12) — MUST match the dashboard's expMonthsElapsed
+  // (getMonth()+1) so the expenses-page expense ratio agrees with the
+  // dashboard's. Fractional getDate()/30 (fixed 2026-06-26) diverged the two.
+  // See dashboard_metric_divergence_fix_2026-06-26.md.
   const now = new Date();
-  const monthsElapsed = now.getMonth() + (now.getDate() / 30); // fractional months in current year
+  const monthsElapsed = now.getMonth() + 1;
 
   // ── Effective YTD per item: receipts if available, else recurring estimate ──
   // Avoids double-counting: receipts represent actuals, recurring fills gaps

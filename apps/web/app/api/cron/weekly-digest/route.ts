@@ -20,7 +20,7 @@ import {
   type UserSettings,
 } from "@/lib/types/database";
 import { buildUnsubscribeUrl } from "@/lib/email-tokens";
-import { seasonalFractionElapsed, paceVsGoalPercent, projectedYearEndGCI } from "@agent-runway/core/engines/projection-engine";
+import { seasonalFractionElapsed, paceVsGoalPercent, projectedYearEndGCI, computeListingWeightedGCI } from "@agent-runway/core/engines/projection-engine";
 import { buildHealthReport } from "@agent-runway/core/engines/health-report";
 import { compute as computeRunwayScore } from "@agent-runway/core/engines/runway-score-engine";
 import { compare as benchmarkCompare } from "@agent-runway/core/engines/benchmark-engine";
@@ -196,6 +196,20 @@ export async function GET(req: NextRequest) {
         0
       );
 
+      // Active listing appointments — same scheduled/active set the dashboard
+      // reads. Listing-weighted GCI is added to the projection input so the
+      // email digest's projected GCI matches the dashboard for listing-heavy
+      // agents. See memory/findings/dashboard_metric_divergence_fix_2026-06-26.md.
+      const { data: listingRows } = await admin
+        .from("listing_appointments")
+        .select("estimated_list_price, estimated_commission_pct, status")
+        .eq("user_id", user.user_id)
+        .in("status", ["scheduled", "active"])
+        .limit(1000);
+      const listingWeightedGCI = computeListingWeightedGCI(
+        (listingRows ?? []) as { estimated_list_price: number | null; estimated_commission_pct: number | null; status: string }[],
+      );
+
       // Outreach ready count
       const { count: outreachReady } = await admin
         .from("outreach_queue")
@@ -286,7 +300,12 @@ export async function GET(req: NextRequest) {
       const receiptYTD = (receiptYTDQuery.data ?? []).reduce(
         (sum: number, r: { total_amount?: number | string }) => sum + Number(r.total_amount ?? 0), 0,
       );
-      const expMonthsElapsed = now.getMonth() + (now.getDate() / 30);
+      // Integer months elapsed (1-12) — MUST match the dashboard's
+      // expMonthsElapsed (getMonth()+1), not the fractional getDate()/30 form.
+      // The fractional form (fixed 2026-06-26) made the digest's expensesYTD —
+      // and the Runway Score / expense ratio derived from it — disagree with
+      // the dashboard. See dashboard_metric_divergence_fix_2026-06-26.md.
+      const expMonthsElapsed = now.getMonth() + 1;
       const recurringYTDEstimate = monthlyRecurring * expMonthsElapsed;
       // Also include new recurring_expenses table (matches dashboard canonical formula)
       const { data: recurringExpRows } = await admin
@@ -303,7 +322,9 @@ export async function GET(req: NextRequest) {
       );
 
       // Benchmark percentile
-      const projectedGCI = projectedYearEndGCI(ytdGCI, pipelineWeightedGCI, fraction, goalGCI);
+      // Projection input is pipeline + listing weighted GCI (matches dashboard).
+      // Survival's pipelineMonthlyEst below stays pipeline-only, also matching.
+      const projectedGCI = projectedYearEndGCI(ytdGCI, pipelineWeightedGCI + listingWeightedGCI, fraction, goalGCI);
       const benchmark = benchmarkCompare(projectedGCI, user.experience_years ?? null);
 
       // Survival months — cash input MUST be cashPosition.effectiveCash (not
