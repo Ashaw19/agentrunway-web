@@ -16,6 +16,7 @@ import {
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { TeamSubscribeButton } from "@/components/team-subscribe-button";
 import type { Organization } from "@/lib/types/organizations";
 
 interface Props {
@@ -47,7 +48,7 @@ function StatusBadge({
     return (
       <Badge className="bg-violet-100 text-violet-700 hover:bg-violet-100">
         <Shield className="h-3 w-3 mr-1" />
-        Beta — Lifetime Free
+        Beta — Free
       </Badge>
     );
   }
@@ -107,7 +108,7 @@ function formatDate(isoString: string) {
 
 export function BillingContent({
   org,
-  isOwner: _isOwner,
+  isOwner,
   role: _role,
   activeMemberCount,
   subscriptionData,
@@ -268,6 +269,24 @@ export function BillingContent({
             </div>
           )}
         </div>
+
+        {/* Beta org: owner can start a subscription (converts is_beta=false,
+            then checkout). Members keep Pro throughout the conversion. */}
+        {org.is_beta && isOwner && (
+          <div className="space-y-2 border-t pt-4">
+            <p className="text-xs text-muted-foreground">
+              Your team is on free beta access. Starting your subscription keeps
+              full access with no interruption, and your beta rate is locked for
+              as long as the subscription stays active.
+            </p>
+            <TeamSubscribeButton
+              orgId={org.id}
+              activeMemberCount={activeMemberCount}
+              isBeta={org.is_beta}
+              label="Start Subscription"
+            />
+          </div>
+        )}
       </div>
 
       {/* Seat Management Card */}

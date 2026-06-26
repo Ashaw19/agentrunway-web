@@ -83,6 +83,13 @@ export interface Organization {
   stripe_price_id: string | null;
   billing_email: string | null;
   is_beta: boolean;
+  /**
+   * When the org was deliberately converted from beta (is_beta=true) to
+   * billable (is_beta=false). NULL = never converted. Added by migration
+   * 00151; set by lib/actions/beta-conversion.ts. Non-billing-sensitive, so
+   * it is exposed to plain members via the column-level SELECT grant.
+   */
+  beta_converted_at: string | null;
   created_at: string;
   updated_at: string;
 }

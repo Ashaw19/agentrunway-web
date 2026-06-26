@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { updateOrgSettings } from "@/lib/actions/org-actions";
+import { TeamSubscribeButton } from "@/components/team-subscribe-button";
 import { fmtCurrency } from "@/lib/formatters";
 import type { Organization } from "@/lib/types/organizations";
 import { ORG_TYPE_LABELS } from "@/lib/types/organizations";
@@ -211,7 +212,7 @@ export function OrgSettingsContent({ org, isOwner, role, activeMemberCount = 0 }
                 {org.is_beta ? (
                   <Badge className="bg-violet-100 text-violet-700 hover:bg-violet-100">
                     <Shield className="h-3 w-3 mr-1" />
-                    Beta — Lifetime Free
+                    Beta — Free
                   </Badge>
                 ) : org.subscription_status === "active" ? (
                   <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">
@@ -248,7 +249,27 @@ export function OrgSettingsContent({ org, isOwner, role, activeMemberCount = 0 }
             )}
           </div>
 
-          {/* Manage billing or Subscribe */}
+          {/* Beta org: owner can start a subscription (converts is_beta=false,
+              then checkout). Members keep Pro throughout the conversion. */}
+          {org.is_beta && isOwner && (
+            <div className="pt-2 space-y-2">
+              <p className="text-xs text-muted-foreground max-w-sm">
+                Your team is on free beta access. When you start your
+                subscription, your team keeps full access with no interruption,
+                and your beta rate is locked for as long as the subscription
+                stays active.
+              </p>
+              <TeamSubscribeButton
+                orgId={org.id}
+                activeMemberCount={activeMemberCount}
+                isBeta={org.is_beta}
+                className="gap-2"
+                label="Start Subscription"
+              />
+            </div>
+          )}
+
+          {/* Manage billing or Subscribe (non-beta orgs) */}
           {!org.is_beta && (
             <div className="pt-2">
               {org.stripe_subscription_id ? (
@@ -277,32 +298,13 @@ export function OrgSettingsContent({ org, isOwner, role, activeMemberCount = 0 }
                   Manage Billing
                 </Button>
               ) : (
-                <Button
+                <TeamSubscribeButton
+                  orgId={org.id}
+                  activeMemberCount={activeMemberCount}
+                  isBeta={org.is_beta}
                   className="gap-2"
-                  onClick={async () => {
-                    try {
-                      const res = await fetch("/api/create-team-checkout", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                          org_id: org.id,
-                          member_count: Math.max(0, activeMemberCount - 1),
-                          billing: "monthly",
-                        }),
-                      });
-                      const data = await res.json();
-                      if (data.url) {
-                        window.location.href = data.url;
-                      } else {
-                        toast.error(data.error ?? "Could not start checkout");
-                      }
-                    } catch {
-                      toast.error("Could not start checkout");
-                    }
-                  }}
-                >
-                  Subscribe Team
-                </Button>
+                  label="Subscribe Team"
+                />
               )}
             </div>
           )}
