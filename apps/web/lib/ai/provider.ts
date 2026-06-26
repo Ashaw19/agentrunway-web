@@ -140,14 +140,19 @@ export const models = {
   default: anthropic("claude-sonnet-4-6"),
 
   /**
-   * Opus 4.7 — $5/$25 per MTok. Forecasting, scenario modeling, complex advisory.
+   * Opus 4.8 — $5/$25 per MTok. Forecasting, scenario modeling, complex advisory.
+   *
+   * Same request surface as Opus 4.7 (no new breaking changes): adaptive
+   * thinking only, sampling params removed, Task Budgets beta unchanged.
+   * Higher intelligence ceiling and stronger long-horizon coherence at the
+   * same price — the charter's intended model (provider was pinned to 4.7).
    *
    * Uses the Opus-specific provider instance that injects an output_config
    * task budget (40K tokens) via fetch passthrough. See the
    * `opusWithTaskBudgetFetch` definition above. Paired with the chat route's
    * `maxOutputTokens` ceiling as the hard cap.
    */
-  complex: anthropicOpus("claude-opus-4-7"),
+  complex: anthropicOpus("claude-opus-4-8"),
 
   /** Groq Llama 3.3 70B — $0.59/$0.79 per MTok. Speed fallback. */
   fallback: groq("llama-3.3-70b-versatile"),

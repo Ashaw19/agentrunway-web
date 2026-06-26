@@ -1516,7 +1516,7 @@ Be the expert — explain metrics, suggest features, direct to pages. Think abou
         // detectHandoff.displayText handles over-generation reliably on its
         // own; the server-side cap isn't worth the interaction cost.
         maxOutputTokens: maxTokens,
-        // Opus 4.7 rejects non-default temperature values (throws 400); omit for complex tier.
+        // Opus 4.8 rejects non-default temperature values (throws 400); omit for complex tier.
         ...(tier !== "complex" ? { temperature: 0.7 } : {}),
         // Task Budgets (public beta) — Opus-only soft-cap of 40K tokens per
         // agentic turn, with the model self-regulating toward graceful close
