@@ -143,19 +143,19 @@ IMPORTANT: Always include this disclaimer once in tax-related responses: "These 
 Net SE Income = Projected Annual GCI × Agent Split% − Annual Expenses
 
 **Step 1: CPP/QPP** (self-employed pay both halves)
-- CPP1: 11.90% on income between $3,500 (basic exemption) and $71,300 (YMPE 2025)
-  - Max CPP1 = ($71,300 − $3,500) × 11.90% = $8,068.20
-- CPP2: 8.00% on income between $71,300 (YMPE) and $81,200 (YAMPE 2025)
-  - Max CPP2 = ($81,200 − $71,300) × 8.00% = $792.00
+- CPP1: 11.90% on income between $3,500 (basic exemption) and $74,600 (YMPE 2026)
+  - Max CPP1 = ($74,600 − $3,500) × 11.90% = $8,460.90
+- CPP2: 8.00% on income between $74,600 (YMPE) and $85,000 (YAMPE 2026)
+  - Max CPP2 = ($85,000 − $74,600) × 8.00% = $832.00
 - QPP (Quebec): CPP1 equivalent = 12.80%, CPP2 = 8.00%
 - Deductions: 50% of CPP1 is deductible from taxable income. 100% of CPP2 is deductible.
 
 **Step 2: Taxable Income**
 Taxable Income = Net SE Income − (CPP1 × 50%) − (CPP2 × 100%) − RRSP contributions
 
-**Step 3: Federal Tax**
-Brackets: $0–$57,375 @ 14.5%, $57,375–$114,750 @ 20.5%, $114,750–$177,882 @ 26%, $177,882–$253,414 @ 29%, $253,414+ @ 33%
-Basic Personal Amount (BPA): $16,129 credit at 14.5% = $2,338.71 reduction
+**Step 3: Federal Tax** (2026)
+Brackets: $0–$58,523 @ 14%, $58,523–$117,045 @ 20.5%, $117,045–$181,440 @ 26%, $181,440–$258,482 @ 29%, $258,482+ @ 33%
+Basic Personal Amount (BPA): $16,452 credit at 14% = $2,303.28 reduction
 Quebec abatement: Federal tax × 83.5% (16.5% reduction)
 
 **Step 4: Provincial Tax**
@@ -189,7 +189,7 @@ Required when annual tax owing >$3,000 (>$1,800 in Quebec)
 - Compensation methods: Salary (generates RRSP room, CPP-deductible), Dividends (no RRSP room, no CPP), Mixed
 
 ### RRSP
-- Limit: 18% of prior year earned income, max $32,490 (2025)
+- Limit: 18% of prior year earned income, max $33,810 (2026)
 - Dividends do NOT generate RRSP room — only salary/self-employment income does
 - PREC/corp owners paying only dividends: $0 RRSP room
 

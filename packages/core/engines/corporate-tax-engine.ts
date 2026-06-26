@@ -9,7 +9,10 @@
  * gross income, and identifies the optimal compensation method (salary vs dividends)
  * for the agent's income level and province.
  *
- * Tax year: 2025 (CRA-confirmed corporate rates)
+ * Tax year: 2026 (CRA-confirmed; verified 2026-06-26). Federal corporate rates
+ * (SBD 9%, general 15%, $500K SBD limit) and provincial corporate rates are
+ * unchanged from 2025. The personal-side federal mirror below (BPA, brackets)
+ * is rolled to 2026 to keep salary/dividend math aligned with the personal engine.
  * ESTIMATE ONLY — Not legal or tax advice.
  */
 
@@ -20,10 +23,11 @@ import {
   provincialInfo,
 } from "./canadian-tax-engine";
 
-// ⚠️  TAX_YEAR = 2025 — Update all three engine files together:
+// ⚠️  TAX_YEAR = 2026 — Update all FOUR tax files together:
 // - canadian-tax-engine.ts
 // - corporate-tax-engine.ts
 // - tax-optimization-engine.ts
+// - apps/web/supabase/functions/mcp-server/lib/canadian-tax-engine.ts (Deno MCP mirror)
 
 // Ontario surtax (mirrors canadian-tax-engine.ts — applied to ALL provincial tax including dividends)
 function ontarioSurtax(provTax: number): number {
@@ -99,9 +103,9 @@ export interface CorporateTaxInput {
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
-const TAX_YEAR = 2025;
+const TAX_YEAR = 2026;
 
-// Federal corporate rates
+// Federal corporate rates (2026; unchanged from 2025)
 const FED_SBD_RATE     = 0.09;    // After Small Business Deduction
 const FED_GENERAL_RATE = 0.15;    // General rate (above SBD limit)
 const SBD_LIMIT        = 500_000; // Active business income cap for SBD
@@ -114,16 +118,16 @@ const SBD_REDUCTION_FACTOR  = 5;        // $5 reduction in SBD limit per $1 over
 const NEL_GROSS_UP  = 0.15;
 const FED_NEL_DTC   = 0.090301;   // 9.0301% of grossed-up amount
 
-// Federal BPA + blended 2025 rate (mirrors canadian-tax-engine.ts)
-const FED_BPA      = 16_129;
-const FED_BPA_RATE = 0.145;
+// Federal BPA + 2026 first-bracket rate (mirrors canadian-tax-engine.ts; verified 2026-06-26)
+const FED_BPA      = 16_452;
+const FED_BPA_RATE = 0.14;
 
-// 2025 Federal brackets (mirrors canadian-tax-engine.ts)
+// 2026 Federal brackets (mirrors canadian-tax-engine.ts)
 const FED_BRACKETS: [number, number][] = [
-  [57_375,   0.145],
-  [114_750,  0.205],
-  [177_882,  0.260],
-  [253_414,  0.290],
+  [58_523,   0.14],
+  [117_045,  0.205],
+  [181_440,  0.260],
+  [258_482,  0.290],
   [Infinity, 0.330],
 ];
 

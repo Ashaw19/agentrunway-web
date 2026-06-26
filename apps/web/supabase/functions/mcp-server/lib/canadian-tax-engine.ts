@@ -26,16 +26,17 @@ export interface CanadianTaxResult {
   taxYear: number;
 }
 
-const TAX_YEAR = 2025;
-const FEDERAL_BPA = 16_129;
-const FEDERAL_BPA_RATE = 0.145;
+// 2026 figures — keep in sync with packages/core/engines/canadian-tax-engine.ts (verified 2026-06-26)
+const TAX_YEAR = 2026;
+const FEDERAL_BPA = 16_452;       // 2026 federal BPA max
+const FEDERAL_BPA_RATE = 0.14;    // 2026 flat first-bracket rate
 const FEDERAL_BRACKETS: [number, number][] = [
-  [57_375, 0.145], [114_750, 0.205], [177_882, 0.260],
-  [253_414, 0.290], [Infinity, 0.330],
+  [58_523, 0.14], [117_045, 0.205], [181_440, 0.260],
+  [258_482, 0.290], [Infinity, 0.330],
 ];
 const CPP_BASIC_EXEMPTION = 3_500;
-const CPP_YMPE = 71_300;
-const CPP_YAMPE = 81_200;
+const CPP_YMPE = 74_600;          // 2026 first ceiling
+const CPP_YAMPE = 85_000;         // 2026 second ceiling
 const CPP1_SELF_RATE = 0.0595 * 2;
 const CPP2_SELF_RATE = 0.04 * 2;
 const QPP1_SELF_RATE = 0.064 * 2;
@@ -109,7 +110,7 @@ function provincialInfo(province: Province): ProvincialInfo {
     case "alberta": return { basicPersonalAmount: 22_323, lowestRate: 0.08, brackets: [[60_000, 0.08], [151_234, 0.10], [181_481, 0.12], [241_974, 0.13], [362_961, 0.14], [Infinity, 0.15]] };
     case "britishColumbia": return { basicPersonalAmount: 12_932, lowestRate: 0.0506, brackets: [[49_279, 0.0506], [98_560, 0.077], [113_158, 0.105], [137_407, 0.1229], [186_306, 0.147], [259_829, 0.168], [Infinity, 0.205]] };
     case "manitoba": return { basicPersonalAmount: 15_780, lowestRate: 0.108, brackets: [[47_000, 0.108], [100_000, 0.1275], [Infinity, 0.174]] };
-    case "newBrunswick": return { basicPersonalAmount: 13_396, lowestRate: 0.094, brackets: [[51_306, 0.094], [102_614, 0.14], [190_060, 0.16], [Infinity, 0.195]] };
+    case "newBrunswick": return { basicPersonalAmount: 13_664, lowestRate: 0.094, brackets: [[52_333, 0.094], [104_666, 0.14], [193_861, 0.16], [Infinity, 0.195]] }; // NB 2026
     case "newfoundland": return { basicPersonalAmount: 11_067, lowestRate: 0.087, brackets: [[44_192, 0.087], [88_382, 0.145], [157_792, 0.158], [220_910, 0.178], [282_214, 0.198], [564_429, 0.208], [1_128_858, 0.213], [Infinity, 0.218]] };
     case "northwestTerritories": return { basicPersonalAmount: 17_842, lowestRate: 0.059, brackets: [[51_964, 0.059], [103_930, 0.086], [168_967, 0.122], [Infinity, 0.1405]] };
     case "novaScotia": return { basicPersonalAmount: 11_744, lowestRate: 0.0879, brackets: [[30_507, 0.0879], [61_015, 0.1495], [95_883, 0.1667], [154_650, 0.175], [Infinity, 0.21]] };
@@ -118,7 +119,7 @@ function provincialInfo(province: Province): ProvincialInfo {
     case "princeEdwardIsland": return { basicPersonalAmount: 14_650, lowestRate: 0.095, brackets: [[33_328, 0.095], [64_656, 0.1347], [105_000, 0.166], [140_000, 0.1762], [Infinity, 0.19]] };
     case "quebec": return { basicPersonalAmount: 18_571, lowestRate: 0.14, brackets: [[53_255, 0.14], [106_495, 0.19], [129_590, 0.24], [Infinity, 0.2575]] };
     case "saskatchewan": return { basicPersonalAmount: 19_491, lowestRate: 0.105, brackets: [[53_463, 0.105], [152_750, 0.125], [Infinity, 0.145]] };
-    case "yukon": return { basicPersonalAmount: 16_129, lowestRate: 0.064, brackets: [[57_375, 0.064], [114_750, 0.09], [177_882, 0.109], [500_000, 0.128], [Infinity, 0.15]] };
+    case "yukon": return { basicPersonalAmount: 16_452, lowestRate: 0.064, brackets: [[58_523, 0.064], [117_045, 0.09], [181_440, 0.109], [500_000, 0.128], [Infinity, 0.15]] }; // YT 2026 (federal-aligned)
   }
 }
 
