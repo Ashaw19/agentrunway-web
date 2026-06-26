@@ -273,5 +273,53 @@
       "800k_1m": "$800K–$1M",
       "over_1m": "$1M+"
     }
+  },
+  "voiceRules": {
+    "section": "Your Voice, Your Rules",
+    "signatureLabel": "Phrases I always use",
+    "signatureHint": "Your AI will work these into its drafts.",
+    "signaturePlaceholder": "e.g. \"let's make it happen\", \"I've got you\"",
+    "noGosLabel": "Things I never say",
+    "noGosHint": "Your AI will avoid these words and phrasings.",
+    "noGosPlaceholder": "e.g. \"it's just a house\", \"the market is what it is\"",
+    "suppressedLabel": "Topics to suppress in AI responses",
+    "suppressedHint": "The AI stays quiet on anything you select.",
+    "suppressedOptions": {
+      "tax_advice": "Tax Advice",
+      "pricing": "Pricing Conversations",
+      "business_growth": "Business Growth Tips",
+      "crm_health": "CRM Advice"
+    }
+  },
+  "settings": {
+    "annualGoals": "ANNUAL GOALS",
+    "businessProfile": "BUSINESS PROFILE",
+    "financial": "FINANCIAL",
+    "gciTarget": "GCI Target",
+    "transactionTarget": "Transaction Target",
+    "province": "Province",
+    "experience": "Experience",
+    "commissionSplit": "Commission Split",
+    "cashReserve": "Cash Reserve",
+    "monthlyBrokerageFee": "Monthly Brokerage Fee",
+    "notSet": "Not set",
+    "tapToSet": "Tap to set",
+    "tapToEdit": "Tap to edit",
+    "deals": "{{count}} deals",
+    "years": "{{count}} years",
+    "gciPlaceholder": "e.g. 200000",
+    "txPlaceholder": "e.g. 20",
+    "cashPlaceholder": "e.g. 15000",
+    "selectProvince": "Select province",
+    "selectSplit": "Select commission split",
+    "cancel": "Cancel",
+    "invalidTitle": "Invalid",
+    "invalidGci": "Enter a valid GCI goal (min $1,000).",
+    "invalidTx": "Enter a valid transaction goal.",
+    "invalidCash": "Enter a valid cash reserve.",
+    "errorTitle": "Error",
+    "errorBody": "Could not save. Please try again.",
+    "infoBanner": "Advanced settings like brokerage fees, seasonal weights, and tax configuration are managed on the web dashboard.",
+    "cashReserveNote": "Your cash reserve is one input the Runway Score estimate may use. It is not a target."
   }
 }

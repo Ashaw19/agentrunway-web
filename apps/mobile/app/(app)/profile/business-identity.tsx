@@ -1,21 +1,34 @@
 /**
- * Business Identity — mobile screen.
+ * AI Profile (Business Identity + Voice/Rules) — mobile screen.
  *
- * Mobile parity for the "Part B — Business Identity" section in the web
- * Settings page (`apps/web/app/(app)/settings/settings-content.tsx`).
- * Both surfaces consume the same canonical option lists + completion
- * derivation from `@agent-runway/core/business-identity`.
+ * Mobile parity for the AI Profile card in the web Settings page
+ * (`apps/web/app/(app)/settings/settings-content.tsx`). The web card has
+ * two editable parts that save together in one `saveAiProfile` update:
+ *   - Part B — Business Identity (specialty, market, model, lead sources,
+ *     years, price range) → `business_identity` JSONB.
+ *   - Part C — Your Voice, Your Rules (signature phrases, hard no-gos,
+ *     suppressed topics) → `agent_goals` JSONB.
+ * Mobile renders both parts on this one screen and saves them in one update
+ * to match the web write contract exactly. Both surfaces consume the same
+ * canonical option lists + completion derivations from
+ * `@agent-runway/core/business-identity` and `@agent-runway/core/agent-goals`.
  *
  * Flow:
- *   1. Single scrollable form with 6 sections (specialty, market type,
- *      business model, lead sources, years experience, price range).
- *   2. Multi-select chips for the three list fields; single-select chips
- *      for the three scalar fields.
- *   3. Save persists `business_identity` (JSONB) on `user_settings`.
- *      Direct supabase client write — same pattern as
- *      `apps/mobile/app/(app)/profile/voice-quiz.tsx` (`handleSave`),
- *      RLS-scoped to the authed user. No new `/api/mobile/business-identity`
- *      route — JSONB writes from mobile already flow direct.
+ *   1. Single scrollable form. Part B: 6 sections (specialty, market type,
+ *      business model, lead sources, years experience, price range). Part C:
+ *      two free-text fields (signature phrases, hard no-gos) + suppressed-
+ *      topic chips.
+ *   2. Multi-select chips for the list fields; single-select chips for the
+ *      scalar fields; rose-accented chips for suppressed topics (matching the
+ *      web rose styling).
+ *   3. Save persists `business_identity` AND `agent_goals` (both JSONB) on
+ *      `user_settings` in a single update — byte-for-byte the same write
+ *      shape as web `saveAiProfile`. Direct supabase client write — same
+ *      pattern as `apps/mobile/app/(app)/profile/voice-quiz.tsx`
+ *      (`handleSave`), RLS-scoped to the authed user. No new
+ *      `/api/mobile/...` route — JSONB writes from mobile already flow direct.
+ *      `primary_goal`/`secondary_goals` have no editor on either surface;
+ *      they are spread through unchanged exactly as web does.
  *
  * UX choice — chip-toggle vs. picker for `lead_sources`:
  *   The web settings surface uses chip-toggles for all six fields, so
@@ -38,6 +51,7 @@ import {
   Pressable,
   ActivityIndicator,
   Alert,
+  TextInput,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -53,6 +67,12 @@ import {
   computeBusinessIdentityCompleted,
   type BusinessIdentity,
 } from "@agent-runway/core/business-identity";
+import {
+  SUPPRESSED_TOPIC_OPTIONS,
+  EMPTY_AGENT_GOALS,
+  computeAgentGoalsCompleted,
+  type AgentGoals,
+} from "@agent-runway/core/agent-goals";
 import { useDataStore } from "@/stores/data-store";
 import { supabase } from "@/lib/supabase";
 import { useT } from "@/lib/useT";
@@ -82,8 +102,13 @@ export default function BusinessIdentityScreen() {
   const { t } = useT("profile");
   const store = useDataStore();
   const existing = store.settings?.business_identity ?? EMPTY_BUSINESS_IDENTITY;
+  const existingGoals = store.settings?.agent_goals ?? EMPTY_AGENT_GOALS;
 
   const [bi, setBi] = useState<BusinessIdentity>(existing);
+  // Voice/Rules (web Part C). Spread the full existing AgentGoals so
+  // `primary_goal`/`secondary_goals` (no editor on either surface) are
+  // preserved through saves exactly as web does.
+  const [goals, setGoals] = useState<AgentGoals>(existingGoals);
   const [saving, setSaving] = useState(false);
 
   // Section count for the progress label. Mirrors the inline progress
@@ -119,12 +144,26 @@ export default function BusinessIdentityScreen() {
     }
   }
 
+  function toggleSuppressedTopic(value: string) {
+    Haptics.selectionAsync().catch(() => {
+      /* haptics is best-effort */
+    });
+    setGoals((prev) => ({
+      ...prev,
+      suppressed_topics: toggleMulti(prev.suppressed_topics, value),
+    }));
+  }
+
   async function handleSave() {
     setSaving(true);
     try {
-      const updated: BusinessIdentity = {
+      const updatedBi: BusinessIdentity = {
         ...bi,
         completed: computeBusinessIdentityCompleted(bi),
+      };
+      const updatedGoals: AgentGoals = {
+        ...goals,
+        completed: computeAgentGoalsCompleted(goals),
       };
 
       const {
@@ -133,14 +172,16 @@ export default function BusinessIdentityScreen() {
       if (!user) throw new Error("Not authenticated");
 
       // Mirror of web `saveAiProfile` in
-      // `apps/web/app/(app)/settings/settings-content.tsx`. Web writes
-      // both `business_identity` and `agent_goals` in one update; mobile
-      // only writes BI here because `agent_goals` lives on the next
-      // dispatch (Signature Phrases / Hard No-Gos / On My Mind).
+      // `apps/web/app/(app)/settings/settings-content.tsx` — both
+      // `business_identity` and `agent_goals` written in one update, same
+      // column names, same JSONB row shapes, same derived `completed` flags
+      // (via the shared core `compute*Completed` helpers). RLS-scoped to the
+      // authed user.
       const { error } = await supabase
         .from("user_settings")
         .update({
-          business_identity: updated as unknown as Record<string, unknown>,
+          business_identity: updatedBi as unknown as Record<string, unknown>,
+          agent_goals: updatedGoals as unknown as Record<string, unknown>,
         })
         .eq("user_id", user.id);
 
@@ -339,6 +380,122 @@ export default function BusinessIdentityScreen() {
               accentDim={c.purpleDim}
               c={c}
               onPress={() => toggleChip("avg_price_range", val, "single")}
+            />
+          ))}
+        </Section>
+
+        {/* ── Part C — Your Voice, Your Rules ── */}
+        <Text
+          style={{
+            ...Type.label,
+            color: c.textMuted,
+            marginTop: Space.sm,
+            marginBottom: Space.md,
+          }}
+        >
+          {t("voiceRules.section")}
+        </Text>
+
+        {/* Signature phrases */}
+        <View
+          style={[
+            {
+              backgroundColor: c.card,
+              borderRadius: Radius.xl,
+              borderWidth: 1,
+              borderColor: c.cardBorder,
+              padding: Space.lg,
+              marginBottom: Space.lg,
+            },
+            sh.card,
+          ]}
+        >
+          <Text style={{ ...Type.label, color: c.text, marginBottom: 2 }}>
+            {t("voiceRules.signatureLabel")}
+          </Text>
+          <Text style={{ ...Type.micro, color: c.textDim, marginBottom: Space.md }}>
+            {t("voiceRules.signatureHint")}
+          </Text>
+          <TextInput
+            value={goals.signature_phrases}
+            onChangeText={(v) =>
+              setGoals((g) => ({ ...g, signature_phrases: v }))
+            }
+            placeholder={t("voiceRules.signaturePlaceholder")}
+            placeholderTextColor={c.textDim}
+            multiline
+            textAlignVertical="top"
+            style={{
+              ...Type.body,
+              color: c.text,
+              minHeight: 72,
+              borderRadius: Radius.lg,
+              borderWidth: 1,
+              borderColor: c.cardBorder,
+              backgroundColor: c.bg,
+              paddingHorizontal: Space.md,
+              paddingVertical: Space.sm,
+            }}
+          />
+        </View>
+
+        {/* Hard no-gos */}
+        <View
+          style={[
+            {
+              backgroundColor: c.card,
+              borderRadius: Radius.xl,
+              borderWidth: 1,
+              borderColor: c.cardBorder,
+              padding: Space.lg,
+              marginBottom: Space.lg,
+            },
+            sh.card,
+          ]}
+        >
+          <Text style={{ ...Type.label, color: c.text, marginBottom: 2 }}>
+            {t("voiceRules.noGosLabel")}
+          </Text>
+          <Text style={{ ...Type.micro, color: c.textDim, marginBottom: Space.md }}>
+            {t("voiceRules.noGosHint")}
+          </Text>
+          <TextInput
+            value={goals.hard_nogos}
+            onChangeText={(v) => setGoals((g) => ({ ...g, hard_nogos: v }))}
+            placeholder={t("voiceRules.noGosPlaceholder")}
+            placeholderTextColor={c.textDim}
+            multiline
+            textAlignVertical="top"
+            style={{
+              ...Type.body,
+              color: c.text,
+              minHeight: 72,
+              borderRadius: Radius.lg,
+              borderWidth: 1,
+              borderColor: c.cardBorder,
+              backgroundColor: c.bg,
+              paddingHorizontal: Space.md,
+              paddingVertical: Space.sm,
+            }}
+          />
+        </View>
+
+        {/* Suppressed topics */}
+        <Section
+          label={t("voiceRules.suppressedLabel")}
+          hint={t("voiceRules.suppressedHint")}
+          c={c}
+          sh={sh}
+        >
+          {SUPPRESSED_TOPIC_OPTIONS.map(({ val }) => (
+            <Chip
+              key={val}
+              label={t(`voiceRules.suppressedOptions.${val}`)}
+              selected={goals.suppressed_topics.includes(val)}
+              accent={c.danger}
+              accentDim={c.dangerDim}
+              c={c}
+              onPress={() => toggleSuppressedTopic(val)}
             />
           ))}
         </Section>

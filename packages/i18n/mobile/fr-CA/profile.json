@@ -273,5 +273,53 @@
       "800k_1m": "800 000 $ – 1 M $",
       "over_1m": "1 M $ et plus"
     }
+  },
+  "voiceRules": {
+    "section": "Votre voix, vos règles",
+    "signatureLabel": "Expressions que j'utilise toujours",
+    "signatureHint": "Votre IA les intégrera à ses brouillons.",
+    "signaturePlaceholder": "p. ex. « on va y arriver », « je m'en occupe »",
+    "noGosLabel": "Choses que je ne dis jamais",
+    "noGosHint": "Votre IA évitera ces mots et tournures.",
+    "noGosPlaceholder": "p. ex. « ce n'est qu'une maison », « le marché est ce qu'il est »",
+    "suppressedLabel": "Sujets à éviter dans les réponses de l'IA",
+    "suppressedHint": "L'IA reste discrète sur tout ce que vous sélectionnez.",
+    "suppressedOptions": {
+      "tax_advice": "Conseils fiscaux",
+      "pricing": "Conversations sur les prix",
+      "business_growth": "Conseils de croissance",
+      "crm_health": "Conseils CRM"
+    }
+  },
+  "settings": {
+    "annualGoals": "OBJECTIFS ANNUELS",
+    "businessProfile": "PROFIL D'AFFAIRES",
+    "financial": "FINANCES",
+    "gciTarget": "Objectif de commissions brutes",
+    "transactionTarget": "Objectif de transactions",
+    "province": "Province",
+    "experience": "Expérience",
+    "commissionSplit": "Partage des commissions",
+    "cashReserve": "Réserve de liquidités",
+    "monthlyBrokerageFee": "Frais de courtage mensuels",
+    "notSet": "Non défini",
+    "tapToSet": "Toucher pour définir",
+    "tapToEdit": "Toucher pour modifier",
+    "deals": "{{count}} transactions",
+    "years": "{{count}} ans",
+    "gciPlaceholder": "p. ex. 200000",
+    "txPlaceholder": "p. ex. 20",
+    "cashPlaceholder": "p. ex. 15000",
+    "selectProvince": "Sélectionner la province",
+    "selectSplit": "Sélectionner le partage des commissions",
+    "cancel": "Annuler",
+    "invalidTitle": "Invalide",
+    "invalidGci": "Entrez un objectif de commissions valide (min. 1 000 $).",
+    "invalidTx": "Entrez un objectif de transactions valide.",
+    "invalidCash": "Entrez une réserve de liquidités valide.",
+    "errorTitle": "Erreur",
+    "errorBody": "Enregistrement impossible. Veuillez réessayer.",
+    "infoBanner": "Les paramètres avancés comme les frais de courtage, la saisonnalité et la configuration fiscale se gèrent dans le tableau de bord web.",
+    "cashReserveNote": "Votre réserve de liquidités est une donnée que l'estimation du Pointage Runway peut utiliser. Ce n'est pas une cible."
   }
 }
