@@ -326,7 +326,7 @@ export function CheatSheetPDF() {
         <Text style={S.cite}>
           Source: CRA — Canadian income tax rates for individuals (provincial section).
           Top marginal rates are current for 2026; provincial top-bracket thresholds
-          index annually. Verify your province's current threshold before relying on it.
+          index annually. Verify the current threshold for your province before relying on it.
           Quebec applies its own provincial system administered by Revenu Québec.
         </Text>
 
