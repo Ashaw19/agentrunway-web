@@ -624,7 +624,9 @@ export function OverheadContent({
     0,
   );
   const monthlyRecurring = legacyMonthlyRecurring + recurringExpMonthly;
-  const expMonthsElapsed = now.getMonth() + (now.getDate() / 30);
+  // Integer months elapsed (1-12) — matches the dashboard. See
+  // dashboard_metric_divergence_fix_2026-06-26.md.
+  const expMonthsElapsed = now.getMonth() + 1;
   const legacyRecurringYTDEstimate = legacyMonthlyRecurring * expMonthsElapsed;
   const expensesYTD = Math.max(receiptTotal, legacyRecurringYTDEstimate) + recurringExpYTD;
 

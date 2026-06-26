@@ -73,6 +73,7 @@ import {
   seasonalFractionElapsed,
   projectedYearEndGCI,
   projectedYearEndTransactions,
+  computeListingWeightedGCI,
   paceVsGoalPercent,
 } from "@/lib/engines/projection-engine";
 import {
@@ -242,14 +243,10 @@ export function ReportsContent({
   // ── Pipeline ──────────────────────────────────────────────────────────────────
   const pipelineWeighted = pipelineDeals.reduce((sum, d) => sum + computeWeightedGCI(d), 0);
 
-  // Listing appointments weighted by status probability (matches Forecast page)
-  const LISTING_PROBS: Record<string, number> = { scheduled: 0.15, active: 0.40 };
-  const listingWeightedGCI = listingAppointments.reduce((sum, la) => {
-    const price = Number(la.estimated_list_price ?? 0);
-    const commPct = la.estimated_commission_pct ?? 0.025;
-    const prob = LISTING_PROBS[la.status] ?? 0;
-    return sum + price * commPct * prob;
-  }, 0);
+  // Listing appointments weighted by status probability — canonical helper
+  // (projection-engine), shared with dashboard, forecast, chat, and MCP.
+  // See memory/findings/dashboard_metric_divergence_fix_2026-06-26.md.
+  const listingWeightedGCI = computeListingWeightedGCI(listingAppointments);
   const totalPipelineWeighted = pipelineWeighted + listingWeightedGCI;
 
   // ── Seasonality & Projections ─────────────────────────────────────────────────
@@ -305,7 +302,9 @@ export function ReportsContent({
     0,
   );
   const monthlyRecurring = legacyMonthlyRecurring + recurringExpMonthly;
-  const monthsElapsed = now.getMonth() + (now.getDate() / 30);
+  // Integer months elapsed (1-12) — matches the dashboard. See
+  // dashboard_metric_divergence_fix_2026-06-26.md.
+  const monthsElapsed = now.getMonth() + 1;
   const legacyRecurringYTDEstimate = legacyMonthlyRecurring * monthsElapsed;
   // Receipts and legacy recurring may overlap (same expenses tracked both ways).
   // Take the higher of the two, then add new-style recurring expenses — matches Forecast page.
