@@ -61,7 +61,12 @@ import { classifyTopic, classifyTopicMulti, PAGE_TO_TOPICS, TOPIC_ACTION_LINKS, 
 import { getPlaybooks } from "@/lib/troubleshooting-playbooks";
 import { buildDiagnostics } from "@/lib/chat-diagnostics";
 import { logChatAnalytics, countTopicFollowUps } from "@/lib/chat-analytics";
-import { models, heliconeHeaders, TASK_BUDGETS_BETA_HEADER } from "@/lib/ai/provider";
+import {
+  models,
+  heliconeHeaders,
+  TASK_BUDGETS_BETA_HEADER,
+  TAX_SAFETY_INJECT_HEADER,
+} from "@/lib/ai/provider";
 import { selectModelTier, personaEffort } from "@/lib/ai/router";
 import { buildPromptParts, injectCanary, validateNavigatorOutput } from "@/lib/ai/security";
 import { fetchMemories, addMemory } from "@/lib/ai/memory";
@@ -1323,6 +1328,23 @@ ${troubleshootingContext}${escalationBlock}
   // the tool_use JSON block + reasoning. 600 was too low and caused silent failures.
   const maxTokens = tier === "complex" ? 4096 : tier === "fast" ? 2048 : 3000;
 
+  // ── Tax-safety mid-conversation system message gate (Opus 4.8 only) ───────
+  // When set, the Opus provider's fetch passthrough appends a tax-information-
+  // not-advice operating-context system message to the tail of the messages
+  // array (see lib/ai/provider.ts → TAX_SAFETY_SYSTEM_MESSAGE). Conditions:
+  //   - tier === "complex": REQUIRED. The mid-conversation `role:"system"`
+  //     message is an Opus-4.8-only capability; Sonnet/Haiku 400 on it. Only
+  //     the complex tier resolves to the Opus provider whose fetch can inject.
+  //   - AND it's a tax-relevant turn: either the Navigator persona (the
+  //     finance/tax boundary — keep tax safety always in scope here) OR the
+  //     topic classifier flagged "tax" (tax drift on any persona, e.g. Captain
+  //     answering a tax-adjacent question before handing to Navigator).
+  // We deliberately do NOT fire on every Opus turn (forecast/scenario/overhead
+  // are Opus but not tax) to keep cache churn and token cost minimal.
+  const injectTaxSafety =
+    tier === "complex" &&
+    (persona === "navigator" || topTopics.includes("tax"));
+
   // ── 7. Build system prompt (XML-structured, cache-optimized) ─────────────
   // Static content FIRST (cached at 90% discount), dynamic content LAST.
   //
@@ -1544,11 +1566,19 @@ Be the expert — explain metrics, suggest features, direct to pages. Think abou
             : {};
         })(),
         abortSignal: abortController.signal,
-        headers: heliconeHeaders({
-          userId: user.id,
-          feature: "chat",
-          sessionId: requestId,
-        }),
+        headers: {
+          ...heliconeHeaders({
+            userId: user.id,
+            feature: "chat",
+            sessionId: requestId,
+          }),
+          // Internal signal to the Opus fetch passthrough — never reaches
+          // Anthropic (the passthrough deletes it before forwarding). Only set
+          // on Opus + tax-relevant turns; gates the mid-conv tax-safety system
+          // message. Harmless on non-Opus tiers (their provider has no
+          // passthrough and the header is just dropped by Anthropic).
+          ...(injectTaxSafety ? { [TAX_SAFETY_INJECT_HEADER]: "1" } : {}),
+        },
         onFinish: ({ text, totalUsage }) => {
           // ── Token-usage telemetry (incl. thinking/reasoning tokens) ───────
           // Helicone GA captures usage at the proxy HTTP layer (including
