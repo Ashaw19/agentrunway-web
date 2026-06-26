@@ -247,7 +247,7 @@ workspaces on every push.
 - **Execute migrations the moment you create them.** Do not batch. See
   `memory/feedback_run_migrations.md`.
 - **Commit trailer on every commit:**
-  `Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>`
+  `Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>`
 
 If CI is red on `main` for any reason, stop other work and fix it first.
 

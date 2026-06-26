@@ -6,7 +6,7 @@
  *   output_config.task_budget: { tokens: 40000 }
  * instead of Anthropic's public-beta shape
  *   output_config.task_budget: { type: "tokens", total: 40000 }
- * Anthropic 400'd every complex-tier (Opus 4.7) request and the chat
+ * Anthropic 400'd every complex-tier (Opus) request and the chat
  * route's safeUserErrorMessage fallback was shown to every user on every
  * tax/forecast/scenario prompt. The SDK happily serialized the wrong shape
  * because nothing asserted on the outgoing body.
@@ -59,7 +59,7 @@ describe("opusWithTaskBudgetFetch", () => {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        model: "claude-opus-4-7",
+        model: "claude-opus-4-8",
         max_tokens: 4096,
         messages: [{ role: "user", content: "hello" }],
       }),
@@ -143,7 +143,7 @@ describe("opusWithTaskBudgetFetch", () => {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        model: "claude-opus-4-7",
+        model: "claude-opus-4-8",
         max_tokens: 4096,
         messages: [{ role: "user", content: "hello" }],
       }),
@@ -165,7 +165,7 @@ describe("opusWithTaskBudgetFetch", () => {
         "anthropic-beta": "prompt-caching-2024-07-31",
       },
       body: JSON.stringify({
-        model: "claude-opus-4-7",
+        model: "claude-opus-4-8",
         max_tokens: 4096,
         messages: [{ role: "user", content: "hello" }],
       }),
@@ -183,7 +183,7 @@ describe("opusWithTaskBudgetFetch", () => {
         "anthropic-beta": "task-budgets-2026-03-13",
       },
       body: JSON.stringify({
-        model: "claude-opus-4-7",
+        model: "claude-opus-4-8",
         max_tokens: 4096,
         messages: [{ role: "user", content: "hello" }],
       }),
@@ -203,7 +203,7 @@ describe("opusWithTaskBudgetFetch", () => {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        model: "claude-opus-4-7",
+        model: "claude-opus-4-8",
         max_tokens: 4096,
         messages: [{ role: "user", content: "hello" }],
       }),
