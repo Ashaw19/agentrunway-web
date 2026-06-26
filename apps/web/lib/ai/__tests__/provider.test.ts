@@ -18,6 +18,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   opusWithTaskBudgetFetch,
   OPUS_TASK_BUDGET_TOKENS,
+  TAX_SAFETY_INJECT_HEADER,
+  TAX_SAFETY_SYSTEM_MESSAGE,
 } from "../provider";
 
 const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
@@ -248,5 +250,223 @@ describe("opusWithTaskBudgetFetch", () => {
 
     expect(taskBudget).not.toHaveProperty("remaining");
     expect(Object.keys(taskBudget).sort()).toEqual(["total", "type"]);
+  });
+});
+
+describe("opusWithTaskBudgetFetch — mid-conversation tax-safety system message", () => {
+  let originalFetch: typeof fetch;
+
+  beforeEach(() => {
+    originalFetch = globalThis.fetch;
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+    vi.restoreAllMocks();
+  });
+
+  const opusBody = (messages: Array<{ role: string; content: unknown }>) =>
+    JSON.stringify({
+      model: "claude-opus-4-8",
+      max_tokens: 4096,
+      system: "STATIC CACHED SYSTEM PREFIX",
+      messages,
+    });
+
+  it("appends the tax-safety system message to the tail when the trigger header is '1' (Opus)", async () => {
+    const { calls } = installFetchStub();
+
+    await opusWithTaskBudgetFetch(ANTHROPIC_URL, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        [TAX_SAFETY_INJECT_HEADER]: "1",
+      },
+      body: opusBody([{ role: "user", content: "what's my HST owing for Q2?" }]),
+    });
+
+    const forwardedBody = JSON.parse(calls[0]!.init!.body as string) as {
+      messages: Array<{ role: string; content: string }>;
+    };
+    const last = forwardedBody.messages[forwardedBody.messages.length - 1]!;
+    expect(last.role).toBe("system");
+    expect(last.content).toBe(TAX_SAFETY_SYSTEM_MESSAGE);
+    // It is the FINAL element (Anthropic placement: must be last or followed
+    // by assistant), and it follows a user turn (not messages[0]).
+    expect(forwardedBody.messages).toHaveLength(2);
+    expect(forwardedBody.messages[0]!.role).toBe("user");
+  });
+
+  it("does NOT inject when the trigger header is absent (but still injects task_budget)", async () => {
+    const { calls } = installFetchStub();
+
+    await opusWithTaskBudgetFetch(ANTHROPIC_URL, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: opusBody([{ role: "user", content: "forecast my Q3 GCI" }]),
+    });
+
+    const forwardedBody = JSON.parse(calls[0]!.init!.body as string) as {
+      messages: Array<{ role: string; content: string }>;
+      output_config: Record<string, unknown>;
+    };
+    expect(forwardedBody.messages).toHaveLength(1);
+    expect(forwardedBody.messages[0]!.role).toBe("user");
+    // Task budget composition is unaffected by the tax-safety path.
+    expect(forwardedBody.output_config.task_budget).toEqual({
+      type: "tokens",
+      total: OPUS_TASK_BUDGET_TOKENS,
+    });
+  });
+
+  it("NEVER injects on Sonnet even if the trigger header is present (Sonnet 400s on a system message in messages)", async () => {
+    const { calls } = installFetchStub();
+
+    await opusWithTaskBudgetFetch(ANTHROPIC_URL, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        [TAX_SAFETY_INJECT_HEADER]: "1",
+      },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-6",
+        max_tokens: 4096,
+        system: "STATIC CACHED SYSTEM PREFIX",
+        messages: [{ role: "user", content: "what's my HST owing?" }],
+      }),
+    });
+
+    // Non-Opus bodies pass through entirely untouched (early return before any
+    // injection), so the system message must not appear anywhere.
+    const serialized = calls[0]!.init!.body as string;
+    expect(serialized).not.toContain(TAX_SAFETY_SYSTEM_MESSAGE);
+    const forwardedBody = JSON.parse(serialized) as {
+      messages: Array<{ role: string }>;
+    };
+    expect(forwardedBody.messages).toHaveLength(1);
+    expect(forwardedBody.messages[0]!.role).toBe("user");
+  });
+
+  it("strips the internal trigger header from the forwarded request (it is not an Anthropic field)", async () => {
+    const { calls } = installFetchStub();
+
+    await opusWithTaskBudgetFetch(ANTHROPIC_URL, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        [TAX_SAFETY_INJECT_HEADER]: "1",
+      },
+      body: opusBody([{ role: "user", content: "tax question" }]),
+    });
+
+    const forwardedHeaders = new Headers(calls[0]!.init!.headers);
+    expect(forwardedHeaders.get(TAX_SAFETY_INJECT_HEADER)).toBeNull();
+  });
+
+  it("leaves the cached system prefix and pre-existing messages byte-identical (cache-prefix invariant)", async () => {
+    const { calls } = installFetchStub();
+
+    const priorMessages = [
+      { role: "user", content: "earlier question" },
+      { role: "assistant", content: "earlier answer" },
+      { role: "user", content: "what's my instalment estimate?" },
+    ];
+
+    await opusWithTaskBudgetFetch(ANTHROPIC_URL, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        [TAX_SAFETY_INJECT_HEADER]: "1",
+      },
+      body: opusBody(priorMessages),
+    });
+
+    const forwardedBody = JSON.parse(calls[0]!.init!.body as string) as {
+      system: string;
+      messages: Array<{ role: string; content: string }>;
+    };
+    // Static system prefix unchanged → prompt cache prefix not invalidated.
+    expect(forwardedBody.system).toBe("STATIC CACHED SYSTEM PREFIX");
+    // All prior messages identical and in order; exactly one trailing append.
+    expect(forwardedBody.messages.slice(0, 3)).toEqual(priorMessages);
+    expect(forwardedBody.messages).toHaveLength(4);
+    expect(forwardedBody.messages[3]!.role).toBe("system");
+  });
+
+  it("is idempotent — does not double-inject if the tail is already the tax-safety message", async () => {
+    const { calls } = installFetchStub();
+
+    await opusWithTaskBudgetFetch(ANTHROPIC_URL, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        [TAX_SAFETY_INJECT_HEADER]: "1",
+      },
+      body: opusBody([
+        { role: "user", content: "tax question" },
+        { role: "system", content: TAX_SAFETY_SYSTEM_MESSAGE },
+      ]),
+    });
+
+    const forwardedBody = JSON.parse(calls[0]!.init!.body as string) as {
+      messages: Array<{ role: string }>;
+    };
+    const systemCount = forwardedBody.messages.filter(
+      (m) => m.role === "system",
+    ).length;
+    expect(systemCount).toBe(1);
+    expect(forwardedBody.messages).toHaveLength(2);
+  });
+
+  it("does not inject when the last message is not a user/assistant turn (placement guard)", async () => {
+    const { calls } = installFetchStub();
+
+    // Degenerate/empty messages — nothing valid to follow. Must not produce a
+    // messages[0] system message.
+    await opusWithTaskBudgetFetch(ANTHROPIC_URL, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        [TAX_SAFETY_INJECT_HEADER]: "1",
+      },
+      body: opusBody([]),
+    });
+
+    const forwardedBody = JSON.parse(calls[0]!.init!.body as string) as {
+      messages: Array<{ role: string }>;
+    };
+    expect(forwardedBody.messages).toHaveLength(0);
+  });
+
+  it("composes with task_budget and effort on an injected turn (all three present, output_config intact)", async () => {
+    const { calls } = installFetchStub();
+
+    await opusWithTaskBudgetFetch(ANTHROPIC_URL, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        [TAX_SAFETY_INJECT_HEADER]: "1",
+      },
+      body: JSON.stringify({
+        model: "claude-opus-4-8",
+        max_tokens: 4096,
+        system: "STATIC CACHED SYSTEM PREFIX",
+        output_config: { effort: "high" },
+        messages: [{ role: "user", content: "Q2 HST owing?" }],
+      }),
+    });
+
+    const forwardedBody = JSON.parse(calls[0]!.init!.body as string) as {
+      output_config: Record<string, unknown>;
+      messages: Array<{ role: string; content: string }>;
+    };
+    expect(forwardedBody.output_config.effort).toBe("high");
+    expect(forwardedBody.output_config.task_budget).toEqual({
+      type: "tokens",
+      total: OPUS_TASK_BUDGET_TOKENS,
+    });
+    const last = forwardedBody.messages[forwardedBody.messages.length - 1]!;
+    expect(last.role).toBe("system");
+    expect(last.content).toBe(TAX_SAFETY_SYSTEM_MESSAGE);
   });
 });
