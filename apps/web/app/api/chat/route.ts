@@ -25,6 +25,7 @@ import {
   paceVsGoalPercent,
   projectedYearEndGCI,
   projectedYearEndTransactions,
+  computeListingWeightedGCI,
   dailyPaceRequired,
   daysRemaining,
   dayOfYear,
@@ -60,8 +61,13 @@ import { classifyTopic, classifyTopicMulti, PAGE_TO_TOPICS, TOPIC_ACTION_LINKS, 
 import { getPlaybooks } from "@/lib/troubleshooting-playbooks";
 import { buildDiagnostics } from "@/lib/chat-diagnostics";
 import { logChatAnalytics, countTopicFollowUps } from "@/lib/chat-analytics";
-import { models, heliconeHeaders, TASK_BUDGETS_BETA_HEADER } from "@/lib/ai/provider";
-import { selectModelTier } from "@/lib/ai/router";
+import {
+  models,
+  heliconeHeaders,
+  TASK_BUDGETS_BETA_HEADER,
+  TAX_SAFETY_INJECT_HEADER,
+} from "@/lib/ai/provider";
+import { selectModelTier, personaEffort } from "@/lib/ai/router";
 import { buildPromptParts, injectCanary, validateNavigatorOutput } from "@/lib/ai/security";
 import { fetchMemories, addMemory } from "@/lib/ai/memory";
 import { createPersonaAgentTools, NEEDS_APPROVAL_TOOLS, APPROVAL_DESCRIPTIONS } from "@/lib/ai/tools";
@@ -147,7 +153,13 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const { messages, currentPage, persona: personaRaw } = await req.json();
+  let parsedBody: { messages?: unknown; currentPage?: unknown; persona?: unknown };
+  try {
+    parsedBody = await req.json();
+  } catch {
+    return new Response("Invalid request body", { status: 400 });
+  }
+  const { messages, currentPage, persona: personaRaw } = parsedBody;
 
   if (!Array.isArray(messages)) {
     return new Response("Invalid request body", { status: 400 });
@@ -278,7 +290,7 @@ export async function POST(req: NextRequest) {
         supabase.from("mileage_logs").select("km, deduction").eq("user_id", user.id).gte("trip_date", ytdStart),                                       // 12: YTD mileage
         supabase.from("referrals").select("direction, status, actual_fee_paid, estimated_value").eq("user_id", user.id).gte("referral_date", ytdStart), // 13: YTD referrals
         supabase.from("t2125_cca_assets").select("description, cca_class, original_cost, opening_ucc").eq("user_id", user.id),                            // 14: CCA assets
-        supabase.from("listing_appointments").select("id, property_address, status, appointment_date, client_id").eq("user_id", user.id).in("status", ["scheduled", "active"]).order("appointment_date", { ascending: true }).limit(10), // 15: upcoming listing appointments
+        supabase.from("listing_appointments").select("id, property_address, status, appointment_date, client_id, estimated_list_price, estimated_commission_pct").eq("user_id", user.id).in("status", ["scheduled", "active"]).order("appointment_date", { ascending: true }).limit(10000), // 15: active listing appointments — feeds BOTH the display context (top rows) AND listing-weighted GCI for the projection (must match dashboard: no row cap, same status filter). limit 10000 mirrors dashboard/page.tsx.
         supabase.from("property_showings").select("id, property_address, showing_date, client_id, client_rating").eq("user_id", user.id).gte("showing_date", new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]).order("showing_date", { ascending: false }).limit(10), // 16: recent property showings
       ]);
     // Safely extract results — individual query failures won't kill the entire chat
@@ -314,6 +326,16 @@ export async function POST(req: NextRequest) {
       const ytdGCI = ytdTx.reduce((sum: number, tx: any) => sum + computeGCI(tx), 0);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const pipelineWeighted = (pipeline ?? []).reduce((sum: number, d: any) => sum + computeWeightedGCI(d), 0);
+      // Listing-appointment weighted GCI — canonical helper (projection-engine).
+      // The dashboard projection feeds `pipelineWeighted + listingWeightedGCI`
+      // into projectedYearEndGCI; the chat route omitted listings before
+      // 2026-06-26, so a listing-heavy agent saw a lower projected GCI in
+      // Captain's answer than on the dashboard. listingApptRows is the same
+      // scheduled/active set the dashboard reads. See
+      // memory/findings/dashboard_metric_divergence_fix_2026-06-26.md.
+      const listingWeightedGCI = computeListingWeightedGCI(
+        (listingApptRows ?? []) as { estimated_list_price: number | null; estimated_commission_pct: number | null; status: string }[],
+      );
       // Match dashboard expense logic: Math.max(receiptTotal, legacyRecurring * monthsElapsed) + recurringExpYTD
       const receiptTotal = (receiptRows ?? []).reduce(
         (sum: number, r: { total_amount?: number | string | null }) => sum + Number(r.total_amount ?? 0), 0,
@@ -325,7 +347,14 @@ export async function POST(req: NextRequest) {
       );
       const monthlyRecurring = legacyMonthlyRecurring + recurringExpMonthly;
       const expNow = new Date();
-      const expMonthsElapsed = expNow.getMonth() + (expNow.getDate() / 30);
+      // Months elapsed for the recurring-expense YTD estimate. MUST match the
+      // dashboard exactly: integer `getMonth() + 1` (1–12), NOT the fractional
+      // `getMonth() + getDate()/30`. The fractional form (fixed 2026-06-26)
+      // made the chat's expensesYTD diverge from the dashboard's, which
+      // propagated into the Runway Score, survival, tax projection, and
+      // expense-ratio surfaced in Captain's answer. See dashboard-content.tsx
+      // (expMonthsElapsed) + memory/findings/dashboard_metric_divergence_fix_2026-06-26.md.
+      const expMonthsElapsed = expNow.getMonth() + 1;
       const legacyRecurringYTDEstimate = legacyMonthlyRecurring * expMonthsElapsed;
       const expensesYTD = Math.max(receiptTotal, legacyRecurringYTDEstimate) + recurringExpYTDTotal;
       const splitMatch = settings.split_preset?.match(/p(\d+)_(\d+)/);
@@ -500,8 +529,12 @@ export async function POST(req: NextRequest) {
         const _elapsedDays = dayOfYear();
 
         // 1. Projection Engine — uses engineFraction (agent-specific seasonal weights)
+        // Projection input is pipeline-weighted + listing-weighted GCI, exactly
+        // as the dashboard does (dashboard-content.tsx: `pipelineWeightedGCI +
+        // listingWeightedGCI`). Survival's monthly-income input below still
+        // uses pipeline-only, matching the dashboard's pipelineMonthlyEst.
         const projGCI = projectedYearEndGCI(
-          ytdGCI, pipelineWeighted, engineFraction, settings.goal_gci ?? 0,
+          ytdGCI, pipelineWeighted + listingWeightedGCI, engineFraction, settings.goal_gci ?? 0,
         );
         const projDeals = projectedYearEndTransactions(
           ytdTx.length, pipelineCount, engineFraction,
@@ -556,7 +589,15 @@ export async function POST(req: NextRequest) {
         const ytdHstCollected = computeHSTCollected({
           ytdGCI,
           hstRate: hstRateValue,
-          isRegistered: settings.gst_hst_registered || !!settings.business_number,
+          // Registration is the explicit `gst_hst_registered` flag ONLY — must
+          // match the dashboard (dashboard-content.tsx: `settings?.gst_hst_registered
+          // ?? false`). A populated `business_number` does NOT imply HST
+          // registration (a BN can exist for payroll/import accounts with no
+          // GST/HST program), so the old `|| !!business_number` fallback (fixed
+          // 2026-06-26) made the chat collect HST the dashboard didn't, diverging
+          // the cash position → survival → Runway Score. See
+          // memory/findings/dashboard_metric_divergence_fix_2026-06-26.md.
+          isRegistered: settings.gst_hst_registered ?? false,
           brokerageWithholdsHst: settings.brokerage_withholds_hst ?? false,
         });
         const ytdHstOnExpenses = settings.gst_hst_paid_on_expenses
@@ -841,7 +882,9 @@ export async function POST(req: NextRequest) {
           const totalHSTCollected = computeHSTCollected({
             ytdGCI,
             hstRate: hstRateLocal,
-            isRegistered: settings.gst_hst_registered || !!settings.business_number,
+            // gst_hst_registered ONLY — matches dashboard. See the ytdHstCollected
+            // site above + dashboard_metric_divergence_fix_2026-06-26.md.
+            isRegistered: settings.gst_hst_registered ?? false,
             brokerageWithholdsHst: settings.brokerage_withholds_hst ?? false,
           });
           const receiptDetails = (receiptDetailsRows ?? []) as { total_amount?: number | null; tax_amount?: number | null; category_key?: string | null }[];
@@ -854,7 +897,7 @@ export async function POST(req: NextRequest) {
             const contextLine = settings.brokerage_withholds_hst
               ? `Brokerage withholds ${hstLabelLocal} and remits to CRA — agent-side collected view is $0. ` +
                 `The filing view (T2125 / GST34) still reports the collected amount on invoiced GCI — that's a filing matter, not a cash-flow one. `
-              : !(settings.gst_hst_registered || !!settings.business_number)
+              : !(settings.gst_hst_registered ?? false)
                 ? `Agent is not registered for ${hstLabelLocal}. CRA requires registration when taxable supplies exceed $30,000 over four consecutive calendar quarters. `
                 : "";
             taxIntelLines.push(
@@ -1285,6 +1328,23 @@ ${troubleshootingContext}${escalationBlock}
   // the tool_use JSON block + reasoning. 600 was too low and caused silent failures.
   const maxTokens = tier === "complex" ? 4096 : tier === "fast" ? 2048 : 3000;
 
+  // ── Tax-safety mid-conversation system message gate (Opus 4.8 only) ───────
+  // When set, the Opus provider's fetch passthrough appends a tax-information-
+  // not-advice operating-context system message to the tail of the messages
+  // array (see lib/ai/provider.ts → TAX_SAFETY_SYSTEM_MESSAGE). Conditions:
+  //   - tier === "complex": REQUIRED. The mid-conversation `role:"system"`
+  //     message is an Opus-4.8-only capability; Sonnet/Haiku 400 on it. Only
+  //     the complex tier resolves to the Opus provider whose fetch can inject.
+  //   - AND it's a tax-relevant turn: either the Navigator persona (the
+  //     finance/tax boundary — keep tax safety always in scope here) OR the
+  //     topic classifier flagged "tax" (tax drift on any persona, e.g. Captain
+  //     answering a tax-adjacent question before handing to Navigator).
+  // We deliberately do NOT fire on every Opus turn (forecast/scenario/overhead
+  // are Opus but not tax) to keep cache churn and token cost minimal.
+  const injectTaxSafety =
+    tier === "complex" &&
+    (persona === "navigator" || topTopics.includes("tax"));
+
   // ── 7. Build system prompt (XML-structured, cache-optimized) ─────────────
   // Static content FIRST (cached at 90% discount), dynamic content LAST.
   //
@@ -1478,32 +1538,77 @@ Be the expert — explain metrics, suggest features, direct to pages. Think abou
         // detectHandoff.displayText handles over-generation reliably on its
         // own; the server-side cap isn't worth the interaction cost.
         maxOutputTokens: maxTokens,
-        // Opus 4.7 rejects non-default temperature values (throws 400); omit for complex tier.
+        // Opus 4.8 rejects non-default temperature values (throws 400); omit for complex tier.
         ...(tier !== "complex" ? { temperature: 0.7 } : {}),
-        // Task Budgets (public beta) — Opus-only soft-cap of 40K tokens per
-        // agentic turn, with the model self-regulating toward graceful close
-        // as the budget depletes. The task budget itself is injected into
-        // the request body by the Opus provider's fetch passthrough (see
-        // lib/ai/provider.ts). This providerOptions entry ensures the
-        // matching `anthropic-beta` header is sent by the SDK — belt and
-        // suspenders with the fetch-layer header merge.
+        // Provider options (Anthropic):
+        // - effort (output_config.effort): per-persona reasoning depth on the
+        //   Opus/Sonnet tiers. Navigator=high (tax accuracy is the wedge),
+        //   Captain=medium, Dispatcher=low. `@ai-sdk/anthropic` (≥3.0.74)
+        //   serializes this into `output_config.effort` and auto-adds the
+        //   `effort-2025-11-24` beta header. Gated by `personaEffort` so it is
+        //   never sent on the `fast` (Haiku) tier — Haiku 400s on effort.
+        // - anthropicBeta (Task Budgets): Opus-only. The task_budget body is
+        //   injected by the Opus provider's fetch passthrough (lib/ai/provider.ts);
+        //   this entry guarantees the matching `anthropic-beta` header. The fetch
+        //   passthrough spreads any existing `output_config` (i.e. the effort the
+        //   SDK already serialized) before adding task_budget, so the two compose.
         // Paired with `maxOutputTokens` above as the hard ceiling.
-        ...(tier === "complex"
-          ? {
-              providerOptions: {
-                anthropic: {
-                  anthropicBeta: [TASK_BUDGETS_BETA_HEADER],
-                },
-              },
-            }
-          : {}),
+        ...(() => {
+          const effort = personaEffort(persona, tier);
+          const anthropic: {
+            effort?: string;
+            anthropicBeta?: string[];
+          } = {};
+          if (effort) anthropic.effort = effort;
+          if (tier === "complex") anthropic.anthropicBeta = [TASK_BUDGETS_BETA_HEADER];
+          return Object.keys(anthropic).length > 0
+            ? { providerOptions: { anthropic } }
+            : {};
+        })(),
         abortSignal: abortController.signal,
-        headers: heliconeHeaders({
-          userId: user.id,
-          feature: "chat",
-          sessionId: requestId,
-        }),
-        onFinish: ({ text }) => {
+        headers: {
+          ...heliconeHeaders({
+            userId: user.id,
+            feature: "chat",
+            sessionId: requestId,
+          }),
+          // Internal signal to the Opus fetch passthrough — never reaches
+          // Anthropic (the passthrough deletes it before forwarding). Only set
+          // on Opus + tax-relevant turns; gates the mid-conv tax-safety system
+          // message. Harmless on non-Opus tiers (their provider has no
+          // passthrough and the header is just dropped by Anthropic).
+          ...(injectTaxSafety ? { [TAX_SAFETY_INJECT_HEADER]: "1" } : {}),
+        },
+        onFinish: ({ text, totalUsage }) => {
+          // ── Token-usage telemetry (incl. thinking/reasoning tokens) ───────
+          // Helicone GA captures usage at the proxy HTTP layer (including
+          // reasoning tokens billed as output), so per-user cost attribution
+          // already flows through Helicone. This app-side log is the
+          // Helicone-independent signal the Director Cockpit burn metric can
+          // consume, and it surfaces reasoning-token volume per tier/persona
+          // for tuning the per-persona `effort` budgets. Non-blocking and
+          // fully guarded — usage telemetry must never break chat persistence.
+          try {
+            const u = totalUsage;
+            log.info(
+              {
+                requestId,
+                userId: user.id,
+                tier,
+                persona,
+                inputTokens: u?.inputTokens,
+                outputTokens: u?.outputTokens,
+                totalTokens: u?.totalTokens,
+                reasoningTokens: u?.outputTokenDetails?.reasoningTokens,
+                cacheReadTokens: u?.inputTokenDetails?.cacheReadTokens,
+                cacheWriteTokens: u?.inputTokenDetails?.cacheWriteTokens,
+              },
+              "[chat] token usage",
+            );
+          } catch (err) {
+            log.warn({ err, requestId }, "[chat] usage telemetry log failed");
+          }
+
           // ── Navigator post-stream validation (safety net) ────────────────
           // Persona system prompts are the primary enforcement for the
           // tax-information-not-advice rule. This is an infrastructure-layer

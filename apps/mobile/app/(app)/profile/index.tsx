@@ -314,8 +314,8 @@ export default function ProfileScreen() {
           <RunwayGauge score={runway.score} textColor={c.text} dimColor={c.textDim} mode={mode} />
           <View style={{ flexDirection: "row", alignItems: "center", gap: Space.sm, marginTop: Space.md }}>
             <Text style={{ ...Type.label, color: c.textMuted }}>{t("runwayScore.label")}</Text>
-            <View style={{ backgroundColor: runway.color + "22", paddingHorizontal: Space.sm, paddingVertical: 2, borderRadius: Radius.sm }}>
-              <Text style={{ color: runway.color, fontSize: 10, fontWeight: "700" }}>{runway.label}</Text>
+            <View style={{ backgroundColor: runway.color, paddingHorizontal: Space.sm, paddingVertical: 2, borderRadius: Radius.sm }}>
+              <Text style={{ color: "#FFFFFF", fontSize: 10, fontWeight: "700" }}>{runway.label}</Text>
             </View>
           </View>
           <Text style={{ ...Type.caption, color: c.textDim, marginTop: Space.sm, textAlign: "center" }}>

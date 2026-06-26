@@ -67,7 +67,7 @@ export function Avatar({ name, size = "md", color, imageUrl }: AvatarProps) {
           width: dim,
           height: dim,
           borderRadius: dim / 2,
-          backgroundColor: hasImage ? "transparent" : bg + "20",
+          backgroundColor: hasImage ? "transparent" : bg + "38",
           overflow: "hidden",
         },
       ]}

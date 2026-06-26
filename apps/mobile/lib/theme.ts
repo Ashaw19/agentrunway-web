@@ -49,49 +49,62 @@ function palette(mode: ThemeMode) {
   const dark = mode === "dark";
   return {
     // Backgrounds — web: oklch(0.129, 0.042, 264.695) dark, oklch(1,0,0) light
-    bg:             dark ? "#131326" : "#FFFFFF",
-    bgElevated:     dark ? "#171733" : "#FAFAFE",
+    // Light-mode canvas is a cool slate (#EEF2F7), NOT white, so the white
+    // cards/pills lift off the screen (instrument-panel POV — cards float on a
+    // slate backdrop). Cards stay #FFFFFF; the lightness gap + shadow + border
+    // is what creates the "pop". Dark mode already floats (card #1E1E3A is
+    // lighter than bg #131326), so only the light canvas changes.
+    bg:             dark ? "#131326" : "#EEF2F7",
+    bgElevated:     dark ? "#171733" : "#FFFFFF",
     card:           dark ? "#1E1E3A" : "#FFFFFF",
-    cardBorder:     dark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.06)",
-    cardHighBorder: dark ? "rgba(255,255,255,0.14)" : "rgba(0,0,0,0.10)",
+    cardBorder:     dark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.10)",
+    cardHighBorder: dark ? "rgba(255,255,255,0.14)" : "rgba(0,0,0,0.14)",
 
     // Brand — web: Runway Blue oklch(0.57, 0.240, 261) ≈ #3B5EF6
+    // Light-mode tints bumped from ~8% to ~16% so colored chips & icon
+    // backgrounds read as distinct objects on white, not afterthoughts.
     primary:        "#3B5EF6",
     primaryLight:   "#6380F8",
-    primaryDim:     dark ? "rgba(59,94,246,0.12)" : "rgba(59,94,246,0.08)",
-    primaryBorder:  dark ? "rgba(59,94,246,0.25)" : "rgba(59,94,246,0.20)",
+    primaryDim:     dark ? "rgba(59,94,246,0.12)" : "rgba(59,94,246,0.16)",
+    primaryBorder:  dark ? "rgba(59,94,246,0.25)" : "rgba(59,94,246,0.35)",
 
     // Commission Gold — web: oklch(0.75, 0.19, 73) ≈ #F0A800
     gold:           "#F0A800",
     goldLight:      "#F5BE3A",
-    goldDim:        dark ? "rgba(240,168,0,0.14)" : "rgba(240,168,0,0.08)",
+    goldDim:        dark ? "rgba(240,168,0,0.14)" : "rgba(240,168,0,0.18)",
 
     // Semantic — chart colors from web
     success:        "#10B981",  // Chart-1 emerald
     successLight:   "#34D399",
-    successDim:     dark ? "rgba(16,185,129,0.12)" : "rgba(16,185,129,0.08)",
+    successDim:     dark ? "rgba(16,185,129,0.12)" : "rgba(16,185,129,0.16)",
     warning:        "#F59E0B",  // Warning amber
     warningLight:   "#FBBF24",
-    warningDim:     dark ? "rgba(245,158,11,0.12)" : "rgba(245,158,11,0.08)",
+    warningDim:     dark ? "rgba(245,158,11,0.12)" : "rgba(245,158,11,0.16)",
     danger:         "#EF4444",  // Critical red
-    dangerDim:      dark ? "rgba(239,68,68,0.12)" : "rgba(239,68,68,0.08)",
+    dangerDim:      dark ? "rgba(239,68,68,0.12)" : "rgba(239,68,68,0.16)",
     cyan:           "#06B6D4",  // Chart-4 teal
-    cyanDim:        dark ? "rgba(6,182,212,0.12)" : "rgba(6,182,212,0.08)",
+    cyanDim:        dark ? "rgba(6,182,212,0.12)" : "rgba(6,182,212,0.16)",
     purple:         "#8B5CF6",  // Chart-2 violet
-    purpleDim:      dark ? "rgba(139,92,246,0.12)" : "rgba(139,92,246,0.08)",
+    purpleDim:      dark ? "rgba(139,92,246,0.12)" : "rgba(139,92,246,0.16)",
     blue:           "#3B82F6",  // Info blue
-    blueDim:        dark ? "rgba(59,130,246,0.12)" : "rgba(59,130,246,0.08)",
+    blueDim:        dark ? "rgba(59,130,246,0.12)" : "rgba(59,130,246,0.16)",
 
     // Text — web: oklch(0.984) light-on-dark, oklch(0.129) dark-on-light
+    // Pass-2 light-mode ramp: slid one step darker across the board after the
+    // first pass still felt washed out on "Updated just now", section headers,
+    // and card subtext ("50d old — speed to lead"). Ramp preserved, just
+    // shifted: textSecondary→gray-800, textMuted→gray-700, textDim→gray-600,
+    // textFaint→gray-500. Contrast: secondary ~14:1, muted ~9:1, dim ~7:1,
+    // faint ~4.7:1 (still visible on white). Dark-mode values unchanged.
     text:           dark ? "#F5F5FA" : "#111827",
-    textSecondary:  dark ? "#D1D5E0" : "#374151",
-    textMuted:      dark ? "#9CA3B8" : "#6B7280",
-    textDim:        dark ? "#6B728A" : "#9CA3AF",
-    textFaint:      dark ? "#3A3F55" : "#D1D5DB",
+    textSecondary:  dark ? "#D1D5E0" : "#1F2937",
+    textMuted:      dark ? "#9CA3B8" : "#374151",
+    textDim:        dark ? "#6B728A" : "#4B5563",
+    textFaint:      dark ? "#3A3F55" : "#6B7280",
 
     // Elevated surfaces — 3-layer depth system (research: premium apps use layered darkness)
     cardElevated:   dark ? "#242450" : "#FFFFFF",
-    cardElevatedBorder: dark ? "rgba(255,255,255,0.13)" : "rgba(0,0,0,0.08)",
+    cardElevatedBorder: dark ? "rgba(255,255,255,0.13)" : "rgba(0,0,0,0.12)",
     surfaceGlass:   dark ? "rgba(30,30,70,0.75)" : "rgba(255,255,255,0.85)",
 
     // Misc
@@ -125,7 +138,10 @@ export function gradients(mode: ThemeMode) {
   const dark = mode === "dark";
   return {
     // Web: --gradient-runway (navy → blue)
-    heroCard:    dark ? ["#161640", "#111126"] : ["#EEF0FF", "#FFFFFF"],
+    // Light heroCard top lifted from #EEF0FF → #F5F7FF so the gauge card reads
+    // as a near-white floating surface, distinct from the new #EEF2F7 slate
+    // canvas (the old value was nearly identical to the canvas and blended).
+    heroCard:    dark ? ["#161640", "#111126"] : ["#F5F7FF", "#FFFFFF"],
     // Web: --gradient-growth (emerald → teal)
     growthCard:  dark ? ["#0A2A1A", "#0E1420"] : ["#ECFDF5", "#FFFFFF"],
     tabBar:      dark ? ["#111126", "#0E0E1A"] : ["#FFFFFF", "#F8F9FB"],
@@ -149,12 +165,16 @@ export function shadows(mode: ThemeMode) {
   const dark = mode === "dark";
   return {
     // Web: --shadow-sm (contact + light lift)
+    // Pass 2: light-mode elevation deepened so cards lift off the white bg
+    // rather than sitting flush. Slate-900 shadow color reads cooler than
+    // gray-600 and matches the cool-toned AR palette. Andrew flagged the
+    // pass-1 tiles as floating without depth.
     card: Platform.select({
       ios: {
-        shadowColor: dark ? "#000" : "#4B5563",
-        shadowOffset: { width: 0, height: 1 },
+        shadowColor: dark ? "#000" : "#0F172A",
+        shadowOffset: { width: 0, height: dark ? 1 : 4 },
         shadowOpacity: dark ? 0.25 : 0.06,
-        shadowRadius: 6,
+        shadowRadius: dark ? 6 : 12,
       },
       android: { elevation: dark ? 3 : 2 },
       default: {},
@@ -284,6 +304,28 @@ export function fmtCurrency(n: number): string {
 
 export function getInitials(name: string): string {
   return name.split(" ").slice(0, 2).map((w) => w[0]?.toUpperCase() ?? "").join("");
+}
+
+// ── Color shift ────────────────────────────────────────────────────────────
+// Lighten / darken a #RRGGBB hex by a percentage (-1..1). Used to derive a
+// gradient sibling for an instrument arc (e.g. amber → deep-orange) from a
+// single band color, so the cockpit gauge gradient stays in-family with the
+// canonical band color rather than hardcoding a second hue.
+export function shiftHex(hex: string, amount: number): string {
+  const m = hex.replace("#", "");
+  if (m.length !== 6) return hex;
+  const num = parseInt(m, 16);
+  let r = (num >> 16) & 0xff;
+  let g = (num >> 8) & 0xff;
+  let b = num & 0xff;
+  const adj = (ch: number) =>
+    amount >= 0
+      ? Math.round(ch + (255 - ch) * amount)
+      : Math.round(ch * (1 + amount));
+  r = Math.max(0, Math.min(255, adj(r)));
+  g = Math.max(0, Math.min(255, adj(g)));
+  b = Math.max(0, Math.min(255, adj(b)));
+  return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`;
 }
 
 export function dayOfYear(): number {

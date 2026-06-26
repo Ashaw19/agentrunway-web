@@ -40,7 +40,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "AI service not configured" }, { status: 503 });
   }
 
-  const body = await req.json();
+  let body: {
+    no_emoji?: boolean;
+    client_record_id?: string;
+    client_id?: string;
+    specs?: PropertySpecs;
+  };
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+  }
   const noEmoji = body.no_emoji === true;
 
   const result = await draftListingDescription({

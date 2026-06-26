@@ -32,11 +32,16 @@ export async function POST(request: Request) {
     );
   }
 
-  const { org_id, member_count, billing } = (await request.json()) as {
-    org_id: string;
-    member_count: number;
-    billing: "monthly" | "annual";
-  };
+  let org_id: string, member_count: number, billing: "monthly" | "annual";
+  try {
+    ({ org_id, member_count, billing } = (await request.json()) as {
+      org_id: string;
+      member_count: number;
+      billing: "monthly" | "annual";
+    });
+  } catch {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+  }
 
   if (!org_id || member_count == null || member_count < 0) {
     return NextResponse.json(

@@ -203,12 +203,13 @@ export function PipelineContent({ seed }: { seed: PipelineSeedData }) {
       toast.error("Property address is required.");
       return;
     }
-    if (!listingForm.estimated_list_price || Number(listingForm.estimated_list_price) <= 0) {
+    const listPrice = Number(listingForm.estimated_list_price);
+    if (!listingForm.estimated_list_price || !Number.isFinite(listPrice) || listPrice <= 0) {
       toast.error("Estimated list price is required.");
       return;
     }
     const commPct = Number(listingForm.estimated_commission_pct);
-    if (listingForm.estimated_commission_pct !== "" && (commPct < 0 || commPct > 50)) {
+    if (listingForm.estimated_commission_pct !== "" && (!Number.isFinite(commPct) || commPct < 0 || commPct > 50)) {
       toast.error("Commission must be between 0% and 50%.");
       return;
     }
@@ -222,8 +223,8 @@ export function PipelineContent({ seed }: { seed: PipelineSeedData }) {
         appointment_date: listingForm.appointment_date || new Date().toISOString().slice(0, 10),
         estimated_list_price: Number(listingForm.estimated_list_price),
         estimated_commission_pct: Number(listingForm.estimated_commission_pct) / 100,
-        actual_list_price: listingForm.actual_list_price ? Number(listingForm.actual_list_price) : null,
-        actual_sale_price: listingForm.actual_sale_price ? Number(listingForm.actual_sale_price) : null,
+        actual_list_price: Number.isFinite(Number(listingForm.actual_list_price)) && listingForm.actual_list_price ? Number(listingForm.actual_list_price) : null,
+        actual_sale_price: Number.isFinite(Number(listingForm.actual_sale_price)) && listingForm.actual_sale_price ? Number(listingForm.actual_sale_price) : null,
         expected_close_date: listingForm.expected_close_date || null,
         listing_agreement_date: listingForm.listing_agreement_date || null,
         status: listingForm.status,

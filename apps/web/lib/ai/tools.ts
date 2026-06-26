@@ -55,6 +55,7 @@ import { tool, type ToolSet } from "ai";
 import { z } from "zod";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { OutreachOpportunityType, NewsletterTemplateType } from "@agent-runway/core/types/database";
+import { FIELD_LIMITS } from "@agent-runway/core/validation/input-guards";
 import {
   draftOutreachForClient as draftOutreachForClientService,
   draftListingDescription as draftListingDescriptionService,
@@ -304,7 +305,10 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
       needsApproval: true,
       execute: async ({ name, email, phone, city, buyerTargetArea, status, propertyInterest, propertyInterestType, side, timeframe, notes, leadSource }) => {
         try {
-          const nameSearch = name.toLowerCase().trim();
+          // Cap to the clients.name DB constraint (chk_cl_name_length <= 200)
+          // so an overlong LLM-supplied name never aborts the insert.
+          const cappedName = name.slice(0, FIELD_LIMITS.clientName);
+          const nameSearch = cappedName.toLowerCase().trim();
 
           // Check for duplicate
           const { data: existing } = await supabase
@@ -320,7 +324,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
           }
 
           // Split name into first/last
-          const nameParts = name.trim().split(/\s+/);
+          const nameParts = cappedName.trim().split(/\s+/);
           const firstName = nameParts[0] ?? "";
           const lastName = nameParts.length > 1 ? nameParts.slice(1).join(" ") : "";
 
@@ -328,7 +332,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const record: Record<string, any> = {
             user_id: userId,
-            name: name.trim(),
+            name: cappedName.trim(),
             name_search: nameSearch,
             first_name: firstName,
             last_name: lastName,

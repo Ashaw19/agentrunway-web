@@ -2343,12 +2343,18 @@ export async function getTopOpportunities(
     if (!client) continue;
 
     const lastDeal = clientLastDeal.get(clientId);
-    const idleMonths = lastDeal ? Math.floor((Date.now() - new Date(lastDeal + "T12:00:00").getTime()) / (1000 * 60 * 60 * 24 * 30)) : 999;
+    const hasPriorDeal = !!lastDeal;
+    const idleMonths = hasPriorDeal ? Math.floor((Date.now() - new Date(lastDeal + "T12:00:00").getTime()) / (1000 * 60 * 60 * 24 * 30)) : 999;
 
     if (facts.pain_point && idleMonths >= 6) {
+      // Guard the 999 "no recorded deal" sentinel so the user-facing reason never
+      // renders "999mo inactive". Mirrors the 999 guards in crm-analytics-engine.
+      const inactiveReason = hasPriorDeal
+        ? `Known concern + ${idleMonths}mo inactive`
+        : "Known concern, no recorded deal";
       inserts.push({
         user_id: userId, client_id: clientId, opportunity_type: "pain_point_inactive",
-        trigger_date: triggerMonthKey, context: enrichContext({ pain_point: facts.pain_point }, "pain_point_inactive", facts, `Known concern + ${idleMonths}mo inactive`),
+        trigger_date: triggerMonthKey, context: enrichContext({ pain_point: facts.pain_point }, "pain_point_inactive", facts, inactiveReason),
       });
     }
     if (facts.areas_of_interest && facts.goal?.toLowerCase().includes("buy") && (client.status === "boarding" || client.status === "scheduled")) {

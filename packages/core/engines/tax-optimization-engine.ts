@@ -18,15 +18,17 @@ import {
 } from "./canadian-tax-engine";
 import { calculateCorporateTax } from "./corporate-tax-engine";
 
-// ⚠️  TAX_YEAR = 2025 — Update all three engine files together:
+// ⚠️  TAX_YEAR = 2026 — Update all FOUR tax files together:
 // - canadian-tax-engine.ts
 // - corporate-tax-engine.ts
 // - tax-optimization-engine.ts
+// - apps/web/supabase/functions/mcp-server/lib/canadian-tax-engine.ts (Deno MCP mirror)
 
-// ── CRA-sourced constants (2025 tax year) ────────────────────────────────────
+// ── CRA-sourced constants (2026 tax year; verified 2026-06-26) ───────────────
 
-/** CRA: canada.ca/en/revenue-agency/services/tax/individuals/topics/rrsp-mp/rrsp-limit.html */
-const RRSP_LIMIT_2025 = 32_490;
+/** 2026 RRSP dollar limit (CRA, verified 2026-06-26).
+ *  Source: canada.ca/en/revenue-agency/services/tax/registered-plans-administrators/pspa/mp-rrsp-dpsp-tfsa-limits-ympe.html */
+const RRSP_DOLLAR_LIMIT = 33_810;
 const RRSP_CONTRIBUTION_RATE = 0.18;
 
 /**
@@ -36,8 +38,10 @@ const RRSP_CONTRIBUTION_RATE = 0.18;
  * vehicle deductions they might claim via the actual-expense method.
  * CRA: canada.ca/en/revenue-agency/services/tax/businesses/topics/automobile-motor-vehicle-benefits/automobile-allowance-rates.html
  */
-const CRA_MILEAGE_RATE_FIRST_5K = 0.72; // $/km for first 5,000 km (employer allowance benchmark)
-const CRA_MILEAGE_RATE_AFTER = 0.66;    // $/km beyond 5,000 km (employer allowance benchmark)
+// 2026 CRA reasonable per-km allowance benchmark (provinces; verified 2026-06-26).
+// Source: canada.ca/en/department-finance/news/2026/01/government-announces-the-2026-automobile-deduction-limits-and-expense-benefit-rates-for-businesses.html
+const CRA_MILEAGE_RATE_FIRST_5K = 0.73; // $/km for first 5,000 km (employer allowance benchmark)
+const CRA_MILEAGE_RATE_AFTER = 0.67;    // $/km beyond 5,000 km (employer allowance benchmark)
 const CRA_MILEAGE_THRESHOLD = 5_000;
 
 /** Estimated annual accounting cost for incorporated agents */
@@ -46,8 +50,9 @@ const ESTIMATED_ACCOUNTING_COST = 4_000;
 /** CRA: GST/HST small supplier threshold */
 const GST_REGISTRATION_THRESHOLD = 30_000;
 
-/** CRA prescribed interest rate on instalment shortfalls (approximate as of 2025 — CRA adjusts quarterly) */
-const CRA_INSTALMENT_INTEREST_RATE = 0.06;
+/** CRA prescribed interest rate on instalment shortfalls (7% for Q3 2026 — CRA adjusts quarterly).
+ *  Source: canada.ca/en/revenue-agency/services/tax/prescribed-interest-rates/2026-q3.html (verified 2026-06-26) */
+const CRA_INSTALMENT_INTEREST_RATE = 0.07;
 
 /** Minimum estimated savings to display a card */
 const MIN_SAVINGS_THRESHOLD = 100;
@@ -183,7 +188,7 @@ export function generateTaxOptimizations(
     input.netIncome > 0 &&
     (!input.isIncorporated || input.compensationMethod !== "dividends")
   ) {
-    const rrspRoom = Math.min(input.netIncome * RRSP_CONTRIBUTION_RATE, RRSP_LIMIT_2025);
+    const rrspRoom = Math.min(input.netIncome * RRSP_CONTRIBUTION_RATE, RRSP_DOLLAR_LIMIT);
     const savings = rrspRoom * mRate;
 
     if (savings >= MIN_SAVINGS_THRESHOLD) {
@@ -195,7 +200,7 @@ export function generateTaxOptimizations(
         title: "RRSP Contribution Opportunity",
         evidence: [
           `Your combined marginal rate is ${fmtPct(mRate)} — each $1 contributed could reduce tax by ${Math.round(mRate * 100)}\u00A2`,
-          `Estimated contribution room based on income: ${fmtCurrency(rrspRoom)} (18% of net income, max $${RRSP_LIMIT_2025.toLocaleString()})`,
+          `Estimated contribution room based on income: ${fmtCurrency(rrspRoom)} (18% of net income, max $${RRSP_DOLLAR_LIMIT.toLocaleString()})`,
         ],
         action: `Ask your accountant about maximizing your RRSP contribution. At your marginal rate, a full contribution of ${fmtCurrency(rrspRoom)} could reduce your tax by ${savingsLabel(savings).replace("/yr", "")}.`,
         disclaimer:
@@ -354,7 +359,7 @@ export function generateTaxOptimizations(
           ? "Vehicle Deduction \u2014 Start Logging Trips"
           : "Vehicle Deduction Summary",
         evidence: [
-          `CRA 2025 reasonable allowance rates (planning benchmark): $${CRA_MILEAGE_RATE_FIRST_5K}/km (first ${CRA_MILEAGE_THRESHOLD.toLocaleString()} km) + $${CRA_MILEAGE_RATE_AFTER}/km after`,
+          `CRA 2026 reasonable allowance rates (planning benchmark): $${CRA_MILEAGE_RATE_FIRST_5K}/km (first ${CRA_MILEAGE_THRESHOLD.toLocaleString()} km) + $${CRA_MILEAGE_RATE_AFTER}/km after`,
           isEstimate
             ? `Estimated ${businessKm.toLocaleString()} business km (typical agent average at ${fmtPct(input.vehicleBusinessUsePct)} business use)`
             : `${businessKm.toLocaleString()} logged business km at ${fmtPct(input.vehicleBusinessUsePct)} business use`,

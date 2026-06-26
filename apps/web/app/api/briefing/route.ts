@@ -38,7 +38,7 @@ export async function GET() {
     .eq("user_id", user.id)
     .eq("insight_type", "morning_briefing")
     .gt("expires_at", new Date().toISOString())
-    .single();
+    .maybeSingle();
 
   if (cached) {
     return NextResponse.json({

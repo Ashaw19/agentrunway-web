@@ -324,7 +324,10 @@ function computeAggregates(
       const isAccounting = s.startsWith("(") && s.endsWith(")");
       if (isAccounting) s = s.slice(1, -1);
       const n = Number(s);
-      if (isNaN(n)) return null;
+      // Reject NaN AND ±Infinity ("1e400", "Infinity") — isNaN(Infinity) is false,
+      // so a bare isNaN guard lets Infinity through into numeric DB columns. Match
+      // the Number.isFinite guard used in parseMoneyLoose / parseDollar / parsePercent.
+      if (!Number.isFinite(n)) return null;
       return isAccounting ? -n : n;
     };
     const salePrice        = toNum(d.sale_price);
@@ -332,9 +335,14 @@ function computeAggregates(
     const netIncome        = toNum(d.net_income);
     // LLMs sometimes return commission as a string with a % sign (e.g. "3.5%") — strip it before parsing.
     // Also normalize whole-number percentages (e.g. 5 → 0.05).
-    let   commissionPct    = d.commission_percent != null
-      ? (Number(String(d.commission_percent).replace(/[%\s]/g, "")) || null)
-      : null;
+    // Reject NaN AND ±Infinity ("1e400", "Infinity") — a bare `Number(...) || null`
+    // lets Infinity through (Infinity is truthy) into the preview/return shape. Match
+    // the Number.isFinite guard `toNum` uses on the sibling numeric fields above.
+    let   commissionPct: number | null = null;
+    if (d.commission_percent != null) {
+      const pctRaw = Number(String(d.commission_percent).replace(/[%\s]/g, ""));
+      commissionPct = Number.isFinite(pctRaw) ? (pctRaw || null) : null;
+    }
     if (commissionPct != null && commissionPct > 1) commissionPct = commissionPct / 100;
     const address          = (d.address ?? "").trim();
 

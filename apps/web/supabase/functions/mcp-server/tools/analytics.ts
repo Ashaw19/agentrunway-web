@@ -12,12 +12,56 @@ import {
   gstHstLabel,
   gstHstRate,
 } from "../lib/hst-engine.ts";
+import {
+  computeListingWeightedGCI,
+  projectedYearEndGCI,
+  projectedYearEndTransactions,
+  seasonalFractionElapsed,
+} from "../lib/projection-engine.ts";
 import { CANONICAL_TAX_DISCLAIMER } from "../lib/constants.ts";
 
 // Canonical stage probabilities — mirrors packages/core/types/database.ts PIPELINE_STAGE_DEFAULTS
 const PIPELINE_STAGE_DEFAULTS: Record<string, number> = {
   lead: 0.1, showing: 0.25, offer: 0.5, conditional: 0.75, firm: 0.9, closed: 1.0,
 };
+
+// ── Shared dashboard-parity fetch + seasonal weights ─────────────────────────
+//
+// The dashboard derives the projection from a SEASONAL fraction (agent-specific
+// quarter weights from history, else national, else uniform) and feeds
+// `pipelineWeighted + listingWeighted` into projectedYearEndGCI. The MCP tools
+// must mirror that exactly or the Connector disagrees with the dashboard.
+// These helpers centralize the dashboard's seasonal-weights derivation so all
+// three analytics tools share one definition.
+// See memory/findings/dashboard_metric_divergence_fix_2026-06-26.md.
+
+/**
+ * Derive seasonal quarter weights the same way the dashboard does:
+ *   1. agent-specific (avg of history_items.quarter_gci when ≥2 years have data)
+ *   2. else national_quarter_pcts (when use_national_seasonality)
+ *   3. else uniform [0.25,0.25,0.25,0.25]
+ * Returns fractions (sum ≈ 1); seasonalFractionElapsed normalizes regardless.
+ */
+function deriveSeasonalWeights(
+  historyRows: Array<{ quarter_gci?: number[] | null }> | null | undefined,
+  useNationalSeasonality: boolean | null | undefined,
+  nationalQuarterPcts: number[] | null | undefined,
+): number[] {
+  const withData = (historyRows ?? []).filter((h) =>
+    (h.quarter_gci ?? []).some((v) => (v ?? 0) > 0),
+  );
+  if (withData.length >= 2) {
+    const avgQ = [0, 1, 2, 3].map((q) =>
+      withData.reduce((sum, h) => sum + ((h.quarter_gci ?? [])[q] ?? 0), 0) / withData.length,
+    );
+    const total = avgQ.reduce((a, b) => a + b, 0);
+    if (total > 0) return avgQ.map((v) => v / total);
+  }
+  if (useNationalSeasonality) {
+    return nationalQuarterPcts ?? [0.25, 0.25, 0.25, 0.25];
+  }
+  return [0.25, 0.25, 0.25, 0.25];
+}
 
 export function getAnalyticsTools(supabase: SupabaseClient, userId: string): McpTool[] {
   return [
@@ -37,10 +81,10 @@ export function getAnalyticsTools(supabase: SupabaseClient, userId: string): Mcp
         const yearStart = new Date(new Date().getFullYear(), 0, 1).toISOString().split("T")[0];
         const today = new Date().toISOString().split("T")[0];
 
-        const [settingsRes, txRes, pipelineRes, expenseRes] = await Promise.all([
+        const [settingsRes, txRes, pipelineRes, expenseRes, listingRes, historyRes] = await Promise.all([
           supabase
             .from("user_settings")
-            .select("goal_gci, goal_transactions, ytd_gci, ytd_transactions, province")
+            .select("goal_gci, goal_transactions, ytd_gci, ytd_transactions, province, use_national_seasonality, national_quarter_pcts")
             .eq("user_id", userId)
             .maybeSingle(),
           supabase
@@ -59,12 +103,24 @@ export function getAnalyticsTools(supabase: SupabaseClient, userId: string): Mcp
             .from("expense_items")
             .select("ytd_amount")
             .eq("user_id", userId),
+          // Active listing appointments — same scheduled/active set the dashboard reads.
+          supabase
+            .from("listing_appointments")
+            .select("estimated_list_price, estimated_commission_pct, status")
+            .eq("user_id", userId)
+            .in("status", ["scheduled", "active"]),
+          supabase
+            .from("history_items")
+            .select("quarter_gci")
+            .eq("user_id", userId),
         ]);
 
         const settings = settingsRes.data;
         const transactions = txRes.data ?? [];
         const deals = pipelineRes.data ?? [];
         const expenses = expenseRes.data ?? [];
+        const listings = listingRes.data ?? [];
+        const history = historyRes.data ?? [];
 
         // YTD GCI from closed transactions this year
         const ytdGCI = transactions.reduce((sum, tx) => {
@@ -84,21 +140,33 @@ export function getAnalyticsTools(supabase: SupabaseClient, userId: string): Mcp
           return sum + estGCI * prob;
         }, 0);
 
+        // Listing-weighted GCI — canonical helper, matches dashboard.
+        const listingWeighted = computeListingWeightedGCI(listings);
+
         // YTD expenses
         const ytdExpenses = expenses.reduce((sum, e) => sum + (e.ytd_amount ?? 0), 0);
 
-        // Year fraction elapsed
         const now = new Date();
-        const yearDay = Math.floor((now.getTime() - new Date(now.getFullYear(), 0, 1).getTime()) / 86_400_000);
-        const yearDays = (now.getFullYear() % 4 === 0 && (now.getFullYear() % 100 !== 0 || now.getFullYear() % 400 === 0)) ? 366 : 365;
-        const yearFraction = yearDay / yearDays;
-
         const goalGCI = settings?.goal_gci ?? 0;
         const goalTx = settings?.goal_transactions ?? 0;
-        const projectedYearEnd = yearFraction > 0.01 ? Math.round(ytdGCI / yearFraction) : null;
+
+        // Seasonal fraction — agent/national/uniform weights, exactly as the
+        // dashboard derives them. Replaces the prior plain yearDay/yearDays.
+        const seasonalWeights = deriveSeasonalWeights(
+          history,
+          settings?.use_national_seasonality,
+          settings?.national_quarter_pcts,
+        );
+        const fraction = seasonalFractionElapsed(seasonalWeights, now);
+
+        // Canonical projection — pipeline + listing weighted GCI (matches dashboard).
+        const projectedYearEnd = ytdGCI > 0 || pipelineWeighted > 0 || listingWeighted > 0
+          ? Math.round(projectedYearEndGCI(ytdGCI, pipelineWeighted + listingWeighted, fraction, goalGCI))
+          : null;
+
         const goalProgressPct = goalGCI > 0 ? Math.round((ytdGCI / goalGCI) * 100) : null;
-        const paceVsGoalPct = goalGCI > 0 && yearFraction > 0
-          ? Math.round(((ytdGCI / (goalGCI * yearFraction)) - 1) * 100)
+        const paceVsGoalPct = goalGCI > 0 && fraction > 0
+          ? Math.round(((ytdGCI / (goalGCI * fraction)) - 1) * 100)
           : null;
 
         return {
@@ -113,12 +181,13 @@ export function getAnalyticsTools(supabase: SupabaseClient, userId: string): Mcp
               ytd_net_income: Math.round(ytdGCI - ytdExpenses),
               pipeline_weighted_gci: Math.round(pipelineWeighted),
               pipeline_deal_count: deals.length,
+              listing_weighted_gci: Math.round(listingWeighted),
               goal_gci: goalGCI,
               goal_transactions: goalTx,
               goal_progress_pct: goalProgressPct,
               pace_vs_goal_pct: paceVsGoalPct,
               projected_year_end_gci: projectedYearEnd,
-              year_pct_elapsed: Math.round(yearFraction * 100),
+              year_pct_elapsed: Math.round(fraction * 100),
             }, null, 2),
           }],
         };
@@ -193,10 +262,10 @@ export function getAnalyticsTools(supabase: SupabaseClient, userId: string): Mcp
         const yearStart = new Date(new Date().getFullYear(), 0, 1).toISOString().split("T")[0];
         const today = new Date().toISOString().split("T")[0];
 
-        const [settingsRes, txRes, pipelineRes, historyRes] = await Promise.all([
+        const [settingsRes, txRes, pipelineRes, listingRes, historyRes] = await Promise.all([
           supabase
             .from("user_settings")
-            .select("goal_gci, goal_transactions")
+            .select("goal_gci, goal_transactions, use_national_seasonality, national_quarter_pcts")
             .eq("user_id", userId)
             .maybeSingle(),
           supabase
@@ -212,16 +281,21 @@ export function getAnalyticsTools(supabase: SupabaseClient, userId: string): Mcp
             .eq("user_id", userId)
             .neq("stage", "closed"),
           supabase
-            .from("history_items")
-            .select("year, annual_gci, annual_tx")
+            .from("listing_appointments")
+            .select("estimated_list_price, estimated_commission_pct, status")
             .eq("user_id", userId)
-            .order("year", { ascending: false })
-            .limit(3),
+            .in("status", ["scheduled", "active"]),
+          supabase
+            .from("history_items")
+            .select("year, annual_gci, annual_tx, quarter_gci")
+            .eq("user_id", userId)
+            .order("year", { ascending: false }),
         ]);
 
         const settings = settingsRes.data;
         const transactions = txRes.data ?? [];
         const deals = pipelineRes.data ?? [];
+        const listings = listingRes.data ?? [];
         const history = historyRes.data ?? [];
 
         // YTD GCI
@@ -233,34 +307,35 @@ export function getAnalyticsTools(supabase: SupabaseClient, userId: string): Mcp
             : raw);
         }, 0);
 
-        // Pipeline GCI (high-probability deals expected this year)
-        const pipelineThisYear = deals
-          .filter((d) => {
-            if (!d.expected_close_date) return true;
-            return d.expected_close_date.startsWith(String(new Date().getFullYear()));
-          })
-          .reduce((sum, deal) => {
-            const prob = deal.probability_override ??
-              PIPELINE_STAGE_DEFAULTS[deal.stage as keyof typeof PIPELINE_STAGE_DEFAULTS] ??
-              0.5;
-            const estGCI = (deal.estimated_price ?? 0) * (deal.estimated_commission_pct ?? 0.025);
-            return sum + estGCI * prob;
-          }, 0);
+        // Pipeline weighted GCI (whole active pipeline — matches dashboard;
+        // expected_close_date is NOT used to gate the projection input).
+        const pipelineWeighted = deals.reduce((sum, deal) => {
+          const prob = deal.probability_override ??
+            PIPELINE_STAGE_DEFAULTS[deal.stage as keyof typeof PIPELINE_STAGE_DEFAULTS] ??
+            0.5;
+          const estGCI = (deal.estimated_price ?? 0) * (deal.estimated_commission_pct ?? 0.025);
+          return sum + estGCI * prob;
+        }, 0);
+        const listingWeighted = computeListingWeightedGCI(listings);
 
         const now = new Date();
-        const yearDay = Math.floor((now.getTime() - new Date(now.getFullYear(), 0, 1).getTime()) / 86_400_000);
-        const yearDays = (now.getFullYear() % 4 === 0 && (now.getFullYear() % 100 !== 0 || now.getFullYear() % 400 === 0)) ? 366 : 365;
-        const yearFraction = yearDay / yearDays;
-
-        // Pace-based projection
-        const paceProjection = yearFraction > 0.01 ? ytdGCI / yearFraction : null;
-
-        // Blended: 60% pace + 40% pipeline-augmented
-        const blended = paceProjection != null
-          ? Math.round(paceProjection * 0.6 + (ytdGCI + pipelineThisYear) * 0.4)
-          : null;
-
         const goalGCI = settings?.goal_gci ?? 0;
+
+        // Seasonal fraction + canonical projection (matches dashboard exactly).
+        // Replaces the prior bespoke "60% pace + 40% pipeline" blend, which
+        // existed nowhere in the canonical engine and disagreed with every
+        // other surface. See dashboard_metric_divergence_fix_2026-06-26.md.
+        const seasonalWeights = deriveSeasonalWeights(
+          history,
+          settings?.use_national_seasonality,
+          settings?.national_quarter_pcts,
+        );
+        const fraction = seasonalFractionElapsed(seasonalWeights, now);
+        const projection = Math.round(
+          projectedYearEndGCI(ytdGCI, pipelineWeighted + listingWeighted, fraction, goalGCI),
+        );
+        const projectedTx = projectedYearEndTransactions(transactions.length, deals.length, fraction);
+
         const confidence = transactions.length >= 5 ? "high" : transactions.length >= 2 ? "medium" : "low";
 
         return {
@@ -271,14 +346,15 @@ export function getAnalyticsTools(supabase: SupabaseClient, userId: string): Mcp
               as_of: today,
               ytd_gci: Math.round(ytdGCI),
               ytd_transactions: transactions.length,
-              pace_projection: paceProjection ? Math.round(paceProjection) : null,
-              pipeline_contribution: Math.round(pipelineThisYear),
-              blended_projection: blended,
+              pipeline_weighted_gci: Math.round(pipelineWeighted),
+              listing_weighted_gci: Math.round(listingWeighted),
+              projected_year_end_gci: projection,
+              projected_year_end_transactions: projectedTx,
               goal_gci: goalGCI,
-              on_track_for_goal: goalGCI > 0 && blended != null ? blended >= goalGCI : null,
+              on_track_for_goal: goalGCI > 0 ? projection >= goalGCI : null,
               confidence,
               data_points: transactions.length,
-              prior_years: history.map((h) => ({
+              prior_years: history.slice(0, 3).map((h) => ({
                 year: h.year,
                 gci: h.annual_gci,
                 transactions: h.annual_tx,
@@ -315,13 +391,14 @@ export function getAnalyticsTools(supabase: SupabaseClient, userId: string): Mcp
         const yearStart = new Date(new Date().getFullYear(), 0, 1).toISOString().split("T")[0];
         const today = new Date().toISOString().split("T")[0];
 
-        const [settingsRes, txRes, expenseRes] = await Promise.all([
+        const [settingsRes, txRes, expenseRes, pipelineRes, listingRes, historyRes] = await Promise.all([
           supabase
             .from("user_settings")
             .select(
               "goal_gci, province, split_preset, post_cap_threshold_gci, " +
               "post_cap_agent_pct, post_cap_brokerage_pct, tx_fee_rate_pct, " +
-              "tx_fee_annual_cap, monthly_brokerage_fee",
+              "tx_fee_annual_cap, monthly_brokerage_fee, use_national_seasonality, " +
+              "national_quarter_pcts",
             )
             .eq("user_id", userId)
             .maybeSingle(),
@@ -336,11 +413,28 @@ export function getAnalyticsTools(supabase: SupabaseClient, userId: string): Mcp
             .from("expense_items")
             .select("ytd_amount, monthly_recurring")
             .eq("user_id", userId),
+          supabase
+            .from("pipeline_deals")
+            .select("estimated_price, estimated_commission_pct, stage, probability_override")
+            .eq("user_id", userId)
+            .neq("stage", "closed"),
+          supabase
+            .from("listing_appointments")
+            .select("estimated_list_price, estimated_commission_pct, status")
+            .eq("user_id", userId)
+            .in("status", ["scheduled", "active"]),
+          supabase
+            .from("history_items")
+            .select("quarter_gci")
+            .eq("user_id", userId),
         ]);
 
         const settings = settingsRes.data;
         const transactions = txRes.data ?? [];
         const expenses = expenseRes.data ?? [];
+        const deals = pipelineRes.data ?? [];
+        const listings = listingRes.data ?? [];
+        const history = historyRes.data ?? [];
 
         const ytdGCI = transactions.reduce((sum, tx) => {
           if (tx.gci_override != null) return sum + tx.gci_override;
@@ -356,24 +450,37 @@ export function getAnalyticsTools(supabase: SupabaseClient, userId: string): Mcp
           0,
         );
 
-        // Year fraction for projection
-        const now = new Date();
-        const yearDay = Math.floor((now.getTime() - new Date(now.getFullYear(), 0, 1).getTime()) / 86_400_000);
-        const yearDays = (now.getFullYear() % 4 === 0 && (now.getFullYear() % 100 !== 0 || now.getFullYear() % 400 === 0)) ? 366 : 365;
-        const yearFraction = yearDay / yearDays;
+        // Pipeline + listing weighted GCI for the projection (matches dashboard).
+        const pipelineWeighted = deals.reduce((sum, deal) => {
+          const prob = deal.probability_override ??
+            PIPELINE_STAGE_DEFAULTS[deal.stage as keyof typeof PIPELINE_STAGE_DEFAULTS] ??
+            0.5;
+          const estGCI = (deal.estimated_price ?? 0) * (deal.estimated_commission_pct ?? 0.025);
+          return sum + estGCI * prob;
+        }, 0);
+        const listingWeighted = computeListingWeightedGCI(listings);
 
-        // D-2 fix (Audit 1, 2026-04-22): replaced broken inline formula
-        // `projectedGCI - projectedExpenses` (no split, no tx fees, no
-        // brokerage monthly × 12 — ~2× off for split agents) with the
-        // canonical helper that mirrors the dashboard at
-        // packages/core/engines/effective-cash.ts:computeProjectedNetForTax.
-        // The helper here is a deliberate Deno copy per Pattern P-2 — keep
-        // it in sync with the canonical version. See lib/README.md.
+        // Seasonal fraction (agent/national/uniform) — matches dashboard.
+        const now = new Date();
+        const seasonalWeights = deriveSeasonalWeights(
+          history,
+          settings?.use_national_seasonality,
+          settings?.national_quarter_pcts,
+        );
+        const fraction = seasonalFractionElapsed(seasonalWeights, now);
+
+        // D-2 fix (Audit 1, 2026-04-22): net-for-tax via the canonical helper.
+        // 2026-06-26: the projected GCI fed into it now uses the canonical
+        // SEASONAL projection (incl. pipeline + listing weighted GCI), not the
+        // prior plain `ytdGCI / yearFraction`, so the tax estimate's projected
+        // income matches the dashboard. See dashboard_metric_divergence_fix_2026-06-26.md.
         let netIncome: number;
+        let projectedGCI: number;
         if (overrideIncome != null) {
           netIncome = overrideIncome;
-        } else if (yearFraction > 0.01 && settings) {
-          const projectedGCI = ytdGCI / yearFraction;
+          projectedGCI = projectedYearEndGCI(ytdGCI, pipelineWeighted + listingWeighted, fraction, settings?.goal_gci ?? 0);
+        } else if (settings) {
+          projectedGCI = projectedYearEndGCI(ytdGCI, pipelineWeighted + listingWeighted, fraction, settings.goal_gci ?? 0);
           const settingsSlice: EffectiveCashSettingsSlice = {
             split_preset: (settings.split_preset ?? "p100_0") as SplitPreset,
             post_cap_threshold_gci: settings.post_cap_threshold_gci ?? 0,
@@ -391,17 +498,19 @@ export function getAnalyticsTools(supabase: SupabaseClient, userId: string): Mcp
             now,
           });
         } else {
-          // Very early year or missing settings — fall back to the simple
-          // YTD net. Still lands on the canonical floor (no negatives).
+          // Missing settings — fall back to the simple YTD net.
+          projectedGCI = ytdGCI;
           netIncome = Math.max(0, ytdGCI - ytdExpenses);
         }
 
         netIncome = Math.max(0, Math.round(netIncome));
 
         const province = (settings?.province ?? "ontario") as Province;
-        const projectedDealCount = yearFraction > 0.01
-          ? Math.max(1, Math.round(transactions.length / yearFraction))
-          : Math.max(1, transactions.length);
+        // Projected deal count via canonical helper (matches dashboard).
+        const projectedDealCount = Math.max(
+          1,
+          projectedYearEndTransactions(transactions.length, deals.length, fraction),
+        );
 
         const taxResult = calculateTax(netIncome, province, projectedDealCount);
 

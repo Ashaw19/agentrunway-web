@@ -1,7 +1,9 @@
 /**
  * Nightly Cron: Pre-compute Morning Briefings
  *
- * Runs daily at ~05:00 UTC. For each active professional-tier user:
+ * Runs daily at 04:00 UTC (staggered ahead of the 05:00 AI knowledge audit
+ * so the briefing cache is warm before agents log in). For each active
+ * professional-tier user:
  *   1. Gathers CRM metrics (overdue follow-ups, pipeline, GCI, hot contacts)
  *   2. Calls generateMorningBriefing (Haiku — cheap & fast)
  *   3. Upserts result into precomputed_insights with 24h expiry
@@ -23,7 +25,12 @@ export const maxDuration = 300; // 5 minutes for batch processing
 
 const BATCH_SIZE = 5;
 
-export async function POST(req: NextRequest) {
+// Vercel cron jobs invoke the scheduled path with a GET request, so this
+// handler is exported as GET to match its sibling cron routes
+// (outreach-detector, calendar-sync, weekly-digest, db-health,
+// ai-knowledge-audit). It has no other caller — the only consumer of the
+// warmed cache is GET /api/briefing, which reads precomputed_insights.
+export async function GET(req: NextRequest) {
   // ── Auth guard ──────────────────────────────────────────────────────────
   const authHeader = req.headers.get("authorization");
   const cronSecret = process.env.CRON_SECRET;

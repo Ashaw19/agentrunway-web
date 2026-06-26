@@ -3,6 +3,7 @@
 import { useState, useRef, useMemo, Fragment } from "react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
+import { FIELD_LIMITS } from "@agent-runway/core/validation/input-guards";
 import {
   Card,
   CardContent,
@@ -43,7 +44,8 @@ import { cn } from "@/lib/utils";
 import type { ImportResult, ExtractedDeal } from "@/app/api/import-history/route";
 import type { ExtractionQuality } from "@/lib/import/types";
 import { applyValidation } from "@/lib/import/validation/validate-transactions";
-import { computeImportExternalId } from "@/lib/import/external-id";
+import { computeImportExternalId, dedupeByImportExternalId } from "@/lib/import/external-id";
+import { clampSalePrice, clampCommissionPct } from "@/lib/import/clamp-db-range";
 import dynamic from "next/dynamic";
 import type { YoYDataPoint } from "@/components/year-over-year-chart";
 
@@ -705,7 +707,7 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
 
       } else if (fileType === "csv") {
         // ── CSV: read as plain text ──────────────────────────────────────────
-        textContent = (await file.text()).replace(/^\uFEFF/, ""); // strip UTF-8 BOM
+        textContent = (await file.text()).replace(/\uFEFF/g, ""); // strip ALL UTF-8 BOMs (Excel multi-sheet exports embed them at every sheet boundary)
         // Detect potential Latin-1 / Windows-1252 encoding: UTF-8 decode failures
         // produce U+FFFD replacement chars. Common with CSVs from older Canadian
         // real-estate software (Lone Wolf, RE/MAX legacy exports).
@@ -718,7 +720,7 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
 
       } else if (fileType === "txt") {
         // ── TXT: read as plain text (freeform narrative / Format C) ─────────
-        textContent = (await file.text()).replace(/^\uFEFF/, ""); // strip UTF-8 BOM
+        textContent = (await file.text()).replace(/\uFEFF/g, ""); // strip ALL UTF-8 BOMs (Excel multi-sheet exports embed them at every sheet boundary)
         if (textContent.includes("\uFFFD")) {
           toast.warning(
             "This file may not be saved as UTF-8 — some characters may appear incorrectly. For best results, re-save as UTF-8 before importing.",
@@ -890,7 +892,10 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
 
       if (uniqueNames.length > 0) {
         await supabase.from("clients").upsert(
-          uniqueNames.map((name) => ({ user_id: user.id, name, name_search: name.toLowerCase() })),
+          uniqueNames.map((rawName) => {
+            const name = rawName.slice(0, FIELD_LIMITS.clientName);
+            return { user_id: user.id, name, name_search: name.toLowerCase() };
+          }),
           { onConflict: "user_id,name_search", ignoreDuplicates: true },
         );
       }
@@ -951,7 +956,7 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
 
       if (crToUpsert.length > 0) {
         const { error: crErr } = await supabase.from("client_records").upsert(
-          crToUpsert,
+          dedupeByImportExternalId(crToUpsert),
           { onConflict: "user_id,import_external_id" },
         );
         if (crErr) {
@@ -983,8 +988,12 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
             user_id:        user.id,
             date:           deal.date,
             address:        deal.address || "",
-            sale_price:     deal.sale_price ?? 0,
-            commission_pct: deal.commission_percent ?? 0.025,
+            // Clamp to DB CHECK ranges (chk_tx_sale_price_reasonable / chk_tx_commission_pct_range)
+            // via the single-source-of-truth helper: an out-of-range value would otherwise reject
+            // the ENTIRE upsert batch with no user recovery. gci_override carries the real GCI, so
+            // falling back loses no economic data.
+            sale_price:     clampSalePrice(deal.sale_price, 0),
+            commission_pct: clampCommissionPct(deal.commission_percent, 0.025),
             gci_override:   deal.gci,
             side:           txSide,
             status:         "closed" as const,
@@ -1014,7 +1023,7 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
 
         if (txToUpsert.length > 0) {
           const { error: txError } = await supabase.from("transactions").upsert(
-            txToUpsert,
+            dedupeByImportExternalId(txToUpsert),
             { onConflict: "user_id,import_external_id" },
           );
           if (txError) {
@@ -1158,7 +1167,10 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
       const uniqueYearNames = [...new Set(agentClientNames.filter(Boolean))];
       if (uniqueYearNames.length > 0) {
         await supabase.from("clients").upsert(
-          uniqueYearNames.map((name) => ({ user_id: user.id, name, name_search: name.toLowerCase() })),
+          uniqueYearNames.map((rawName) => {
+            const name = rawName.slice(0, FIELD_LIMITS.clientName);
+            return { user_id: user.id, name, name_search: name.toLowerCase() };
+          }),
           { onConflict: "user_id,name_search", ignoreDuplicates: true },
         );
       }
@@ -1211,7 +1223,7 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
         );
         if (crToUpsert.length > 0) {
           const { error: crErr } = await supabase.from("client_records").upsert(
-            crToUpsert,
+            dedupeByImportExternalId(crToUpsert),
             { onConflict: "user_id,import_external_id" },
           );
           if (crErr) throw crErr;
@@ -1238,8 +1250,12 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
               user_id: user.id,
               date: d.date,
               address: d.address || "",
-              sale_price: d.sale_price ?? 0,
-              commission_pct: d.commission_percent ?? 0.025,
+              // Clamp to DB CHECK ranges (chk_tx_sale_price_reasonable / chk_tx_commission_pct_range)
+              // via the single-source-of-truth helper: an out-of-range value would otherwise reject
+              // the ENTIRE upsert batch with no user recovery. gci_override carries the real GCI, so
+              // falling back loses no economic data.
+              sale_price:     clampSalePrice(d.sale_price, 0),
+              commission_pct: clampCommissionPct(d.commission_percent, 0.025),
               gci_override: d.gci,     // gci = PRE-split gross commission income
               side: (d.side ?? "buyer") as "buyer" | "seller" | "both",
               status: "closed" as const,
@@ -1267,7 +1283,7 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
           );
           if (txToUpsert.length > 0) {
             const { error: txInsertErr } = await supabase.from("transactions").upsert(
-              txToUpsert,
+              dedupeByImportExternalId(txToUpsert),
               { onConflict: "user_id,import_external_id" },
             );
             if (txInsertErr) throw txInsertErr;

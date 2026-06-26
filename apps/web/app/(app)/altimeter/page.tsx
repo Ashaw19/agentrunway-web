@@ -88,7 +88,9 @@ export default async function AltimeterPage() {
   const recurringExpMonthly = totalRecurringMonthly(recurringExps);
   const recurringExpYTD = totalRecurringYTD(recurringExps);
   const altMonthlyRecurring = legacyMonthlyRecurring + recurringExpMonthly;
-  const expMonthsElapsed = new Date().getMonth() + (new Date().getDate() / 30);
+  // Integer months elapsed (1-12) — matches the dashboard. See
+  // dashboard_metric_divergence_fix_2026-06-26.md.
+  const expMonthsElapsed = new Date().getMonth() + 1;
   const altExpensesYTD = Math.max(receiptYTD, legacyMonthlyRecurring * expMonthsElapsed) + recurringExpYTD;
 
   return (

@@ -152,7 +152,7 @@ const QUICK_REFS: QuickRef[] = [
   {
     title: "Runway Score",
     value: "0–100",
-    sublabel: "Pace 35% · Pipeline 25% · Expense 15% · Survival 15% · Benchmark 10%",
+    sublabel: "Pace 35% · Pipeline 30% · Expense 15% · Survival 15% · Benchmark 5%",
     icon: Gauge,
     anchor: "key-metrics-computations",
   },

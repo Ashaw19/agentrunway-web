@@ -17,6 +17,7 @@ import {
   paceVsGoalPercent,
   projectedYearEndGCI,
   projectedYearEndTransactions,
+  computeListingWeightedGCI,
 } from "@agent-runway/core/engines/projection-engine";
 import {
   compute as computeRunwayScore,
@@ -99,6 +100,12 @@ interface ReferralRow {
   actual_fee_paid: number | null;
 }
 
+interface ListingRow {
+  estimated_list_price: number | null;
+  estimated_commission_pct: number | null;
+  status: string;
+}
+
 interface DiagContext {
   settings: UserSettings;
   closedTx: Transaction[];
@@ -108,6 +115,10 @@ interface DiagContext {
   referrals: ReferralRow[];
   ytdGCI: number;
   pipelineWeighted: number;
+  /** Listing-appointment weighted GCI (scheduled/active). Added to
+   *  pipelineWeighted before feeding projectedYearEndGCI — mirrors the
+   *  dashboard. See dashboard_metric_divergence_fix_2026-06-26.md. */
+  listingWeighted: number;
   currentYear: number;
   engineFraction: number;
   monthlyRecurring: number;
@@ -143,6 +154,7 @@ export async function buildDiagnostics(
     { data: historyItems },
     { data: receiptExpenses },
     { data: referralRows },
+    { data: listingRows },
   ] = await Promise.all([
     supabase.from("user_settings").select("*").eq("user_id", userId).single(),
     supabase
@@ -175,6 +187,14 @@ export async function buildDiagnostics(
       .from("referrals")
       .select("direction, status, referral_fee_pct, estimated_value, actual_fee_paid")
       .eq("user_id", userId),
+    // Active listing appointments — same scheduled/active filter the dashboard
+    // uses, so listing-weighted GCI matches. See
+    // dashboard_metric_divergence_fix_2026-06-26.md.
+    supabase
+      .from("listing_appointments")
+      .select("estimated_list_price, estimated_commission_pct, status")
+      .eq("user_id", userId)
+      .in("status", ["scheduled", "active"]),
   ]);
 
   if (!settings) return "\n[DIAGNOSTIC: No user settings found — user may not have completed onboarding]";
@@ -194,6 +214,10 @@ export async function buildDiagnostics(
     (sum, d) => sum + computeWeightedGCI(d as Parameters<typeof computeWeightedGCI>[0]),
     0,
   );
+  // Listing-weighted GCI via canonical helper — added to pipelineWeighted
+  // before projection (mirrors dashboard). See
+  // dashboard_metric_divergence_fix_2026-06-26.md.
+  const listingWeighted = computeListingWeightedGCI((listingRows ?? []) as ListingRow[]);
 
   // ── Compute agent-specific seasonal weights (same logic as chat route / dashboard) ──
   const agentSeasonalWeights = (() => {
@@ -239,6 +263,7 @@ export async function buildDiagnostics(
     referrals: (referralRows ?? []) as ReferralRow[],
     ytdGCI,
     pipelineWeighted,
+    listingWeighted,
     currentYear,
     engineFraction,
     monthlyRecurring,
@@ -300,16 +325,18 @@ function buildTopicDiagnostic(
  * computeSurvivalResult → computeRunwayScore, then formats results.
  */
 function diagRunwayScore(ctx: DiagContext): string {
-  const { settings: s, ytdGCI, pipelineWeighted, engineFraction, monthlyRecurring, expensesYTD, closedTx, pipelineDeals } = ctx;
+  const { settings: s, ytdGCI, pipelineWeighted, listingWeighted, engineFraction, monthlyRecurring, expensesYTD, closedTx, pipelineDeals } = ctx;
 
   // 1. Health Report (pace, pipeline, expense sub-scores)
+  // Pipeline sub-score uses pipeline-only weighted GCI (matches dashboard's
+  // buildHealthReport 4th arg — pipelineWeightedGCI, not the listing total).
   const healthReport = buildHealthReport(
     ytdGCI, s.goal_gci ?? 0, engineFraction, pipelineWeighted, expensesYTD,
   );
 
-  // 2. Projection for benchmark
+  // 2. Projection for benchmark — pipeline + listing weighted (matches dashboard)
   const projGCI = projectedYearEndGCI(
-    ytdGCI, pipelineWeighted, engineFraction, s.goal_gci ?? 0,
+    ytdGCI, pipelineWeighted + listingWeighted, engineFraction, s.goal_gci ?? 0,
   );
 
   // 3. Benchmark (actual industry-cohort percentile, not hardcoded 50)
@@ -376,7 +403,7 @@ function diagTax(ctx: DiagContext): string {
   const agentPct = splitMatch ? Number(splitMatch[1]) / 100 : 1;
 
   const projGCI = projectedYearEndGCI(
-    ytdGCI, ctx.pipelineWeighted, engineFraction, s.goal_gci ?? 0,
+    ytdGCI, ctx.pipelineWeighted + ctx.listingWeighted, engineFraction, s.goal_gci ?? 0,
   );
 
   // D-2 fix (Audit 1 2026-04-22): replaced local inline formula
@@ -408,7 +435,7 @@ function diagTax(ctx: DiagContext): string {
   return `[TAX DIAGNOSTIC]
 Province: ${s.province}
 Business Structure: ${s.business_structure ?? "sole_prop"}
-GST/HST Registered: ${(s.gst_hst_registered || !!s.business_number) ? "Yes" : "No"}
+GST/HST Registered: ${(s.gst_hst_registered ?? false) ? "Yes" : "No"}
 Projected Annual GCI: ${fmtCurrency(projGCI)}
 Agent Split: ${(agentPct * 100).toFixed(0)}% → Projected Agent Net (split only): ${fmtCurrency(projectedAgentNet)}
 Net Self-Employment Income (after tx fees, brokerage fees, and expenses): ${fmtCurrency(netSEIncome)}
@@ -532,11 +559,12 @@ ${catLines || "  (no expenses logged)"}`;
  * with agent-specific seasonal weights (same as dashboard / chat route).
  */
 function diagForecast(ctx: DiagContext): string {
-  const { settings: s, closedTx, ytdGCI, pipelineWeighted, engineFraction, pipelineDeals } = ctx;
+  const { settings: s, closedTx, ytdGCI, pipelineWeighted, listingWeighted, engineFraction, pipelineDeals } = ctx;
 
-  // Use canonical projection engine (includes early-year dampening)
+  // Use canonical projection engine (includes early-year dampening).
+  // Pipeline + listing weighted GCI — matches dashboard.
   const projGCI = projectedYearEndGCI(
-    ytdGCI, pipelineWeighted, engineFraction, s.goal_gci ?? 0,
+    ytdGCI, pipelineWeighted + listingWeighted, engineFraction, s.goal_gci ?? 0,
   );
   const projDeals = projectedYearEndTransactions(
     closedTx.length, pipelineDeals.length, engineFraction,
@@ -672,7 +700,7 @@ Post-Cap Rate: ${((s.post_cap_rate_pct ?? 0) * 100).toFixed(1)}%
 Cash Reserve: ${fmtCurrency(s.cash_reserve ?? 0)}
 Annual GCI Goal: ${s.goal_gci > 0 ? fmtCurrency(s.goal_gci) : "NOT SET"}
 Experience Years: ${s.experience_years ?? "NOT SET"}
-GST/HST Registered: ${(s.gst_hst_registered || !!s.business_number) ? "Yes" : "No"}
+GST/HST Registered: ${(s.gst_hst_registered ?? false) ? "Yes" : "No"}
 Home Office Method: ${s.home_office_method ?? "none"}
 Vehicle Business Use: ${s.vehicle_business_pct ?? 0}%
 Seasonal Weights: ${s.seasonal_weights ? `Custom [${s.seasonal_weights.join(", ")}]` : "National default"}`;
@@ -683,12 +711,13 @@ Seasonal Weights: ${s.seasonal_weights ? `Custom [${s.seasonal_weights.join(", "
  * Uses recurring expenses only for burn (not total YTD / months).
  */
 function diagSurvival(ctx: DiagContext): string {
-  const { settings: s, monthlyRecurring, ytdGCI, pipelineWeighted, engineFraction, expensesYTD, closedTx, pipelineDeals } = ctx;
+  const { settings: s, monthlyRecurring, ytdGCI, pipelineWeighted, listingWeighted, engineFraction, expensesYTD, closedTx, pipelineDeals } = ctx;
 
   // Cash input MUST be cashPosition.effectiveCash (not raw cash_reserve) to
   // match dashboard + chat. See memory/feedback_data_consistency_protocol.md.
+  // Projection input is pipeline + listing weighted GCI (matches dashboard).
   const projGCIforSurvival = projectedYearEndGCI(
-    ytdGCI, pipelineWeighted, engineFraction, s.goal_gci ?? 0,
+    ytdGCI, pipelineWeighted + listingWeighted, engineFraction, s.goal_gci ?? 0,
   );
   const projDealsForSurvival = projectedYearEndTransactions(
     closedTx.length, pipelineDeals.length, engineFraction,
@@ -760,10 +789,12 @@ Total Actual Fees Paid/Received: ${fmtCurrency(totalActualFees)}`;
  * Uses projectedYearEndGCI for proper projection with seasonal weights.
  */
 function diagBenchmark(ctx: DiagContext): string {
-  const { settings: s, ytdGCI, pipelineWeighted, engineFraction, closedTx } = ctx;
+  const { settings: s, ytdGCI, pipelineWeighted, listingWeighted, engineFraction, closedTx } = ctx;
 
+  // Pipeline + listing weighted GCI feeds the projection, matching the
+  // dashboard's `compare(projectedGCI, ...)` benchmark input.
   const projGCI = projectedYearEndGCI(
-    ytdGCI, pipelineWeighted, engineFraction, s.goal_gci ?? 0,
+    ytdGCI, pipelineWeighted + listingWeighted, engineFraction, s.goal_gci ?? 0,
   );
 
   // Canonical benchmark engine

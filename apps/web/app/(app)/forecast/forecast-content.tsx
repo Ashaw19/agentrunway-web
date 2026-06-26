@@ -33,6 +33,7 @@ import {
   seasonalFractionElapsed,
   projectedYearEndGCI,
   projectedYearEndTransactions,
+  computeListingWeightedGCI,
   daysRemaining,
   paceVsGoalPercent,
   dailyPaceRequired,
@@ -126,13 +127,10 @@ export function ForecastContent({
   );
 
   // Listing appointments weighted by status probability
-  const LISTING_PROBS: Record<string, number> = { scheduled: 0.15, active: 0.40 };
-  const listingWeightedGCI = (listingAppointments ?? []).reduce((sum, la) => {
-    const price = la.estimated_list_price ?? 0;
-    const commPct = la.estimated_commission_pct ?? 0.025;
-    const prob = LISTING_PROBS[la.status] ?? 0;
-    return sum + price * commPct * prob;
-  }, 0);
+  // Canonical helper (projection-engine) — shared listing probability table +
+  // weighting formula. Keeps forecast projected GCI aligned with dashboard,
+  // reports, chat, and MCP. See dashboard_metric_divergence_fix_2026-06-26.md.
+  const listingWeightedGCI = computeListingWeightedGCI(listingAppointments);
   const totalPipelineWeighted = pipelineWeighted + listingWeightedGCI;
 
   // ── Seasonality-aware projection ──────────────────────────────────────
@@ -186,7 +184,10 @@ export function ForecastContent({
   );
   const monthlyRecurring = legacyMonthlyRecurring + recurringExpMonthly;
   const _now = new Date();
-  const _monthsElapsed = _now.getMonth() + (_now.getDate() / 30);
+  // Integer months elapsed (1-12) — matches the dashboard's expMonthsElapsed.
+  // Fractional getDate()/30 (fixed 2026-06-26) diverged expensesYTD from the
+  // dashboard. See dashboard_metric_divergence_fix_2026-06-26.md.
+  const _monthsElapsed = _now.getMonth() + 1;
   const legacyRecurringYTDEstimate = legacyMonthlyRecurring * _monthsElapsed;
   const expensesYTD = Math.max(receiptTotal, legacyRecurringYTDEstimate) + recurringExpYTD;
   // Project full-year: actual YTD + remaining months of recurring

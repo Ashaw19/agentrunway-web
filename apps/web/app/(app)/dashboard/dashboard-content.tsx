@@ -115,6 +115,7 @@ import {
   seasonalFractionElapsed,
   projectedYearEndGCI,
   projectedYearEndTransactions,
+  computeListingWeightedGCI,
   paceVsGoalPercent,
   daysRemaining,
   trendDirection,
@@ -487,13 +488,11 @@ export function DashboardContent({
   const pipelineCount = pipelineDeals.length;
 
   // ── Listing appointment weighted GCI ─────────────────────────────────
-  const LISTING_PROBS: Record<string, number> = { scheduled: 0.15, active: 0.40 };
-  const listingWeightedGCI = (activeListings ?? []).reduce((sum, la) => {
-    const price = Number(la.estimated_list_price ?? 0);
-    const commPct = la.estimated_commission_pct ?? 0.025;
-    const prob = LISTING_PROBS[la.status] ?? 0;
-    return sum + price * commPct * prob;
-  }, 0);
+  // Canonical helper (projection-engine) — single source for the listing
+  // probability table + weighting formula. Chat, reports, forecast, and the
+  // MCP analytics tools all call the same helper so projected GCI agrees
+  // across every surface. See memory/findings/dashboard_metric_divergence_fix_2026-06-26.md.
+  const listingWeightedGCI = computeListingWeightedGCI(activeListings);
   const listingCount = (activeListings ?? []).length;
 
   // ── Seasonality-aware projections ─────────────────────────────────────
@@ -2445,7 +2444,7 @@ export function DashboardContent({
                 <div className="flex items-center gap-1">
                   <span className="flex items-center gap-1">
                     <p className="text-sm font-semibold text-slate-400">Runway Score</p>
-                    <MetricInfo tip="A composite score across 5 factors: pace vs goal (35%), pipeline health (25%), expense ratio (15%), cash survival (15%), and benchmark ranking (10%)." />
+                    <MetricInfo tip="A composite score across 5 factors: pace vs goal (35%), pipeline health (30%), expense ratio (15%), cash survival (15%), and benchmark ranking (5%)." />
                     <GuideLink anchor="runway-score" label="Runway Score explained in Guide" />
                     {isPro && hasData && <ExplainButton question="How is my Runway Score calculated and what can I do to improve it?" />}
                   </span>

@@ -37,7 +37,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { org_id } = (await request.json()) as { org_id: string };
+  let org_id: string;
+  try {
+    ({ org_id } = (await request.json()) as { org_id: string });
+  } catch {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+  }
 
   if (!org_id) {
     return NextResponse.json(

@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
   }
 
   // ── Parse body ──────────────────────────────────────────────────────────────
-  const body = (await req.json()) as {
+  let body: {
     slideUrls?: string[];
     caption?: string;
     month?: number;
@@ -55,6 +55,11 @@ export async function POST(req: NextRequest) {
     templateStyle?: string;
     transactionIds?: string[];
   };
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+  }
 
   const { slideUrls, caption } = body;
 
@@ -72,7 +77,7 @@ export async function POST(req: NextRequest) {
     .select("account_id, access_token, token_expires_at")
     .eq("user_id", user.id)
     .eq("platform", "instagram")
-    .single();
+    .maybeSingle();
 
   if (!connection?.access_token || !connection?.account_id) {
     return NextResponse.json(

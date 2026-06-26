@@ -10,6 +10,45 @@
 
 import { type TroubleshootingTopic } from "@/lib/troubleshooting-classifier";
 import { type ModelTier, models } from "./provider";
+import { type Persona } from "@/lib/flight-crew/personas";
+
+/**
+ * Per-request reasoning depth (`output_config.effort`) on Opus 4.5+/Sonnet 4.6.
+ * The `@ai-sdk/anthropic` provider (≥3.0.74) accepts this as
+ * `providerOptions.anthropic.effort` and auto-adds the `effort-2025-11-24`
+ * beta header. Allowed values: "low" | "medium" | "high" | "xhigh" | "max".
+ *
+ * NOT supported on Haiku 4.5 (the `fast` tier) — passing it there 400s. Callers
+ * must gate on tier (see `personaEffort`).
+ */
+export type ReasoningEffort = "low" | "medium" | "high" | "xhigh" | "max";
+
+/**
+ * Map a Flight Crew persona to its reasoning-effort budget. Tuned to what each
+ * persona's work demands:
+ *
+ * - Navigator (finance/tax reasoning): `high` — tax is the accuracy-sensitive
+ *   wedge; under-reasoning here risks the info-not-advice safety surface.
+ * - Captain (orchestrator/routing): `medium` — balances coherence with cost.
+ * - Dispatcher (clients/pipeline ops): `low` — fast, operational CRM actions.
+ *
+ * Returns `undefined` for the `fast` (Haiku) tier and the Groq `fallback`,
+ * because `effort` is unsupported there and would 400. Effort only applies on
+ * the `default` (Sonnet 4.6) and `complex` (Opus 4.8) tiers.
+ */
+const PERSONA_TO_EFFORT: Record<Persona, ReasoningEffort> = {
+  navigator: "high",
+  captain: "medium",
+  dispatcher: "low",
+};
+
+export function personaEffort(
+  persona: Persona,
+  tier: ModelTier,
+): ReasoningEffort | undefined {
+  if (tier === "fast" || tier === "fallback") return undefined;
+  return PERSONA_TO_EFFORT[persona];
+}
 
 /**
  * Map classified topics to model tiers.

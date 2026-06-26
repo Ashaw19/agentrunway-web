@@ -3,6 +3,7 @@
 import React, { useState, useRef, useMemo, useEffect } from "react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
+import { FIELD_LIMITS } from "@agent-runway/core/validation/input-guards";
 import {
   Card,
   CardContent,
@@ -41,7 +42,8 @@ import { fmtCurrency } from "@/lib/formatters";
 import { computeGCI, type HistoryItem, type Transaction, type UserSettings } from "@/lib/types/database";
 import { cn } from "@/lib/utils";
 import type { ImportResult } from "@/app/api/import-history/route";
-import { computeImportExternalId } from "@/lib/import/external-id";
+import { computeImportExternalId, dedupeByImportExternalId } from "@/lib/import/external-id";
+import { clampSalePrice, clampCommissionPct } from "@/lib/import/clamp-db-range";
 import dynamic from "next/dynamic";
 import type { YoYDataPoint } from "@/components/year-over-year-chart";
 
@@ -623,7 +625,18 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
 
       } else if (fileType === "csv") {
         // ── CSV: read as plain text ──────────────────────────────────────────
-        textContent = (await file.text()).replace(/\uFEFF/g, ""); // strip UTF-8 BOM
+        textContent = (await file.text()).replace(/\uFEFF/g, ""); // strip ALL UTF-8 BOMs (Excel multi-sheet exports embed them at every sheet boundary)
+        // Detect potential Latin-1 / Windows-1252 encoding: UTF-8 decode failures
+        // produce U+FFFD replacement chars. Common with CSVs from older Canadian
+        // real-estate software (Lone Wolf, RE/MAX legacy exports). Mirrors the
+        // sibling importer at history-content.tsx so accented client names don't
+        // corrupt silently on import.
+        if (textContent.includes("\uFFFD")) {
+          toast.warning(
+            "This file may not be saved as UTF-8 \u2014 accented characters (\u00E9, \u00E0, \u00E7) may appear incorrectly in client names. For best results, re-save as UTF-8 CSV before importing.",
+            { duration: 9000 },
+          );
+        }
       }
 
       setImportStatus("extracting");
@@ -754,7 +767,10 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
 
       if (uniqueNames.length > 0) {
         await supabase.from("clients").upsert(
-          uniqueNames.map((name) => ({ user_id: user.id, name, name_search: name.toLowerCase() })),
+          uniqueNames.map((rawName) => {
+            const name = rawName.slice(0, FIELD_LIMITS.clientName);
+            return { user_id: user.id, name, name_search: name.toLowerCase() };
+          }),
           { onConflict: "user_id,name_search", ignoreDuplicates: true },
         );
       }
@@ -808,7 +824,7 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
         );
         if (crToUpsert.length > 0) {
           const { error: crErr } = await supabase.from("client_records").upsert(
-            crToUpsert,
+            dedupeByImportExternalId(crToUpsert),
             { onConflict: "user_id,import_external_id" },
           );
           if (crErr) {
@@ -841,8 +857,13 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
               user_id: user.id,
               date: d.date,
               address: d.address || "",
-              sale_price: d.sale_price ?? null,
-              commission_pct: d.commission_percent ?? null,
+              // Clamp to DB CHECK ranges (chk_tx_sale_price_reasonable / chk_tx_commission_pct_range)
+              // via the single-source-of-truth helper: an out-of-range LLM misread (e.g. 30%
+              // commission, column-swapped price) would otherwise reject the ENTIRE upsert batch with
+              // no user recovery. gci_override carries the real GCI, so nulling an invalid secondary
+              // field loses no economic data.
+              sale_price:     clampSalePrice(d.sale_price, null),
+              commission_pct: clampCommissionPct(d.commission_percent, null),
               gci_override: d.gci,
               side: (d.side ?? "buyer") as "buyer" | "seller" | "both",
               status: "closed" as const,
@@ -870,7 +891,7 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
           );
           if (txToUpsert.length > 0) {
             const { error: txInsertErr } = await supabase.from("transactions").upsert(
-              txToUpsert,
+              dedupeByImportExternalId(txToUpsert),
               { onConflict: "user_id,import_external_id" },
             );
             if (txInsertErr) {
@@ -968,7 +989,10 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
       const uniqueYearNames = [...new Set(agentClientNames.filter(Boolean))];
       if (uniqueYearNames.length > 0) {
         await supabase.from("clients").upsert(
-          uniqueYearNames.map((name) => ({ user_id: user.id, name, name_search: name.toLowerCase() })),
+          uniqueYearNames.map((rawName) => {
+            const name = rawName.slice(0, FIELD_LIMITS.clientName);
+            return { user_id: user.id, name, name_search: name.toLowerCase() };
+          }),
           { onConflict: "user_id,name_search", ignoreDuplicates: true },
         );
       }
@@ -1023,7 +1047,7 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
         );
         if (crToUpsert.length > 0) {
           const { error: crErr } = await supabase.from("client_records").upsert(
-            crToUpsert,
+            dedupeByImportExternalId(crToUpsert),
             { onConflict: "user_id,import_external_id" },
           );
           if (crErr) throw crErr;
@@ -1050,8 +1074,13 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
               user_id: user.id,
               date: d.date,
               address: d.address || "",
-              sale_price: d.sale_price ?? null,
-              commission_pct: d.commission_percent ?? null,
+              // Clamp to DB CHECK ranges (chk_tx_sale_price_reasonable / chk_tx_commission_pct_range)
+              // via the single-source-of-truth helper: an out-of-range LLM misread (e.g. 30%
+              // commission, column-swapped price) would otherwise reject the ENTIRE upsert batch with
+              // no user recovery. gci_override carries the real GCI, so nulling an invalid secondary
+              // field loses no economic data.
+              sale_price:     clampSalePrice(d.sale_price, null),
+              commission_pct: clampCommissionPct(d.commission_percent, null),
               gci_override: d.gci,     // store GCI directly
               side: (d.side ?? "buyer") as "buyer" | "seller" | "both",
               status: "closed" as const,
@@ -1079,7 +1108,7 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
           );
           if (txToUpsert.length > 0) {
             const { error: txInsertErr } = await supabase.from("transactions").upsert(
-              txToUpsert,
+              dedupeByImportExternalId(txToUpsert),
               { onConflict: "user_id,import_external_id" },
             );
             if (txInsertErr) throw txInsertErr;

@@ -16,7 +16,7 @@ import type {
  * (after an authz check) for billing reads.
  */
 export const ORG_PUBLIC_COLUMNS =
-  "id,name,slug,type,owner_id,logo_url,anonymize_agents,max_seats,subscription_status,is_beta,org_goal_gci,created_at,updated_at" as const;
+  "id,name,slug,type,owner_id,logo_url,anonymize_agents,max_seats,subscription_status,is_beta,beta_converted_at,org_goal_gci,created_at,updated_at" as const;
 
 /**
  * Fetch the billing-sensitive columns for an org via the admin client.

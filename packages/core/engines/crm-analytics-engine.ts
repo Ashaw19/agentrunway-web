@@ -565,7 +565,9 @@ export function computeIntelligenceBriefing(
         severity: daysSince >= 14 ? "urgent" : "attention",
         clientId: client.id,
         clientName: client.name,
-        title: `${client.name} — In-Flight, ${daysSince}d silent`,
+        title: daysSince === 999
+          ? `${client.name} — In-Flight, no contact logged`
+          : `${client.name} — In-Flight, ${daysSince}d silent`,
         detail: "Active deal — clients expect regular updates",
         daysValue: daysSince,
       });

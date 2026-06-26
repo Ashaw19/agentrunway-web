@@ -73,7 +73,7 @@ const FAQS = [
   {
     question: "What CPP do I pay as a self-employed realtor?",
     answer:
-      "Self-employed agents pay both the employee and employer portions of CPP — 11.90% on earnings between $3,500 and $71,300 in 2025 (Tier 1), plus 8.00% on earnings between $71,300 and $81,200 (Tier 2). In Quebec you pay QPP instead, at slightly higher rates (12.80% Tier 1, 8.00% Tier 2). Half of Tier 1 and all of Tier 2 are tax-deductible.",
+      "Self-employed agents pay both the employee and employer portions of CPP — 11.90% on earnings between $3,500 and $74,600 in 2026 (Tier 1), plus 8.00% on earnings between $74,600 and $85,000 (Tier 2). In Quebec you pay QPP instead, at slightly higher rates (12.80% Tier 1, 8.00% Tier 2). Half of Tier 1 and all of Tier 2 are tax-deductible.",
   },
   {
     question: "When does incorporating as a PREC become tax-relevant?",
@@ -297,13 +297,13 @@ export default function RealtorTaxEstimatorPage() {
               <p className="mt-3 rounded-lg border-l-4 border-amber-500 bg-amber-50 px-4 py-3 text-slate-700">
                 <strong>Short answer:</strong> Self-employed realtors pay{" "}
                 <strong>both the employee and employer portions of CPP</strong> — 11.90% on
-                earnings between $3,500 and $71,300 in 2025 (Tier 1), plus 8.00% on earnings between
-                $71,300 and $81,200 (Tier 2). In Quebec, QPP rates are slightly higher.
+                earnings between $3,500 and $74,600 in 2026 (Tier 1), plus 8.00% on earnings between
+                $74,600 and $85,000 (Tier 2). In Quebec, QPP rates are slightly higher.
                 Half of Tier 1 and all of Tier 2 are tax-deductible.
               </p>
               <p className="mt-4">
-                CPP and QPP contributions are capped. The maximum CPP contribution in 2025 is
-                approximately $8,860 (combined Tier 1 + Tier 2). Once you hit that, no further
+                CPP and QPP contributions are capped. The maximum CPP contribution in 2026 is
+                approximately $9,293 (combined Tier 1 + Tier 2). Once you hit that, no further
                 CPP is owed on additional income. Quebec&rsquo;s QPP maximum is slightly higher
                 due to the higher contribution rate.
               </p>

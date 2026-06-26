@@ -23,6 +23,10 @@
     {
       "path": "/api/cron/ai-knowledge-audit",
       "schedule": "0 5 * * *"
+    },
+    {
+      "path": "/api/cron/precompute-briefings",
+      "schedule": "0 4 * * *"
     }
   ]
 }

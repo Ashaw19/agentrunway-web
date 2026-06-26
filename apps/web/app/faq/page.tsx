@@ -72,7 +72,7 @@ const FAQ_SECTIONS = [
       },
       {
         q: "What is a Runway Score?",
-        a: "Your Runway Score is a composite letter grade (A+ through F) that summarises the overall financial health of your real estate business across five components: Goal Pace (35%), Pipeline (25%), Expenses (15%), Survival (15%), and Benchmark (10%). It updates automatically as you log transactions, deals, and expenses.",
+        a: "Your Runway Score is a composite letter grade (A+ through F) that summarises the overall financial health of your real estate business across five components: Goal Pace (35%), Pipeline (30%), Expenses (15%), Survival (15%), and Benchmark (5%). It updates automatically as you log transactions, deals, and expenses.",
       },
       {
         q: "What are P10–P90 probability bands?",

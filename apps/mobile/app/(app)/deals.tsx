@@ -502,7 +502,7 @@ function StatPill({
           paddingHorizontal: Space.sm,
           borderRadius: Radius.md,
           borderWidth: 1,
-          borderColor: color + "30",
+          borderColor: color + "66",
         }}
       >
         <Text style={{ ...Type.label, color: c.textDim, fontSize: 9 }}>
@@ -1029,8 +1029,8 @@ function DealDetailSheet({
                       height: 34,
                       borderRadius: Radius.pill,
                       borderWidth: 1,
-                      backgroundColor: isSelected ? pillColor + "20" : c.card,
-                      borderColor: isSelected ? pillColor + "50" : c.cardBorder,
+                      backgroundColor: isSelected ? pillColor + "38" : c.card,
+                      borderColor: isSelected ? pillColor + "80" : c.cardBorder,
                     }}
                   >
                     <View

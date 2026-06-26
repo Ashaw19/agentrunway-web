@@ -115,7 +115,7 @@ export function BriefingRow({
             width: 36,
             height: 36,
             borderRadius: 18,
-            backgroundColor: sevColor + "15",
+            backgroundColor: sevColor + "38",
             alignItems: "center",
             justifyContent: "center",
           }}
@@ -142,9 +142,9 @@ export function BriefingRow({
             paddingHorizontal: Space.sm + 2,
             paddingVertical: Space.xs + 1,
             borderRadius: Radius.pill,
-            backgroundColor: sevColor + "15",
+            backgroundColor: sevColor + "38",
             borderWidth: 1,
-            borderColor: sevColor + "25",
+            borderColor: sevColor + "66",
           }}
         >
           <Text style={{ fontSize: 10, fontWeight: "700", color: sevColor, letterSpacing: 0.2 }}>
