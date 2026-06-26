@@ -211,10 +211,10 @@ function Row({
 export function CheatSheetPDF() {
   return (
     <Document
-      title="Canadian Realtor Tax Cheat Sheet — 2025"
+      title="Canadian Realtor Tax Cheat Sheet — 2026"
       author="Agent Runway Inc."
-      subject="2025 tax-year reference card for self-employed Canadian real estate agents"
-      keywords="canadian realtor tax cheat sheet 2025 cpp gst hst t2125"
+      subject="2026 tax-year reference card for self-employed Canadian real estate agents"
+      keywords="canadian realtor tax cheat sheet 2026 cpp gst hst t2125"
     >
       <Page size="LETTER" style={S.page}>
         {/* ── Header ── */}
@@ -228,12 +228,12 @@ export function CheatSheetPDF() {
               Built by Agent Runway · agentrunway.ca
             </Text>
           </View>
-          <Text style={S.headerYearTag}>2025</Text>
+          <Text style={S.headerYearTag}>2026</Text>
         </View>
         <View style={S.goldStrip} />
 
         {/* ── A — Federal brackets ── */}
-        <Text style={S.sectionTitleFirst}>A. 2025 Federal Tax Brackets</Text>
+        <Text style={S.sectionTitleFirst}>A. 2026 Federal Tax Brackets</Text>
         <View style={S.table}>
           <View style={S.tableHead}>
             <HeadCell text="Taxable income" flex={3} />
@@ -241,46 +241,46 @@ export function CheatSheetPDF() {
           </View>
           <Row
             cells={[
-              { text: "Up to $57,375", flex: 3 },
-              { text: "14.5%", flex: 1, bold: true },
+              { text: "Up to $58,523", flex: 3 },
+              { text: "14.0%", flex: 1, bold: true },
             ]}
           />
           <Row
             alt
             cells={[
-              { text: "$57,375.01 – $114,750", flex: 3 },
+              { text: "$58,523.01 – $117,045", flex: 3 },
               { text: "20.5%", flex: 1, bold: true },
             ]}
           />
           <Row
             cells={[
-              { text: "$114,750.01 – $177,882", flex: 3 },
+              { text: "$117,045.01 – $181,440", flex: 3 },
               { text: "26.0%", flex: 1, bold: true },
             ]}
           />
           <Row
             alt
             cells={[
-              { text: "$177,882.01 – $253,414", flex: 3 },
+              { text: "$181,440.01 – $258,482", flex: 3 },
               { text: "29.0%", flex: 1, bold: true },
             ]}
           />
           <Row
             cells={[
-              { text: "Over $253,414", flex: 3 },
+              { text: "Over $258,482", flex: 3 },
               { text: "33.0%", flex: 1, bold: true },
             ]}
           />
         </View>
         <Text style={S.cite}>
-          Source: CRA — Canadian income tax rates for individuals. The 14.5% bottom
-          rate for 2025 is the blended full-year rate after the mid-year reduction
-          from 15% to 14% effective July 1, 2025 (NWMM, May 27, 2025).
+          Source: CRA — Canadian income tax rates for individuals (2026). The 14%
+          bottom rate is the full-year rate in effect for 2026 following the
+          reduction from 15% to 14% (NWMM, May 27, 2025).
         </Text>
 
         {/* ── B — Provincial top-bracket snapshot (split into 2 columns) ── */}
         <Text style={S.sectionTitle}>
-          B. Provincial Top-Bracket Snapshot (2025)
+          B. Provincial Top-Bracket Snapshot (2026)
         </Text>
         <View style={S.twoCol}>
           {[
@@ -288,7 +288,7 @@ export function CheatSheetPDF() {
               ["Newfoundland & Labrador", "21.8%", "$1,128,858"],
               ["Prince Edward Island",    "18.75%", "$140,000"],
               ["Nova Scotia",             "21.0%", "$150,000"],
-              ["New Brunswick",           "19.5%", "$185,064"],
+              ["New Brunswick",           "19.5%", "$193,861"],
               ["Ontario",                 "13.16%", "$220,000"],
               ["Manitoba",                "17.4%", "$79,625"],
             ],
@@ -325,13 +325,15 @@ export function CheatSheetPDF() {
         </View>
         <Text style={S.cite}>
           Source: CRA — Canadian income tax rates for individuals (provincial section).
+          Top marginal rates are current for 2026; provincial top-bracket thresholds
+          index annually. Verify the current threshold for your province before relying on it.
           Quebec applies its own provincial system administered by Revenu Québec.
         </Text>
 
         {/* ── Two-column row: C (CPP) + D (GST/HST) ── */}
         <View style={S.twoCol}>
           <View style={S.col}>
-            <Text style={S.sectionTitle}>C. Self-Employed CPP (2025)</Text>
+            <Text style={S.sectionTitle}>C. Self-Employed CPP (2026)</Text>
             <View style={S.table}>
               <View style={S.tableHead}>
                 <HeadCell text="Item" flex={2.6} />
@@ -339,13 +341,13 @@ export function CheatSheetPDF() {
               </View>
               {[
                 ["Basic exemption", "$3,500"],
-                ["YMPE (CPP1 ceiling)", "$71,300"],
-                ["YAMPE (CPP2 ceiling)", "$81,200"],
+                ["YMPE (CPP1 ceiling)", "$74,600"],
+                ["YAMPE (CPP2 ceiling)", "$85,000"],
                 ["CPP1 rate (self-employed, both halves)", "11.90%"],
                 ["CPP2 rate (self-employed, both halves)", "8.00%"],
-                ["CPP1 max contribution (SE)", "$8,068.20"],
-                ["CPP2 max contribution (SE)", "$792.00"],
-                ["Total max CPP (SE, 2025)", "$8,860.20"],
+                ["CPP1 max contribution (SE)", "$8,460.90"],
+                ["CPP2 max contribution (SE)", "$832.00"],
+                ["Total max CPP (SE, 2026)", "$9,292.90"],
               ].map((r, i) => (
                 <Row
                   key={r[0]}

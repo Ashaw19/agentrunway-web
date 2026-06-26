@@ -1,16 +1,17 @@
 // CanadianTaxEngine — ported from Swift
 // Comprehensive Canadian self-employed income tax estimator.
 // Federal + all 13 provinces/territories, CPP/QPP, Ontario surtax, Quebec abatement.
-// Tax year: 2025 (primary source: CRA; secondary reference: TaxTips.ca).
+// Tax year: 2026 (primary source: CRA / canada.ca; verified 2026-06-26).
 //
 // ESTIMATE ONLY — Not legal or tax advice.
 
 import type { Province } from "../types/database";
 
-// ⚠️  TAX_YEAR = 2025 — Update all three engine files together:
+// ⚠️  TAX_YEAR = 2026 — Update all FOUR tax files together:
 // - canadian-tax-engine.ts
 // - corporate-tax-engine.ts
 // - tax-optimization-engine.ts
+// - apps/web/supabase/functions/mcp-server/lib/canadian-tax-engine.ts (Deno MCP mirror)
 
 /** Round to the nearest cent (CRA rounds to the penny). */
 const cents = (n: number) => Math.round(n * 100) / 100;
@@ -36,24 +37,27 @@ export interface CanadianTaxResult {
 
 // ── Constants ───────────────────────────────────────────────────────────────
 
-const TAX_YEAR = 2025;
+const TAX_YEAR = 2026;
 
-// Federal (2025 confirmed — rate cut from 15% to 14% effective Jul 1, blended 14.5%)
-export const FEDERAL_BPA = 16_129;
-export const FEDERAL_BPA_RATE = 0.145; // blended 2025 rate (15% Jan–Jun, 14% Jul–Dec)
+// Federal 2026 (CRA, verified 2026-06-26). First-bracket rate is a flat 14%
+// (the 2025 mid-year 15%→14% cut is fully in effect; no more blended 14.5%).
+// Source: canada.ca/en/revenue-agency/services/tax/individuals/frequently-asked-questions-individuals/canadian-income-tax-rates-individuals-current-previous-years/current-year.html
+export const FEDERAL_BPA = 16_452;     // 2026 federal BPA max (NI ≤ $181,440); TD1 2026 + T4127 122nd Ed.
+export const FEDERAL_BPA_RATE = 0.14;  // 2026 first-bracket / BPA credit rate
 
 export const FEDERAL_BRACKETS: [number, number][] = [
-  [57_375,  0.145], // blended 14.5% for 2025
-  [114_750, 0.205],
-  [177_882, 0.260],
-  [253_414, 0.290],
+  [58_523,  0.14],  // 2026
+  [117_045, 0.205],
+  [181_440, 0.260],
+  [258_482, 0.290],
   [Infinity, 0.330],
 ];
 
-// CPP/QPP (2025 confirmed by CRA)
+// CPP/QPP 2026 (CRA, verified 2026-06-26)
+// Source: canada.ca/en/revenue-agency/services/tax/businesses/topics/payroll/payroll-deductions-contributions/canada-pension-plan-cpp/cpp-contribution-rates-maximums-exemptions.html
 const CPP_BASIC_EXEMPTION = 3_500;
-const CPP_YMPE  = 71_300; // Year's Maximum Pensionable Earnings
-const CPP_YAMPE = 81_200; // Year's Additional Maximum Pensionable Earnings
+const CPP_YMPE  = 74_600; // 2026 Year's Maximum Pensionable Earnings (first ceiling)
+const CPP_YAMPE = 85_000; // 2026 Year's Additional Maximum Pensionable Earnings (second ceiling)
 
 // Self-employed rates (employee + employer combined)
 const CPP1_SELF_RATE = 0.0595 * 2; // 11.90%
@@ -236,12 +240,14 @@ export function provincialInfo(province: Province): ProvincialInfo {
         brackets: [[47_000, 0.108], [100_000, 0.1275], [Infinity, 0.174]],
       };
     case "newBrunswick":
+      // NB 2026 (CRA T4032-NB Jan 2026, verified 2026-06-26). BPA $13,664.
+      // Source: canada.ca/en/revenue-agency/services/forms-publications/payroll/t4032-payroll-deductions-tables/t4032nb-jan/t4032nb-january-general-information.html
       return {
-        basicPersonalAmount: 13_396, lowestRate: 0.094,
+        basicPersonalAmount: 13_664, lowestRate: 0.094,
         brackets: [
-          [51_306,  0.094],
-          [102_614, 0.14],
-          [190_060, 0.16],
+          [52_333,  0.094],
+          [104_666, 0.14],
+          [193_861, 0.16],
           [Infinity, 0.195],
         ],
       };
@@ -335,13 +341,15 @@ export function provincialInfo(province: Province): ProvincialInfo {
         ],
       };
     case "yukon":
-      // Third bracket ceiling aligns with federal third bracket ($177,882)
+      // Yukon 2026 (CRA, verified 2026-06-26). Bracket ceilings track the federal
+      // thresholds by statute; Yukon BPA tracks the federal BPA ($16,452).
+      // Source: canada.ca/en/revenue-agency/.../canadian-income-tax-rates-individuals-current-previous-years/current-year.html
       return {
-        basicPersonalAmount: 16_129, lowestRate: 0.064,
+        basicPersonalAmount: 16_452, lowestRate: 0.064,
         brackets: [
-          [57_375,  0.064],
-          [114_750, 0.09],
-          [177_882, 0.109],
+          [58_523,  0.064],
+          [117_045, 0.09],
+          [181_440, 0.109],
           [500_000, 0.128],
           [Infinity, 0.15],
         ],

@@ -2,11 +2,11 @@
  * Agent Runway Platform Knowledge Base (COMPACT)
  *
  * Trimmed for token efficiency. Core facts, formulas, and tax data retained.
- * TAX DATA VERSION: 2025 CRA rates. Last updated: March 2025.
+ * TAX DATA VERSION: 2026 CRA rates. Verified against canada.ca 2026-06-26.
  */
 
-const KB_MILEAGE_FIRST_5K = "$0.72/km";
-const KB_MILEAGE_AFTER_5K = "$0.66/km";
+const KB_MILEAGE_FIRST_5K = "$0.73/km";
+const KB_MILEAGE_AFTER_5K = "$0.67/km";
 
 export const KNOWLEDGE_BASE = `
 ## AGENT RUNWAY — KNOWLEDGE BASE (COMPACT)
@@ -89,11 +89,11 @@ Platform for Canadian real estate agents: income, expenses, pipeline, clients, t
 
 ---
 
-### TAX REFERENCE — 2025 CRA
+### TAX REFERENCE — 2026 CRA
 
-**Federal:** $0-57,375@14.5%, $57,375-114,750@20.5%, $114,750-177,882@26%, $177,882-253,414@29%, $253,414+@33%. BPA $16,129 credit @14.5% = $2,338.71.
+**Federal:** $0-58,523@14%, $58,523-117,045@20.5%, $117,045-181,440@26%, $181,440-258,482@29%, $258,482+@33%. BPA $16,452 credit @14% = $2,303.28.
 
-**CPP (self-employed = both halves):** CPP1: 11.90% on $3,500-$71,300. Max $8,068.20. CPP2: 8.00% on $71,300-$81,200. Max $792. Deductions: 50% CPP1, 100% CPP2.
+**CPP (self-employed = both halves):** CPP1: 11.90% on $3,500-$74,600. Max $8,460.90. CPP2: 8.00% on $74,600-$85,000. Max $832. Deductions: 50% CPP1, 100% CPP2.
 
 **QPP:** 12.80%. Quebec abatement: federal tax x 83.5%.
 **Ontario surtax:** 20% over $5,710 + 36% over $7,307.
@@ -102,10 +102,10 @@ Platform for Canadian real estate agents: income, expenses, pipeline, clients, t
 
 **Corporate CCPC:** SBD 9% on first $500K. General 15%. Phase-out $5/$1 over $50K AAII. Non-eligible gross-up 15%, DTC 9.0301%.
 
-**RRSP:** 18% prior year income, max $32,490. Dividend-only = $0 room.
+**RRSP:** 18% prior year income, max $33,810. Dividend-only = $0 room.
 **Mileage:** ${KB_MILEAGE_FIRST_5K} first 5K km, ${KB_MILEAGE_AFTER_5K} after.
 **Home office:** CRA actual-cost method only — Canada has no IRS-style simplified $5/sqft method. Deduction = actual costs (rent or mortgage interest, utilities, property tax, insurance, maintenance, condo fees) x business-use% (office area / total home area). Must be principal place of business or used exclusively and regularly to meet clients.
-**Instalments:** Annual tax / 4. Required if >$3K owing ($1.8K QC). Interest ~6%.
+**Instalments:** Annual tax / 4. Required if >$3K owing ($1.8K QC). Interest 7% (CRA Q3 2026; adjusts quarterly).
 **Effective rate:** (Federal + provincial + CPP) / net self-employment income.
 
 ---

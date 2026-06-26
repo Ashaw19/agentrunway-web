@@ -471,12 +471,12 @@ export function TaxEstimator() {
                 </p>
                 <ul className="mt-2 space-y-1 text-xs text-slate-700">
                   <li>
-                    <strong>{cppLabel} Tier 1</strong> (on earnings $3,500 – $71,300 at{" "}
+                    <strong>{cppLabel} Tier 1</strong> (on earnings $3,500 – $74,600 at{" "}
                     {isQuebec ? "12.80%" : "11.90%"} self-employed rate):{" "}
                     <strong>{fmt0(result.cpp1Contribution)}</strong>
                   </li>
                   <li>
-                    <strong>{cppLabel} Tier 2</strong> (on earnings $71,300 – $81,200 at{" "}
+                    <strong>{cppLabel} Tier 2</strong> (on earnings $74,600 – $85,000 at{" "}
                     {isQuebec ? "8.00%" : "8.00%"} self-employed rate):{" "}
                     <strong>{fmt0(result.cpp2Contribution)}</strong>
                   </li>
