@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback, Fragment } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Sparkles, X, Send, Bot, User, ChevronDown, ThumbsUp, ThumbsDown, CheckCircle2, AlertTriangle, ArrowRight, ExternalLink, ShieldCheck, XCircle } from "lucide-react";
+import { Anchor, Sparkles, X, Send, Bot, User, ChevronDown, ThumbsUp, ThumbsDown, CheckCircle2, AlertTriangle, ArrowRight, ExternalLink, ShieldCheck, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
@@ -1259,8 +1259,11 @@ export function AiChat({ financialContext }: Props) {
           isOpen
             ? {}
             : {
-                background: "linear-gradient(135deg, #1d4ed8, #7c3aed)",
-                boxShadow: "0 4px 24px rgba(99,102,241,0.5)",
+                // Captain identity at rest — leads with the Captain accent
+                // (blue-600 / #2563eb per project_flight_crew_ui_design) so the
+                // launcher reads as the Flight Crew, not a generic chatbot.
+                background: "linear-gradient(135deg, #2563eb, #1d4ed8)",
+                boxShadow: "0 4px 24px rgba(37,99,235,0.5)",
               }
         }
         aria-label="Open Flight Crew"
@@ -1269,7 +1272,8 @@ export function AiChat({ financialContext }: Props) {
           <ChevronDown className="h-5 w-5" />
         ) : (
           <>
-            <Sparkles className="h-6 w-6" />
+            {/* Captain glyph — the Anchor identity per the Flight Crew UI design. */}
+            <Anchor className="h-6 w-6" />
             {unread > 0 && (
               <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-amber-400 text-[10px] font-bold text-black">
                 {unread}
