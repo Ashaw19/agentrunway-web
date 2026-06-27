@@ -49,6 +49,7 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import {
+  Anchor,
   DollarSign,
   TrendingUp,
   TrendingDown,
@@ -147,6 +148,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { ExplainButton } from "@/components/explain-button";
+import { useAiChat } from "@/lib/ai-chat-context";
 const AnnualReview = dynamic(() => import("@/components/annual-review").then(m => m.AnnualReview), { ssr: false });
 const MonthlyChart = dynamic(() => import("@/components/monthly-chart").then(m => m.MonthlyChart), { ssr: false });
 const WelcomeTour = dynamic(() => import("@/components/welcome-tour").then(m => m.WelcomeTour), { ssr: false });
@@ -854,6 +856,9 @@ export function DashboardContent({
     : [];
 
   // ── Health narrative ──────────────────────────────────────────────────
+  // Structured: { weakestLabel, weakestScore, sentence }. The Captain's read
+  // strip derives its synthesis sentence AND its askQuestion() seed from the
+  // same weakest-component logic — no second prose source, no hardcoding.
   const scoreNarrative = buildScoreNarrative(
     runwayScore, survival, paceStatus, pacePercent, healthReport,
   );
@@ -2559,29 +2564,24 @@ export function DashboardContent({
             </div>
           </div>
 
-          {/* ─── RESERVED: Captain's read strip ──────────────────────────────
-              A separate flight-crew PR mounts a one-line "Captain's read"
-              strip HERE — between the gauge/cash row and the component row.
-              Leave this container + comment intact so that PR drops in with no
-              rebase. DO NOT build the strip or wire askQuestion() in this PR —
-              that is the ai-flight-crew-champion lane.
-              The boot-late class + 0.85s delay matches the cash co-hero's late
-              fade so the strip joins the same staged boot moment when it lands.
-              Render nothing until the flight-crew PR populates it. */}
+          {/* ─── Captain's read strip ────────────────────────────────────────
+              The Flight Crew's presence in the hero (product_ai_first_principle).
+              Mounts in the reserved slot between the gauge/cash row and the
+              component row. The boot-late class + 0.85s delay matches the cash
+              co-hero's late fade so the strip joins the same staged boot moment.
+              This strip carries the hero's SINGLE actionable synthesis line. The
+              former standalone scoreNarrative <p> below was removed to avoid two
+              competing prose lines — the strip now derives its sentence (and its
+              askQuestion seed) from the same scoreNarrative weakest-component
+              logic. Suppressed on zero-data via the outer hasData guard. */}
           {hasData && (
             <div
               data-captain-strip-slot
               className="boot-late mt-3 empty:hidden"
               style={{ animationDelay: "0.85s" }}
             >
-              {/* flight-crew PR: mount <CaptainReadStrip /> here */}
+              <CaptainReadStrip narrative={scoreNarrative} isPro={isPro} />
             </div>
-          )}
-
-          {/* Narrative — full-width line below the gauge/cash row.
-              Suppressed on zero-data (no meaningful narrative yet). */}
-          {hasData && (
-            <p className="boot-late mt-3 text-xs text-slate-400" style={{ animationDelay: "0.7s" }}>{scoreNarrative}</p>
           )}
           {/* Score components — hidden on zero-data; component scores are
               all 0 until transactions exist and would just look broken.
@@ -3265,15 +3265,122 @@ function formatSurvivalDisplay(survival: SurvivalResult): string {
 
 // ── Helper: Runway score one-liner explanation ─────────────────────────────
 
+interface ScoreNarrative {
+  /** Weakest component label, e.g. "Goal Pace". null when no meaningful score yet. */
+  weakestLabel: string | null;
+  /** Weakest component score 0–100. null when no meaningful score yet. */
+  weakestScore: number | null;
+  /** The "biggest opportunity" sentence rendered today. Backward-compatible. */
+  sentence: string;
+}
+
+// ── Captain's read strip ──────────────────────────────────────────────────
+//
+// The Flight Crew's presence in the hero. Per product_ai_first_principle the
+// Flight Crew IS the interface, so the cockpit's headline instrument now has a
+// Captain (Anchor / blue-600 per project_flight_crew_ui_design) reading the
+// panel back in one plain-language synthesis line, with one action.
+//
+// The synthesis sentence and the askQuestion() seed both derive from the SAME
+// weakest-component logic the score narrative already computes. Nothing here is
+// hardcoded. This strip carries the single actionable line in the hero; the
+// former standalone narrative <p> was removed so the hero shows ONE synthesis
+// line, not two competing ones.
+//
+// Copy obeys feedback_avoid_ai_tells_in_content: no em dashes, no rule-of-three
+// triads, no marketing adjectives.
+
+/** Captain's synthesis: weakest component framed as the current drag plus the
+ *  fastest lever. Keyed off the same `weakestLabel` the engine produced. */
+function captainReadSentence(label: string | null): string {
+  switch (label) {
+    case "Goal Pace":
+      return "Goal pace is your biggest drag right now. Closing one pipeline deal moves your score the most.";
+    case "Pipeline":
+      return "Pipeline is your biggest drag right now. Adding a deal or two is the fastest way to move your score.";
+    case "Expenses":
+      return "Your expense ratio is the biggest drag on your score right now. Trimming overhead is the fastest lever.";
+    case "Benchmark":
+      return "Your benchmark ranking is the biggest drag right now. Lifting projected GCI is what moves it.";
+    case "Survival":
+      return "Cash runway is the biggest drag on your score right now. Extending coverage is the fastest lever.";
+    default:
+      return "Your score is holding steady. Ask the Captain where the next gain is.";
+  }
+}
+
+/** The question seeded into the Flight Crew chat. References the specific
+ *  weakest component so the Captain opens on a relevant, narrow answer. */
+function captainReadQuestion(narrative: ScoreNarrative): string {
+  if (narrative.weakestLabel && narrative.weakestScore !== null) {
+    return `My Runway Score's biggest drag is ${narrative.weakestLabel} at ${narrative.weakestScore} out of 100. What is the single fastest lever I can pull this month to move my score, and what would the impact be?`;
+  }
+  return "What is the single fastest lever I can pull this month to move my Runway Score?";
+}
+
+function CaptainReadStrip({
+  narrative,
+  isPro,
+}: {
+  narrative: ScoreNarrative;
+  isPro: boolean;
+}) {
+  const { askQuestion } = useAiChat();
+  const sentence = captainReadSentence(narrative.weakestLabel);
+
+  return (
+    <div className="flex flex-col gap-2 rounded-lg border border-slate-700/70 bg-slate-800/40 px-3.5 py-2.5 sm:flex-row sm:items-center sm:gap-3">
+      {/* Captain identity chip — Anchor + blue-600, subtle on the dark card. */}
+      <div className="flex shrink-0 items-center gap-1.5">
+        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-600/15">
+          <Anchor className="h-3.5 w-3.5 text-blue-400" aria-hidden="true" />
+        </span>
+        <span className="text-[11px] font-semibold uppercase tracking-wider text-blue-300">
+          Captain
+        </span>
+      </div>
+
+      {/* The Captain's read — one synthesis sentence, derived from score data. */}
+      <p className="flex-1 text-xs leading-snug text-slate-300">{sentence}</p>
+
+      {/* One action. Pro opens the Flight Crew seeded with the weakest
+          component; non-Pro gets an honest nudge to the paywall. */}
+      {isPro ? (
+        <button
+          type="button"
+          onClick={() => askQuestion(captainReadQuestion(narrative))}
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-blue-500/40 bg-blue-600/15 px-3 py-1.5 text-[11px] font-semibold text-blue-200 transition-colors hover:bg-blue-600/25 hover:text-blue-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400"
+        >
+          <Anchor className="h-3 w-3" aria-hidden="true" />
+          Ask the Captain what to do
+        </button>
+      ) : (
+        <Link
+          href="/pricing"
+          title="The Flight Crew is part of Pro"
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-blue-500/40 bg-blue-600/15 px-3 py-1.5 text-[11px] font-semibold text-blue-200 transition-colors hover:bg-blue-600/25 hover:text-blue-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400"
+        >
+          <Anchor className="h-3 w-3" aria-hidden="true" />
+          Meet the Flight Crew with Pro
+        </Link>
+      )}
+    </div>
+  );
+}
+
 function buildScoreNarrative(
   runwayScore: RunwayScoreResult,
   survival: SurvivalResult,
   paceStatus: string,
   pacePercent: number,
   _healthReport: BusinessHealthReport,
-): string {
+): ScoreNarrative {
   if (!runwayScore.hasEnoughData) {
-    return "Add transactions and complete your Settings to get a meaningful score.";
+    return {
+      weakestLabel: null,
+      weakestScore: null,
+      sentence: "Add transactions and complete your Settings to get a meaningful score.",
+    };
   }
   const weakest = runwayScore.components.reduce((a, b) =>
     a.score < b.score ? a : b,
@@ -3297,7 +3404,11 @@ function buildScoreNarrative(
   };
   const phrase =
     weakestPhrases[weakest.label] ?? "review your business inputs";
-  return `Biggest opportunity: ${weakest.label} (${weakest.score}/100). ${phrase[0].toUpperCase()}${phrase.slice(1)}.`;
+  return {
+    weakestLabel: weakest.label,
+    weakestScore: weakest.score,
+    sentence: `Biggest opportunity: ${weakest.label} (${weakest.score}/100). ${phrase[0].toUpperCase()}${phrase.slice(1)}.`,
+  };
 }
 
 // ── Helper: Business Health Narrative ─────────────────────────────────────
