@@ -32,7 +32,7 @@ import {
   type ExpenseCategoryWithItems,
 } from "@/lib/types/database";
 import type { BenchmarkResult } from "@/lib/engines/benchmark-engine";
-import type { SurvivalResult } from "@/lib/engines/survival-engine";
+import { riskColorBand, type SurvivalResult, type RiskLevel, type RiskColorBand } from "@/lib/engines/survival-engine";
 import type { RunwayScoreResult } from "@/lib/engines/runway-score-engine";
 import type { AdvisorCard } from "@/lib/engines/advisor-engine";
 
@@ -76,11 +76,26 @@ function gradeLabel(grade: string): string {
   return "Critical";
 }
 
-function riskColor(level: string): string {
-  if (level === "strong") return C.emerald;
-  if (level === "healthy") return C.blue;
-  if (level === "warning") return C.amber;
-  return C.rose;
+// Cash-runway color via the engine's single semantic contract (riskColorBand,
+// spec_runway_score_canonical_bands.md §9.1/§9.5): healthy (4–<6mo) reads
+// amber/watch, not blue; only strong (6mo+) is emerald.
+const RISK_BAND_HEX: Record<RiskColorBand, string> = {
+  emerald: C.emerald,
+  amber: C.amber,
+  red: C.rose,
+  slate: C.muted,
+};
+
+// Light fill + border per band for the cash-runway assessment box.
+const RISK_BAND_BOX: Record<RiskColorBand, { bg: string; border: string }> = {
+  emerald: { bg: "#F0FDF4", border: "#BBF7D0" },
+  amber:   { bg: "#FFFBEB", border: "#FDE68A" },
+  red:     { bg: "#FFF1F2", border: "#FECDD3" },
+  slate:   { bg: "#F8FAFC", border: "#E2E8F0" },
+};
+
+function riskColor(level: RiskLevel): string {
+  return RISK_BAND_HEX[riskColorBand(level)];
 }
 
 function scoreColor(score: number): string {
@@ -1281,6 +1296,9 @@ export function BusinessReportPDF({
     benchmark,
   );
 
+  // Cash-runway color band (single semantic contract, §9.1/§9.5).
+  const runwayBand = riskColorBand(survival.riskLevel);
+
   // ── PAGE 1: COVER ─────────────────────────────────────────────────────────
 
   const coverPage = (
@@ -1756,24 +1774,22 @@ export function BusinessReportPDF({
           style={[
             s.assessmentBox,
             {
-              backgroundColor:
-                survival.riskLevel === "strong" || survival.riskLevel === "healthy"
-                  ? "#F0FDF4"
-                  : survival.riskLevel === "warning"
-                  ? "#FFFBEB"
-                  : "#FFF1F2",
-              borderColor:
-                survival.riskLevel === "strong" || survival.riskLevel === "healthy"
-                  ? "#BBF7D0"
-                  : survival.riskLevel === "warning"
-                  ? "#FDE68A"
-                  : "#FECDD3",
+              backgroundColor: RISK_BAND_BOX[runwayBand].bg,
+              borderColor: RISK_BAND_BOX[runwayBand].border,
             },
           ]}
         >
           <Text style={[s.assessmentTitle, { color: riskColor(survival.riskLevel) }]}>
             {survival.months.toFixed(1)} Months Cash Runway ·{" "}
-            {survival.riskLevel === "strong" ? "Strong" : survival.riskLevel === "healthy" ? "Healthy" : survival.riskLevel === "warning" ? "Warning" : "Critical"}
+            {survival.riskLevel === "strong"
+              ? "Strong"
+              : survival.riskLevel === "healthy"
+              ? "Healthy"
+              : survival.riskLevel === "warning"
+              ? "Warning"
+              : survival.riskLevel === "notConfigured"
+              ? "Not Set"
+              : "Critical"}
           </Text>
           <Text style={s.assessmentText}>
             Based on your cash reserve of {fmtCurrency(survival.cashReserve)} and a monthly burn
@@ -1782,6 +1798,8 @@ export function BusinessReportPDF({
               ? " Immediate action required — build at minimum 2 months of reserves."
               : survival.riskLevel === "warning"
               ? " Consider increasing your reserve to 4+ months for professional security."
+              : survival.riskLevel === "notConfigured"
+              ? " Add your cash reserve and monthly costs in Settings to see your runway."
               : " You are within the recommended 4–6+ month safety buffer."}
           </Text>
         </View>

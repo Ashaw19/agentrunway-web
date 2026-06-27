@@ -84,7 +84,7 @@ import {
 import { computeHSTCollected } from "@/lib/engines/hst-engine";
 import { compare, COHORT_LABELS } from "@/lib/engines/benchmark-engine";
 import { calculateCorporateTax } from "@/lib/engines/corporate-tax-engine";
-import { survivalResult } from "@/lib/engines/survival-engine";
+import { survivalResult, riskColorBand, type RiskLevel, type RiskColorBand } from "@/lib/engines/survival-engine";
 import { computeEffectiveCashForSurvival, computePipelineMonthlyIncome } from "@/lib/engines/effective-cash";
 import {
   compute as computeRunwayScore,
@@ -147,12 +147,26 @@ function gradeStyle(grade: string) {
   return { ring: "ring-red-500", text: "text-white", pill: "bg-red-100 text-red-800 border-red-200", bar: "bg-red-500", label: "Critical", cardBg: "border-red-200 bg-red-50/70" };
 }
 
-function riskStyle(level: string) {
-  if (level === "strong")        return { cardBorder: "border-emerald-200", badgeCls: "bg-emerald-100 text-emerald-800", dot: "bg-emerald-500", labelColor: "text-emerald-700", label: "Strong" };
-  if (level === "healthy")       return { cardBorder: "border-blue-200",    badgeCls: "bg-blue-100 text-blue-800",       dot: "bg-blue-500",    labelColor: "text-blue-700",   label: "Healthy" };
-  if (level === "warning")       return { cardBorder: "border-amber-200",   badgeCls: "bg-amber-100 text-amber-800",     dot: "bg-amber-500",   labelColor: "text-amber-700",  label: "Warning" };
-  if (level === "notConfigured") return { cardBorder: "border-slate-200",   badgeCls: "bg-slate-100 text-slate-600",     dot: "bg-slate-400",   labelColor: "text-slate-600",  label: "Not Set" };
-  return { cardBorder: "border-red-200", badgeCls: "bg-red-100 text-red-800", dot: "bg-red-500", labelColor: "text-red-700", label: "Critical" };
+// Color derives from the engine's single semantic contract (riskColorBand,
+// §9.1/§9.5): healthy (4–<6mo) reads amber/watch, not blue. Labels stay keyed
+// off the riskLevel so "Healthy" and "Warning" remain distinct words.
+const RISK_BAND_STYLE: Record<RiskColorBand, { cardBorder: string; badgeCls: string; dot: string; labelColor: string }> = {
+  emerald: { cardBorder: "border-emerald-200", badgeCls: "bg-emerald-100 text-emerald-800", dot: "bg-emerald-500", labelColor: "text-emerald-700" },
+  amber:   { cardBorder: "border-amber-200",   badgeCls: "bg-amber-100 text-amber-800",     dot: "bg-amber-500",   labelColor: "text-amber-700" },
+  red:     { cardBorder: "border-red-200",     badgeCls: "bg-red-100 text-red-800",         dot: "bg-red-500",     labelColor: "text-red-700" },
+  slate:   { cardBorder: "border-slate-200",   badgeCls: "bg-slate-100 text-slate-600",     dot: "bg-slate-400",   labelColor: "text-slate-600" },
+};
+
+const RISK_LABEL: Record<RiskLevel, string> = {
+  strong: "Strong",
+  healthy: "Healthy",
+  warning: "Warning",
+  critical: "Critical",
+  notConfigured: "Not Set",
+};
+
+function riskStyle(level: RiskLevel) {
+  return { ...RISK_BAND_STYLE[riskColorBand(level)], label: RISK_LABEL[level] };
 }
 
 // ── Waterfall row ─────────────────────────────────────────────────────────────
