@@ -126,7 +126,7 @@ import { computeWhereYouStand, BAND_LABELS, type PerformanceBand } from "@/lib/e
 import type { BriefingItem } from "@/lib/engines/crm-analytics-engine";
 import { survivalResult, type SurvivalResult } from "@/lib/engines/survival-engine";
 import { computeCashPosition, type CashPositionResult } from "@/lib/engines/cash-position-engine";
-import { compute as computeRunwayScore, type BusinessHealthReport, type RunwayScoreResult, type RunwayStateLabel } from "@/lib/engines/runway-score-engine";
+import { compute as computeRunwayScore, SCORE_VERSION, type BusinessHealthReport, type RunwayScoreResult, type RunwayStateLabel, type ScoreComponent } from "@/lib/engines/runway-score-engine";
 import { generateInsights, type Insight } from "@/lib/engines/insights-engine";
 import { buildHealthReport } from "@/lib/engines/health-report";
 import {
@@ -2448,7 +2448,10 @@ export function DashboardContent({
                     <GuideLink anchor="runway-score" label="Runway Score explained in Guide" />
                     {isPro && hasData && <ExplainButton question="How is my Runway Score calculated and what can I do to improve it?" />}
                   </span>
-                  <RunwayScoreInfoDialog />
+                  <RunwayScoreInfoDialog
+                    components={runwayScore.components}
+                    scoreVersion={runwayScore.version ?? SCORE_VERSION}
+                  />
                 </div>
                 {hasData ? (
                   <div className="flex items-center gap-2.5 mt-0.5">
@@ -3005,38 +3008,24 @@ function NarrativeSection({
 
 // ── Runway Score info dialog ──────────────────────────────────────────────
 
-const SCORE_COMPONENTS_INFO = [
-  {
-    label: "Goal Pace",
-    weight: "35%",
-    description:
-      "Measures how your YTD GCI tracks against your annual goal, adjusted for seasonal patterns. Full credit when you're at or ahead of expected pace.",
-  },
-  {
-    label: "Pipeline",
-    weight: "25%",
-    description:
-      "Your probability-weighted pipeline value relative to the remaining goal gap. A healthy pipeline provides a cushion for the months ahead.",
-  },
-  {
-    label: "Expenses",
-    weight: "15%",
-    description:
-      "Your expense ratio (expenses ÷ GCI) vs. the 25–30% industry benchmark. Below 30% is healthy; above 50% is a warning sign.",
-  },
-  {
-    label: "Survival",
-    weight: "15%",
-    description:
-      "Months of cash runway based on your burn rate (brokerage fee + recurring expenses) and cash reserves. 6+ months is considered strong.",
-  },
-  {
-    label: "Benchmark",
-    weight: "10%",
-    description:
-      "Your projected annual GCI compared to agents with similar experience (industry-cohort estimate). Shows where you rank within your peer group.",
-  },
-] as const;
+// Description copy ONLY — keyed by the engine's component label. The weight
+// shown in the dialog is NOT stored here: it is derived from the live engine
+// component (`runwayScore.components[].weight` / `.weightValue`) at render time
+// so the published methodology can never drift from the math again.
+// See memory/feedback_data_consistency_protocol.md (one source of truth) and
+// memory/spec_runway_score_canonical_bands.md.
+const SCORE_COMPONENT_DESCRIPTIONS: Record<string, string> = {
+  "Goal Pace":
+    "Measures how your YTD GCI tracks against your annual goal, adjusted for seasonal patterns. Full credit when you're at or ahead of expected pace.",
+  Pipeline:
+    "Your probability-weighted pipeline value relative to the remaining goal gap. A healthy pipeline provides a cushion for the months ahead.",
+  Expenses:
+    "Your expense ratio (expenses ÷ GCI) vs. the 25–30% industry benchmark. Below 30% is healthy; above 50% is a warning sign.",
+  Survival:
+    "Months of cash runway based on your burn rate (brokerage fee + recurring expenses) and cash reserves. 6+ months is considered strong.",
+  Benchmark:
+    "Your projected annual GCI compared to agents with similar experience (industry-cohort estimate). Shows where you rank within your peer group.",
+};
 
 const GRADE_RANGES = [
   { grade: "A+", range: "92–100", label: "Thriving",     textColor: "text-emerald-700", bg: "bg-emerald-50 border-emerald-200" },
@@ -3047,7 +3036,17 @@ const GRADE_RANGES = [
   { grade: "F",  range: "0–49",   label: "Danger Zone",  textColor: "text-red-700",     bg: "bg-red-50 border-red-200"         },
 ] as const;
 
-function RunwayScoreInfoDialog() {
+function RunwayScoreInfoDialog({
+  components,
+  scoreVersion,
+}: {
+  // Live engine components — the weight badge is derived from these so the
+  // dialog can never drift from the engine's actual weighting. Each item
+  // carries the canonical `weight` display string (e.g. "30%") and the
+  // `weightValue` it was rendered from.
+  components: ScoreComponent[];
+  scoreVersion: string;
+}) {
   return (
     <Dialog>
       <DialogTrigger asChild>
@@ -3075,7 +3074,10 @@ function RunwayScoreInfoDialog() {
           <div>
             <h3 className="mb-2 font-semibold">What goes into your score</h3>
             <div className="space-y-2">
-              {SCORE_COMPONENTS_INFO.map((c) => (
+              {/* Weights derived from the live engine components — NEVER
+                  hardcoded — so the published methodology cannot drift from
+                  the math. Order and weight both come from the engine. */}
+              {components.map((c) => (
                 <div
                   key={c.label}
                   className="flex items-start gap-3 rounded-md border bg-muted/30 px-3 py-2.5"
@@ -3090,7 +3092,9 @@ function RunwayScoreInfoDialog() {
                   </div>
                   <div>
                     <p className="text-xs font-semibold">{c.label}</p>
-                    <p className="mt-0.5 text-xs text-muted-foreground">{c.description}</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      {SCORE_COMPONENT_DESCRIPTIONS[c.label] ?? ""}
+                    </p>
                   </div>
                 </div>
               ))}
@@ -3135,7 +3139,7 @@ function RunwayScoreInfoDialog() {
 
           <p className="text-xs text-muted-foreground border-t pt-3">
             Benchmark data reflects industry-cohort estimates aggregated from public industry sources.
-            Score version: {/* version shown inline */}1.0.
+            Score version: {scoreVersion}.
           </p>
         </div>
       </DialogContent>

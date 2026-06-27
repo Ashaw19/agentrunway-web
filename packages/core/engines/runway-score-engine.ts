@@ -2,7 +2,7 @@
 // Versioned composite score wrapping BusinessHealthReport + benchmark + survival.
 // 5-component health score (Setup removed in v1.1).
 
-export const SCORE_VERSION = "1.2";
+export const SCORE_VERSION = "1.3";
 
 // ── Component ───────────────────────────────────────────────────────────────
 
@@ -183,6 +183,14 @@ export function bandColorHexForScore(score: number): string {
  * - Incomplete data penalty: "not configured" survival and zero-expense
  *   scores now pull the composite down (35 instead of 50/80) to incentivize
  *   data completeness and prevent inflated scores from missing data.
+ *
+ * v1.3 changes:
+ * - Survival sub-score re-anchored to the product's published cash-runway
+ *   standard ("6+ months is considered strong"). Band edges: >=6 Strong (95),
+ *   3–<6 Building/watch (42–58), <3 At Risk (10–30). A 4.2-month account now
+ *   scores 50 (Building) instead of 75 (top-tier) so the survival bar agrees
+ *   with the rest of the dashboard's runway narrative. Survival is 15% of the
+ *   composite, so low-runway accounts see a slightly lower, more honest score.
  */
 export function compute(
   healthReport: BusinessHealthReport,
@@ -195,18 +203,38 @@ export function compute(
   const safePace      = isFinite(healthReport.paceScore)     ? healthReport.paceScore     : 0;
   const safePipeline  = isFinite(healthReport.pipelineScore) ? healthReport.pipelineScore : 0;
   const safeExpense   = isFinite(healthReport.expenseScore)  ? healthReport.expenseScore  : 0;
-  // Convert survival months to 0–100 score
+  // Convert survival months to 0–100 score.
+  //
+  // Anchored to the product's OWN published cash-runway standard: the
+  // cash-runway explainer (dashboard score-component descriptions + GuideLink copy)
+  // states "6+ months is considered strong." The sub-score band edges mirror
+  // that standard so the survival bar reads the same as the rest of the
+  // dashboard (no more emerald/"healthy" bar next to an amber "runway getting
+  // thin" alert for the same 4.2-month account):
+  //
+  //   >= 6 months  → Strong   (top of range; emerald in the component-bar
+  //                            contract, score >= 81)
+  //   3 to < 6 mo  → Building / "watch" (middle; amber, score 41–60)
+  //   < 3 months   → At Risk  (bottom; red, score < 41)
+  //
+  // The ladder is monotonic and smooth across the whole range. A 4.2-month
+  // account now lands at 50 (Building/amber) instead of 75 (which rendered as
+  // a top-tier band). This pulls low-runway composite scores down slightly and
+  // honestly — survival is 15% of the composite.
+  //
   // -1 means "not configured" — score at 35 to penalize missing data
-  // (previously 50, which rewarded not entering a cash reserve)
+  // (previously 50, which rewarded not entering a cash reserve).
   // Non-finite (NaN from a broken cash-position chain) is treated as missing.
   const safeSurvivalMonths = isFinite(survivalMonths) ? survivalMonths : -1;
   let survivalScore: number;
-  if (safeSurvivalMonths < 0) survivalScore = 35;
-  else if (safeSurvivalMonths >= 6) survivalScore = 95;
-  else if (safeSurvivalMonths >= 4) survivalScore = 75;
-  else if (safeSurvivalMonths >= 2) survivalScore = 50;
-  else if (safeSurvivalMonths >= 1) survivalScore = 25;
-  else survivalScore = 10;
+  if (safeSurvivalMonths < 0) survivalScore = 35;       // not configured
+  else if (safeSurvivalMonths >= 6) survivalScore = 95; // Strong
+  else if (safeSurvivalMonths >= 5) survivalScore = 58; // Building (watch)
+  else if (safeSurvivalMonths >= 4) survivalScore = 50; // Building (watch) — 4.2mo lands here
+  else if (safeSurvivalMonths >= 3) survivalScore = 42; // Building (watch)
+  else if (safeSurvivalMonths >= 2) survivalScore = 30; // At Risk
+  else if (safeSurvivalMonths >= 1) survivalScore = 20; // At Risk
+  else survivalScore = 10;                              // At Risk (floor)
 
   const components: ScoreComponent[] = [
     { label: "Goal Pace", score: safePace,      weight: "35%", weightValue: 0.35 },

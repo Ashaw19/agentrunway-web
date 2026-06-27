@@ -242,11 +242,16 @@ export function GuidePdf({ province, businessStructure, splitPreset }: Props) {
         <Text style={S.body}>
           Your Runway Score is a composite grade across 5 business health factors:
         </Text>
+        {/* Weights MUST match packages/core/engines/runway-score-engine.ts
+            compute(): Pace 35 / Pipeline 30 / Expenses 15 / Benchmark 5 /
+            Survival 15. Static here (PDF has no live score in scope) — if the
+            engine weights change, update these in the same PR.
+            See memory/spec_runway_score_canonical_bands.md §2 (Task 2). */}
         <Text style={S.bullet}>{"\u2022"} Pace vs Goal (35%) — Are you on track for your annual GCI target?</Text>
-        <Text style={S.bullet}>{"\u2022"} Pipeline Health (25%) — Do you have enough deals in progress?</Text>
+        <Text style={S.bullet}>{"\u2022"} Pipeline Health (30%) — Do you have enough deals in progress?</Text>
         <Text style={S.bullet}>{"\u2022"} Expense Ratio (15%) — Are your expenses under control?</Text>
         <Text style={S.bullet}>{"\u2022"} Survival Runway (15%) — How many months could you survive without income?</Text>
-        <Text style={S.bullet}>{"\u2022"} Benchmark Rank (10%) — How you compare to industry-cohort peers</Text>
+        <Text style={S.bullet}>{"\u2022"} Benchmark Rank (5%) — How you compare to industry-cohort peers</Text>
 
         <Text style={S.body}>
           Grades: A+ (92+), A (85–91), B (75–84), C (62–74), D (50–61), F (0–49)

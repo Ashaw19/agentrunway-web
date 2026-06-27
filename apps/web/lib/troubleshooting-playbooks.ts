@@ -69,12 +69,14 @@ The Runway Score is a weighted composite of 5 sub-scores, each 0–100:
 - If no GCI yet: 50 (neutral — agent hasn't started)
 - If has GCI but zero expenses logged: 35 (incomplete data penalty — no real estate agent has zero expenses, so this signals missing data)
 
-**Survival Score** (15%):
-- ≥6 months → 95
-- ≥4 months → 75
-- ≥2 months → 50
-- ≥1 month → 25
-- <1 month → 10
+**Survival Score** (15%) — v1.3, anchored to the published "6+ months is strong" standard:
+- ≥6 months → 95 (Strong)
+- ≥5 months → 58 (Building / watch)
+- ≥4 months → 50 (Building / watch — a 4.2-month account lands here)
+- ≥3 months → 42 (Building / watch)
+- ≥2 months → 30 (At Risk)
+- ≥1 month → 20 (At Risk)
+- <1 month → 10 (At Risk)
 - Not configured (no cash reserve set) → 35 (incomplete data penalty — previously 50 in v1.1)
 
 **Benchmark Score** (5%):
