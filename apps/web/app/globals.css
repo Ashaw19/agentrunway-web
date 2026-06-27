@@ -511,6 +511,59 @@
     animation: counterPop 0.4s ease-out;
   }
 
+  /* ─── Instrument-boot motion (dashboard cockpit hero) ─────────────────────
+     ENTER-ONLY, no loops. One staged timeline (~1.4s total) so the hero
+     reads as a single deliberate "instrument boot" moment on first paint.
+     The global prefers-reduced-motion guard (bottom of this file) collapses
+     every duration below to ~0.01ms, so reduced-motion users land on the
+     resting state instantly with no motion. `both` fill-mode holds the
+     pre-animation state during the delay and the final state after, so
+     nothing flashes before its cue. */
+
+  /* Hero card: fade + gentle rise (0–250ms). */
+  .boot-hero {
+    animation: bootHeroIn 0.25s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  @keyframes bootHeroIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Component bars: staggered fill (500–1100ms via inline delay). The bar
+     itself grows from zero width via the wrapping cell's reveal; the
+     Progress indicator's own transition handles the fill sweep. This cell
+     reveal carries opacity + a small rise so the row assembles left-to-right
+     when paired with per-cell animation-delay. */
+  .boot-bar {
+    animation: bootBarIn 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  @keyframes bootBarIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Cash-runway co-hero + reserved Captain slot: fade in last (700–950ms via
+     inline delay) so the gauge resolves before the supporting reads arrive. */
+  .boot-late {
+    animation: bootLateIn 0.25s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  @keyframes bootLateIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Gauge arc sweep: the SVG arc's stroke-dashoffset animates from full
+     (empty) to its target (score) over 200–1400ms. Driven by a CSS custom
+     property the JSX sets to the score's dash length. easeOutExpo-like curve
+     to match the CountUp easing so the number and the arc move together. */
+  .boot-arc {
+    animation: bootArcSweep 1.2s cubic-bezier(0.16, 1, 0.3, 1) 0.2s both;
+  }
+  @keyframes bootArcSweep {
+    from { stroke-dashoffset: var(--arc-empty); }
+    to   { stroke-dashoffset: var(--arc-offset); }
+  }
+
   /* ─── Greeting fade-in ────────────────────────────────────────────────── */
   @keyframes greetFadeIn {
     from { opacity: 0; transform: translateX(-8px); }
