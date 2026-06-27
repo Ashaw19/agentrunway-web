@@ -12,6 +12,43 @@ export function riskLevelFromMonths(months: number): RiskLevel {
   return "strong";
 }
 
+// ── Risk color band ───────────────────────────────────────────────────────────
+
+/**
+ * The single semantic color contract for a survival RiskLevel. ONE meaning per
+ * color, everywhere on every surface (dashboard hero, forecast, expenses,
+ * reports, PDF). Aligned to spec_runway_score_canonical_bands.md §9.1/§9.5:
+ *
+ *   critical (<2mo)   → "red"     concern
+ *   warning  (2–<4mo) → "amber"   watch
+ *   healthy  (4–<6mo) → "amber"   watch    ← NOT emerald: under 6 months is not yet "strong"
+ *   strong   (6mo+)   → "emerald" genuine strength
+ *   notConfigured     → "slate"   no data
+ *
+ * Each surface maps the returned band token to its own shade/format (Tailwind
+ * class, hex, KpiCard colorScheme, react-pdf style). Keeping the
+ * riskLevel→band assignment here is what stops the semantic from drifting
+ * across surfaces again — display code must derive its color from this, never
+ * re-encode the ladder. This is a SEPARATE band system from the composite
+ * Runway Score's RUNWAY_SCORE_BANDS (runway-score-engine.ts); it is keyed off
+ * cash-runway months, not the 0–100 composite score.
+ */
+export type RiskColorBand = "red" | "amber" | "emerald" | "slate";
+
+export function riskColorBand(level: RiskLevel): RiskColorBand {
+  switch (level) {
+    case "critical":
+      return "red";
+    case "warning":
+    case "healthy":
+      return "amber";
+    case "strong":
+      return "emerald";
+    case "notConfigured":
+      return "slate";
+  }
+}
+
 // ── Result ──────────────────────────────────────────────────────────────────
 
 export interface SurvivalResult {

@@ -42,7 +42,7 @@ import { calculate as calculateTax, gstHstRate, gstHstLabel, marginalRate } from
 import { computeHSTCollected } from "@/lib/engines/hst-engine";
 import { calculateCorporateTax } from "@/lib/engines/corporate-tax-engine";
 import { probabilityBands, fiveYearBands } from "@/lib/engines/probabilistic-forecast-engine";
-import { survivalResult } from "@/lib/engines/survival-engine";
+import { survivalResult, riskColorBand, type RiskColorBand } from "@/lib/engines/survival-engine";
 import { computeEffectiveCashForSurvival, computePipelineMonthlyIncome } from "@/lib/engines/effective-cash";
 import { compare } from "@/lib/engines/benchmark-engine";
 import { generateAdvisory, type AdvisorCard } from "@/lib/engines/advisor-engine";
@@ -350,11 +350,14 @@ export function ForecastContent({
 
   const taxOptResult = generateTaxOptimizations(taxOptInput);
 
-  const riskColors: Record<string, string> = {
-    critical: "text-red-600",
-    warning: "text-amber-600",
-    healthy: "text-emerald-600",
-    strong: "text-emerald-600",
+  // Cash-runway color — single semantic contract via the engine's
+  // riskColorBand() so healthy (4–<6mo) reads amber/watch, not emerald.
+  // Spec: memory/spec_runway_score_canonical_bands.md §9.1/§9.5.
+  const riskBandText: Record<RiskColorBand, string> = {
+    red: "text-red-600",
+    amber: "text-amber-600",
+    emerald: "text-emerald-600",
+    slate: "text-slate-500",
   };
 
   // ── Break-even analysis ───────────────────────────────────────────────
@@ -488,7 +491,7 @@ export function ForecastContent({
             <CardDescription className="text-[11px] font-semibold uppercase tracking-wider text-amber-700">Cash Runway</CardDescription>
           </CardHeader>
           <CardContent className="px-4 pt-0">
-            <div className={`text-lg font-bold ${riskColors[survival.riskLevel]}`}>
+            <div className={`text-lg font-bold ${riskBandText[riskColorBand(survival.riskLevel)]}`}>
               {survival.label}
             </div>
             <p className="text-[11px] text-amber-600/80">

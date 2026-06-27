@@ -125,7 +125,7 @@ import { probabilityBands } from "@/lib/engines/probabilistic-forecast-engine";
 import { compare, COHORT_LABELS, cohortFromYears } from "@/lib/engines/benchmark-engine";
 import { computeWhereYouStand, BAND_LABELS, type PerformanceBand } from "@/lib/engines/where-you-stand-engine";
 import type { BriefingItem } from "@/lib/engines/crm-analytics-engine";
-import { survivalResult, type SurvivalResult } from "@/lib/engines/survival-engine";
+import { survivalResult, riskColorBand, type SurvivalResult, type RiskColorBand } from "@/lib/engines/survival-engine";
 import { computeCashPosition, type CashPositionResult } from "@/lib/engines/cash-position-engine";
 import { compute as computeRunwayScore, SCORE_VERSION, bandColorHexForScore, type BusinessHealthReport, type RunwayScoreResult, type ScoreComponent } from "@/lib/engines/runway-score-engine";
 import { RunwayGauge } from "./runway-gauge";
@@ -1000,16 +1000,14 @@ export function DashboardContent({
   // the hero Cash Runway number with the survival sub-score bar so a 4.2-month
   // account no longer paints emerald while its sub-score reads Building.
   // Spec: memory/spec_runway_score_canonical_bands.md §9.1 + §9.5.
-  // SIBLING SURFACES still on the OLD treatment (flagged, out of scope for this
-  // presentation PR — see §9.5): forecast-content.tsx:356,
-  // expenses-content.tsx:1259-1260, reports-content.tsx:152,
-  // business-report-pdf.tsx:81 + 1760-1768.
-  const riskColors: Record<string, string> = {
-    critical: "text-red-500",        // <2mo — At Risk (red)
-    warning: "text-amber-500",       // 2–<4mo — Building / watch (amber)
-    healthy: "text-amber-500",       // 4–<6mo — Building / watch (amber, was emerald)
-    strong: "text-emerald-500",      // 6+mo — Strong (emerald)
-    notConfigured: "text-slate-400",
+  // Color now derives from the engine's riskColorBand() — the single source of
+  // truth shared with forecast / expenses / reports / PDF so the healthy→amber
+  // semantic can't drift across surfaces again (§9.5 reconciliation).
+  const riskBandText: Record<RiskColorBand, string> = {
+    red: "text-red-500",         // critical (<2mo) — At Risk
+    amber: "text-amber-500",     // warning/healthy (2–<6mo) — watch
+    emerald: "text-emerald-500", // strong (6mo+)
+    slate: "text-slate-400",     // notConfigured
   };
 
   // ── YTD Net Take-Home calculations ────────────────────────────────────
@@ -2541,7 +2539,7 @@ export function DashboardContent({
                 <GuideLink anchor="cash-runway" label="Cash Runway explained in Guide" />
                 {isPro && <ExplainButton question="What is my current cash runway and how can I extend it?" />}
               </div>
-              <p className={cn("text-3xl font-bold mt-1 leading-none", riskColors[survival.riskLevel])}>
+              <p className={cn("text-3xl font-bold mt-1 leading-none", riskBandText[riskColorBand(survival.riskLevel)])}>
                 {formatSurvivalDisplay(survival)}
               </p>
               {/* Derived calendar anchor — computed from survival.months, never

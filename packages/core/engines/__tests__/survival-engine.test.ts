@@ -12,6 +12,7 @@ import {
   runwayMonths,
   survivalResult,
   riskLevelFromMonths,
+  riskColorBand,
 } from "../survival-engine";
 
 // ── runwayMonths ─────────────────────────────────────────────────────────────
@@ -82,6 +83,41 @@ describe("riskLevelFromMonths", () => {
     expect(riskLevelFromMonths(6)).toBe("strong");
     expect(riskLevelFromMonths(12)).toBe("strong");
     expect(riskLevelFromMonths(24)).toBe("strong");
+  });
+});
+
+// ── riskColorBand (single semantic color contract, spec §9.1/§9.5) ───────────
+
+describe("riskColorBand", () => {
+  it("critical → red (concern)", () => {
+    expect(riskColorBand("critical")).toBe("red");
+  });
+
+  it("warning → amber (watch)", () => {
+    expect(riskColorBand("warning")).toBe("amber");
+  });
+
+  it("healthy → amber (watch, NOT emerald — 4–<6mo is not yet strong)", () => {
+    // The reconciliation: 4–<6mo cash runway is a watch band, not top-tier.
+    expect(riskColorBand("healthy")).toBe("amber");
+  });
+
+  it("strong → emerald (genuine strength, 6mo+)", () => {
+    expect(riskColorBand("strong")).toBe("emerald");
+  });
+
+  it("notConfigured → slate (no data)", () => {
+    expect(riskColorBand("notConfigured")).toBe("slate");
+  });
+
+  it("agrees with riskLevelFromMonths across the month ladder", () => {
+    // <2mo critical → red, 2–<4mo warning → amber, 4–<6mo healthy → amber,
+    // 6mo+ strong → emerald. The whole 2–<6mo span is amber (watch).
+    expect(riskColorBand(riskLevelFromMonths(1))).toBe("red");
+    expect(riskColorBand(riskLevelFromMonths(3))).toBe("amber");
+    expect(riskColorBand(riskLevelFromMonths(4.2))).toBe("amber");
+    expect(riskColorBand(riskLevelFromMonths(5.9))).toBe("amber");
+    expect(riskColorBand(riskLevelFromMonths(6))).toBe("emerald");
   });
 });
 

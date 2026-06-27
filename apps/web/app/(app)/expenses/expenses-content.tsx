@@ -34,7 +34,7 @@ interface PriorYearRow {
   annual_mileage_km: number;
   annual_mileage_deduct: number;
 }
-import { survivalResult } from "@/lib/engines/survival-engine";
+import { survivalResult, riskColorBand, type RiskColorBand } from "@/lib/engines/survival-engine";
 import { EXPENSE_KEY_TO_T2125 } from "@/lib/engines/t2125-engine";
 import dynamic from "next/dynamic";
 import type { DonutDataPoint } from "@/components/expense-donut";
@@ -919,6 +919,16 @@ export function ExpensesContent({
       )
     : survivalResult(0, monthlyTotal, 0, 0);
 
+  // Cash-runway color via the engine's single semantic contract (§9.1/§9.5):
+  // healthy (4–<6mo) reads amber/watch, not emerald.
+  const cashRunwayBand = riskColorBand(survival.riskLevel);
+  const cashRunwayValueClass: Record<RiskColorBand, string> = {
+    red: "text-red-700",
+    amber: "text-amber-700",
+    emerald: "text-emerald-700",
+    slate: "text-slate-700",
+  };
+
   // ── Donut chart data — per-category effective YTD (receipts + recurring estimates + recurring_expenses table) ──
   const donutData: DonutDataPoint[] = categories
     .map((cat) => {
@@ -1256,8 +1266,8 @@ export function ExpensesContent({
         <KpiCard
           label="Cash Runway"
           value={survival.label}
-          colorScheme={survival.riskLevel === "strong" || survival.riskLevel === "healthy" ? "emerald" : survival.riskLevel === "warning" ? "amber" : "red"}
-          valueClassName={survival.riskLevel === "strong" || survival.riskLevel === "healthy" ? "text-emerald-700" : survival.riskLevel === "warning" ? "text-amber-700" : "text-red-700"}
+          colorScheme={cashRunwayBand}
+          valueClassName={cashRunwayValueClass[cashRunwayBand]}
           layout="horizontal"
         />
       </div>
