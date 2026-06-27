@@ -42,7 +42,7 @@ export const CARD_REGISTRY: CardDef[] = [
   { id: "kpi_row",          label: "Performance KPIs",            description: "YTD GCI, Deals Closed, Pipeline, and Projected Year-End", section: "performance" },
   { id: "where_you_stand",  label: "Where You Stand",              description: "Competitive position, market diagnosis, and momentum", section: "performance" },
   { id: "probability",      label: "Projection Range & Benchmark",description: "Probability bands and cohort comparison", section: "performance" },
-  { id: "morning_brief",    label: "Captain's Morning Brief",      description: "Daily pattern synthesis — income pace, pipeline, and top priorities", section: "actions" },
+  { id: "morning_brief",    label: "Captain's Morning Brief",      description: "Daily pattern synthesis: income pace, pipeline, and top priorities", section: "actions" },
   { id: "client_briefing",  label: "Daily Briefing",               description: "Pipeline status, pace, market conditions, and priority actions", section: "actions" },
   { id: "tasks",            label: "Follow-up Tasks",             description: "Open CRM tasks and stale leads", section: "actions" },
   { id: "insights",         label: "Insights & Actions",          description: "AI-generated business observations (estimates only)", section: "actions" },
