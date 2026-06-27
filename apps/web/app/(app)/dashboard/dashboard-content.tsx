@@ -126,7 +126,8 @@ import { computeWhereYouStand, BAND_LABELS, type PerformanceBand } from "@/lib/e
 import type { BriefingItem } from "@/lib/engines/crm-analytics-engine";
 import { survivalResult, type SurvivalResult } from "@/lib/engines/survival-engine";
 import { computeCashPosition, type CashPositionResult } from "@/lib/engines/cash-position-engine";
-import { compute as computeRunwayScore, SCORE_VERSION, type BusinessHealthReport, type RunwayScoreResult, type RunwayStateLabel, type ScoreComponent } from "@/lib/engines/runway-score-engine";
+import { compute as computeRunwayScore, SCORE_VERSION, bandColorHexForScore, type BusinessHealthReport, type RunwayScoreResult, type ScoreComponent } from "@/lib/engines/runway-score-engine";
+import { RunwayGauge } from "./runway-gauge";
 import { generateInsights, type Insight } from "@/lib/engines/insights-engine";
 import { buildHealthReport } from "@/lib/engines/health-report";
 import {
@@ -249,17 +250,11 @@ const PIPELINE_STAGE_CONFIG: Array<{
   { key: "firm",       label: "Firm",        dotClass: "bg-emerald-500", chipClass: "border-emerald-200 bg-emerald-50 text-emerald-700" },
 ];
 
-// Color-only lookup keyed to the engine's `stateLabel`. The label itself
-// comes from `runwayScore.stateLabel` (engine = source of truth); this
-// helper contributes only the dashboard's Tailwind tokens for each band.
-function scoreBandColor(label: RunwayStateLabel): string {
-  switch (label) {
-    case "Strong":   return "text-emerald-400 bg-emerald-500/15 border-emerald-500/30";
-    case "On Track": return "text-blue-400 bg-blue-500/15 border-blue-500/30";
-    case "Building": return "text-amber-400 bg-amber-500/15 border-amber-500/30";
-    case "At Risk":  return "text-red-400 bg-red-500/15 border-red-500/30";
-  }
-}
+// NOTE: the former `scoreBandColor()` Tailwind-token helper was removed in the
+// cockpit hero rebuild. The hero gauge now draws its band color straight from
+// the engine's `bandColorHexForScore()` (the single §9.1 color contract) via
+// the RunwayGauge component, so the Tailwind-token duplicate is no longer
+// needed.
 
 const INSIGHT_ICONS: Record<string, React.ElementType> = {
   "gauge": Gauge,
@@ -634,11 +629,37 @@ export function DashboardContent({
     pipelineMonthlyEst,
   );
 
+  // ── Cash-runway calendar anchor (DERIVED, never hardcoded) ────────────
+  // The hero's "covers you into <Month>" line is computed from the engine's
+  // month count — add survival.months to today and read off the month it
+  // lands in. A hardcoded month string is the exact drift-bug class this
+  // rebuild is cleaning up, so this MUST stay derived. Only meaningful when
+  // costs are configured and the runway is finite (< 24mo cap); otherwise the
+  // hero suppresses the anchor line.
+  const cashRunwayAnchor = (() => {
+    if (survival.riskLevel === "notConfigured" || survival.monthlyBurn === 0) return null;
+    if (survival.months >= 24) return null; // capped — "24+ months" needs no calendar anchor
+    if (survival.months < 1) return null;   // "< 1 month" — anchor would read as the current month
+    const target = new Date();
+    // Advance whole months; fractional months round down so the anchor never
+    // over-promises coverage (3.9 months → 3 months out, not 4).
+    target.setMonth(target.getMonth() + Math.floor(survival.months));
+    return target.toLocaleDateString("en-CA", { month: "long", year: "numeric" });
+  })();
+
   // ── Runway Score ──────────────────────────────────────────────────────
   const healthReport: BusinessHealthReport = buildHealthReport(
     ytdGCI, goalGCI, fraction, pipelineWeightedGCI, expensesYTD,
   );
   const runwayScore = computeRunwayScore(healthReport, benchmark.percentile, survival.months);
+
+  // ── Gauge presentation derivations (engine = source of truth) ─────────
+  // Band color comes straight from the engine's bandColorHexForScore() — the
+  // single §9.1 color contract — never re-derived from a local threshold
+  // ladder. GOLD + glow are gated STRICTLY to Strong (≥81): a 43 renders amber
+  // with no gold, no glow (spec §9.1).
+  const scoreBandHex = bandColorHexForScore(runwayScore.score);
+  const scoreIsStrong = runwayScore.stateLabel === "Strong";
 
   // ── Runway Score trend (month-over-month) ─────────────────────────────
   const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
@@ -967,12 +988,23 @@ export function DashboardContent({
     now,
   );
 
+  // Cash-runway number color — on the single §9.1 semantic contract.
+  // `healthy` is the survival engine's 4–<6mo WATCH band; under the one-meaning-
+  // per-color rule it must render AMBER (watch), not emerald — emerald/gold is
+  // reserved for the genuine top tier (`strong`, 6+ months). This reconciles
+  // the hero Cash Runway number with the survival sub-score bar so a 4.2-month
+  // account no longer paints emerald while its sub-score reads Building.
+  // Spec: memory/spec_runway_score_canonical_bands.md §9.1 + §9.5.
+  // SIBLING SURFACES still on the OLD treatment (flagged, out of scope for this
+  // presentation PR — see §9.5): forecast-content.tsx:356,
+  // expenses-content.tsx:1259-1260, reports-content.tsx:152,
+  // business-report-pdf.tsx:81 + 1760-1768.
   const riskColors: Record<string, string> = {
-    critical: "text-red-600",
-    warning: "text-amber-600",
-    healthy: "text-emerald-600",
-    strong: "text-emerald-600",
-    notConfigured: "text-muted-foreground",
+    critical: "text-red-500",        // <2mo — At Risk (red)
+    warning: "text-amber-500",       // 2–<4mo — Building / watch (amber)
+    healthy: "text-amber-500",       // 4–<6mo — Building / watch (amber, was emerald)
+    strong: "text-emerald-500",      // 6+mo — Strong (emerald)
+    notConfigured: "text-slate-400",
   };
 
   // ── YTD Net Take-Home calculations ────────────────────────────────────
@@ -1344,25 +1376,31 @@ export function DashboardContent({
               <p className="text-[11px] text-slate-500 leading-tight">
                 {fmtPct(ytdGCI / goalGCI)} of {fmtCompact(goalGCI)} goal
               </p>
+              {/* Pace delta. "Ahead" keeps its positive emerald framing (genuine
+                  momentum). "Behind" is NEUTRALIZED to gray "path" framing — the
+                  hero narrative is the single pace surface, so the KPI card states
+                  the distance-to-goal as a path, not a red restatement of "behind"
+                  (item 5: negativity dedupe). */}
               {fraction > 0 && paceStatus !== "no-goal" && (
                 <p className={cn(
                   "text-[11px] font-semibold leading-tight",
-                  paceStatus === "ahead" ? "text-emerald-600" : "text-amber-600",
+                  paceStatus === "ahead" ? "text-emerald-600" : "text-slate-500",
                 )}>
                   {paceStatus === "ahead"
                     ? `↑ ${fmtCurrency(paceGapAmount)} ahead of pace`
-                    : `↓ ${fmtCurrency(Math.abs(paceGapAmount))} behind pace`}
+                    : `${fmtCurrency(Math.abs(paceGapAmount))} to goal pace`}
                 </p>
               )}
             </>
           ) : (
             <p className="text-[11px] text-slate-400 leading-tight">Set a goal in Settings</p>
           )}
+          {/* vs-last-year. Up keeps emerald; down neutralized to gray "path" framing. */}
           {vsLastYearGCI !== null && ytdGCI > 0 && (
-            <p className={cn("text-[11px] font-medium leading-tight", vsLastYearGCI >= 0 ? "text-emerald-600" : "text-amber-600")}>
+            <p className={cn("text-[11px] font-medium leading-tight", vsLastYearGCI >= 0 ? "text-emerald-600" : "text-slate-500")}>
               {vsLastYearGCI >= 0
                 ? `↑ ${fmtCurrency(vsLastYearGCI)} vs last year`
-                : `↓ ${fmtCurrency(Math.abs(vsLastYearGCI))} vs last year`}
+                : `${fmtCurrency(Math.abs(vsLastYearGCI))} behind last year's pace`}
             </p>
           )}
         </CardContent>
@@ -1417,14 +1455,27 @@ export function DashboardContent({
           <TrendingUp className="h-3.5 w-3.5 text-slate-400" />
         </CardHeader>
         <CardContent className="px-4 pt-0">
-          <div className="text-lg font-bold tracking-tight text-slate-800">
-            {pipelineCount === 0 && listingCount === 0 ? "—" : <>$<CountUp end={pipelineWeightedGCI + listingWeightedGCI} duration={1000} /></>}
-          </div>
-          <p className="text-[11px] text-slate-500 leading-tight">
-            {pipelineCount === 0 && listingCount === 0
-              ? "Add prospects to see weighted forecasts"
-              : `${pipelineCount} deal${pipelineCount !== 1 ? "s" : ""}${listingCount > 0 ? ` + ${listingCount} listing${listingCount !== 1 ? "s" : ""}` : ""} · probability-weighted`}
-          </p>
+          {pipelineCount === 0 && listingCount === 0 ? (
+            /* Inviting empty state — a dashed cyan "+ Add your first prospect"
+               tile instead of a bare em-dash. Links to the pipeline (prospect-
+               add) flow (item 7). */
+            <Link
+              href="/pipeline"
+              className="mt-1 flex items-center justify-center gap-1.5 rounded-lg border border-dashed border-cyan-400/70 bg-cyan-50/60 px-3 py-2 text-xs font-semibold text-cyan-700 transition-colors hover:bg-cyan-50 hover:border-cyan-500"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Add your first prospect
+            </Link>
+          ) : (
+            <>
+              <div className="text-lg font-bold tracking-tight text-slate-800">
+                $<CountUp end={pipelineWeightedGCI + listingWeightedGCI} duration={1000} />
+              </div>
+              <p className="text-[11px] text-slate-500 leading-tight">
+                {`${pipelineCount} deal${pipelineCount !== 1 ? "s" : ""}${listingCount > 0 ? ` + ${listingCount} listing${listingCount !== 1 ? "s" : ""}` : ""} · probability-weighted`}
+              </p>
+            </>
+          )}
         </CardContent>
       </Card>
 
@@ -1447,20 +1498,22 @@ export function DashboardContent({
             $<CountUp end={projectedGCI} duration={1100} />
           </div>
           <div className="flex items-center gap-1.5">
+            {/* Pace badge. "Ahead" keeps the positive default treatment. "Behind"
+                is NEUTRALIZED — no red destructive variant, no "% behind"
+                restatement (the hero narrative is the single pace surface). It
+                states the path: how many deals at average size close the gap.
+                Reserve true red strictly for cash runway under 3 months
+                (item 5: negativity dedupe). */}
             <Badge
               className="text-[10px] px-1.5 py-0"
-              variant={
-                paceStatus === "ahead"
-                  ? "default"
-                  : paceStatus === "behind"
-                    ? "destructive"
-                    : "secondary"
-              }
+              variant={paceStatus === "ahead" ? "default" : "secondary"}
             >
               {paceStatus === "ahead"
                 ? `+${Math.round(pacePercent)}% ahead`
                 : paceStatus === "behind"
-                  ? `${Math.round(pacePercent)}% behind`
+                  ? (goalGCI > 0 && avgDealSize > 0 && ytdGCI < goalGCI
+                      ? `${Math.ceil((goalGCI - ytdGCI) / avgDealSize)} deal${Math.ceil((goalGCI - ytdGCI) / avgDealSize) !== 1 ? "s" : ""} to goal`
+                      : "On the path")
                   : "Set a goal"}
             </Badge>
             {trend !== "flat" && (
@@ -2408,135 +2461,162 @@ export function DashboardContent({
         topBarTarget
       )}
 
-      {/* Runway Score Hero — always first */}
-      <Card data-tour="dashboard-score" className="rounded-xl border-0 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 shadow-lg overflow-hidden relative">
-        {/* Subtle brand gradient accent at top */}
-        <div className="absolute top-0 left-0 right-0 h-[3px]" style={{ background: "linear-gradient(90deg, #F0A800 0%, #1E72F2 45%, #7C3AED 80%, #10B981 100%)" }} />
+      {/* Runway Score Hero — the cockpit instrument panel. Always first.
+          Hardcoded dark ("cockpit") by design — see item 3 of the rebuild
+          spec: the hero leans into the instrument-panel identity rather than
+          matching the light page chrome. */}
+      <Card data-tour="dashboard-score" className="boot-hero rounded-xl border-0 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 shadow-lg overflow-hidden relative">
+        {/* Top accent — a thin score-progress fill (replaces the old 4-stop
+            rainbow that mapped to nothing). The filled portion uses the band
+            color and runs to score%. On zero-data it stays a flat hairline. */}
+        <div className="absolute top-0 left-0 right-0 h-[3px] bg-slate-700/60">
+          {hasData && (
+            <div
+              className="h-full transition-[width] duration-700 ease-out"
+              style={{ width: `${Math.max(0, Math.min(100, runwayScore.score))}%`, background: scoreIsStrong ? "#F0A800" : scoreBandHex }}
+            />
+          )}
+        </div>
         <CardContent className="pt-5 pb-4">
-          {/* Stack vertically on mobile (<640px) — the two-column stats grid
-              on the right doesn't fit beside the grade circle at narrow
-              widths and overflows the card. Row layout resumes at sm+. */}
-          <div className="flex flex-col sm:flex-row sm:flex-nowrap sm:items-center sm:justify-between gap-4 sm:gap-6">
-            {/* Left: grade circle + score */}
-            <div className="flex items-center gap-5 min-w-0">
-              {/* Commission Gold grade circle — signature brand moment.
-                  On a fresh account (no transactions or history) we show a
-                  neutral "—" placeholder so the user doesn't see a misleading
-                  D-grade before they've logged any activity. */}
-              <div
-                className="relative flex h-16 w-16 shrink-0 items-center justify-center rounded-full"
-                style={hasData ? {
-                  background: "linear-gradient(135deg, #F0A800 0%, #D97706 55%, #a85c00 100%)",
-                  boxShadow: "0 0 24px rgba(240,168,0,0.45), 0 0 60px rgba(240,168,0,0.14), inset 0 1px 1px rgba(255,255,255,0.22)",
-                } : {
-                  background: "rgba(148, 163, 184, 0.12)",
-                  boxShadow: "inset 0 0 0 1px rgba(148, 163, 184, 0.3)",
-                }}
-              >
-                <span
-                  className="text-2xl font-black leading-none"
-                  style={{ color: hasData ? "#15110A" : "#94A3B8" }}
-                >
-                  {hasData ? runwayScore.grade : "—"}
-                </span>
-              </div>
+          {/* Gauge + Cash Runway co-hero. Equal visual weight, side by side at
+              sm+; stacked on mobile. */}
+          <div className="flex flex-col sm:flex-row sm:flex-nowrap sm:items-center gap-5 sm:gap-8">
+            {/* Left: the single radial gauge (score + band word; no letter grade). */}
+            <div className="flex items-center gap-4 min-w-0">
+              {hasData ? (
+                <RunwayGauge
+                  score={runwayScore.score}
+                  stateLabel={runwayScore.stateLabel}
+                  bandHex={scoreBandHex}
+                  isStrong={scoreIsStrong}
+                />
+              ) : (
+                <div className="flex h-[132px] w-[132px] shrink-0 items-center justify-center rounded-full border-2 border-dashed border-slate-700">
+                  <span className="text-3xl font-black leading-none text-slate-600">—</span>
+                </div>
+              )}
               <div className="min-w-0">
                 <div className="flex items-center gap-1">
-                  <span className="flex items-center gap-1">
-                    <p className="text-sm font-semibold text-slate-400">Runway Score</p>
-                    <MetricInfo tip="A composite score across 5 factors: pace vs goal (35%), pipeline health (30%), expense ratio (15%), cash survival (15%), and benchmark ranking (5%)." />
-                    <GuideLink anchor="runway-score" label="Runway Score explained in Guide" />
-                    {isPro && hasData && <ExplainButton question="How is my Runway Score calculated and what can I do to improve it?" />}
-                  </span>
+                  <p className="text-sm font-semibold text-slate-400">Runway Score</p>
+                  <MetricInfo tip="A composite score across 5 factors: pace vs goal (35%), pipeline health (30%), expense ratio (15%), cash survival (15%), and benchmark ranking (5%)." />
+                  <GuideLink anchor="runway-score" label="Runway Score explained in Guide" />
+                  {isPro && hasData && <ExplainButton question="How is my Runway Score calculated and what can I do to improve it?" />}
                   <RunwayScoreInfoDialog
                     components={runwayScore.components}
                     scoreVersion={runwayScore.version ?? SCORE_VERSION}
                   />
                 </div>
-                {hasData ? (
-                  <div className="flex items-center gap-2.5 mt-0.5">
-                    <p className="text-4xl font-extrabold text-white leading-none">
-                      {runwayScore.score}
-                      <span className="text-base font-medium text-slate-500">/100</span>
-                    </p>
-                    <span className={cn(
-                      "text-[10px] font-semibold border rounded-full px-2 py-0 leading-5",
-                      scoreBandColor(runwayScore.stateLabel),
-                    )}>
-                      {runwayScore.stateLabel}
-                    </span>
-                  </div>
-                ) : (
+                {!hasData && (
                   <p className="text-xs text-slate-400 mt-1 max-w-xs leading-snug">
                     Your Runway Score appears after you log your first transaction or import history.
                   </p>
                 )}
-                {/* Month-over-month trend */}
+                {/* Month-over-month trend — neutral up/down, gray on no change. */}
                 {hasData && scoreDelta !== null && (
                   <p className={cn(
-                    "text-[10px] font-semibold tabular-nums mt-1",
-                    scoreDelta > 0 ? "text-emerald-600" : scoreDelta < 0 ? "text-red-500" : "text-slate-400",
+                    "text-[11px] font-semibold tabular-nums mt-1 flex items-center gap-0.5",
+                    scoreDelta > 0 ? "text-emerald-500" : scoreDelta < 0 ? "text-amber-500" : "text-slate-400",
                   )}>
+                    {scoreDelta > 0 ? <ArrowUpRight className="h-3 w-3" /> : scoreDelta < 0 ? <ArrowDownRight className="h-3 w-3" /> : <Minus className="h-3 w-3" />}
                     {scoreDelta > 0 ? `+${scoreDelta}` : scoreDelta} vs last month
                   </p>
                 )}
               </div>
             </div>
-            {/* Right: survival — single-column mini-grid (Pace card retired with market data layer) */}
-            <div className="grid grid-cols-1 gap-px rounded-xl border border-slate-700 bg-slate-700 overflow-hidden shrink-0">
-              {/* Cash Runway */}
-              <div className="bg-slate-800/50 px-4 py-3 text-center">
-                <div className="flex items-center justify-center gap-1">
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Cash Runway</p>
-                  <MetricInfo tip={cashPosition.source === "implied"
-                    ? `Based on your YTD income (${fmtCurrency(cashPosition.breakdown.ytdAgentNet)}) minus expenses (${fmtCurrency(cashPosition.breakdown.ytdExpenses)}), tax set-aside (${fmtCurrency(cashPosition.breakdown.ytdTaxSetAside)})${cashPosition.breakdown.ytdHstOwing > 0 ? `, HST owing (${fmtCurrency(cashPosition.breakdown.ytdHstOwing)})` : ""}${cashPosition.manualReserve > 0 ? ` + starting reserve (${fmtCurrency(cashPosition.manualReserve)})` : ""}. Effective cash: ${fmtCurrency(cashPosition.effectiveCash)}.`
-                    : "How many months you could sustain current expenses using only your cash reserve, with zero new income. Update your cash reserve in Settings."
-                  } />
-                  <GuideLink anchor="cash-runway" label="Cash Runway explained in Guide" />
-                  {isPro && <ExplainButton question="What is my current cash runway and how can I extend it?" />}
-                </div>
-                <p className={cn("text-2xl font-bold mt-1 leading-none", riskColors[survival.riskLevel])}>
-                  {formatSurvivalDisplay(survival)}
-                </p>
-                <p className="text-[10px] text-slate-500 mt-1">
-                  {cashPosition.source === "implied" ? (
-                    <span title={`Implied: ${fmtCurrency(cashPosition.impliedPosition)}${cashPosition.manualReserve > 0 ? ` + Reserve: ${fmtCurrency(cashPosition.manualReserve)}` : ""}`}>
-                      est. {fmtCurrency(cashPosition.effectiveCash)} position
-                    </span>
-                  ) : (
-                    "cash coverage"
-                  )}
-                </p>
+
+            {/* Right: Cash Runway co-hero — equal weight, with a derived
+                calendar anchor line. */}
+            <div className="boot-late sm:ml-auto rounded-xl border border-slate-700 bg-slate-800/50 px-5 py-3.5 shrink-0 min-w-[180px]" style={{ animationDelay: "0.7s" }}>
+              <div className="flex items-center gap-1">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Cash Runway</p>
+                <MetricInfo tip={cashPosition.source === "implied"
+                  ? `Based on your YTD income (${fmtCurrency(cashPosition.breakdown.ytdAgentNet)}) minus expenses (${fmtCurrency(cashPosition.breakdown.ytdExpenses)}), tax set-aside (${fmtCurrency(cashPosition.breakdown.ytdTaxSetAside)})${cashPosition.breakdown.ytdHstOwing > 0 ? `, HST owing (${fmtCurrency(cashPosition.breakdown.ytdHstOwing)})` : ""}${cashPosition.manualReserve > 0 ? ` + starting reserve (${fmtCurrency(cashPosition.manualReserve)})` : ""}. Effective cash: ${fmtCurrency(cashPosition.effectiveCash)}.`
+                  : "How many months you could sustain current expenses using only your cash reserve, with zero new income. Update your cash reserve in Settings."
+                } />
+                <GuideLink anchor="cash-runway" label="Cash Runway explained in Guide" />
+                {isPro && <ExplainButton question="What is my current cash runway and how can I extend it?" />}
               </div>
+              <p className={cn("text-3xl font-bold mt-1 leading-none", riskColors[survival.riskLevel])}>
+                {formatSurvivalDisplay(survival)}
+              </p>
+              {/* Derived calendar anchor — computed from survival.months, never
+                  a hardcoded month (item 6 acceptance criterion). */}
+              {cashRunwayAnchor && (
+                <p className="text-[11px] text-slate-400 mt-1.5 flex items-center gap-1">
+                  <Calendar className="h-3 w-3 shrink-0 text-slate-500" />
+                  covers you into {cashRunwayAnchor}
+                </p>
+              )}
+              <p className="text-[10px] text-slate-500 mt-1">
+                {cashPosition.source === "implied" ? (
+                  <span title={`Implied: ${fmtCurrency(cashPosition.impliedPosition)}${cashPosition.manualReserve > 0 ? ` + Reserve: ${fmtCurrency(cashPosition.manualReserve)}` : ""}`}>
+                    est. {fmtCurrency(cashPosition.effectiveCash)} position
+                  </span>
+                ) : (
+                  "cash coverage"
+                )}
+              </p>
             </div>
           </div>
-          {/* Narrative — full-width line below the score/stats row.
-              On zero-data we don't have a meaningful narrative, so we
-              suppress it entirely rather than print a misleading one. */}
+
+          {/* ─── RESERVED: Captain's read strip ──────────────────────────────
+              A separate flight-crew PR mounts a one-line "Captain's read"
+              strip HERE — between the gauge/cash row and the component row.
+              Leave this container + comment intact so that PR drops in with no
+              rebase. DO NOT build the strip or wire askQuestion() in this PR —
+              that is the ai-flight-crew-champion lane.
+              The boot-late class + 0.85s delay matches the cash co-hero's late
+              fade so the strip joins the same staged boot moment when it lands.
+              Render nothing until the flight-crew PR populates it. */}
           {hasData && (
-            <p className="mt-3 text-xs text-slate-400">{scoreNarrative}</p>
+            <div
+              data-captain-strip-slot
+              className="boot-late mt-3 empty:hidden"
+              style={{ animationDelay: "0.85s" }}
+            >
+              {/* flight-crew PR: mount <CaptainReadStrip /> here */}
+            </div>
+          )}
+
+          {/* Narrative — full-width line below the gauge/cash row.
+              Suppressed on zero-data (no meaningful narrative yet). */}
+          {hasData && (
+            <p className="boot-late mt-3 text-xs text-slate-400" style={{ animationDelay: "0.7s" }}>{scoreNarrative}</p>
           )}
           {/* Score components — hidden on zero-data; component scores are
-              all 0 until transactions exist and would just look broken. */}
+              all 0 until transactions exist and would just look broken.
+              Bar + value color follow the single §9.1 contract via
+              bandColorHexForScore() (NO local threshold ladder — parity by
+              construction). An up/down caret carries direction so meaning
+              never depends on color alone (colorblind/grayscale safety), and
+              "/100" is appended so the number can't be misread as $ or %. */}
           {hasData && (
             <div className="mt-3 grid grid-cols-5 gap-3 border-t border-slate-700 pt-3">
-              {runwayScore.components.map((c) => {
-                // Bar colour reflects score tier — colour carries meaning, not decoration
-                const barColor = c.score >= 80 ? "[&>div]:bg-amber-500"
-                               : c.score >= 60 ? "[&>div]:bg-emerald-500"
-                               : c.score >= 40 ? "[&>div]:bg-blue-400"
-                               :                 "[&>div]:bg-red-400";
-                const textColor = c.score >= 80 ? "#D97706"
-                                : c.score >= 60 ? "#059669"
-                                : c.score >= 40 ? "#3b82f6"
-                                :                 "#ef4444";
+              {runwayScore.components.map((c, i) => {
+                const compHex = bandColorHexForScore(c.score);
+                // On the 0–100 component scale, ≥61 (On Track / Strong) reads
+                // as an "up" signal; below that reads as a "watch / down"
+                // signal. The caret is a direction cue, not a band boundary.
+                const isUp = c.score >= 61;
                 return (
-                <div key={c.label} className="text-center">
+                <div
+                  key={c.label}
+                  className="boot-bar text-center"
+                  /* Staggered fill 500–1100ms: 5 cells at 60ms apart, 350ms each,
+                     so the last cell (delay 0.74s) resolves by ~1.09s. */
+                  style={{ animationDelay: `${0.5 + i * 0.06}s` }}
+                >
                   <p className="text-[10px] font-semibold text-slate-400">{c.label}</p>
-                  <p className="text-sm font-bold mt-0.5" style={{ color: textColor }}>
+                  <p className="text-sm font-bold mt-0.5 flex items-center justify-center gap-0.5" style={{ color: compHex }}>
+                    {isUp ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
                     {c.score}
+                    <span className="text-[10px] font-medium text-slate-500">/100</span>
                   </p>
-                  <Progress value={c.score} className={cn("mt-1.5 h-2", barColor)} />
+                  <Progress
+                    value={c.score}
+                    className="mt-1.5 h-2"
+                    indicatorStyle={{ background: compHex }}
+                  />
                 </div>
                 );
               })}
@@ -3199,13 +3279,16 @@ function buildScoreNarrative(
     a.score < b.score ? a : b,
   );
   const paceAbs = Math.abs(Math.round(pacePercent));
+  // Copy obeys feedback_avoid_ai_tells_in_content: no em dashes, no
+  // rule-of-three triads, no marketing adjectives. The em dashes that used to
+  // join these clauses were purged in the cockpit hero rebuild.
   const weakestPhrases: Record<string, string> = {
     "Goal Pace":
       paceStatus === "ahead"
-        ? `you're ${paceAbs}% ahead of pace — momentum is building`
-        : `you're ${paceAbs}% behind your goal pace — closing pipeline deals will move this`,
+        ? `you're ${paceAbs}% ahead of pace, and momentum is building`
+        : `you're ${paceAbs}% behind your goal pace, and closing pipeline deals will move this`,
     Pipeline: "your pipeline is thin relative to your remaining goal",
-    Expenses: "your expense ratio is above the 25–30% benchmark",
+    Expenses: "your expense ratio is above the 25 to 30% benchmark",
     Benchmark: "your projected GCI is below your experience-group cohort median",
     Survival:
       survival.monthlyBurn > 0
@@ -3214,7 +3297,7 @@ function buildScoreNarrative(
   };
   const phrase =
     weakestPhrases[weakest.label] ?? "review your business inputs";
-  return `Biggest opportunity: ${weakest.label} (${weakest.score}/100) — ${phrase}.`;
+  return `Biggest opportunity: ${weakest.label} (${weakest.score}/100). ${phrase[0].toUpperCase()}${phrase.slice(1)}.`;
 }
 
 // ── Helper: Business Health Narrative ─────────────────────────────────────
