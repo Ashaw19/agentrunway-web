@@ -859,8 +859,12 @@ export function DashboardContent({
   // Structured: { weakestLabel, weakestScore, sentence }. The Captain's read
   // strip derives its synthesis sentence AND its askQuestion() seed from the
   // same weakest-component logic — no second prose source, no hardcoding.
+  // Same empty-pipeline signal the hero's "Add your first prospect" empty
+  // state uses (Pipeline Weighted card: pipelineCount === 0 && listingCount === 0).
+  // The Captain's read must not advise closing a deal that does not exist.
+  const pipelineEmpty = pipelineCount === 0 && listingCount === 0;
   const scoreNarrative = buildScoreNarrative(
-    runwayScore, survival, paceStatus, pacePercent, healthReport,
+    runwayScore, survival, paceStatus, pacePercent, healthReport, pipelineEmpty,
   );
   const narrative = settings
     ? generateBusinessHealthNarrative({
@@ -917,7 +921,7 @@ export function DashboardContent({
       type: "warning",
       icon: "⚠️",
       title: "Behind pace on your annual goal",
-      body: `You're at ${(100 + pacePercent).toFixed(0)}% of expected pace. ${fmtCurrency(gap)} to go${dealsNeededForAlert !== null ? ` — ~${dealsNeededForAlert} more deals at your average size` : ""}.`,
+      body: `You're at ${(100 + pacePercent).toFixed(0)}% of expected pace. ${fmtCurrency(gap)} to go${dealsNeededForAlert !== null ? `, about ${dealsNeededForAlert} more deals at your average size` : ""}.`,
     });
   }
 
@@ -928,7 +932,7 @@ export function DashboardContent({
       type: "warning",
       icon: "💸",
       title: "Expense ratio is elevated",
-      body: `Your costs are ${fmtPct(expenseRatioForAlert)} of GCI — above the 25–30% benchmark. Every dollar saved here goes straight to your net.`,
+      body: `Your costs are ${fmtPct(expenseRatioForAlert)} of GCI, above the 25 to 30% benchmark. Every dollar saved here goes straight to your net.`,
     });
   }
 
@@ -1092,10 +1096,16 @@ export function DashboardContent({
                   <span className={cn("font-semibold", paceStatus === "ahead" ? "text-emerald-600" : paceStatus === "behind" ? "text-amber-700" : "text-slate-800")}>
                     {fmtCurrency(ytdGCI)}
                   </span>
-                  {" of "}{fmtCurrency(goalGCI)} goal — {pctOfGoal}% earned, {pctOfYear}% through the year
+                  {" of "}{fmtCurrency(goalGCI)} goal. {pctOfGoal}% earned, {pctOfYear}% through the year.
                   {paceStatus !== "no-goal" && paceGapAmount !== 0 && (
-                    <span className={cn("ml-1 font-medium", paceStatus === "ahead" ? "text-emerald-600" : "text-amber-700")}>
-                      ({paceStatus === "ahead" ? "↑" : "↓"}{fmtCurrency(Math.abs(paceGapAmount))} vs pace)
+                    // The hero already owns the pace headline. Below it, the
+                    // behind case reads as a neutral path ("$X to goal pace"),
+                    // not a second red/amber deficit restatement; only the
+                    // ahead case carries a positive emerald signal.
+                    <span className={cn("ml-1 font-medium", paceStatus === "ahead" ? "text-emerald-600" : "text-slate-500")}>
+                      ({paceStatus === "ahead"
+                        ? `${fmtCurrency(Math.abs(paceGapAmount))} ahead of pace`
+                        : `${fmtCurrency(Math.abs(paceGapAmount))} to goal pace`})
                     </span>
                   )}
                 </>
@@ -1112,10 +1122,10 @@ export function DashboardContent({
               {pipelineCount > 0 ? (
                 <>
                   <span className="font-semibold text-slate-800">{pipelineCount} deal{pipelineCount !== 1 ? "s" : ""}</span>
-                  {" — "}{fmtCurrency(pipelineWeightedGCI)} weighted GCI in motion
+                  {": "}{fmtCurrency(pipelineWeightedGCI)} weighted GCI in motion
                 </>
               ) : (
-                <span className="text-slate-500">No active pipeline — add deals in CRM</span>
+                <span className="text-slate-500">No active pipeline. Add deals in CRM.</span>
               )}
             </p>
           </div>
@@ -1126,9 +1136,9 @@ export function DashboardContent({
               <span className="text-[10px] font-bold uppercase tracking-wide text-amber-600 shrink-0 w-16 pt-0.5">Watch</span>
               <p className="text-xs text-amber-700 leading-snug">
                 {staleItems.length === 1 ? (
-                  <><span className="font-semibold">{staleItems[0].clientName}</span> — {staleItems[0].daysValue}d since last contact</>
+                  <><span className="font-semibold">{staleItems[0].clientName}</span>, {staleItems[0].daysValue}d since last contact</>
                 ) : (
-                  <><span className="font-semibold">{staleItems[0].clientName}</span> and {staleItems.length - 1} other{staleItems.length > 2 ? "s" : ""} — {staleItems[0].daysValue}+ days since contact</>
+                  <><span className="font-semibold">{staleItems[0].clientName}</span> and {staleItems.length - 1} other{staleItems.length > 2 ? "s" : ""}, {staleItems[0].daysValue}+ days since contact</>
                 )}
               </p>
             </div>
@@ -1193,12 +1203,15 @@ export function DashboardContent({
               Pipeline: {dailyBriefingPipelineLabel}
             </span>
             {dailyBriefingPaceLabel && (
+              // The hero already owns the pace headline. Behind pace reads as a
+              // watch state (amber) here, not a second red restatement; red is
+              // reserved for genuine risk (e.g. cash runway alerts).
               <span className={cn(
                 "inline-flex items-center gap-1 rounded-full text-[10px] font-semibold px-2 py-0.5 border",
                 paceStatus === "ahead"
                   ? "bg-green-50 text-green-700 border-green-200"
                   : paceStatus === "behind"
-                    ? "bg-red-50 text-red-700 border-red-200"
+                    ? "bg-amber-50 text-amber-700 border-amber-200"
                     : "bg-slate-50 text-slate-600 border-slate-200"
               )}>
                 {paceStatus === "ahead" ? <TrendingUp className="h-2.5 w-2.5" /> : paceStatus === "behind" ? <TrendingDown className="h-2.5 w-2.5" /> : <Target className="h-2.5 w-2.5" />}
@@ -1238,7 +1251,7 @@ export function DashboardContent({
                   )} />
                   <p className="text-[11px] text-slate-700 truncate">
                     <span className="font-medium">{c.address}</span>
-                    <span className="text-slate-400"> — {c.client_name} — </span>
+                    <span className="text-slate-400">, {c.client_name}, </span>
                     <span className={cn(
                       "font-semibold",
                       c.days_until <= 1 ? "text-red-600" : c.days_until <= 3 ? "text-amber-600" : "text-slate-600"
@@ -1292,7 +1305,7 @@ export function DashboardContent({
           <div className="px-4 py-3">
             <div className="flex items-center gap-2">
               <CheckCircle className="h-3.5 w-3.5 text-green-500" />
-              <p className="text-xs text-slate-500">All clear — no urgent actions today.</p>
+              <p className="text-xs text-slate-500">All clear. No urgent actions today.</p>
             </div>
           </div>
         )}
@@ -1816,14 +1829,14 @@ export function DashboardContent({
           })}
           {localTasks.length > 5 && (
             <p className="text-xs text-slate-500 text-center pt-1">
-              +{localTasks.length - 5} more tasks —{" "}
-              <Link href="/crm" className="underline font-medium text-slate-700">view all in CRM</Link>
+              +{localTasks.length - 5} more tasks.{" "}
+              <Link href="/crm" className="underline font-medium text-slate-700">View all in CRM</Link>
             </p>
           )}
           {localTasks.length === 0 && staleLeadCount > 0 && (
             <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-center">
               <p className="text-sm font-semibold text-amber-800">{staleLeadCount} contact{staleLeadCount !== 1 ? "s" : ""} need outreach</p>
-              <p className="text-xs text-amber-700 mt-0.5">No scheduled tasks — <Link href="/crm" className="underline font-medium">review in CRM →</Link></p>
+              <p className="text-xs text-amber-700 mt-0.5">No scheduled tasks. <Link href="/crm" className="underline font-medium">Review in CRM →</Link></p>
             </div>
           )}
         </CardContent>
@@ -2718,7 +2731,7 @@ export function DashboardContent({
                         </div>
                       ) : content ?? (
                         <div className="rounded-xl border border-dashed border-border/40 bg-muted/10 px-4 py-3 text-xs text-muted-foreground text-center">
-                          {cardDef?.label} — no data yet
+                          {cardDef?.label}: no data yet
                         </div>
                       )}
                     </SortableCard>
@@ -3270,6 +3283,11 @@ interface ScoreNarrative {
   weakestScore: number | null;
   /** The "biggest opportunity" sentence rendered today. Backward-compatible. */
   sentence: string;
+  /** True when there are no pipeline deals AND no active listings — the same
+   *  signal the hero's "Add your first prospect" empty state uses
+   *  (pipelineCount === 0 && listingCount === 0). When set, the Captain's read
+   *  must never advise closing or converting a deal that does not exist. */
+  pipelineEmpty: boolean;
 }
 
 // ── Captain's read strip ──────────────────────────────────────────────────
@@ -3289,13 +3307,24 @@ interface ScoreNarrative {
 // triads, no marketing adjectives.
 
 /** Captain's synthesis: weakest component framed as the current drag plus the
- *  fastest lever. Keyed off the same `weakestLabel` the engine produced. */
-function captainReadSentence(label: string | null): string {
+ *  fastest lever. Keyed off the same `weakestLabel` the engine produced.
+ *
+ *  State-aware: the read must never point at an action the data shows is
+ *  impossible. When the pipeline is empty (no deals AND no active listings),
+ *  "closing one pipeline deal" or "adding a deal or two" reads as advice for
+ *  a deal that does not exist, so the read points at the real first move:
+ *  adding a prospect. `pipelineEmpty` is the same signal the hero's
+ *  "Add your first prospect" empty state uses. */
+function captainReadSentence(label: string | null, pipelineEmpty: boolean): string {
   switch (label) {
     case "Goal Pace":
-      return "Goal pace is your biggest drag right now. Closing one pipeline deal moves your score the most.";
+      return pipelineEmpty
+        ? "Goal pace is your biggest drag right now. Your pipeline is empty, so adding a prospect is the first move."
+        : "Goal pace is your biggest drag right now. Closing one pipeline deal moves your score the most.";
     case "Pipeline":
-      return "Pipeline is your biggest drag right now. Adding a deal or two is the fastest way to move your score.";
+      return pipelineEmpty
+        ? "Pipeline is your biggest drag right now. Adding your first prospect is the fastest way to move your score."
+        : "Pipeline is your biggest drag right now. Adding a deal or two is the fastest way to move your score.";
     case "Expenses":
       return "Your expense ratio is the biggest drag on your score right now. Trimming overhead is the fastest lever.";
     case "Benchmark":
@@ -3308,10 +3337,15 @@ function captainReadSentence(label: string | null): string {
 }
 
 /** The question seeded into the Flight Crew chat. References the specific
- *  weakest component so the Captain opens on a relevant, narrow answer. */
+ *  weakest component so the Captain opens on a relevant, narrow answer. When
+ *  the pipeline is empty the seed states that fact so the Captain's opening
+ *  answer cannot assume deals that do not exist. */
 function captainReadQuestion(narrative: ScoreNarrative): string {
   if (narrative.weakestLabel && narrative.weakestScore !== null) {
-    return `My Runway Score's biggest drag is ${narrative.weakestLabel} at ${narrative.weakestScore} out of 100. What is the single fastest lever I can pull this month to move my score, and what would the impact be?`;
+    const pipelineNote = narrative.pipelineEmpty
+      ? " My pipeline is empty right now."
+      : "";
+    return `My Runway Score's biggest drag is ${narrative.weakestLabel} at ${narrative.weakestScore} out of 100.${pipelineNote} What is the single fastest lever I can pull this month to move my score, and what would the impact be?`;
   }
   return "What is the single fastest lever I can pull this month to move my Runway Score?";
 }
@@ -3324,7 +3358,7 @@ function CaptainReadStrip({
   isPro: boolean;
 }) {
   const { askQuestion } = useAiChat();
-  const sentence = captainReadSentence(narrative.weakestLabel);
+  const sentence = captainReadSentence(narrative.weakestLabel, narrative.pipelineEmpty);
 
   return (
     <div className="flex flex-col gap-2 rounded-lg border border-slate-700/70 bg-slate-800/40 px-3.5 py-2.5 sm:flex-row sm:items-center sm:gap-3">
@@ -3372,12 +3406,14 @@ function buildScoreNarrative(
   paceStatus: string,
   pacePercent: number,
   _healthReport: BusinessHealthReport,
+  pipelineEmpty: boolean,
 ): ScoreNarrative {
   if (!runwayScore.hasEnoughData) {
     return {
       weakestLabel: null,
       weakestScore: null,
       sentence: "Add transactions and complete your Settings to get a meaningful score.",
+      pipelineEmpty,
     };
   }
   const weakest = runwayScore.components.reduce((a, b) =>
@@ -3406,6 +3442,7 @@ function buildScoreNarrative(
     weakestLabel: weakest.label,
     weakestScore: weakest.score,
     sentence: `Biggest opportunity: ${weakest.label} (${weakest.score}/100). ${phrase[0].toUpperCase()}${phrase.slice(1)}.`,
+    pipelineEmpty,
   };
 }
 
@@ -3575,6 +3612,10 @@ function generateBusinessHealthNarrative({
   let nextMove: string;
   if (status === "Critical" && survival.monthlyBurn > 0 && survival.months < 1) {
     nextMove = "Immediate priority: build your cash reserve or reduce monthly burn to extend runway beyond 1 month.";
+  } else if (weakest.label === "Goal Pace" && dealsNeeded && dealsNeeded > 0 && pipelineCount === 0) {
+    // No pipeline to convert — point at the real first move, not a deal that
+    // does not exist (mirrors the Captain read's empty-pipeline branch).
+    nextMove = `Reaching your ${fmtCurrency(goalGCI)} goal needs about ${dealsNeeded} more deal${dealsNeeded !== 1 ? "s" : ""} at your current average of ${fmtCurrency(avgDealSize)}. Your pipeline is empty, so adding prospects on the Pipeline page is the first step.`;
   } else if (weakest.label === "Goal Pace" && dealsNeeded && dealsNeeded > 0) {
     nextMove = `Close ${dealsNeeded} more deal${dealsNeeded !== 1 ? "s" : ""} at your current average of ${fmtCurrency(avgDealSize)} to reach your ${fmtCurrency(goalGCI)} goal. Converting active pipeline deals is the fastest path.`;
   } else if (weakest.label === "Pipeline" && pipelineCount === 0) {

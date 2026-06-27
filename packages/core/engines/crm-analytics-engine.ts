@@ -270,8 +270,8 @@ export function computeCrmDashboard(input: CrmDashboardInput): CrmDashboardResul
 
   const bucketDefs: { label: string; min: number; max: number }[] = [
     { label: "0", min: 0, max: 0 },
-    { label: "1–2", min: 1, max: 2 },
-    { label: "3–5", min: 3, max: 5 },
+    { label: "1 to 2", min: 1, max: 2 },
+    { label: "3 to 5", min: 3, max: 5 },
     { label: "6+", min: 6, max: Infinity },
   ];
 
@@ -529,7 +529,7 @@ export function computeIntelligenceBriefing(
         severity: daysSince >= 30 ? "urgent" : "attention",
         clientId: client.id,
         clientName: client.name,
-        title: `${client.name} — VIP overdue`,
+        title: `${client.name}: VIP overdue`,
         detail: daysSince === 999 ? "Never contacted" : `${daysSince} days without contact`,
         daysValue: daysSince,
       });
@@ -546,11 +546,11 @@ export function computeIntelligenceBriefing(
           severity: ageHours >= 48 ? "urgent" : "attention",
           clientId: client.id,
           clientName: client.name,
-          title: `${client.name} — not yet contacted`,
+          title: `${client.name}: not yet contacted`,
           detail:
             ageHours >= 48
-              ? `${Math.floor(ageHours / 24)}d old — speed to lead`
-              : `${Math.floor(ageHours)}hr old — follow up today`,
+              ? `${Math.floor(ageHours / 24)}d old, speed to lead`
+              : `${Math.floor(ageHours)}hr old, follow up today`,
           daysValue: Math.floor(ageHours / 24),
         });
       }
@@ -566,9 +566,9 @@ export function computeIntelligenceBriefing(
         clientId: client.id,
         clientName: client.name,
         title: daysSince === 999
-          ? `${client.name} — In-Flight, no contact logged`
-          : `${client.name} — In-Flight, ${daysSince}d silent`,
-        detail: "Active deal — clients expect regular updates",
+          ? `${client.name}: In-Flight, no contact logged`
+          : `${client.name}: In-Flight, ${daysSince}d silent`,
+        detail: "Active deal. Clients expect regular updates",
         daysValue: daysSince,
       });
     }
@@ -595,7 +595,7 @@ export function computeIntelligenceBriefing(
               severity: daysUntil <= 1 ? "urgent" : "upcoming",
               clientId: client.id,
               clientName: client.name,
-              title: `${client.name} — birthday ${label}`,
+              title: `${client.name}: birthday ${label}`,
               detail: nextBday.toLocaleDateString("en-CA", { month: "long", day: "numeric" }),
               daysValue: Math.max(0, daysUntil),
             });
@@ -623,7 +623,7 @@ export function computeIntelligenceBriefing(
           severity: "upcoming",
           clientId: client.id,
           clientName: client.name,
-          title: `${client.name} — ${yearsAgo}-year closing anniversary ${label}`,
+          title: `${client.name}: ${yearsAgo}-year closing anniversary ${label}`,
           detail: nextAnn.toLocaleDateString("en-CA", { month: "long", day: "numeric" }),
           daysValue: Math.max(0, daysUntil),
         });
@@ -644,7 +644,7 @@ export function computeIntelligenceBriefing(
         severity: daysSince >= 365 ? "attention" : "upcoming",
         clientId: client.id,
         clientName: client.name,
-        title: `${client.name} — ${descriptor}, check in soon`,
+        title: `${client.name}: ${descriptor}, check in soon`,
         detail:
           daysSince === 999
             ? "No contact logged yet"
@@ -676,9 +676,9 @@ export function computeIntelligenceBriefing(
         if (daysRemaining <= alertThreshold) {
           const timeframeLabel: Record<string, string> = {
             asap: "ASAP",
-            "1_3_months": "1–3 Month",
-            "3_6_months": "3–6 Month",
-            "6_12_months": "6–12 Month",
+            "1_3_months": "1 to 3 Month",
+            "3_6_months": "3 to 6 Month",
+            "6_12_months": "6 to 12 Month",
           };
           const label = timeframeLabel[client.timeframe] ?? client.timeframe;
           hasActionItem.add(client.id);
@@ -690,11 +690,11 @@ export function computeIntelligenceBriefing(
             clientName: client.name,
             title:
               daysRemaining <= 0
-                ? `${client.name} — ${label} timeframe passed`
-                : `${client.name} — ${label} timeframe ending soon`,
+                ? `${client.name}: ${label} timeframe passed`
+                : `${client.name}: ${label} timeframe ending soon`,
             detail:
               daysRemaining <= 0
-                ? "Client's stated timeframe has passed — follow up on next steps"
+                ? "Client's stated timeframe has passed. Follow up on next steps"
                 : `${Math.ceil(daysRemaining)} days left in their ${label} window`,
             daysValue: Math.max(0, Math.ceil(daysRemaining)),
           });
@@ -714,7 +714,7 @@ export function computeIntelligenceBriefing(
         severity: "attention",
         clientId: client.id,
         clientName: client.name,
-        title: `${client.name} — no contact info`,
+        title: `${client.name}: no contact info`,
         detail: "Active lead with no email or phone on file",
       });
     }
@@ -755,7 +755,7 @@ export function computeIntelligenceBriefing(
         severity: daysUntilRenewal <= 90 ? "urgent" : "attention",
         clientId: client.id,
         clientName: client.name,
-        title: `${client.name} — mortgage renewal ${label}`,
+        title: `${client.name}: mortgage renewal ${label}`,
         detail: `5-yr term on ${latestClose.toLocaleDateString("en-CA", { month: "long", year: "numeric" })} close`,
         daysValue: Math.max(0, daysUntilRenewal),
       });
@@ -769,8 +769,8 @@ export function computeIntelligenceBriefing(
         severity: "upcoming",
         clientId: client.id,
         clientName: client.name,
-        title: `${client.name} — renewal window (~${monthsUntil} months)`,
-        detail: `Start the renewal conversation — review rate options`,
+        title: `${client.name}: renewal window (~${monthsUntil} months)`,
+        detail: `Start the renewal conversation, review rate options`,
         daysValue: Math.round(
           (renewalDate.getTime() - now.getTime()) / 86_400_000,
         ),
@@ -801,7 +801,7 @@ export function computeIntelligenceBriefing(
             severity: "upcoming",
             clientId: client.id,
             clientName: client.name,
-            title: `${client.name} — ${yr}-year home anniversary in ${daysUntil} days`,
+            title: `${client.name}: ${yr}-year home anniversary in ${daysUntil} days`,
             detail: `Offer a complimentary market update or CMA`,
             daysValue: daysUntil,
           });
@@ -848,7 +848,7 @@ export function computeIntelligenceBriefing(
         severity: "attention",
         clientId: id,
         clientName: c.name,
-        title: `${c.name} — possible duplicate`,
+        title: `${c.name}: possible duplicate`,
         detail: `Shares contact info with: ${others.join(", ")}`,
       });
     }
@@ -868,7 +868,7 @@ export function computeIntelligenceBriefing(
             severity: daysOverdue >= 7 ? "urgent" : "attention",
             clientId: la.client_id ?? "",
             clientName: la.property_address ?? "Unknown property",
-            title: `Listing appointment overdue — ${la.property_address ?? "unknown"}`,
+            title: `Listing appointment overdue: ${la.property_address ?? "unknown"}`,
             detail: `Scheduled ${daysOverdue} days ago, still not active`,
             daysValue: daysOverdue,
           });
@@ -885,7 +885,7 @@ export function computeIntelligenceBriefing(
             severity: daysActive >= 90 ? "urgent" : "attention",
             clientId: la.client_id ?? "",
             clientName: la.property_address ?? "Unknown property",
-            title: `Active listing stale — ${la.property_address ?? "unknown"}`,
+            title: `Active listing stale: ${la.property_address ?? "unknown"}`,
             detail: `${daysActive} days on market without sale`,
             daysValue: daysActive,
           });
