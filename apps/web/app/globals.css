@@ -569,3 +569,34 @@
     --success-border: oklch(0.40 0.12 155 / 0.5);
   }
 }
+
+/* ─── Global reduced-motion guard ─────────────────────────────────────────
+   Placed last so it wins on source order. Users who set the OS-level
+   "reduce motion" preference get the final/resting state of every animation
+   and transition near-instantly, app-wide. This is the standard WAI reset
+   pattern: it collapses durations and caps iteration counts rather than
+   removing animations entirely, so layout/state that relies on an
+   animation's end-state is preserved.
+
+   Note: this also halts deliberately-infinite decorative animations
+   (orbDrift1-3, float, shimmer, pulseOrange/Gold) and the Tailwind
+   `animate-spin` used by loading spinners (Loader2). For spinners this is
+   acceptable: in-progress state is communicated by the spinner's presence
+   plus a text label (e.g. "Requesting…") and a disabled control, not by the
+   spin motion alone — so no progress meaning is lost for reduced-motion
+   users.
+
+   The four reset properties carry `!important` (the established pattern for
+   this guard) and are scoped to the reset itself; no other rule in this file
+   relies on `!important` for animation/transition behaviour, so there is no
+   specificity arms-race. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
