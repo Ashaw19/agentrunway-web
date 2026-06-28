@@ -174,7 +174,9 @@ import { WorkflowSuggestionsPanel } from "@/components/workflow-suggestions-pane
 import { ClientConversationPanel } from "@/components/client-conversation-panel";
 import { CockpitStrip, CockpitStat, ScoreDial, SEMANTIC, GOLD, magnitudePct, FlightLog, type FlightLogItem, CRM_SECTION_CARD, CRM_SECTION_HEADER, CRM_SECTION_ICON_CHIP } from "@/components/cockpit-ui";
 import { activityDirection } from "@/lib/crm/activity-direction";
-import type { SparkPoint } from "@/components/sparkline";
+import { Sparkline, type SparkPoint } from "@/components/sparkline";
+import { HoverCard, HoverCardTrigger, HoverCardContent } from "@/components/ui/hover-card";
+import { buildClientGciSpark } from "@/lib/charts/client-gci-spark";
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
@@ -3744,6 +3746,11 @@ export function ClientsContent({
                           // top-revenue celebration separately).
                           const barPct      = magnitudePct(group.totalGCI, maxGCI);
                           const barColor    = isFirstClass ? SEMANTIC.strong : group.totalGCI > 0 ? SEMANTIC.onTrack : SEMANTIC.none;
+                          // Cumulative-GCI trajectory for the name-cell hover card.
+                          // Same close-month bucketing as the KPI strip, scoped to
+                          // this client; needs ≥2 active months to draw a line.
+                          const gciSpark        = buildClientGciSpark(group.deals);
+                          const hasGciTrajectory = gciSpark.length >= 2;
                           // Budget basis: most recent deal's GCI (fallback to average per deal)
                           const mostRecentGCI = group.deals
                             .filter((d) => d.close_date)
@@ -3778,9 +3785,61 @@ export function ClientsContent({
                                   </div>
                                   <div className="min-w-0 flex-1">
                                     <div className="flex items-center gap-1.5">
-                                      <span className="font-medium text-foreground text-sm truncate max-w-[160px]">
-                                        {group.name}
-                                      </span>
+                                      <HoverCard openDelay={150} closeDelay={80}>
+                                        <HoverCardTrigger asChild>
+                                          <span className="font-medium text-foreground text-sm truncate max-w-[160px] underline-offset-2 decoration-dotted decoration-muted-foreground/40 hover:underline">
+                                            {group.name}
+                                          </span>
+                                        </HoverCardTrigger>
+                                        <HoverCardContent
+                                          align="start"
+                                          className="w-72"
+                                          onClick={(e) => e.stopPropagation()}
+                                        >
+                                          <div className="space-y-2.5">
+                                            <div className="flex items-baseline justify-between gap-3">
+                                              <span className="truncate text-sm font-semibold text-foreground">
+                                                {group.name}
+                                              </span>
+                                              <span className="shrink-0 text-[10px] uppercase tracking-wide text-muted-foreground">
+                                                GCI trajectory
+                                              </span>
+                                            </div>
+
+                                            {hasGciTrajectory ? (
+                                              <Sparkline
+                                                data={gciSpark}
+                                                color={SEMANTIC.strong}
+                                                animate={false}
+                                                ariaLabel={`Cumulative GCI trajectory for ${group.name}`}
+                                              />
+                                            ) : (
+                                              <p className="py-1.5 text-xs text-muted-foreground">
+                                                Not enough history to chart yet. Needs closed deals in two or more months.
+                                              </p>
+                                            )}
+
+                                            <div className="flex items-center justify-between border-t border-border/60 pt-2">
+                                              <div className="flex flex-col">
+                                                <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                                                  Lifetime GCI
+                                                </span>
+                                                <span className="tabular-nums text-sm font-semibold" style={{ color: SEMANTIC.strong }}>
+                                                  {fmtCurrency(group.totalGCI)}
+                                                </span>
+                                              </div>
+                                              <div className="flex flex-col items-end">
+                                                <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                                                  {group.dealCount === 1 ? "Deal" : "Deals"}
+                                                </span>
+                                                <span className="tabular-nums text-sm font-semibold text-foreground">
+                                                  {group.dealCount}
+                                                </span>
+                                              </div>
+                                            </div>
+                                          </div>
+                                        </HoverCardContent>
+                                      </HoverCard>
                                       {/* Achievement badge icons — circular discs with hover tooltip */}
                                       {badges.length > 0 && (
                                         <span className="flex items-center gap-1.5 shrink-0">
