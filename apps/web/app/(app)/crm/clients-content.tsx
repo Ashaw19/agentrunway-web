@@ -68,9 +68,6 @@ import {
   ListTodo,
   Gem,
   Shield,
-  Timer,
-  Heart,
-  Zap,
   AlertTriangle,
   Briefcase,
   MapPin,
@@ -98,7 +95,6 @@ import {
   Handshake,
   Hand,
   Star,
-  Gift,
   PartyPopper,
   Clock,
   Mail,
@@ -668,6 +664,11 @@ const STATUS_EDGE_HEX: Record<ClientStatus, string> = {
   in_flight: "#A78BFA", // violet-400
   cruising:  "#60A5FA", // blue-400
 };
+
+// One control class for every filter in the Clients control strip, so the row
+// reads as a single instrument instead of mixed pills + selects.
+const FILTER_CONTROL_CLS =
+  "rounded-full px-3 py-1 text-xs font-semibold border border-slate-200 bg-white text-slate-600 hover:border-primary/40 transition-colors cursor-pointer outline-none";
 
 // Activity glyph for the flight-log rail (lucide, replacing the emoji map). The
 // node's COLOUR carries direction; this icon carries the activity TYPE.
@@ -3583,10 +3584,10 @@ export function ClientsContent({
       {/* ══════════════════════════════════════════════════════════════════ */}
       {tab === "clients" && (
         <>
-          {/* Search + filters */}
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm px-4 py-3 flex flex-col gap-3">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <div className="relative flex-1">
+          {/* Control strip — search + every filter in one cohesive instrument */}
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm px-4 py-3 flex flex-col gap-2 lg:flex-row lg:items-center dark:bg-slate-900/40 dark:border-slate-800">
+            {/* Search */}
+            <div className="relative lg:flex-1 lg:min-w-[200px]">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
               <Input
                 placeholder="Search by name or address…"
@@ -3596,102 +3597,87 @@ export function ClientsContent({
               />
             </div>
 
+            {/* Filters — uniform controls, one strip */}
             <div className="flex items-center gap-1.5 flex-wrap">
-              {(["all", "buyer", "seller", "both"] as const).map((s) => (
+              <select
+                value={filterSide}
+                onChange={(e) => setFilterSide(e.target.value as "all" | "buyer" | "seller" | "both")}
+                className={FILTER_CONTROL_CLS}
+              >
+                <option value="all">All Sides</option>
+                <option value="buyer">Buyer</option>
+                <option value="seller">Seller</option>
+                <option value="both">Both</option>
+              </select>
+
+              {sources.length > 0 && (
+                <select
+                  value={filterSource}
+                  onChange={(e) => setFilterSource(e.target.value)}
+                  className={FILTER_CONTROL_CLS}
+                >
+                  <option value="all">All Sources</option>
+                  {sources.map((src) => (
+                    <option key={src} value={src}>
+                      {src}
+                    </option>
+                  ))}
+                </select>
+              )}
+
+              <select
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value as "all" | ClientStatus)}
+                className={FILTER_CONTROL_CLS}
+              >
+                <option value="all">All Statuses</option>
+                {(Object.keys(CLIENT_STATUS_LABELS) as ClientStatus[]).map((s) => (
+                  <option key={s} value={s}>
+                    {CLIENT_STATUS_LABELS[s]}
+                  </option>
+                ))}
+              </select>
+
+              <select
+                value={activityFilter}
+                onChange={(e) => setActivityFilter(e.target.value as "all" | "1y" | "3y" | "5y")}
+                className={FILTER_CONTROL_CLS}
+              >
+                <option value="all">All Time</option>
+                <option value="1y">Last 365 days</option>
+                <option value="3y">Last 3 years</option>
+                <option value="5y">Last 5 years</option>
+              </select>
+
+              <select
+                value={rewardGenerosity}
+                onChange={(e) => setRewardGenerosity(e.target.value as RewardGenerosity)}
+                className={FILTER_CONTROL_CLS}
+                title={GENEROSITY_LABELS[rewardGenerosity].sub}
+              >
+                {(Object.keys(GENEROSITY_LABELS) as RewardGenerosity[]).map((g) => (
+                  <option key={g} value={g}>
+                    {GENEROSITY_LABELS[g].label}
+                  </option>
+                ))}
+              </select>
+
+              {archivedCount > 0 && (
                 <button
-                  key={s}
-                  onClick={() => setFilterSide(s)}
+                  onClick={() => setShowArchived((v) => !v)}
                   className={cn(
-                    "rounded-full px-3 py-1 text-xs font-semibold border transition-colors",
-                    filterSide === s
-                      ? "bg-primary text-primary-foreground border-primary"
+                    "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold border transition-colors",
+                    showArchived
+                      ? "bg-zinc-800 text-zinc-100 border-zinc-700"
                       : "bg-white text-slate-600 border-slate-200 hover:border-primary/40",
                   )}
                 >
-                  {s === "all" ? "All Sides" : s.charAt(0).toUpperCase() + s.slice(1)}
+                  <Archive className="h-3 w-3" />
+                  {showArchived ? "← Active" : `Hangar (${archivedCount})`}
                 </button>
-              ))}
-              {sources.length > 0 && (
-                <>
-                  <span className="text-muted-foreground/40 text-xs">|</span>
-                  <select
-                    value={filterSource}
-                    onChange={(e) => setFilterSource(e.target.value)}
-                    className="rounded-full px-3 py-1 text-xs font-semibold border border-slate-200 bg-white text-slate-600 hover:border-primary/40 transition-colors cursor-pointer outline-none"
-                  >
-                    <option value="all">All Sources</option>
-                    {sources.map((src) => (
-                      <option key={src} value={src}>
-                        {src}
-                      </option>
-                    ))}
-                  </select>
-                </>
               )}
             </div>
-          </div>
-
-          {/* ── Compact filter bar ────────────────────────────────── */}
-          <div className="flex items-center gap-2 flex-wrap">
-            {/* Status filter — compact dropdown */}
-            <select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value as "all" | ClientStatus)}
-              className="rounded-full px-3 py-1 text-xs font-semibold border border-slate-200 bg-white text-slate-600 hover:border-primary/40 transition-colors cursor-pointer outline-none"
-            >
-              <option value="all">All Statuses</option>
-              {(Object.keys(CLIENT_STATUS_LABELS) as ClientStatus[]).map((s) => (
-                <option key={s} value={s}>
-                  {CLIENT_STATUS_LABELS[s]}
-                </option>
-              ))}
-            </select>
-
-            {/* Time window — compact dropdown */}
-            <select
-              value={activityFilter}
-              onChange={(e) => setActivityFilter(e.target.value as "all" | "1y" | "3y" | "5y")}
-              className="rounded-full px-3 py-1 text-xs font-semibold border border-slate-200 bg-white text-slate-600 hover:border-primary/40 transition-colors cursor-pointer outline-none"
-            >
-              <option value="all">All Time</option>
-              <option value="1y">Last 365 days</option>
-              <option value="3y">Last 3 years</option>
-              <option value="5y">Last 5 years</option>
-            </select>
-
-            {/* Gift level — compact dropdown */}
-            <select
-              value={rewardGenerosity}
-              onChange={(e) => setRewardGenerosity(e.target.value as RewardGenerosity)}
-              className="rounded-full px-3 py-1 text-xs font-semibold border border-slate-200 bg-white text-slate-600 hover:border-primary/40 transition-colors cursor-pointer outline-none"
-            >
-              {(Object.keys(GENEROSITY_LABELS) as RewardGenerosity[]).map((g) => (
-                <option key={g} value={g}>
-                  {GENEROSITY_LABELS[g].label}
-                </option>
-              ))}
-            </select>
-            <span className="text-[10px] text-muted-foreground/60 hidden sm:block">
-              {GENEROSITY_LABELS[rewardGenerosity].sub}
-            </span>
-
-            {/* Hangar toggle */}
-            {archivedCount > 0 && (
-              <button
-                onClick={() => setShowArchived((v) => !v)}
-                className={cn(
-                  "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold border transition-colors ml-auto",
-                  showArchived
-                    ? "bg-zinc-800 text-zinc-100 border-zinc-700"
-                    : "bg-white text-slate-600 border-slate-200 hover:border-primary/40",
-                )}
-              >
-                <Archive className="h-3 w-3" />
-                {showArchived ? "← Active" : `Hangar (${archivedCount})`}
-              </button>
-            )}
-          </div>
-          </div>{/* end filter panel */}
+          </div>{/* end control strip */}
 
           {/* Client table */}
           {!hasAnyData ? (
@@ -7264,39 +7250,49 @@ function ValuationCard({ valuation: v, rank }: { valuation: ClientValuation; ran
           </div>
         </div>
 
-        {/* Metric pills */}
-        <div className="flex flex-wrap gap-1.5">
-          <MetricPill
-            icon={<Gem className="h-3 w-3" />}
-            label="LGV"
-            value={fmtCurrency(v.lgv)}
-            color="emerald"
-          />
-          <MetricPill
-            icon={<Shield className="h-3 w-3" />}
-            label="Runway"
-            value={`${v.runwayImpactMonths.toFixed(1)}mo`}
-            color="blue"
-          />
-          <MetricPill
-            icon={<Zap className="h-3 w-3" />}
-            label="After Tax"
-            value={`${v.taxEfficiencyCents}¢`}
-            color="violet"
-          />
-          <MetricPill
-            icon={<Timer className="h-3 w-3" />}
-            label="Velocity"
-            value={v.velocityDays !== null ? `${v.velocityDays}d` : "—"}
-            color="amber"
-          />
-          <MetricPill
-            icon={<Heart className="h-3 w-3" />}
-            label="Health"
-            value={`${v.healthContributionPct}%`}
-            color="red"
-          />
-        </div>
+        {/* Composite composition bar — what drives this client's value. One
+            neutral instrument (a §9.1-restrained slate ramp, dominant factor
+            darkest) replacing the former five-colour pill rainbow; the colour
+            on this card is reserved for the composite dial's own band. */}
+        {(() => {
+          const b = v.compositeBreakdown;
+          const total = b.lgv + b.health + b.runway + b.velocity + b.tax;
+          const segs = [
+            { key: "lgv" as const, label: "LGV", shade: "bg-slate-700", value: fmtCompact(v.lgv) },
+            { key: "health" as const, label: "Health", shade: "bg-slate-500", value: `${v.healthContributionPct}%` },
+            { key: "runway" as const, label: "Runway", shade: "bg-slate-400", value: `${v.runwayImpactMonths.toFixed(1)}mo` },
+            { key: "velocity" as const, label: "Velocity", shade: "bg-slate-300", value: v.velocityDays !== null ? `${v.velocityDays}d` : "—" },
+            { key: "tax" as const, label: "After Tax", shade: "bg-slate-200", value: `${v.taxEfficiencyCents}¢` },
+          ];
+          return (
+            <div className="space-y-1.5">
+              <div className="flex h-2 w-full overflow-hidden rounded-full bg-slate-100" role="img" aria-label="Composite score composition">
+                {total > 0 &&
+                  segs.map((s) => {
+                    const pct = (b[s.key] / total) * 100;
+                    if (pct <= 0) return null;
+                    return (
+                      <div
+                        key={s.key}
+                        className={s.shade}
+                        style={{ width: `${pct}%` }}
+                        title={`${s.label}: ${s.value} — ${Math.round(pct)}% of score`}
+                      />
+                    );
+                  })}
+              </div>
+              <div className="flex flex-wrap gap-x-3 gap-y-1">
+                {segs.map((s) => (
+                  <span key={s.key} className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
+                    <span className={cn("h-1.5 w-1.5 rounded-sm shrink-0", s.shade)} />
+                    <span className="font-semibold text-foreground tabular-nums">{s.value}</span>
+                    {s.label}
+                  </span>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Insight badges */}
         {v.insights.length > 0 && (
@@ -7314,40 +7310,6 @@ function ValuationCard({ valuation: v, rank }: { valuation: ClientValuation; ran
         )}
       </CardContent>
     </Card>
-  );
-}
-
-// ── Metric Pill ─────────────────────────────────────────────────────────────
-
-function MetricPill({
-  icon,
-  label,
-  value,
-  color,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-  color: "emerald" | "blue" | "violet" | "amber" | "red";
-}) {
-  const styles: Record<string, string> = {
-    emerald: "bg-emerald-50 text-emerald-700 border-emerald-200",
-    blue:    "bg-blue-50 text-blue-700 border-blue-200",
-    violet:  "bg-violet-50 text-violet-700 border-violet-200",
-    amber:   "bg-amber-50 text-amber-700 border-amber-200",
-    red:     "bg-red-50 text-red-700 border-red-200",
-  };
-  return (
-    <span
-      className={cn(
-        "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium",
-        styles[color],
-      )}
-    >
-      {icon}
-      <span className="opacity-70">{label}</span>
-      <span className="font-bold tabular-nums">{value}</span>
-    </span>
   );
 }
 
