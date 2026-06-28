@@ -52,9 +52,10 @@ import type { ProbabilityDataPoint } from "@/components/probability-chart";
 
 const ProbabilityChart = dynamic(() => import("@/components/probability-chart").then(m => m.ProbabilityChart), { ssr: false });
 import Link from "next/link";
-import { Settings, CalendarCheck, Building2, TrendingDown, TrendingUp, AlertTriangle, Rocket, Plus } from "lucide-react";
+import { Settings, CalendarCheck, Building2, TrendingDown, TrendingUp, AlertTriangle, Rocket, Plus, DollarSign, BarChart3, Wallet, PartyPopper, Lightbulb, Target, CheckCircle2, Coins } from "lucide-react";
 import * as LucideIcons from "lucide-react";
 import { cn } from "@/lib/utils";
+import { KpiStrip, CockpitStat, ScoreDial, scoreBand, SEMANTIC } from "@/components/cockpit-ui";
 
 // ── CRA quarterly remittance helper ─────────────────────────────────────────
 function nextRemittanceDate(from: Date): { date: Date; label: string; quarter: string } {
@@ -352,12 +353,13 @@ export function ForecastContent({
 
   // Cash-runway color — single semantic contract via the engine's
   // riskColorBand() so healthy (4–<6mo) reads amber/watch, not emerald.
-  // Spec: memory/spec_runway_score_canonical_bands.md §9.1/§9.5.
-  const riskBandText: Record<RiskColorBand, string> = {
-    red: "text-red-600",
-    amber: "text-amber-600",
-    emerald: "text-emerald-600",
-    slate: "text-slate-500",
+  // §9.1 hexes (for the dark cockpit strip) so the band reads identically to
+  // every other instrument. Spec: memory/spec_runway_score_canonical_bands.md §9.1/§9.5.
+  const riskBandHex: Record<RiskColorBand, string> = {
+    red: SEMANTIC.risk,
+    amber: SEMANTIC.watch,
+    emerald: SEMANTIC.strong,
+    slate: SEMANTIC.none,
   };
 
   // ── Break-even analysis ───────────────────────────────────────────────
@@ -399,7 +401,7 @@ export function ForecastContent({
           </p>
         </div>
         {/* Scenario selector — applies a multiplier to the projected GCI and all downstream numbers */}
-        <div className="flex shrink-0 rounded-lg border border-violet-200 p-0.5 text-xs">
+        <div className="flex shrink-0 rounded-lg border border-slate-200 p-0.5 text-xs">
           {(["conservative", "base", "optimistic"] as const).map((s) => (
             <button
               key={s}
@@ -407,7 +409,7 @@ export function ForecastContent({
               className={cn(
                 "rounded-md px-3 py-1.5 font-medium transition-colors",
                 scenario === s
-                  ? "bg-violet-600 text-white"
+                  ? "bg-slate-800 text-white"
                   : "text-muted-foreground hover:text-foreground",
               )}
             >
@@ -442,64 +444,45 @@ export function ForecastContent({
         </Card>
       )}
 
-      {/* Projection summary */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card className="rounded-xl border border-blue-200 bg-blue-50/70 shadow-sm py-3 gap-1">
-          <CardHeader className="pb-0 px-4">
-            <CardDescription className="text-[11px] font-semibold uppercase tracking-wider text-blue-700">Projected GCI</CardDescription>
-          </CardHeader>
-          <CardContent className="px-4 pt-0">
-            <div className="text-lg font-bold text-slate-800">{fmtCurrency(projectedGCI)}</div>
-            <p className="text-[11px] text-blue-600/80">
-              P25–P75: {fmtCompact(bands.p25)}–{fmtCompact(bands.p75)}
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="rounded-xl border border-indigo-200 bg-indigo-50/70 shadow-sm py-3 gap-1">
-          <CardHeader className="pb-0 px-4">
-            <CardDescription className="text-[11px] font-semibold uppercase tracking-wider text-indigo-700">Projected Deals</CardDescription>
-          </CardHeader>
-          <CardContent className="px-4 pt-0">
-            <div className="text-lg font-bold text-slate-800">{projectedDeals}</div>
-            <p className="text-[11px] text-indigo-600/80">
-              {ytdDealCount} closed + {pipelineDeals.length} pipeline
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="rounded-xl border border-emerald-200 bg-emerald-50/70 shadow-sm py-3 gap-1">
-          <CardHeader className="pb-0 px-4">
-            <CardDescription className="text-[11px] font-semibold uppercase tracking-wider text-emerald-700">After-Tax Net</CardDescription>
-          </CardHeader>
-          <CardContent className="px-4 pt-0">
-            <div className="text-lg font-bold text-slate-800">
-              {corpTaxResult
-                ? fmtCurrency(Math.max(0, corpTaxResult.netPersonalIncome))
-                : fmtCurrency(Math.max(0, netForTax - taxResult.totalBurden))}
-            </div>
-            <p className="text-[11px] text-emerald-600/80">
-              {corpTaxResult
-                ? `${fmtPct(corpTaxResult.combinedEffectiveRate)} combined rate`
-                : `${fmtPct(taxResult.effectiveRate)} effective rate`}
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="rounded-xl border border-amber-200 bg-amber-50/70 shadow-sm py-3 gap-1">
-          <CardHeader className="pb-0 px-4">
-            <CardDescription className="text-[11px] font-semibold uppercase tracking-wider text-amber-700">Cash Runway</CardDescription>
-          </CardHeader>
-          <CardContent className="px-4 pt-0">
-            <div className={`text-lg font-bold ${riskBandText[riskColorBand(survival.riskLevel)]}`}>
-              {survival.label}
-            </div>
-            <p className="text-[11px] text-amber-600/80">
-              {fmtCurrency(survival.monthlyBurn)}/mo burn
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+      {/* Projection summary — cockpit instrument strip */}
+      <KpiStrip cols={4} label={`Year-end projection · ${scenario === "conservative" ? "Conservative" : scenario === "optimistic" ? "Optimistic" : "Base"} scenario`}>
+        <CockpitStat
+          label="Projected GCI"
+          value={fmtCurrency(projectedGCI)}
+          color={SEMANTIC.strong}
+          icon={<DollarSign className="h-3.5 w-3.5" />}
+          sub={`P25–P75: ${fmtCompact(bands.p25)}–${fmtCompact(bands.p75)}`}
+        />
+        <CockpitStat
+          label="Projected Deals"
+          value={String(projectedDeals)}
+          color="#F8FAFC"
+          icon={<BarChart3 className="h-3.5 w-3.5" />}
+          sub={`${ytdDealCount} closed + ${pipelineDeals.length} pipeline`}
+        />
+        <CockpitStat
+          label="After-Tax Net"
+          value={fmtCurrency(
+            corpTaxResult
+              ? Math.max(0, corpTaxResult.netPersonalIncome)
+              : Math.max(0, netForTax - taxResult.totalBurden),
+          )}
+          color={SEMANTIC.strong}
+          icon={<Wallet className="h-3.5 w-3.5" />}
+          sub={
+            corpTaxResult
+              ? `${fmtPct(corpTaxResult.combinedEffectiveRate)} combined rate`
+              : `${fmtPct(taxResult.effectiveRate)} effective rate`
+          }
+        />
+        <CockpitStat
+          label="Cash Runway"
+          value={survival.label}
+          color={riskBandHex[riskColorBand(survival.riskLevel)]}
+          icon={<CalendarCheck className="h-3.5 w-3.5" />}
+          sub={`${fmtCurrency(survival.monthlyBurn)}/mo burn`}
+        />
+      </KpiStrip>
 
       {/* ── Planning insight cards: Break-even & Cap Milestone ──────────── */}
       {(breakEvenDeals !== null || capConfigured) && (
@@ -525,8 +508,9 @@ export function ForecastContent({
                   <span>{Math.max(0, breakEvenDeals - ytdDealCount)} more to go</span>
                 </div>
                 {ytdDealsPastBreakEven !== null && ytdDealsPastBreakEven > 0 && (
-                  <p className="text-xs font-medium text-emerald-700">
-                    ✓ {ytdDealsPastBreakEven} surplus deal{ytdDealsPastBreakEven !== 1 ? "s" : ""} — you&apos;re generating profit
+                  <p className="flex items-center gap-1.5 text-xs font-medium text-emerald-700">
+                    <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                    {ytdDealsPastBreakEven} surplus deal{ytdDealsPastBreakEven !== 1 ? "s" : ""} — you&apos;re generating profit
                   </p>
                 )}
                 <div className="border-t border-slate-100 pt-2 text-xs text-muted-foreground space-y-1">
@@ -552,8 +536,9 @@ export function ForecastContent({
                 : "border-slate-200",
             )}>
               <CardHeader className="pb-2">
-                <CardTitle className="text-base">
-                  {hasHitCap ? "🎉 Cap Hit!" : "Cap Milestone"}
+                <CardTitle className="text-base flex items-center gap-1.5">
+                  {hasHitCap && <PartyPopper className="h-4 w-4 text-emerald-600" />}
+                  {hasHitCap ? "Cap Hit!" : "Cap Milestone"}
                 </CardTitle>
                 <CardDescription>
                   {hasHitCap
@@ -692,7 +677,7 @@ export function ForecastContent({
       </Card>
 
       {/* Tax details */}
-        <Card className="rounded-xl border border-amber-200 bg-amber-50/50 shadow-sm">
+        <Card className="rounded-xl border-slate-200 shadow-sm">
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-1.5">
               Tax Estimates
@@ -733,13 +718,13 @@ export function ForecastContent({
             )}
             <div className="grid gap-4 sm:grid-cols-3 pt-4">
               <div className="text-center">
-                <p className="text-2xl font-bold">
+                <p className="text-2xl font-bold tabular-nums">
                   {fmtCurrency(corpTaxResult ? corpTaxResult.totalCombinedTax / 4 : taxResult.quarterlyEstimate)}
                 </p>
                 <p className="text-xs text-muted-foreground">Quarterly instalment</p>
               </div>
               <div className="text-center">
-                <p className="text-2xl font-bold">
+                <p className="text-2xl font-bold tabular-nums">
                   {fmtCurrency(corpTaxResult
                     ? corpTaxResult.totalCombinedTax / Math.max(projectedDeals, 1)
                     : taxResult.perDealSetAside)}
@@ -747,19 +732,19 @@ export function ForecastContent({
                 <p className="text-xs text-muted-foreground">Per-deal tax portion</p>
               </div>
               <div className="text-center">
-                <p className="text-2xl font-bold">
+                <p className="text-2xl font-bold tabular-nums">
                   {fmtPct(corpTaxResult ? corpTaxResult.combinedEffectiveRate : taxResult.effectiveRate)}
                 </p>
                 <p className="text-xs text-muted-foreground">Effective rate (all-in)</p>
               </div>
             </div>
             {marginalTaxRate > 0 && (
-              <div className="flex items-center justify-between pt-3 mt-1 border-t border-amber-200/50">
+              <div className="flex items-center justify-between pt-3 mt-1 border-t border-border/50">
                 <span className="text-sm text-muted-foreground">Marginal tax rate</span>
-                <span className="text-sm font-semibold">{fmtPct(marginalTaxRate)}</span>
+                <span className="text-sm font-semibold tabular-nums">{fmtPct(marginalTaxRate)}</span>
               </div>
             )}
-            <p className="mt-3 text-[10px] text-amber-700/70 leading-relaxed">
+            <p className="mt-3 text-[10px] text-muted-foreground/70 leading-relaxed">
               {CANONICAL_TAX_DISCLAIMER_SHORT}
             </p>
           </CardContent>
@@ -767,10 +752,11 @@ export function ForecastContent({
 
       {/* Tax Deduction Estimates */}
       {taxOptResult.cardCount > 0 && (
-        <Card className="rounded-xl border border-amber-200 bg-amber-50/40 shadow-sm">
+        <Card className="rounded-xl border-slate-200 shadow-sm">
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
-              💰 Tax Deduction Estimates
+              <Coins className="h-4 w-4 text-amber-600" />
+              Tax Deduction Estimates
             </CardTitle>
             <CardDescription>
               Estimated ~{fmtCurrency(taxOptResult.totalEstimatedSavings)}/yr in potential savings &middot; {taxOptResult.cardCount} {taxOptResult.cardCount === 1 ? "opportunity" : "opportunities"} found
@@ -804,10 +790,10 @@ export function ForecastContent({
 
       {/* Compensation Optimizer — incorporated users only */}
       {corpTaxResult && (
-        <Card className="rounded-xl border border-violet-200 bg-violet-50/40 shadow-sm">
+        <Card className="rounded-xl border-slate-200 shadow-sm">
           <CardHeader>
             <div className="flex items-center gap-2">
-              <Building2 className="h-4 w-4 text-violet-600" />
+              <Building2 className="h-4 w-4 text-slate-400" />
               <div>
                 <CardTitle className="text-base">Compensation Optimizer</CardTitle>
                 <CardDescription>
@@ -819,25 +805,25 @@ export function ForecastContent({
           <CardContent className="space-y-4">
             {/* Salary vs Dividends comparison */}
             <div className="grid gap-3 sm:grid-cols-2">
-              <div className={`rounded-xl border p-4 ${corpTaxResult.optimalMethod === "salary" ? "border-violet-300 bg-violet-100" : "border-border bg-muted/30"}`}>
+              <div className={`rounded-xl border p-4 ${corpTaxResult.optimalMethod === "salary" ? "border-blue-300 bg-blue-50" : "border-border bg-muted/30"}`}>
                 <div className="flex items-center justify-between mb-1">
                   <p className="text-sm font-semibold">All Salary</p>
                   {corpTaxResult.optimalMethod === "salary" && (
-                    <Badge className="bg-violet-600 text-white text-xs">Optimal</Badge>
+                    <Badge className="bg-blue-600 text-white text-xs">Optimal</Badge>
                   )}
                 </div>
-                <p className="text-2xl font-bold">{fmtCurrency(corpTaxResult.allSalaryTotalTax)}</p>
+                <p className="text-2xl font-bold tabular-nums">{fmtCurrency(corpTaxResult.allSalaryTotalTax)}</p>
                 <p className="text-xs text-muted-foreground mt-1">Total tax burden</p>
                 <p className="text-xs text-muted-foreground">Generates CPP + RRSP room</p>
               </div>
-              <div className={`rounded-xl border p-4 ${corpTaxResult.optimalMethod === "dividends" ? "border-violet-300 bg-violet-100" : "border-border bg-muted/30"}`}>
+              <div className={`rounded-xl border p-4 ${corpTaxResult.optimalMethod === "dividends" ? "border-blue-300 bg-blue-50" : "border-border bg-muted/30"}`}>
                 <div className="flex items-center justify-between mb-1">
                   <p className="text-sm font-semibold">All Dividends</p>
                   {corpTaxResult.optimalMethod === "dividends" && (
-                    <Badge className="bg-violet-600 text-white text-xs">Optimal</Badge>
+                    <Badge className="bg-blue-600 text-white text-xs">Optimal</Badge>
                   )}
                 </div>
-                <p className="text-2xl font-bold">{fmtCurrency(corpTaxResult.allDividendsTotalTax)}</p>
+                <p className="text-2xl font-bold tabular-nums">{fmtCurrency(corpTaxResult.allDividendsTotalTax)}</p>
                 <p className="text-xs text-muted-foreground mt-1">Total tax burden</p>
                 <p className="text-xs text-muted-foreground">No CPP — no RRSP contribution room</p>
               </div>
@@ -870,11 +856,12 @@ export function ForecastContent({
             {/* Optimizer comparison */}
             {corpTaxResult.optimalSaving > 500 &&
               corpTaxResult.optimalMethod !== settings.compensation_method && (
-              <div className="rounded-lg border border-violet-200 bg-violet-100 p-3">
-                <p className="text-sm font-medium text-violet-900">
-                  💡 The engine estimates an all-{corpTaxResult.optimalMethod === "salary" ? "salary" : "dividends"} mix would model ~{fmtCurrency(corpTaxResult.optimalSaving)}/yr lower combined tax
+              <div className="rounded-lg border border-blue-200 bg-blue-50 p-3">
+                <p className="flex items-start gap-1.5 text-sm font-medium text-blue-900">
+                  <Lightbulb className="h-4 w-4 shrink-0 mt-0.5 text-blue-600" />
+                  The engine estimates an all-{corpTaxResult.optimalMethod === "salary" ? "salary" : "dividends"} mix would model ~{fmtCurrency(corpTaxResult.optimalSaving)}/yr lower combined tax
                 </p>
-                <p className="text-xs text-violet-700/80 mt-1">
+                <p className="text-xs text-blue-700/80 mt-1">
                   At {fmtCurrency(netForTax)} corporate income in {PROVINCE_LABELS[settings.province]}, {corpTaxResult.optimalMethod === "salary" ? "salary avoids non-eligible dividend tax drag" : "dividends avoids CPP above the YMPE threshold"} in this model.
                   This is an estimate based on rules published by the CRA. Verify with your accountant before making any filing or financial decision.
                 </p>
@@ -884,8 +871,9 @@ export function ForecastContent({
             {/* SBD passive income warning */}
             {corpTaxResult.passiveIncomeWarning && (
               <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
-                <p className="text-sm font-medium text-amber-900">
-                  ⚠️ Passive income threshold exceeded
+                <p className="flex items-center gap-1.5 text-sm font-medium text-amber-900">
+                  <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />
+                  Passive income threshold exceeded
                 </p>
                 <p className="text-xs text-amber-700/80 mt-1">
                   Investment income over $50K reduces your Small Business Deduction limit by $5 per dollar.
@@ -894,7 +882,7 @@ export function ForecastContent({
               </div>
             )}
 
-            <p className="text-[10px] text-violet-700/60 leading-relaxed">
+            <p className="text-[10px] text-muted-foreground/70 leading-relaxed">
               {CANONICAL_TAX_DISCLAIMER_SHORT} Salary vs dividend mix depends on many factors including RRSP room, CPP entitlement, and future income expectations.
             </p>
           </CardContent>
@@ -902,14 +890,14 @@ export function ForecastContent({
       )}
 
       {/* CRA Remittance Calendar */}
-      <Card className={isUrgent ? "border-orange-200" : ""}>
+      <Card className={isUrgent ? "border-amber-200" : ""}>
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <CardTitle className="text-base flex items-center gap-2">
               <CalendarCheck className="h-4 w-4 text-primary" />
               CRA Remittance Calendar
             </CardTitle>
-            {isUrgent && <Badge variant="outline" className="border-orange-300 text-orange-600 text-xs">Due soon</Badge>}
+            {isUrgent && <Badge variant="outline" className="border-amber-300 text-amber-600 text-xs">Due soon</Badge>}
           </div>
           <CardDescription>Quarterly {taxLabel} remittance — {PROVINCE_LABELS[settings.province]}</CardDescription>
         </CardHeader>
@@ -919,7 +907,7 @@ export function ForecastContent({
               <p className="text-sm font-medium">Next deadline</p>
               <p className="text-xs text-muted-foreground">{remittance.quarter} · {remittance.label}</p>
             </div>
-            <p className={`text-lg font-bold ${isUrgent ? "text-orange-600" : "text-foreground"}`}>
+            <p className={`text-lg font-bold tabular-nums ${isUrgent ? "text-amber-600" : "text-foreground"}`}>
               {daysUntilRemittance}d away
             </p>
           </div>
@@ -939,42 +927,57 @@ export function ForecastContent({
       </Card>
 
       {/* Goal gap analysis */}
-      {goalGCI > 0 && (
-        <Card className="rounded-xl border border-emerald-200 bg-emerald-50/50 shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-base">Goal Gap Analysis</CardTitle>
+      {goalGCI > 0 && (() => {
+        const goalProgress = Math.min((ytdGCI / goalGCI) * 100, 100);
+        return (
+        <Card className="rounded-xl border-slate-200 shadow-sm">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-1.5">
+              <Target className="h-4 w-4 text-slate-400" />
+              Goal Gap Analysis
+            </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3">
-            <Progress
-              value={Math.min((ytdGCI / goalGCI) * 100, 100)}
-              className="h-3"
-            />
+          <CardContent>
+            <div className="flex items-center gap-4">
+              <ScoreDial
+                score={goalProgress}
+                size={56}
+                hex={scoreBand(goalProgress).hex}
+                isStrong={scoreBand(goalProgress).isStrong}
+              />
+              <div className="min-w-0 flex-1 space-y-1.5">
             <div className="flex justify-between text-sm">
-              <span>
+              <span className="tabular-nums">
                 {fmtCurrency(ytdGCI)} of {fmtCurrency(goalGCI)}
               </span>
-              <span>{fmtPct(ytdGCI / goalGCI)}</span>
+              <span className="tabular-nums font-medium">{fmtPct(ytdGCI / goalGCI)}</span>
             </div>
             {gciGap > 0 ? (
               <div className="space-y-1 text-sm text-muted-foreground">
-                <p>
+                <p className="tabular-nums">
                   {fmtCurrency(gciGap)} remaining
                   {dealsNeeded != null && ` \u2014 ~${dealsNeeded} deals needed`}
                 </p>
-                <p>
+                <p className="tabular-nums">
                   Pace: {pacePercent >= 0 ? "+" : ""}{Math.round(pacePercent)}% &middot;{" "}
                   Need {fmtCurrency(dailyNeeded)}/day for {daysLeft} days
                 </p>
               </div>
             ) : (
-              <Badge variant="default">Nailed it. 🎯</Badge>
+              <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-emerald-700">
+                <CheckCircle2 className="h-4 w-4" />
+                Nailed it.
+              </span>
             )}
+              </div>
+            </div>
           </CardContent>
         </Card>
-      )}
+        );
+      })()}
 
       {/* Probability bands — chart + text summary */}
-      <Card className="rounded-xl border border-blue-200 bg-blue-50/40 shadow-sm">
+      <Card className="rounded-xl border-slate-200 shadow-sm">
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-1.5">
             Projection Range
@@ -1008,7 +1011,7 @@ export function ForecastContent({
           })() : (
             <div className="flex h-[200px] flex-col items-center justify-center gap-2 text-sm text-muted-foreground">
               <p>No closed transactions yet — projection bands will appear once you have deal history.</p>
-              <a href="/transactions" className="text-xs text-orange-600 hover:underline font-medium">Go to Transactions →</a>
+              <a href="/transactions" className="text-xs text-blue-600 hover:underline font-medium">Go to Transactions →</a>
             </div>
           )}
           {/* Text reference */}
@@ -1034,7 +1037,7 @@ export function ForecastContent({
 
       {/* 5-Year growth plan with probability bands */}
       {yearBands.length > 0 && (
-          <Card className="rounded-xl border border-violet-200 bg-violet-50/40 shadow-sm">
+          <Card className="rounded-xl border-slate-200 shadow-sm">
             <CardHeader className="flex flex-row items-start justify-between">
               <div>
                 <CardTitle className="text-base">5-Year Growth Plan (Illustrative)</CardTitle>
@@ -1055,13 +1058,13 @@ export function ForecastContent({
                 {yearBands.map((yb, i) => (
                   <div key={yb.year}>
                     <div className="flex items-center justify-between text-sm">
-                      <span className="font-medium">{yb.year}</span>
-                      <span className="font-semibold">{fmtCurrency(yb.p50)}</span>
-                      <span className="text-xs text-muted-foreground">
+                      <span className="font-medium tabular-nums">{yb.year}</span>
+                      <span className="font-semibold tabular-nums">{fmtCurrency(yb.p50)}</span>
+                      <span className="text-xs text-muted-foreground tabular-nums">
                         +{growthRates[i] ?? 0}%
                       </span>
                     </div>
-                    <div className="mt-1 flex justify-between text-xs text-muted-foreground">
+                    <div className="mt-1 flex justify-between text-xs text-muted-foreground tabular-nums">
                       <span>P25: {fmtCompact(yb.p25)}</span>
                       <span>P75: {fmtCompact(yb.p75)}</span>
                     </div>
@@ -1074,7 +1077,7 @@ export function ForecastContent({
 
       {/* Advisor cards */}
       {advisorCards.length > 0 && (
-          <Card className="rounded-xl border border-indigo-200 bg-indigo-50/40 shadow-sm">
+          <Card className="rounded-xl border-slate-200 shadow-sm">
             <CardHeader>
               <CardTitle className="text-base">Advisor</CardTitle>
               <CardDescription>
@@ -1109,11 +1112,11 @@ export function ForecastContent({
 
 function AdvisorCardRow({ card }: { card: AdvisorCard }) {
   return (
-    <div className="rounded-xl border border-indigo-100 bg-white p-4 shadow-sm">
+    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
       <div className="flex items-start justify-between">
         <div>
           <p className="text-sm font-semibold">{card.title}</p>
-          <Badge variant="secondary" className="mt-1 bg-indigo-100 text-indigo-700 text-xs">
+          <Badge variant="secondary" className="mt-1 bg-blue-100 text-blue-700 text-xs">
             {card.estimatedImpact}
           </Badge>
         </div>
@@ -1135,7 +1138,7 @@ function AdvisorCardRow({ card }: { card: AdvisorCard }) {
 const COMPLEXITY_STYLES: Record<string, string> = {
   easy: "bg-emerald-100 text-emerald-700",
   moderate: "bg-amber-100 text-amber-700",
-  complex: "bg-violet-100 text-violet-700",
+  complex: "bg-slate-100 text-slate-700",
 };
 
 function TaxOptCardRow({ card }: { card: TaxOptimizationCard }) {

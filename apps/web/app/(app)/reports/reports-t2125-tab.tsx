@@ -499,10 +499,10 @@ export function ReportsT2125Tab({
               icon={CreditCard}
               label="Deductible Expenses (Lines 8521–9369)"
               subtitle="Auto-filled from your expense tracking"
-              color="text-violet-600"
+              color="text-slate-600"
             />
             <div className="flex items-center gap-2">
-              <span className="text-lg font-bold text-violet-700">
+              <span className="text-lg font-bold text-slate-700 tabular-nums">
                 {fmtCurrency(result.line9369_totalExpenses)}
               </span>
               {expandedSections.expenses ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
@@ -577,10 +577,10 @@ export function ReportsT2125Tab({
               icon={Calculator}
               label="Capital Cost Allowance (Line 9936)"
               subtitle="Depreciation on business assets — vehicle, equipment, computers"
-              color="text-orange-600"
+              color="text-amber-600"
             />
             <div className="flex items-center gap-2">
-              <span className="text-lg font-bold text-orange-700">
+              <span className="text-lg font-bold text-amber-700 tabular-nums">
                 {fmtCurrency(result.line9936_totalCca)}
               </span>
               {expandedSections.cca ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
@@ -627,7 +627,7 @@ export function ReportsT2125Tab({
                       </div>
                       <div>
                         <span className="text-muted-foreground">CCA claimed</span>
-                        <p className="font-bold text-orange-700">{fmtCurrency(line.ccaClaimed)}</p>
+                        <p className="font-bold text-amber-700 tabular-nums">{fmtCurrency(line.ccaClaimed)}</p>
                       </div>
                     </div>
                   </div>
@@ -637,8 +637,8 @@ export function ReportsT2125Tab({
 
             {/* Add asset form */}
             {showCcaForm ? (
-              <div className="rounded-xl border border-dashed border-orange-300 bg-orange-50/40 p-4 space-y-3">
-                <p className="text-sm font-semibold text-orange-800">Add CCA Asset</p>
+              <div className="rounded-xl border border-dashed border-amber-300 bg-amber-50/40 p-4 space-y-3">
+                <p className="text-sm font-semibold text-amber-800">Add CCA Asset</p>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div className="space-y-1">
                     <Label className="text-xs font-medium">Description</Label>
@@ -732,10 +732,10 @@ export function ReportsT2125Tab({
               icon={Home}
               label="Home Office (Line 9945)"
               subtitle="Business-use-of-home deduction"
-              color="text-teal-600"
+              color="text-slate-600"
             />
             <div className="flex items-center gap-2">
-              <span className="text-lg font-bold text-teal-700">
+              <span className="text-lg font-bold text-slate-700 tabular-nums">
                 {fmtCurrency(result.line9945_homeOfficeDeduction)}
               </span>
               {expandedSections.homeOffice ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
@@ -787,14 +787,14 @@ export function ReportsT2125Tab({
                   onChange={(v) => saveSettings({ home_office_condo_fees_monthly: v })}
                 />
               </div>
-              <div className="rounded-lg bg-teal-50 border border-teal-200 px-4 py-3 text-sm space-y-1">
-                <div className="flex justify-between text-teal-800">
+              <div className="rounded-lg bg-slate-50 border border-slate-200 px-4 py-3 text-sm space-y-1">
+                <div className="flex justify-between text-slate-700">
                   <span>Total annual home costs</span>
-                  <span>{fmtCurrency(result.homeOffice.totalAnnualHomeCosts)}</span>
+                  <span className="tabular-nums">{fmtCurrency(result.homeOffice.totalAnnualHomeCosts)}</span>
                 </div>
-                <div className="flex justify-between text-teal-800">
+                <div className="flex justify-between text-slate-700">
                   <span>× Business use {fmtPct(localSettings.home_office_business_use_pct)}</span>
-                  <strong>{fmtCurrency(result.homeOffice.deduction)}</strong>
+                  <strong className="tabular-nums">{fmtCurrency(result.homeOffice.deduction)}</strong>
                 </div>
               </div>
             </div>
@@ -871,7 +871,7 @@ export function ReportsT2125Tab({
               icon={Building2}
               label={`${result.gstHst.label} Remittance`}
               subtitle="Track amounts collected, remitted, and Input Tax Credits (ITCs)"
-              color="text-sky-600"
+              color="text-blue-600"
             />
             {expandedSections.gstHst ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
           </div>
@@ -891,7 +891,7 @@ export function ReportsT2125Tab({
                     className={cn(
                       "rounded-md border px-3 py-1 text-sm font-medium transition-colors",
                       localSettings.gst_hst_registered === v
-                        ? "border-sky-400 bg-sky-50 text-sky-800"
+                        ? "border-blue-400 bg-blue-50 text-blue-800"
                         : "border-border text-muted-foreground hover:border-muted-foreground",
                     )}
                   >
