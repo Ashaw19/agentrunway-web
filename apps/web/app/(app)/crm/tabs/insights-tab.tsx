@@ -8,7 +8,6 @@ import {
   Star,
   PieChart,
   BarChart3,
-  Award,
   DollarSign,
   Layers,
   Target,
@@ -23,7 +22,7 @@ import type {
   ListingAppointment,
 } from "@/lib/types/database";
 import { computeSourceFunnel } from "@/lib/engines/crm-analytics-engine";
-import { SummaryCard } from "../shared";
+import { CockpitStrip, CockpitStat, SEMANTIC, GOLD, magnitudePct } from "@/components/cockpit-ui";
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -148,51 +147,85 @@ export function InsightsTab({
       {/* ═══════════════════════════════════════════════════════════════════ */}
       {funnel.rows.length > 0 && (
         <>
-          <Card className="rounded-2xl border-indigo-200 bg-gradient-to-br from-indigo-50 to-violet-50 shadow-sm">
+          {/* Cockpit strip — the section's instrument header */}
+          <CockpitStrip className="px-5 py-4">
+            <div className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+              Lead sources
+            </div>
+            <div className="grid grid-cols-2 gap-5 lg:grid-cols-4">
+              <CockpitStat
+                label="Total Leads"
+                value={funnel.rows.reduce((s, r) => s + r.totalLeads, 0)}
+                color="#F8FAFC"
+                icon={<Users2 className="h-3.5 w-3.5" />}
+              />
+              <CockpitStat
+                label="Sources Tracked"
+                value={funnel.rows.length}
+                color={SEMANTIC.onTrack}
+                icon={<Layers className="h-3.5 w-3.5" />}
+              />
+              <CockpitStat
+                label="Lifetime GCI"
+                value={fmtCurrency(totalGCI)}
+                color={SEMANTIC.strong}
+                icon={<DollarSign className="h-3.5 w-3.5" />}
+              />
+              <CockpitStat
+                label="Repeat Rate"
+                value={`${repeatRate}%`}
+                color={SEMANTIC.watch}
+                icon={<Star className="h-3.5 w-3.5" />}
+              />
+            </div>
+          </CockpitStrip>
+
+          {/* Source funnel — attrition stages as a §9.1 progression (slate → blue → emerald) */}
+          <Card className="rounded-2xl border shadow-sm">
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-semibold text-indigo-800 flex items-center gap-2">
-                <Layers className="h-4 w-4 text-indigo-500" />
-                Source Funnel Report
+              <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                <Layers className="h-4 w-4 text-slate-500" />
+                Source funnel
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-0">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-indigo-200/60">
+                    <tr className="border-b border-border/60">
                       <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground pb-2 pr-3">Source</th>
                       <th className="text-right text-[11px] font-semibold uppercase tracking-wider text-muted-foreground pb-2 px-2">Leads</th>
-                      <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground pb-2 px-2 w-24">→ Contacted</th>
-                      <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground pb-2 px-2 w-24">→ Active</th>
-                      <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground pb-2 px-2 w-24">→ Closed</th>
+                      <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground pb-2 px-2 w-24">Contacted</th>
+                      <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground pb-2 px-2 w-24">Active</th>
+                      <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground pb-2 px-2 w-24">Closed</th>
                       <th className="text-right text-[11px] font-semibold uppercase tracking-wider text-muted-foreground pb-2 pl-2">GCI</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-indigo-100/60">
+                  <tbody className="divide-y divide-border/40">
                     {funnel.rows.map((row) => (
-                      <tr key={row.source} className="group hover:bg-indigo-50/40 transition-colors">
+                      <tr key={row.source} className="group hover:bg-muted/30 transition-colors">
                         <td className="py-2.5 pr-3 font-medium text-foreground">{row.source}</td>
                         <td className="py-2.5 px-2 text-right tabular-nums text-muted-foreground">{row.totalLeads}</td>
                         <td className="py-2.5 px-2">
                           <div className="flex items-center gap-1.5">
-                            <div className="flex-1 h-2 rounded-full bg-indigo-100 overflow-hidden">
-                              <div className="h-full rounded-full bg-sky-400" style={{ width: `${Math.max(row.contactedPct, 2)}%` }} />
+                            <div className="flex-1 h-2 rounded-full bg-slate-200 overflow-hidden">
+                              <div className="h-full rounded-full" style={{ width: `${Math.max(row.contactedPct, 2)}%`, background: SEMANTIC.none }} />
                             </div>
                             <span className="text-[10px] tabular-nums text-muted-foreground w-7 text-right">{row.contactedPct}%</span>
                           </div>
                         </td>
                         <td className="py-2.5 px-2">
                           <div className="flex items-center gap-1.5">
-                            <div className="flex-1 h-2 rounded-full bg-indigo-100 overflow-hidden">
-                              <div className="h-full rounded-full bg-amber-400" style={{ width: `${Math.max(row.activePct, 2)}%` }} />
+                            <div className="flex-1 h-2 rounded-full bg-slate-200 overflow-hidden">
+                              <div className="h-full rounded-full" style={{ width: `${Math.max(row.activePct, 2)}%`, background: SEMANTIC.onTrack }} />
                             </div>
                             <span className="text-[10px] tabular-nums text-muted-foreground w-7 text-right">{row.activePct}%</span>
                           </div>
                         </td>
                         <td className="py-2.5 px-2">
                           <div className="flex items-center gap-1.5">
-                            <div className="flex-1 h-2 rounded-full bg-indigo-100 overflow-hidden">
-                              <div className="h-full rounded-full bg-emerald-400" style={{ width: `${Math.max(row.closedPct, 2)}%` }} />
+                            <div className="flex-1 h-2 rounded-full bg-slate-200 overflow-hidden">
+                              <div className="h-full rounded-full" style={{ width: `${Math.max(row.closedPct, 2)}%`, background: SEMANTIC.strong }} />
                             </div>
                             <span className="text-[10px] tabular-nums text-muted-foreground w-7 text-right">{row.closedPct}%</span>
                           </div>
@@ -207,56 +240,30 @@ export function InsightsTab({
               </div>
             </CardContent>
           </Card>
-
-          {/* Source Comparison Cards */}
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <SummaryCard
-              icon={<Award className="h-4 w-4 text-emerald-500" />}
-              label="Best Converting"
-              value={funnel.bestConverting ?? "—"}
-              sub="highest close rate"
-              accent="emerald"
-            />
-            <SummaryCard
-              icon={<DollarSign className="h-4 w-4 text-amber-500" />}
-              label="Highest GCI"
-              value={funnel.highestGCI ?? "—"}
-              sub="top revenue source"
-              accent="amber"
-            />
-            <SummaryCard
-              icon={<Layers className="h-4 w-4 text-violet-500" />}
-              label="Sources Tracked"
-              value={String(funnel.rows.length)}
-              sub="with lead attribution"
-              accent="violet"
-            />
-          </div>
         </>
       )}
 
       {/* ═══════════════════════════════════════════════════════════════════ */}
       {/* EXISTING: Top 5 Clients by Lifetime GCI                           */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
-      <Card className="rounded-2xl border-amber-200 bg-gradient-to-br from-amber-50 to-orange-50 shadow-sm">
+      <Card className="rounded-2xl border shadow-sm">
         <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-semibold text-amber-800 flex items-center gap-2">
+          <CardTitle className="text-sm font-semibold flex items-center gap-2">
             <Trophy className="h-4 w-4 text-amber-500" />
-            Top Clients by Lifetime GCI
+            Top clients by lifetime GCI
           </CardTitle>
         </CardHeader>
         <CardContent className="pt-0 space-y-2">
           {topClients.map((c, i) => {
             const pct = totalGCI > 0 ? Math.round((c.totalGCI / totalGCI) * 100) : 0;
+            const barColor = i === 0 ? GOLD : SEMANTIC.strong;
             return (
               <div key={c.name} className="space-y-1">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 min-w-0">
                     <span
-                      className={cn(
-                        "text-[11px] font-bold w-5 text-center shrink-0",
-                        i === 0 ? "text-amber-600" : "text-slate-400",
-                      )}
+                      className="text-[11px] font-bold w-5 text-center shrink-0 tabular-nums"
+                      style={{ color: i === 0 ? GOLD : "#94A3B8" }}
                     >
                       #{i + 1}
                     </span>
@@ -266,23 +273,26 @@ export function InsightsTab({
                     {c.dealCount > 1 && (
                       <Badge
                         variant="outline"
-                        className="text-[9px] bg-violet-50 text-violet-700 border-violet-200 shrink-0 py-0"
+                        className="text-[9px] bg-slate-50 text-slate-600 border-slate-200 shrink-0 py-0"
                       >
                         ×{c.dealCount}
                       </Badge>
                     )}
                   </div>
                   <div className="flex items-center gap-3 shrink-0">
-                    <span className="text-xs text-muted-foreground">{pct}%</span>
-                    <span className="text-sm font-bold text-foreground tabular-nums">
+                    <span className="text-xs text-muted-foreground tabular-nums">{pct}%</span>
+                    <span
+                      className={cn("text-sm font-bold tabular-nums", i !== 0 && "text-foreground")}
+                      style={i === 0 ? { color: GOLD } : undefined}
+                    >
                       {fmtCurrency(c.totalGCI)}
                     </span>
                   </div>
                 </div>
-                <div className="ml-7 h-1.5 rounded-full bg-amber-100 overflow-hidden">
+                <div className="ml-7 h-1.5 rounded-full bg-slate-200 overflow-hidden">
                   <div
-                    className="h-full rounded-full bg-amber-400"
-                    style={{ width: `${Math.max(pct, 2)}%` }}
+                    className="h-full rounded-full"
+                    style={{ width: `${Math.max(pct, 2)}%`, background: barColor }}
                   />
                 </div>
               </div>
@@ -307,8 +317,9 @@ export function InsightsTab({
               const topN = sortedByGCI.slice(0, n);
               const topNGCI = topN.reduce((s, g) => s + g.totalGCI, 0);
               const pct = totalGCI > 0 ? Math.round((topNGCI / totalGCI) * 100) : 0;
+              // High concentration = watch (amber); diversified = healthy (emerald).
               const color =
-                pct > 60 ? "bg-amber-400" : pct > 40 ? "bg-blue-400" : "bg-emerald-400";
+                pct > 60 ? SEMANTIC.watch : pct > 40 ? SEMANTIC.onTrack : SEMANTIC.strong;
               return (
                 <div key={n} className="flex items-center gap-3">
                   <span className="text-xs text-muted-foreground w-20 shrink-0">
@@ -316,8 +327,8 @@ export function InsightsTab({
                   </span>
                   <div className="flex-1 h-2 rounded-full bg-muted overflow-hidden">
                     <div
-                      className={cn("h-full rounded-full transition-all", color)}
-                      style={{ width: `${Math.max(pct, 2)}%` }}
+                      className="h-full rounded-full transition-all"
+                      style={{ width: `${Math.max(pct, 2)}%`, background: color }}
                     />
                   </div>
                   <span className="text-xs font-semibold tabular-nums w-8 text-right">{pct}%</span>
@@ -358,14 +369,24 @@ export function InsightsTab({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/40">
-                  {sourceStats.map((s) => (
+                  {sourceStats.map((s) => {
+                    const maxSrcGCI = Math.max(...sourceStats.map((x) => x.totalGCI), 1);
+                    return (
                     <tr key={s.source} className="group hover:bg-muted/30 transition-colors">
                       <td className="py-2 pr-4 font-medium text-foreground">{s.source}</td>
                       <td className="py-2 px-3 text-right tabular-nums text-muted-foreground">{s.deals}</td>
-                      <td className="py-2 px-3 text-right tabular-nums font-semibold text-foreground">{fmtCurrency(s.totalGCI)}</td>
+                      <td className="py-2 px-3">
+                        <div className="flex items-center justify-end gap-2">
+                          <div className="h-1.5 w-16 rounded-full bg-slate-200 overflow-hidden">
+                            <div className="h-full rounded-full" style={{ width: `${magnitudePct(s.totalGCI, maxSrcGCI)}%`, background: SEMANTIC.onTrack }} />
+                          </div>
+                          <span className="tabular-nums font-semibold text-foreground w-20 text-right">{fmtCurrency(s.totalGCI)}</span>
+                        </div>
+                      </td>
                       <td className="py-2 pl-3 text-right tabular-nums text-muted-foreground">{fmtCurrency(s.avgGCI)}</td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

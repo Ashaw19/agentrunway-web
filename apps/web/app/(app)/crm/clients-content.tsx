@@ -95,10 +95,14 @@ import {
   Sparkles,
   ChevronDown,
   Layers,
+  Handshake,
+  Hand,
+  Star,
+  Gift,
+  PartyPopper,
 } from "lucide-react";
 import { ShowingsSection } from "./showings-section";
 import { fmtCurrency } from "@/lib/formatters";
-import { KpiCard } from "@/components/kpi-card";
 import { cn } from "@/lib/utils";
 import type {
   Client,
@@ -167,6 +171,8 @@ import { parseMoneyLoose } from "@/lib/import/normalizers/normalize-money";
 import { normalizeDateFormats } from "@/lib/import/normalizers/normalize-dates";
 import { WorkflowSuggestionsPanel } from "@/components/workflow-suggestions-panel";
 import { ClientConversationPanel } from "@/components/client-conversation-panel";
+import { CockpitStrip, CockpitStat, SEMANTIC, GOLD, magnitudePct } from "@/components/cockpit-ui";
+import type { SparkPoint } from "@/components/sparkline";
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
@@ -258,9 +264,9 @@ function _relativeTimeLabel(iso: string): string {
 function recencyAccent(iso: string | null): string {
   if (!iso) return "bg-border/60";
   const m = monthsAgo(iso);
-  if (m < 6) return "bg-emerald-500";
-  if (m < 18) return "bg-amber-400";
-  return "bg-rose-400";
+  if (m < 6) return "bg-emerald-500"; // §9.1 healthy
+  if (m < 18) return "bg-amber-500"; // §9.1 watch
+  return "bg-red-500"; // §9.1 at-risk
 }
 
 function recencyTextClass(iso: string | null): string {
@@ -268,7 +274,7 @@ function recencyTextClass(iso: string | null): string {
   const m = monthsAgo(iso);
   if (m < 6) return "text-emerald-600";
   if (m < 18) return "text-amber-600";
-  return "text-rose-500";
+  return "text-red-600";
 }
 
 function todayIso(): string {
@@ -279,6 +285,54 @@ function todayIso(): string {
 function nowIso(): string {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}T${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
+// ── KPI trajectory sparklines ──────────────────────────────────────────────────
+// Buckets every closed deal by close-month into cumulative series so the four
+// headline numbers (clients / repeat rate / GCI / deals) carry a real trajectory
+// instead of rendering as dead integers. Shows the last 12 months that have
+// activity. Returns empty arrays when there isn't enough history to plot a line.
+function buildKpiSparks(groups: ClientGroup[]): {
+  clients: SparkPoint[];
+  repeat: SparkPoint[];
+  gci: SparkPoint[];
+  deals: SparkPoint[];
+} {
+  type D = { ym: string; gci: number; key: string };
+  const ds: D[] = [];
+  for (const g of groups) {
+    const key = g.clientId ?? g.name;
+    for (const d of g.deals) {
+      if (!d.close_date || d.condition_status === "collapsed") continue;
+      ds.push({ ym: d.close_date.slice(0, 7), gci: d.gci ?? 0, key });
+    }
+  }
+  if (ds.length === 0) return { clients: [], repeat: [], gci: [], deals: [] };
+  const months = Array.from(new Set(ds.map((d) => d.ym))).sort();
+  const shown = new Set(months.slice(-12));
+  let cumGci = 0;
+  let cumDeals = 0;
+  const seen = new Set<string>();
+  const perClient = new Map<string, number>();
+  const out = { clients: [] as SparkPoint[], repeat: [] as SparkPoint[], gci: [] as SparkPoint[], deals: [] as SparkPoint[] };
+  for (const m of months) {
+    for (const d of ds.filter((x) => x.ym === m)) {
+      cumGci += d.gci;
+      cumDeals += 1;
+      seen.add(d.key);
+      perClient.set(d.key, (perClient.get(d.key) ?? 0) + 1);
+    }
+    if (shown.has(m)) {
+      let repeatClients = 0;
+      for (const n of perClient.values()) if (n > 1) repeatClients += 1;
+      const repeatPct = seen.size > 0 ? Math.round((repeatClients / seen.size) * 100) : 0;
+      out.clients.push({ value: seen.size, projected: false });
+      out.repeat.push({ value: repeatPct, projected: false });
+      out.gci.push({ value: Math.round(cumGci), projected: false });
+      out.deals.push({ value: cumDeals, projected: false });
+    }
+  }
+  return out;
 }
 
 // ── Lead Source options ────────────────────────────────────────────────────────
@@ -588,11 +642,15 @@ const SIDE_STYLES: Record<string, { label: string; cls: string }> = {
   both:   { label: "Both",   cls: "bg-teal-50 text-teal-700 border-teal-200" },
 };
 
+// Lifecycle-stage header gradient. Must agree with the canonical
+// CLIENT_STATUS_COLORS (boarding=sky, scheduled=slate, in_flight=violet,
+// cruising=blue) — cruising was previously rose/pink, which disagreed with the
+// status pill rendered inches away in the same panel.
 const STATUS_HEADER_GRADIENT: Record<ClientStatus, string> = {
   boarding:  "from-sky-500 to-sky-600",
   scheduled: "from-slate-500 to-slate-600",
   in_flight: "from-violet-500 to-purple-600",
-  cruising:  "from-rose-400 to-pink-500",
+  cruising:  "from-blue-500 to-blue-600",
 };
 
 function dominantSide(
@@ -1344,6 +1402,7 @@ export function ClientsContent({
       ? Math.round((repeatCount / clientsWithDeals.length) * 100)
       : 0;
   const totalDeals = grouped.reduce((s, g) => s + g.dealCount, 0);
+  const kpiSparks = useMemo(() => buildKpiSparks(grouped), [grouped]);
 
   const sourceStats = useMemo(() => computeSourceStats(localRecords), [localRecords]);
   const topSource = sourceStats[0] ?? null;
@@ -3427,13 +3486,44 @@ export function ClientsContent({
         </div>
       </div>
 
-      {/* KPI cards */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <KpiCard label="Total Clients" value={clientsLoading ? "…" : grouped.length} colorScheme="blue" layout="horizontal" />
-        <KpiCard label="Repeat Clients" value={<>{repeatCount} <span className="text-xs font-normal text-muted-foreground">({repeatRate}%)</span></>} colorScheme="violet" layout="horizontal" />
-        <KpiCard label="Lifetime GCI" value={fmtCurrency(totalGCI)} colorScheme="emerald" layout="horizontal" />
-        <KpiCard label="Total Deals" value={totalDeals} colorScheme="amber" layout="horizontal" />
-      </div>
+      {/* KPI cockpit strip — headline numbers with real trajectory sparklines */}
+      <CockpitStrip className="px-5 py-4" progress={Math.min(100, Math.round((repeatRate / 35) * 100))}>
+        <div className="grid grid-cols-2 gap-5 lg:grid-cols-4">
+          <CockpitStat
+            label="Total Clients"
+            value={clientsLoading ? "…" : grouped.length}
+            color="#F8FAFC"
+            spark={kpiSparks.clients}
+            sparkColor={SEMANTIC.none}
+            icon={<Users className="h-3.5 w-3.5" />}
+          />
+          <CockpitStat
+            label="Repeat Rate"
+            value={`${repeatRate}%`}
+            color={SEMANTIC.watch}
+            spark={kpiSparks.repeat}
+            sparkColor={SEMANTIC.watch}
+            icon={<RotateCcw className="h-3.5 w-3.5" />}
+            sub={`${repeatCount} repeat client${repeatCount === 1 ? "" : "s"}`}
+          />
+          <CockpitStat
+            label="Lifetime GCI"
+            value={fmtCurrency(totalGCI)}
+            color={SEMANTIC.strong}
+            spark={kpiSparks.gci}
+            sparkColor={SEMANTIC.strong}
+            icon={<DollarSign className="h-3.5 w-3.5" />}
+          />
+          <CockpitStat
+            label="Total Deals"
+            value={totalDeals}
+            color={SEMANTIC.onTrack}
+            spark={kpiSparks.deals}
+            sparkColor={SEMANTIC.onTrack}
+            icon={<Layers className="h-3.5 w-3.5" />}
+          />
+        </div>
+      </CockpitStrip>
 
       {/* ── Tabs ─────────────────────────────────────────────────────────── */}
       <div className="flex gap-1 border-b border-border/60">
@@ -3545,7 +3635,7 @@ export function ClientsContent({
             >
               {(Object.keys(GENEROSITY_LABELS) as RewardGenerosity[]).map((g) => (
                 <option key={g} value={g}>
-                  🎁 {GENEROSITY_LABELS[g].label}
+                  {GENEROSITY_LABELS[g].label}
                 </option>
               ))}
             </select>
@@ -3630,7 +3720,12 @@ export function ClientsContent({
                           const hasClientId = group.clientId !== null;
                           const client      = hasClientId ? clientById.get(group.clientId!) : null;
                           const sc          = client ? CLIENT_STATUS_COLORS[client.status] : null;
-                          const barPct      = maxGCI > 0 ? (group.totalGCI / maxGCI) * 100 : 0;
+                          const isFirstClass = badges.some((b) => b.id === "first_class");
+                          // sqrt-scaled magnitude so mid clients stay legible next to a whale;
+                          // colour is §9.1 by value tier (gold value/avatar carry the First-Class
+                          // top-revenue celebration separately).
+                          const barPct      = magnitudePct(group.totalGCI, maxGCI);
+                          const barColor    = isFirstClass ? SEMANTIC.strong : group.totalGCI > 0 ? SEMANTIC.onTrack : SEMANTIC.none;
                           // Budget basis: most recent deal's GCI (fallback to average per deal)
                           const mostRecentGCI = group.deals
                             .filter((d) => d.close_date)
@@ -3654,7 +3749,13 @@ export function ClientsContent({
                               {/* Name + contact info + achievement badges */}
                               <TableCell className="pl-3 pr-2 py-2.5">
                                 <div className="flex items-center gap-1.5 min-w-0">
-                                  <div className="h-7 w-7 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-bold shrink-0">
+                                  <div
+                                    className={cn(
+                                      "h-7 w-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0",
+                                      !isFirstClass && "bg-primary/10 text-primary",
+                                    )}
+                                    style={isFirstClass ? { background: "rgba(240,168,0,0.12)", color: GOLD, boxShadow: "inset 0 0 0 1.5px rgba(240,168,0,0.45)" } : undefined}
+                                  >
                                     {group.name.charAt(0).toUpperCase()}
                                   </div>
                                   <div className="min-w-0 flex-1">
@@ -3694,13 +3795,16 @@ export function ClientsContent({
                               {/* Lifetime GCI + mini bar */}
                               <TableCell className="text-right py-2.5 pr-3">
                                 <div className="flex flex-col items-end gap-0.5">
-                                  <span className="tabular-nums text-sm font-semibold text-foreground">
+                                  <span
+                                    className={cn("tabular-nums text-sm font-semibold", !isFirstClass && "text-foreground")}
+                                    style={isFirstClass ? { color: GOLD } : undefined}
+                                  >
                                     {fmtCurrency(group.totalGCI)}
                                   </span>
                                   <div className="h-1 w-14 bg-border/30 rounded-full overflow-hidden">
                                     <div
-                                      className="h-full bg-primary/50 rounded-full transition-all"
-                                      style={{ width: `${barPct}%` }}
+                                      className="h-full rounded-full transition-all"
+                                      style={{ width: `${barPct}%`, background: barColor }}
                                     />
                                   </div>
                                 </div>
@@ -3726,22 +3830,26 @@ export function ClientsContent({
 
                               <TableCell className="py-2.5" onClick={(e) => e.stopPropagation()}>
                                 {sc && client && (
-                                  <select
-                                    value={client.status}
-                                    onChange={(e) => {
-                                      e.stopPropagation();
-                                      updateClientField(client.id, "status", e.target.value);
-                                    }}
-                                    className={cn(
-                                      "text-[10px] font-semibold border rounded-full px-2 py-0.5 whitespace-nowrap appearance-none cursor-pointer bg-transparent focus:outline-none focus:ring-1 focus:ring-ring pr-5",
-                                      sc.bg, sc.text, sc.border,
-                                    )}
-                                    style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`, backgroundRepeat: "no-repeat", backgroundPosition: "right 4px center" }}
-                                  >
-                                    {(Object.keys(CLIENT_STATUS_LABELS) as ClientStatus[]).map((s) => (
-                                      <option key={s} value={s}>{CLIENT_STATUS_LABELS[s]}</option>
-                                    ))}
-                                  </select>
+                                  <div className="flex items-center gap-1.5">
+                                    <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", sc.dot)} aria-hidden="true" />
+                                    <select
+                                      value={client.status}
+                                      aria-label="Flight status"
+                                      onChange={(e) => {
+                                        e.stopPropagation();
+                                        updateClientField(client.id, "status", e.target.value);
+                                      }}
+                                      className={cn(
+                                        "text-[10px] font-semibold border rounded-full px-2 py-0.5 whitespace-nowrap appearance-none cursor-pointer bg-transparent focus:outline-none focus:ring-1 focus:ring-ring pr-5",
+                                        sc.bg, sc.text, sc.border,
+                                      )}
+                                      style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`, backgroundRepeat: "no-repeat", backgroundPosition: "right 4px center" }}
+                                    >
+                                      {(Object.keys(CLIENT_STATUS_LABELS) as ClientStatus[]).map((s) => (
+                                        <option key={s} value={s}>{CLIENT_STATUS_LABELS[s]}</option>
+                                      ))}
+                                    </select>
+                                  </div>
                                 )}
                               </TableCell>
 
@@ -4727,7 +4835,7 @@ export function ClientsContent({
                         }
                       }}
                     >
-                      🤝 Ask for Referral
+                      <Handshake className="h-3.5 w-3.5" /> Ask for Referral
                     </button>
                     <button
                       className="h-8 rounded-lg text-[11px] font-medium border border-dashed border-indigo-200 text-indigo-600 hover:bg-indigo-100/50 hover:border-indigo-300 dark:text-indigo-400 dark:hover:bg-indigo-900/30 transition-colors flex items-center justify-center gap-1.5"
@@ -4757,7 +4865,7 @@ export function ClientsContent({
                         }
                       }}
                     >
-                      👋 Check In
+                      <Hand className="h-3.5 w-3.5" /> Check In
                     </button>
                     <button
                       className="h-8 rounded-lg text-[11px] font-medium border border-dashed border-indigo-200 text-indigo-600 hover:bg-indigo-100/50 hover:border-indigo-300 dark:text-indigo-400 dark:hover:bg-indigo-900/30 transition-colors flex items-center justify-center gap-1.5"
@@ -4787,7 +4895,7 @@ export function ClientsContent({
                         }
                       }}
                     >
-                      ⭐ Request Review
+                      <Star className="h-3.5 w-3.5" /> Request Review
                     </button>
                     <button
                       className="h-8 rounded-lg text-[11px] font-medium border border-dashed border-indigo-200 text-indigo-600 hover:bg-indigo-100/50 hover:border-indigo-300 dark:text-indigo-400 dark:hover:bg-indigo-900/30 transition-colors flex items-center justify-center gap-1.5"
@@ -4817,7 +4925,7 @@ export function ClientsContent({
                         }
                       }}
                     >
-                      🎉 Anniversary Note
+                      <PartyPopper className="h-3.5 w-3.5" /> Anniversary Note
                     </button>
                   </div>
                 </div>

@@ -15,6 +15,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { createClient }                    from "@/lib/supabase/client";
 import { toast }                           from "sonner";
 import { cn }                              from "@/lib/utils";
+import { ScoreDial, SEMANTIC }              from "@/components/cockpit-ui";
 import {
   Sparkles, Calendar, Clock, Gift, Mail, Copy,
   ChevronDown, Loader2, CheckCircle2, Pen,
@@ -62,10 +63,19 @@ const OPTYPE_ICON: Record<OutreachOpportunityType, React.ElementType> = {
   scheduled_date_approaching: Timer,
 };
 
+// Opportunity score is a HEALTH/magnitude number — it follows the §9.1 score
+// bands (emerald top / blue mid / amber low), NOT the violet AI-chrome accent.
 function getScoreColor(score: number): { bg: string; text: string; ring: string } {
   if (score >= 80) return { bg: "bg-emerald-500/10", text: "text-emerald-400", ring: "ring-emerald-500/30" };
-  if (score >= 65) return { bg: "bg-violet-500/10", text: "text-violet-400", ring: "ring-violet-500/30" };
+  if (score >= 65) return { bg: "bg-blue-500/10", text: "text-blue-400", ring: "ring-blue-500/30" };
   return { bg: "bg-amber-500/10", text: "text-amber-400", ring: "ring-amber-500/30" };
+}
+
+/** §9.1 hex for an opportunity score, for the ScoreDial. */
+function scoreHex(score: number): string {
+  if (score >= 80) return SEMANTIC.strong;
+  if (score >= 65) return SEMANTIC.onTrack;
+  return SEMANTIC.watch;
 }
 
 function getContextBadge(level: TopOpportunity["context_level"]): { label: string; cls: string } | null {
@@ -117,18 +127,18 @@ function OpportunityCard({
       "rounded-xl border backdrop-blur-sm p-5 space-y-3",
       "ring-1 transition-all duration-200",
       isPrimary
-        ? "bg-gradient-to-br from-violet-500/5 via-card/90 to-card/80 ring-violet-500/40 shadow-lg shadow-violet-500/10 ring-2"
+        ? "bg-gradient-to-br from-[#F0A800]/8 via-card/90 to-card/80 ring-[#F0A800]/45 shadow-lg shadow-[#F0A800]/10 ring-2"
         : cn("bg-card/80", scoreColors.ring, "hover:shadow-lg hover:shadow-black/5 hover:bg-card hover:ring-2"),
     )}>
-      {/* Primary badge */}
+      {/* Primary badge — gold, the single top opportunity to act on */}
       {isPrimary && (
         <div className="flex items-center gap-2 -mt-1 mb-1">
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-violet-500/15 ring-1 ring-violet-500/30 text-[11px] font-bold text-violet-400 uppercase tracking-wider">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#F0A800]/15 ring-1 ring-[#F0A800]/35 text-[11px] font-bold text-[#F0A800] uppercase tracking-wider">
             <Zap className="h-3 w-3" />
             Start here
           </span>
           {opportunity.primary_reason && (
-            <span className="text-[12px] text-violet-300/80 leading-tight">
+            <span className="text-[12px] text-muted-foreground leading-tight">
               {opportunity.primary_reason}
             </span>
           )}
@@ -140,9 +150,9 @@ function OpportunityCard({
         <div className="flex items-start gap-3 min-w-0 flex-1">
           <span className={cn(
             "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ring-1 shadow-sm",
-            isPrimary ? "bg-violet-500/15 ring-violet-500/40" : cn(scoreColors.bg, scoreColors.ring),
+            isPrimary ? "bg-[#F0A800]/15 ring-[#F0A800]/40" : cn(scoreColors.bg, scoreColors.ring),
           )}>
-            <Icon className={cn("h-5 w-5", isPrimary ? "text-violet-400" : scoreColors.text)} />
+            <Icon className={cn("h-5 w-5", isPrimary ? "text-[#F0A800]" : scoreColors.text)} />
           </span>
           <div className="min-w-0 flex-1">
             <p className="font-bold text-[15px] text-foreground leading-tight">
@@ -162,12 +172,12 @@ function OpportunityCard({
               {contextBadge.label}
             </span>
           )}
-          <span className={cn(
-            "text-[12px] font-bold px-2.5 py-1 rounded-full ring-1",
-            scoreColors.bg, scoreColors.text, scoreColors.ring,
-          )}>
-            {opportunity.score}
-          </span>
+          <ScoreDial
+            score={opportunity.score}
+            size={40}
+            hex={scoreHex(opportunity.score)}
+            numberColor="currentColor"
+          />
         </div>
       </div>
 
@@ -866,23 +876,31 @@ export function FlightControlContent({
           ) : visibleOpps.length === 0 ? (
             <EmptyState onScan={loadOpportunities} scanning={scanning} />
           ) : (
-            <div className="space-y-4 max-w-2xl">
+            <div className="space-y-4">
               <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5 mb-1">
                 <Target className="h-3 w-3 text-violet-400" />
-                Top Opportunities — Who needs your attention
+                Top opportunities — who needs your attention
               </p>
-              {visibleOpps.map((opp, i) => (
-                <OpportunityCard
-                  key={`${opp.client_id}-${opp.opportunity_type}-${i}`}
-                  opportunity={opp}
-                  onDraftMessage={handleDraftMessage}
-                  onDismiss={handleDismiss}
-                  draftedMessage={getDraftForOpp(opp)}
-                  onReviewDraft={setReviewItem}
-                  drafting={draftingFor === opp.client_id}
-                  onAskAI={handleAskAI}
-                />
-              ))}
+              {/* Responsive instrument grid: the gold primary spans full width,
+                  the rest flow two-up on wide screens (reclaims the dead gutter). */}
+              <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+                {visibleOpps.map((opp, i) => (
+                  <div
+                    key={`${opp.client_id}-${opp.opportunity_type}-${i}`}
+                    className={cn(opp.is_primary && "xl:col-span-2")}
+                  >
+                    <OpportunityCard
+                      opportunity={opp}
+                      onDraftMessage={handleDraftMessage}
+                      onDismiss={handleDismiss}
+                      draftedMessage={getDraftForOpp(opp)}
+                      onReviewDraft={setReviewItem}
+                      drafting={draftingFor === opp.client_id}
+                      onAskAI={handleAskAI}
+                    />
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>
