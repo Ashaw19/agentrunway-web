@@ -17,6 +17,7 @@ import {
   UserPlus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { KpiStrip, CockpitStat, ScoreDial, scoreBand, SEMANTIC } from "@/components/cockpit-ui";
 import { fmtCurrency, fmtCompact, fmtPct } from "@/lib/formatters";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
@@ -26,7 +27,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Progress } from "@/components/ui/progress";
 import dynamic from "next/dynamic";
 
 const OrgProductionChart = dynamic(() => import("@/components/org-production-chart").then(m => m.OrgProductionChart), { ssr: false });
@@ -272,9 +272,9 @@ export function OrgDashboardContent({
       <div className="flex items-start justify-between">
         <div>
           <div className="flex items-center gap-3 mb-1">
-            <Building2 className="h-6 w-6 text-orange-500" />
+            <Building2 className="h-6 w-6 text-slate-400" />
             <h1 className="text-2xl font-bold tracking-tight">{org.name}</h1>
-            <span className="rounded-full bg-orange-500/10 px-2.5 py-0.5 text-xs font-medium text-orange-500">
+            <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">
               {ORG_TYPE_LABELS[org.type]}
             </span>
           </div>
@@ -285,7 +285,7 @@ export function OrgDashboardContent({
         {isAdmin && (
           <a
             href="/org/members"
-            className="inline-flex items-center gap-1.5 rounded-lg border bg-background px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:border-orange-300 transition-colors"
+            className="inline-flex items-center gap-1.5 rounded-lg border bg-background px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:border-slate-300 transition-colors"
           >
             <UserPlus className="h-3.5 w-3.5" />
             Invite
@@ -295,9 +295,9 @@ export function OrgDashboardContent({
 
       {/* Empty State — shown when no members have entered data yet */}
       {performance.length === 0 && (
-        <div className="rounded-2xl border-2 border-dashed border-orange-200 bg-gradient-to-br from-orange-50/50 to-amber-50/50 p-8 text-center">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-orange-500/10">
-            <Users className="h-8 w-8 text-orange-500" />
+        <div className="rounded-2xl border-2 border-dashed border-slate-300 bg-gradient-to-br from-slate-50 to-slate-100 p-8 text-center">
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-blue-500/10">
+            <Users className="h-8 w-8 text-blue-500" />
           </div>
           <h2 className="text-lg font-bold text-foreground">Your team dashboard is ready</h2>
           <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground leading-relaxed">
@@ -307,7 +307,7 @@ export function OrgDashboardContent({
           <div className="mt-6 flex flex-col sm:flex-row items-center justify-center gap-3">
             <a
               href="/org/members"
-              className="inline-flex items-center gap-2 rounded-lg bg-orange-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-orange-600 transition-colors"
+              className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 transition-colors"
             >
               <UserPlus className="h-4 w-4" />
               Invite Team Members
@@ -326,8 +326,8 @@ export function OrgDashboardContent({
               { step: "2", label: "They accept & set up", desc: "Personal config takes ~2 minutes" },
               { step: "3", label: "Data flows here", desc: "KPIs, insights & coaching appear" },
             ].map((item) => (
-              <div key={item.step} className="rounded-lg bg-white/60 border border-orange-100 p-3 text-left">
-                <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-orange-500 text-white text-xs font-bold mb-1.5">
+              <div key={item.step} className="rounded-lg bg-white/60 border border-slate-200 p-3 text-left">
+                <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-blue-600 text-white text-xs font-bold mb-1.5">
                   {item.step}
                 </span>
                 <p className="text-xs font-semibold text-foreground">{item.label}</p>
@@ -350,7 +350,7 @@ export function OrgDashboardContent({
           <TabsTrigger value="insights" className="gap-1.5">
             Insights
             {criticalWarningCount > 0 && (
-              <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-rose-500/15 px-1.5 text-[10px] font-semibold text-rose-500">
+              <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500/15 px-1.5 text-[10px] font-semibold text-red-500">
                 {criticalWarningCount}
               </span>
             )}
@@ -359,70 +359,70 @@ export function OrgDashboardContent({
 
         {/* ── Tab 1: Overview ─────────────────────────────────────────────── */}
         <TabsContent value="overview" className="mt-6 space-y-6">
-          {/* KPI Cards */}
-          <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-            <KPICard
-              icon={DollarSign}
+          {/* KPI cockpit strip */}
+          <KpiStrip cols={3} label="Team overview" progress={org.org_goal_gci && org.org_goal_gci > 0 ? orgGoalProgress ?? undefined : undefined}>
+            <CockpitStat
               label="Total Org GCI"
               value={fmtCompact(totalGCI)}
-              iconColor="text-emerald-500"
+              color={SEMANTIC.strong}
+              icon={<DollarSign className="h-3.5 w-3.5" />}
+              spark={(monthlyChartData ?? []).map((m) => ({ value: m.gci, projected: false }))}
+              sparkColor={SEMANTIC.strong}
             />
-            <KPICard
-              icon={Users}
+            <CockpitStat
               label="Active Agents"
               value={String(activeMemberCount)}
+              color="#F8FAFC"
+              icon={<Users className="h-3.5 w-3.5" />}
               sub={`Avg ${fmtCurrency(avgGCIPerAgent)} / agent`}
-              iconColor="text-blue-500"
             />
-            <KPICard
-              icon={BarChart3}
+            <CockpitStat
               label="Closed Deals"
               value={String(totalDeals)}
+              color="#F8FAFC"
+              icon={<BarChart3 className="h-3.5 w-3.5" />}
               sub={totalDeals > 0 ? `Avg ${fmtCurrency(avgDealSize)} / deal` : undefined}
-              iconColor="text-violet-500"
             />
-            <KPICard
-              icon={TrendingUp}
+            <CockpitStat
               label="Pipeline Value"
               value={fmtCompact(totalPipelineValue)}
+              color={SEMANTIC.onTrack}
+              icon={<TrendingUp className="h-3.5 w-3.5" />}
               sub={`${totalPipelineCount} active deals`}
-              iconColor="text-amber-500"
             />
-            <KPICard
-              icon={Target}
+            <CockpitStat
               label="Agents On Track"
               value={agentsWithGoals > 0 ? `${agentsOnTrack} / ${agentsWithGoals}` : "—"}
+              color={SEMANTIC.onTrack}
+              icon={<Target className="h-3.5 w-3.5" />}
               sub={agentsWithGoals > 0 ? "vs seasonal pace" : "No goals set"}
-              iconColor="text-orange-500"
             />
             {org.org_goal_gci && org.org_goal_gci > 0 ? (
-              <div className="rounded-xl border bg-card p-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <Target className="h-4 w-4 text-teal-500" />
-                  <span className="text-xs text-muted-foreground">Org Goal Progress</span>
+              <div className="flex items-center gap-3 min-w-0">
+                <ScoreDial
+                  score={orgGoalProgress!}
+                  size={48}
+                  hex={scoreBand(orgGoalProgress!).hex}
+                  isStrong={scoreBand(orgGoalProgress!).isStrong}
+                  numberColor="#F8FAFC"
+                />
+                <div className="min-w-0">
+                  <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Org Goal</div>
+                  <div className="mt-0.5 text-[11px] text-slate-500 tabular-nums">
+                    {fmtCompact(totalGCI)} of {fmtCompact(org.org_goal_gci)}
+                  </div>
                 </div>
-                <p className="text-xl font-bold tracking-tight">
-                  {fmtPct(orgGoalProgress! / 100)}
-                </p>
-                <Progress value={orgGoalProgress!} className="h-1.5 mt-2" />
-                <p className="text-xs text-muted-foreground mt-1">
-                  {fmtCompact(totalGCI)} of {fmtCompact(org.org_goal_gci)} goal
-                </p>
               </div>
             ) : (
-              <KPICard
-                icon={BarChart3}
+              <CockpitStat
                 label="Pipeline Coverage"
-                value={
-                  totalGCI > 0
-                    ? `${(totalPipelineValue / Math.max(1, totalGCI)).toFixed(1)}x`
-                    : "—"
-                }
+                value={totalGCI > 0 ? `${(totalPipelineValue / Math.max(1, totalGCI)).toFixed(1)}x` : "—"}
+                color="#F8FAFC"
+                icon={<BarChart3 className="h-3.5 w-3.5" />}
                 sub="Pipeline vs YTD production"
-                iconColor="text-teal-500"
               />
             )}
-          </div>
+          </KpiStrip>
 
           {/* Charts */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -582,7 +582,7 @@ export function OrgDashboardContent({
                               row.diff > 0
                                 ? "text-emerald-500"
                                 : row.diff < -10
-                                  ? "text-rose-500"
+                                  ? "text-red-500"
                                   : "text-muted-foreground",
                             )}
                           >
@@ -658,33 +658,6 @@ export function OrgDashboardContent({
 
 // ── KPI Card ──────────────────────────────────────────────────────────────────
 
-function KPICard({
-  icon: Icon,
-  label,
-  value,
-  sub,
-  iconColor,
-}: {
-  icon: React.ComponentType<{ className?: string }>;
-  label: string;
-  value: string;
-  sub?: string;
-  iconColor: string;
-}) {
-  return (
-    <div className="rounded-xl border bg-card p-4">
-      <div className="flex items-center gap-2 mb-2">
-        <Icon className={cn("h-4 w-4", iconColor)} />
-        <span className="text-xs text-muted-foreground">{label}</span>
-      </div>
-      <p className="text-xl font-bold tracking-tight">{value}</p>
-      {sub && (
-        <p className="text-xs text-muted-foreground mt-0.5">{sub}</p>
-      )}
-    </div>
-  );
-}
-
 // ── Insight Card ──────────────────────────────────────────────────────────────
 
 const SEVERITY_ICONS: Record<OrgInsightSeverity, React.ComponentType<{ className?: string }>> = {
@@ -743,7 +716,7 @@ function MonthlyBarChart({
                   isFuture
                     ? "bg-muted/40"
                     : d.gci > 0
-                      ? "bg-orange-500/80"
+                      ? "bg-emerald-500/80"
                       : "bg-muted/30",
                 )}
                 style={{ height: `${Math.max(height, 2)}%` }}
