@@ -18,8 +18,10 @@ import { describe, expect, it } from "vitest";
 import {
   clampSalePrice,
   clampCommissionPct,
+  clampGci,
   SALE_PRICE_MAX,
   COMMISSION_PCT_MAX,
+  GCI_MAX,
 } from "../clamp-db-range";
 
 describe("clampSalePrice — passes valid, redirects everything the DB would reject", () => {
@@ -99,6 +101,39 @@ describe("clampCommissionPct — passes valid, redirects everything the DB would
   });
 });
 
+describe("clampGci — guards both GCI columns (client_records numeric(10,2) + gci_override non-negative)", () => {
+  it("passes a normal GCI through unchanged", () => {
+    expect(clampGci(12_500, 0)).toBe(12_500);
+  });
+
+  it("passes 0 (a valid, non-negative value)", () => {
+    expect(clampGci(0, 0)).toBe(0);
+  });
+
+  it("passes the exact upper bound (99,999,999.99 — the numeric(10,2) max)", () => {
+    expect(clampGci(GCI_MAX, 0)).toBe(99_999_999.99);
+  });
+
+  it("CRASH CASE: a >$100M GCI (column-swap into the GCI cell) overflows numeric(10,2) → falls back", () => {
+    expect(clampGci(150_000_000, 0)).toBe(0);
+  });
+
+  it("CRASH CASE: a negative GCI (accounting parens '(1,500)' → -1500) violates the non-negative CHECK → falls back", () => {
+    expect(clampGci(-1_500, 0)).toBe(0);
+  });
+
+  it("CRASH CASE: NaN / Infinity fall back (garbage cell, divide-by-zero artefact)", () => {
+    expect(clampGci(NaN, 0)).toBe(0);
+    expect(clampGci(Infinity, 0)).toBe(0);
+    expect(clampGci(-Infinity, 0)).toBe(0);
+  });
+
+  it("null / undefined fall back to the caller default", () => {
+    expect(clampGci(null, 0)).toBe(0);
+    expect(clampGci(undefined, 0)).toBe(0);
+  });
+});
+
 describe("clamp ranges stay locked to the migration 00079 constants", () => {
   it("SALE_PRICE_MAX equals the chk_tx_sale_price_reasonable bound", () => {
     expect(SALE_PRICE_MAX).toBe(100_000_000);
@@ -106,5 +141,9 @@ describe("clamp ranges stay locked to the migration 00079 constants", () => {
 
   it("COMMISSION_PCT_MAX equals the chk_tx_commission_pct_range upper bound", () => {
     expect(COMMISSION_PCT_MAX).toBe(0.25);
+  });
+
+  it("GCI_MAX equals the client_records.gci numeric(10,2) maximum", () => {
+    expect(GCI_MAX).toBe(99_999_999.99);
   });
 });

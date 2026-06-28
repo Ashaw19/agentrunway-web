@@ -36,6 +36,7 @@ interface PriorYearRow {
 }
 import { survivalResult, riskColorBand, type RiskColorBand } from "@/lib/engines/survival-engine";
 import { EXPENSE_KEY_TO_T2125 } from "@/lib/engines/t2125-engine";
+import { clampSalePrice, clampCommissionPct, clampGci } from "@/lib/import/clamp-db-range";
 import dynamic from "next/dynamic";
 import type { DonutDataPoint } from "@/components/expense-donut";
 import { cn } from "@/lib/utils";
@@ -371,9 +372,14 @@ export function ExpensesContent({
         user_id: user.id,
         date: m.imported.date,
         address: m.imported.address,
-        sale_price: m.imported.sale_price ?? 0,
-        commission_pct: m.imported.commission_pct ?? 0,
-        gci_override: m.imported.gci,
+        // Clamp to DB CHECK ranges via the single-source-of-truth helper. This
+        // brokerage-statement reconcile path was the one bulk-import write site
+        // the centralized clamp module never reached: an LLM misread (30%
+        // commission, a column-swapped >$100M price, a negative/overflow GCI)
+        // would otherwise reject the ENTIRE .insert() batch with no recovery.
+        sale_price: clampSalePrice(m.imported.sale_price, 0),
+        commission_pct: clampCommissionPct(m.imported.commission_pct, 0),
+        gci_override: clampGci(m.imported.gci, 0),
         side: m.imported.side ?? "buyer",
         status: "closed" as const,
         client_name: m.imported.client_name ?? "",
