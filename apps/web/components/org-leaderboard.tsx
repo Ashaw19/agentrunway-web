@@ -62,9 +62,9 @@ function PaceIcon({ status }: { status: PaceStatus }) {
     case "ahead":
       return <CheckCircle className="h-4 w-4 text-emerald-500" />;
     case "on-track":
-      return <MinusCircle className="h-4 w-4 text-amber-500" />;
+      return <MinusCircle className="h-4 w-4 text-blue-500" />;
     case "behind":
-      return <AlertCircle className="h-4 w-4 text-rose-500" />;
+      return <AlertCircle className="h-4 w-4 text-red-500" />;
     case "no-goal":
       return <HelpCircle className="h-4 w-4 text-muted-foreground/40" />;
   }
@@ -246,14 +246,14 @@ export function OrgLeaderboard({
     <div className="space-y-4">
       {/* Quick Stats */}
       <div className="grid grid-cols-3 gap-3">
-        <div className="rounded-lg border bg-card px-4 py-3">
+        <div className="rounded-lg border border-[#F0A800]/30 bg-card px-4 py-3">
           <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
             #1 Producer
           </p>
-          <p className="text-sm font-semibold truncate">
+          <p className="text-sm font-semibold truncate text-[#F0A800]">
             {topAgent?.agent_name ?? "\u2014"}
           </p>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-xs tabular-nums text-[#F0A800]/80">
             {topAgent ? fmtCurrency(Number(topAgent.ytd_gci)) : "\u2014"}
           </p>
         </div>
@@ -261,7 +261,7 @@ export function OrgLeaderboard({
           <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
             Org Average
           </p>
-          <p className="text-sm font-semibold">{fmtCurrency(avgGCI)}</p>
+          <p className="text-sm font-semibold tabular-nums">{fmtCurrency(avgGCI)}</p>
         </div>
         <div className="rounded-lg border bg-card px-4 py-3">
           <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
