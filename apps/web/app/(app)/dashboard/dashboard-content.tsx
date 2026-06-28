@@ -29,6 +29,9 @@ import {
   type DashboardLayout,
 } from "./card-registry";
 import { CountUp } from "@/components/count-up";
+import { Sparkline, type SparkPoint } from "@/components/sparkline";
+import { FreshnessIndicator } from "@/components/freshness-indicator";
+import { useRouter } from "next/navigation";
 import { useConfetti } from "@/hooks/use-confetti";
 import dynamic from "next/dynamic";
 import {
@@ -203,6 +206,8 @@ interface Props {
   recurringExpMonthly?: number;
   /** Pre-computed YTD total from recurring_expenses table */
   recurringExpYTD?: number;
+  /** ISO timestamp the server loaded this data — drives the freshness line. */
+  dataAsOf?: string;
 }
 
 function getTimeGreeting(): { greeting: string; emoji: string } {
@@ -305,8 +310,33 @@ export function DashboardContent({
   teamWelcome = null,
   recurringExpMonthly = 0,
   recurringExpYTD = 0,
+  dataAsOf,
 }: Props) {
   const supabase = useMemo(() => createClient(), []);
+  const router = useRouter();
+
+  // Re-sync server data when the user returns to the tab — no polling cost, so a
+  // deal logged on mobile or in another tab reflects here on focus instead of
+  // staying silently stale. Debounced so rapid tab-switching can't thrash the
+  // server render / snapshot write. CountUp animates each changed number from
+  // its prior value (a live "tick") rather than re-booting from zero.
+  const lastRefreshRef = useRef<number>(Date.now());
+  useEffect(() => {
+    const MIN_INTERVAL_MS = 60_000;
+    const maybeRefresh = () => {
+      if (typeof document === "undefined" || document.visibilityState !== "visible") return;
+      const now = Date.now();
+      if (now - lastRefreshRef.current < MIN_INTERVAL_MS) return;
+      lastRefreshRef.current = now;
+      router.refresh();
+    };
+    document.addEventListener("visibilitychange", maybeRefresh);
+    window.addEventListener("focus", maybeRefresh);
+    return () => {
+      document.removeEventListener("visibilitychange", maybeRefresh);
+      window.removeEventListener("focus", maybeRefresh);
+    };
+  }, [router]);
 
   // ── Filing deadline alert ────────────────────────────────────────────
   const filingDeadlineAlert = useMemo(() => {
@@ -997,6 +1027,14 @@ export function DashboardContent({
     now,
   );
 
+  // Compact GCI trajectory for the YTD GCI card — turns a bare number into its
+  // recent shape (actuals solid, projected tail dashed). Same 12-point series
+  // the (currently disabled) trends card builds; no new computation.
+  const gciSparkData: SparkPoint[] = monthlyChartData.map((m) => ({
+    value: m.gci,
+    projected: m.projected,
+  }));
+
   // Cash-runway number color — on the single §9.1 semantic contract.
   // `healthy` is the survival engine's 4–<6mo WATCH band; under the one-meaning-
   // per-color rule it must render AMBER (watch), not emerald — emerald/gold is
@@ -1419,6 +1457,16 @@ export function DashboardContent({
                 : `${fmtCurrency(Math.abs(vsLastYearGCI))} behind last year's pace`}
             </p>
           )}
+          {gciSparkData.length >= 2 && ytdGCI > 0 && (
+            <div className="mt-2 -mb-0.5">
+              <Sparkline
+                data={gciSparkData}
+                color={paceStatus === "ahead" ? "#10B981" : "#64748B"}
+                delay={0.9}
+                ariaLabel="Monthly GCI through the year, with the projected year-end tail"
+              />
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -1468,7 +1516,9 @@ export function DashboardContent({
               <MetricInfo tip="Your in-progress deals weighted by their probability of closing. A $50K deal at 60% odds counts as $30K here." />
             </span>
           </CardDescription>
-          <TrendingUp className="h-3.5 w-3.5 text-slate-400" />
+          {/* Neutral icon — the card shows no trend, so a TrendingUp glyph here
+              would imply a direction it never measures (kept honest). */}
+          <Layers className="h-3.5 w-3.5 text-slate-400" />
         </CardHeader>
         <CardContent className="px-4 pt-0">
           {pipelineCount === 0 && listingCount === 0 ? (
@@ -2441,9 +2491,12 @@ export function DashboardContent({
           <p className="text-sm text-muted-foreground mt-0.5">
             {motivationalTag}
           </p>
-          {streakLabel && (
-            <p className="mt-1 text-xs font-semibold text-amber-600">{streakLabel}</p>
-          )}
+          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+            {streakLabel && (
+              <p className="text-xs font-semibold text-amber-600">{streakLabel}</p>
+            )}
+            {dataAsOf && <FreshnessIndicator since={dataAsOf} />}
+          </div>
         </div>
       </div>
 
