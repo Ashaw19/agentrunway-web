@@ -32,6 +32,21 @@ export interface ClientValuationInput {
 
 export type ClientTier = "platinum" | "gold" | "silver" | "bronze";
 
+/**
+ * Each factor's WEIGHTED point contribution to the composite score (already
+ * multiplied by its weight, so the five sum to the unrounded composite). Lets a
+ * surface render the composite as a "what drives this client's value" breakdown
+ * without re-deriving the engine's normalization. Weights: lgv .40 / health .20
+ * / runway .15 / velocity .15 / tax .10.
+ */
+export interface CompositeBreakdown {
+  lgv: number;
+  health: number;
+  runway: number;
+  velocity: number;
+  tax: number;
+}
+
 export interface ClientValuation {
   clientId: string | null;
   name: string;
@@ -42,6 +57,7 @@ export interface ClientValuation {
   velocityDays: number | null; // avg days between deals (null = single deal)
   healthContributionPct: number; // % of total GCI
   compositeScore: number; // 0-100 weighted
+  compositeBreakdown: CompositeBreakdown; // weighted per-factor contributions
   tier: ClientTier;
   insights: string[];
 }
@@ -100,6 +116,7 @@ export function computeClientValuations(
       velocityDays: velocity,
       healthContributionPct: healthPct,
       compositeScore: 0, // computed after normalization
+      compositeBreakdown: { lgv: 0, health: 0, runway: 0, velocity: 0, tax: 0 },
       tier: "bronze" as ClientTier,
       insights,
     };
@@ -124,13 +141,16 @@ export function computeClientValuations(
         : 25;
     const taxNorm = v.taxEfficiencyCents; // already 0-100
 
-    v.compositeScore = Math.round(
-      lgvNorm * 0.4 +
-        healthNorm * 0.2 +
-        runwayNorm * 0.15 +
-        velocityNorm * 0.15 +
-        taxNorm * 0.1,
-    );
+    // Weighted per-factor contributions — the breakdown sums to the composite.
+    v.compositeBreakdown = {
+      lgv: lgvNorm * 0.4,
+      health: healthNorm * 0.2,
+      runway: runwayNorm * 0.15,
+      velocity: velocityNorm * 0.15,
+      tax: taxNorm * 0.1,
+    };
+    const b = v.compositeBreakdown;
+    v.compositeScore = Math.round(b.lgv + b.health + b.runway + b.velocity + b.tax);
   }
 
   // Sort by composite score descending
