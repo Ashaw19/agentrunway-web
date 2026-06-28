@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { DashboardContent } from "./dashboard-content";
-import type { HistoryItem, ContactTask, Client, ContactActivity, ClientRecord, ListingAppointment } from "@/lib/types/database";
+import type { HistoryItem, ContactTask, Client, ContactActivity, ClientRecord, ListingAppointment, RunwayScoreHistory, RunwayScoreHistoryComponent } from "@/lib/types/database";
 import { computeIntelligenceBriefing, type BriefingItem } from "@/lib/engines/crm-analytics-engine";
 import { totalRecurringMonthly, totalRecurringYTD } from "@agent-runway/core/engines/recurring-expense-engine";
 import type { RecurringExpense } from "@/lib/types/database";
@@ -118,23 +118,41 @@ export default async function DashboardPage({
         .eq("user_id", user.id)
         .eq("is_active", true)
         .limit(10000),
+      supabase
+        .from("runway_score_history")
+        .select("captured_on, score, components, cash_runway_months")
+        .eq("user_id", user.id)
+        .order("captured_on", { ascending: false })
+        .limit(12),
     ]);
 
   // Extract results — failed queries return empty data instead of crashing the page
   const unwrap = <T,>(r: PromiseSettledResult<T>): T =>
     r.status === "fulfilled" ? r.value : ({ data: null, count: null, error: r.reason } as T);
-  const [txResult, pipelineResult, expCatResult, expItemResult, historyResult, receiptTotalsResult, tasksResult, mileageResult, ccaResult, activeClientsResult, recentActivitiesResult, briefingClientsResult, briefingActivitiesResult, briefingRecordsResult, listingResult, recurringExpResult] = [
+  const [txResult, pipelineResult, expCatResult, expItemResult, historyResult, receiptTotalsResult, tasksResult, mileageResult, ccaResult, activeClientsResult, recentActivitiesResult, briefingClientsResult, briefingActivitiesResult, briefingRecordsResult, listingResult, recurringExpResult, scoreHistoryResult] = [
     unwrap(settledResults[0]), unwrap(settledResults[1]), unwrap(settledResults[2]),
     unwrap(settledResults[3]), unwrap(settledResults[4]), unwrap(settledResults[5]),
     unwrap(settledResults[6]), unwrap(settledResults[7]), unwrap(settledResults[8]),
     unwrap(settledResults[9]), unwrap(settledResults[10]), unwrap(settledResults[11]),
     unwrap(settledResults[12]), unwrap(settledResults[13]), unwrap(settledResults[14]),
-    unwrap(settledResults[15]),
+    unwrap(settledResults[15]), unwrap(settledResults[16]),
   ];
 
   const recurringExpenses = (recurringExpResult.data ?? []) as RecurringExpense[];
   const recurringExpMonthly = totalRecurringMonthly(recurringExpenses);
   const recurringExpYTD = totalRecurringYTD(recurringExpenses);
+
+  // ── Runway Score trajectory backing (last 12 daily rows, DESC → ASC) ────
+  // NUMERIC columns can arrive as strings over the wire — coerce defensively.
+  const scoreHistory = ((scoreHistoryResult.data ?? []) as RunwayScoreHistory[])
+    .slice()
+    .reverse()
+    .map((r) => ({
+      captured_on: r.captured_on,
+      score: Number(r.score),
+      components: (r.components ?? []) as RunwayScoreHistoryComponent[],
+      cash_runway_months: r.cash_runway_months == null ? null : Number(r.cash_runway_months),
+    }));
 
   const expenseCategories = (expCatResult.data ?? []).map((cat) => ({
     ...cat,
@@ -261,6 +279,7 @@ export default async function DashboardPage({
       recurringExpMonthly={recurringExpMonthly}
       recurringExpYTD={recurringExpYTD}
       dataAsOf={new Date().toISOString()}
+      scoreHistory={scoreHistory}
     />
   );
 }

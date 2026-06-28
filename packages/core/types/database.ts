@@ -324,6 +324,28 @@ export interface UserSettings {
   updated_at: string;
 }
 
+// ── Runway Score History ────────────────────────────────────────────────────
+// Daily time-series of the composite Runway Score + its weighted components +
+// cash-runway months. ADDITIVE to user_settings.runway_score_snapshot (which is
+// the single-point mobile-parity field). Backs the dashboard trajectory
+// sparklines + direction-of-change carets. Table: migration 00152.
+
+export interface RunwayScoreHistoryComponent {
+  label: string;
+  score: number;
+  weight: number; // numeric weightValue, 0.0–1.0
+}
+
+export interface RunwayScoreHistory {
+  id: string;
+  user_id: string;
+  captured_on: string;       // YYYY-MM-DD
+  score: number;             // composite Runway Score, 0–100
+  components: RunwayScoreHistoryComponent[];
+  cash_runway_months: number | null;
+  created_at: string;
+}
+
 // ── Recurring Expense ──────────────────────────────────────────────────────
 
 export type RecurringFrequency = 'monthly' | 'quarterly' | 'annual';
