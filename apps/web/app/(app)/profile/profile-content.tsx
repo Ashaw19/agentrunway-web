@@ -31,6 +31,9 @@ import {
   Hash,
   Moon,
   Sun,
+  Trophy,
+  Briefcase,
+  DollarSign,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import {
@@ -39,7 +42,14 @@ import {
   type UserSettings,
   type HistoryItem,
 } from "@/lib/types/database";
-import { fmtCurrency } from "@/lib/formatters";
+import { fmtCurrency, fmtCompact } from "@/lib/formatters";
+import {
+  CockpitStrip,
+  KpiStrip,
+  CockpitStat,
+  SEMANTIC,
+  GOLD,
+} from "@/components/cockpit-ui";
 
 // ── Theme config ──────────────────────────────────────────────────────────────
 
@@ -337,15 +347,9 @@ export function ProfileContent({
         </p>
       </div>
 
-      {/* ── Hero card ─────────────────────────────────────────────────────── */}
-      <Card
-        className="overflow-hidden border-0 shadow-lg"
-        style={{
-          background:
-            "linear-gradient(135deg, oklch(0.15 0.065 265) 0%, oklch(0.10 0.055 265) 100%)",
-        }}
-      >
-        <CardContent className="p-6 sm:p-8">
+      {/* ── Hero — canonical cockpit instrument header ─────────────────────── */}
+      <CockpitStrip>
+        <div className="p-6 sm:p-8">
           <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:gap-8">
 
             {/* Avatar — click to upload a profile photo */}
@@ -520,67 +524,37 @@ export function ProfileContent({
             </div>
 
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </CockpitStrip>
 
       {/* ── YTD Stats strip ───────────────────────────────────────────────── */}
       {(ytdDeals > 0 || lifetimeDeals > 0) && (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {[
-            {
-              label: "YTD GCI",
-              value: fmtCurrency(ytdGCI),
-              icon: <TrendingUp className="h-4 w-4 text-emerald-700" />,
-              border: "border-emerald-200",
-              bg: "from-emerald-100 to-emerald-50",
-              iconBg: "bg-emerald-200",
-              labelColor: "text-emerald-700",
-            },
-            {
-              label: "YTD Deals",
-              value: String(ytdDeals),
-              icon: <Check className="h-4 w-4 text-blue-700" />,
-              border: "border-blue-200",
-              bg: "from-blue-100 to-blue-50",
-              iconBg: "bg-blue-200",
-              labelColor: "text-blue-700",
-            },
-            {
-              label: "Avg / Deal",
-              value: avgDeal > 0 ? fmtCurrency(avgDeal) : "—",
-              icon: <Target className="h-4 w-4 text-violet-700" />,
-              border: "border-violet-200",
-              bg: "from-violet-100 to-violet-50",
-              iconBg: "bg-violet-200",
-              labelColor: "text-violet-700",
-            },
-            {
-              label: "Lifetime Deals",
-              value: String(lifetimeDeals),
-              icon: <Calendar className="h-4 w-4 text-amber-700" />,
-              border: "border-amber-200",
-              bg: "from-amber-100 to-amber-50",
-              iconBg: "bg-amber-200",
-              labelColor: "text-amber-700",
-            },
-          ].map((stat) => (
-            <Card key={stat.label} className={`rounded-2xl border ${stat.border} bg-gradient-to-br ${stat.bg} shadow-sm`}>
-              <CardContent className="p-4">
-                <div className="mb-1.5 flex items-center gap-2">
-                  <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${stat.iconBg}`}>
-                    {stat.icon}
-                  </div>
-                  <span className={`text-[11px] font-semibold uppercase tracking-wide ${stat.labelColor}`}>
-                    {stat.label}
-                  </span>
-                </div>
-                <p className="text-lg font-bold tabular-nums text-slate-800">
-                  {stat.value}
-                </p>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+        <KpiStrip cols={4} label="Your year so far">
+          <CockpitStat
+            label="YTD GCI"
+            value={fmtCompact(ytdGCI)}
+            color={SEMANTIC.strong}
+            icon={<TrendingUp className="h-3.5 w-3.5" />}
+          />
+          <CockpitStat
+            label="YTD Deals"
+            value={String(ytdDeals)}
+            color="#F8FAFC"
+            icon={<Check className="h-3.5 w-3.5" />}
+          />
+          <CockpitStat
+            label="Avg / Deal"
+            value={avgDeal > 0 ? fmtCompact(avgDeal) : "—"}
+            color={SEMANTIC.strong}
+            icon={<Target className="h-3.5 w-3.5" />}
+          />
+          <CockpitStat
+            label="Lifetime Deals"
+            value={String(lifetimeDeals)}
+            color="#F8FAFC"
+            icon={<Calendar className="h-3.5 w-3.5" />}
+          />
+        </KpiStrip>
       )}
 
       {/* ── Organization Membership ─────────────────────────────────────── */}
@@ -814,8 +788,14 @@ export function ProfileContent({
                   onChange={handleLogoUpload}
                 />
                 <div className="space-y-1 text-xs text-muted-foreground">
-                  <p className="font-medium text-foreground">
-                    {businessLogoUrl ? "Logo uploaded ✓" : "No logo yet"}
+                  <p className="flex items-center gap-1 font-medium text-foreground">
+                    {businessLogoUrl ? (
+                      <>
+                        <Check className="h-3 w-3 text-emerald-500" /> Logo uploaded
+                      </>
+                    ) : (
+                      "No logo yet"
+                    )}
                   </p>
                   <p>Appears on reports and invoices.</p>
                   <p className="text-[11px]">PNG, JPG or WebP · Max 2 MB</p>
@@ -936,7 +916,7 @@ export function ProfileContent({
               }
               current={ytdGCI}
               goal={settings?.goal_gci ?? 0}
-              color="emerald"
+              accent={SEMANTIC.strong}
             />
             <GoalItem
               label="Deals Target"
@@ -947,7 +927,7 @@ export function ProfileContent({
               }
               current={ytdDeals}
               goal={settings?.goal_transactions ?? 0}
-              color="blue"
+              accent={SEMANTIC.onTrack}
             />
             <GoalItem
               label="Volume Target"
@@ -958,7 +938,7 @@ export function ProfileContent({
               }
               current={0}
               goal={settings?.goal_volume ?? 0}
-              color="violet"
+              accent={SEMANTIC.strong}
             />
           </div>
           <Button
@@ -993,52 +973,38 @@ function GoalItem({
   value,
   current,
   goal,
-  color,
+  accent,
 }: {
   label: string;
   value: string;
   current: number;
   goal: number;
-  color: "emerald" | "blue" | "violet";
+  /** §9.1 magnitude hex for this goal's value + progress track. */
+  accent: string;
 }) {
   const pct = goal > 0 ? Math.min(1, current / goal) : 0;
-  const colorStyles = {
-    emerald: {
-      container: "border-emerald-200 bg-gradient-to-br from-emerald-100 to-emerald-50",
-      label: "text-emerald-700",
-      track: "bg-emerald-500",
-      progress: "text-emerald-700",
-    },
-    blue: {
-      container: "border-blue-200 bg-gradient-to-br from-blue-100 to-blue-50",
-      label: "text-blue-700",
-      track: "bg-blue-500",
-      progress: "text-blue-700",
-    },
-    violet: {
-      container: "border-violet-200 bg-gradient-to-br from-violet-100 to-violet-50",
-      label: "text-violet-700",
-      track: "bg-violet-500",
-      progress: "text-violet-700",
-    },
-  };
-  const styles = colorStyles[color];
 
   return (
-    <div className={cn("rounded-xl border p-3.5 shadow-sm", styles.container)}>
-      <p className={cn("text-[11px] font-semibold uppercase tracking-wide", styles.label)}>
+    <div className="rounded-xl border border-slate-200 bg-card p-3.5 shadow-sm">
+      <p
+        className="text-[11px] font-semibold uppercase tracking-wide"
+        style={{ color: accent }}
+      >
         {label}
       </p>
-      <p className="mt-1 text-base font-bold text-slate-800">{value}</p>
+      <p className="mt-1 text-base font-bold tabular-nums text-foreground">{value}</p>
       {goal > 0 && (
         <div className="mt-2">
-          <div className="h-1.5 overflow-hidden rounded-full bg-white/60">
+          <div className="h-1.5 overflow-hidden rounded-full bg-muted">
             <div
-              className={cn("h-full rounded-full transition-all", styles.track)}
-              style={{ width: `${pct * 100}%` }}
+              className="h-full rounded-full transition-all"
+              style={{ width: `${pct * 100}%`, backgroundColor: accent }}
             />
           </div>
-          <p className={cn("mt-1 text-[10px] font-medium", styles.progress)}>
+          <p
+            className="mt-1 text-[10px] font-medium tabular-nums"
+            style={{ color: accent }}
+          >
             {Math.round(pct * 100)}% of goal
           </p>
         </div>
@@ -1048,16 +1014,6 @@ function GoalItem({
 }
 
 // ── CareerSummaryCard ─────────────────────────────────────────────────────────
-
-function StatBlock({ label, value, sub }: { label: string; value: string; sub: string }) {
-  return (
-    <div className="text-center">
-      <p className="text-[11px] font-semibold uppercase tracking-wider text-indigo-500">{label}</p>
-      <p className="text-2xl font-bold text-slate-800 mt-0.5 tabular-nums">{value}</p>
-      <p className="text-xs text-slate-500">{sub}</p>
-    </div>
-  );
-}
 
 function CareerSummaryCard({
   experienceYears,
@@ -1085,50 +1041,51 @@ function CareerSummaryCard({
   }
 
   return (
-    <Card className="rounded-2xl border-indigo-200 bg-gradient-to-br from-indigo-50 via-blue-50 to-slate-50 shadow-sm">
-      <CardHeader className="pb-3">
-        <CardTitle className="text-sm font-semibold text-indigo-800">
-          My Business, By the Numbers
-        </CardTitle>
-        <p className="text-xs text-muted-foreground">Your career in real estate at a glance</p>
-      </CardHeader>
-      <CardContent>
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-          {experienceYears !== null && experienceYears > 0 && (
-            <StatBlock
-              label="Experience"
-              value={`${experienceYears}+`}
-              sub="years in real estate"
-            />
-          )}
-          <StatBlock
-            label="Lifetime Deals"
-            value={String(lifetimeDeals)}
-            sub="closed transactions"
-          />
-          {lifetimeGCI > 0 && (
-            <StatBlock
-              label="Lifetime GCI"
-              value={fmtCurrency(lifetimeGCI)}
-              sub="gross commission earned"
-            />
-          )}
-          {bestYear && (
-            <StatBlock
-              label="Best Year"
-              value={fmtCurrency(bestYear.gci)}
-              sub={String(bestYear.year)}
-            />
-          )}
-          {goalStreakYears >= 2 && (
-            <StatBlock
-              label="Goal Streak"
-              value={`${goalStreakYears} yr${goalStreakYears !== 1 ? "s" : ""}`}
-              sub="goals hit in a row"
-            />
-          )}
-        </div>
-      </CardContent>
-    </Card>
+    <KpiStrip cols={4} label="My business, by the numbers">
+      {experienceYears !== null && experienceYears > 0 && (
+        <CockpitStat
+          label="Experience"
+          value={`${experienceYears}+`}
+          color="#F8FAFC"
+          icon={<Briefcase className="h-3.5 w-3.5" />}
+          sub="years in real estate"
+        />
+      )}
+      <CockpitStat
+        label="Lifetime Deals"
+        value={String(lifetimeDeals)}
+        color="#F8FAFC"
+        icon={<Check className="h-3.5 w-3.5" />}
+        sub="closed transactions"
+      />
+      {lifetimeGCI > 0 && (
+        <CockpitStat
+          label="Lifetime GCI"
+          value={fmtCompact(lifetimeGCI)}
+          color={SEMANTIC.strong}
+          icon={<DollarSign className="h-3.5 w-3.5" />}
+          sub="gross commission earned"
+        />
+      )}
+      {bestYear && (
+        /* Best Year is the single top item on this surface — commission GOLD. */
+        <CockpitStat
+          label="Best Year"
+          value={fmtCompact(bestYear.gci)}
+          color={GOLD}
+          icon={<Trophy className="h-3.5 w-3.5" />}
+          sub={String(bestYear.year)}
+        />
+      )}
+      {goalStreakYears >= 2 && (
+        <CockpitStat
+          label="Goal Streak"
+          value={`${goalStreakYears} yr${goalStreakYears !== 1 ? "s" : ""}`}
+          color={SEMANTIC.strong}
+          icon={<Target className="h-3.5 w-3.5" />}
+          sub="goals hit in a row"
+        />
+      )}
+    </KpiStrip>
   );
 }

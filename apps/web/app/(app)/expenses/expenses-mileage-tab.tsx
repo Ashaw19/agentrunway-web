@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { fmtCurrency }         from "@/lib/formatters";
 import { cn }                  from "@/lib/utils";
+import { KpiStrip, CockpitStat, SEMANTIC } from "@/components/cockpit-ui";
 import { CRA_MILEAGE_RATES }   from "@/lib/types/database";
 import type { MileageLog }     from "@/lib/types/database";
 import Link                    from "next/link";
@@ -196,70 +197,39 @@ export function ExpensesMileageTab({ mileageLogs, year, settings }: Props) {
         </div>
       </div>
 
-      {/* KPI Cards */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card className="rounded-2xl border border-blue-200 bg-blue-50/70 shadow-sm">
-          <CardHeader className="pb-2">
-            <CardDescription className="text-xs font-semibold uppercase tracking-wide text-blue-700">
-              YTD Kilometres
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold tracking-tight text-slate-800">
-              {totalKm.toLocaleString("en-CA", { maximumFractionDigits: 0 })} km
-            </div>
-            <p className="mt-1 text-xs text-blue-600/80">
-              {totalKm >= THRESHOLD
-                ? `${THRESHOLD.toLocaleString()} @ $${RATE_FIRST} + ${(totalKm - THRESHOLD).toLocaleString()} @ $${RATE_BEYOND}`
-                : `${(THRESHOLD - totalKm).toLocaleString()} km left at $${RATE_FIRST}/km`}
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="rounded-2xl border border-emerald-200 bg-emerald-50/70 shadow-sm">
-          <CardHeader className="pb-2">
-            <CardDescription className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
-              Est. Deduction
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold tracking-tight text-emerald-700">
-              {fmtCurrency(totalDeduction)}
-            </div>
-            <p className="mt-1 text-xs text-emerald-600/80">Planning estimate at CRA allowance rates</p>
-          </CardContent>
-        </Card>
-
-        <Card className="rounded-2xl border border-slate-200 bg-slate-50/70 shadow-sm">
-          <CardHeader className="pb-2">
-            <CardDescription className="text-xs font-semibold uppercase tracking-wide text-slate-600">
-              Trips Logged
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold tracking-tight text-slate-800">{logs.length}</div>
-            <p className="mt-1 text-xs text-muted-foreground">
-              {logs.length > 0
-                ? `${(totalKm / logs.length).toFixed(1)} km avg per trip`
-                : "No trips yet"}
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="rounded-2xl border border-violet-200 bg-violet-50/70 shadow-sm">
-          <CardHeader className="pb-2">
-            <CardDescription className="text-xs font-semibold uppercase tracking-wide text-violet-700">
-              Projected Annual
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold tracking-tight text-slate-800">
-              {Math.round(projectedKm).toLocaleString()} km
-            </div>
-            <p className="mt-1 text-xs text-violet-600/80">At current pace · {year}</p>
-          </CardContent>
-        </Card>
-      </div>
+      {/* KPI strip — cockpit instrument header (replaces the pale-tinted KPI cards) */}
+      <KpiStrip cols={4} label="Mileage">
+        {/* YTD Kilometres — neutral magnitude count */}
+        <CockpitStat
+          label="YTD Kilometres"
+          value={`${totalKm.toLocaleString("en-CA", { maximumFractionDigits: 0 })} km`}
+          sub={
+            totalKm >= THRESHOLD
+              ? `${THRESHOLD.toLocaleString()} @ $${RATE_FIRST} + ${(totalKm - THRESHOLD).toLocaleString()} @ $${RATE_BEYOND}`
+              : `${(THRESHOLD - totalKm).toLocaleString()} km left at $${RATE_FIRST}/km`
+          }
+        />
+        {/* Est. Deduction — §9.1 strong (money saved) */}
+        <CockpitStat
+          label="Est. Deduction"
+          value={fmtCurrency(totalDeduction)}
+          color={SEMANTIC.strong}
+          sub="Planning estimate at CRA rates"
+        />
+        {/* Trips Logged — neutral count */}
+        <CockpitStat
+          label="Trips Logged"
+          value={logs.length}
+          sub={logs.length > 0 ? `${(totalKm / logs.length).toFixed(1)} km avg per trip` : "No trips yet"}
+        />
+        {/* Projected Annual — forecast, §9.1 on-track blue (not violet-as-magnitude) */}
+        <CockpitStat
+          label="Projected Annual"
+          value={`${Math.round(projectedKm).toLocaleString()} km`}
+          color={SEMANTIC.onTrack}
+          sub={`At current pace · ${year}`}
+        />
+      </KpiStrip>
 
       {/* Rate breakdown card */}
       {rateBreakdown.firstKm > 0 && (
@@ -268,24 +238,24 @@ export function ExpensesMileageTab({ mileageLogs, year, settings }: Props) {
             <div className="flex items-center gap-2">
               <span className="inline-block h-2 w-2 rounded-full bg-blue-500" />
               <span className="text-sm">
-                <span className="font-semibold text-blue-700">{rateBreakdown.firstKm.toLocaleString()} km</span>
+                <span className="font-semibold text-blue-700 tabular-nums">{rateBreakdown.firstKm.toLocaleString()} km</span>
                 <span className="text-muted-foreground"> @ ${RATE_FIRST}/km = </span>
-                <span className="font-semibold">{fmtCurrency(rateBreakdown.firstKm * RATE_FIRST)}</span>
+                <span className="font-semibold tabular-nums">{fmtCurrency(rateBreakdown.firstKm * RATE_FIRST)}</span>
               </span>
             </div>
             {rateBreakdown.beyondKm > 0 && (
               <div className="flex items-center gap-2">
-                <span className="inline-block h-2 w-2 rounded-full bg-violet-400" />
+                <span className="inline-block h-2 w-2 rounded-full bg-amber-400" />
                 <span className="text-sm">
-                  <span className="font-semibold text-violet-700">{rateBreakdown.beyondKm.toLocaleString()} km</span>
+                  <span className="font-semibold text-amber-700 tabular-nums">{rateBreakdown.beyondKm.toLocaleString()} km</span>
                   <span className="text-muted-foreground"> @ ${RATE_BEYOND}/km = </span>
-                  <span className="font-semibold">{fmtCurrency(rateBreakdown.beyondKm * RATE_BEYOND)}</span>
+                  <span className="font-semibold tabular-nums">{fmtCurrency(rateBreakdown.beyondKm * RATE_BEYOND)}</span>
                 </span>
               </div>
             )}
             <div className="ml-auto text-sm">
               <span className="text-muted-foreground">Total deduction: </span>
-              <span className="font-bold text-emerald-600">{fmtCurrency(totalDeduction)}</span>
+              <span className="font-bold text-emerald-600 tabular-nums">{fmtCurrency(totalDeduction)}</span>
             </div>
           </CardContent>
         </Card>
@@ -562,7 +532,7 @@ export function ExpensesMileageTab({ mileageLogs, year, settings }: Props) {
                       </TableCell>
                       <TableCell className={cn(
                         "text-right text-xs tabular-nums",
-                        Number(log.cra_rate_per_km) === RATE_FIRST ? "text-blue-600" : "text-violet-600",
+                        Number(log.cra_rate_per_km) === RATE_FIRST ? "text-blue-600" : "text-amber-600",
                       )}>
                         ${Number(log.cra_rate_per_km).toFixed(2)}
                       </TableCell>

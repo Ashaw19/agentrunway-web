@@ -39,6 +39,8 @@ import {
   ToggleLeft,
   ToggleRight,
   ImagePlus,
+  Smartphone,
+  Camera,
   X as XIcon,
 } from "lucide-react";
 import { Instagram, Facebook } from "@/components/icons/brand-icons";
@@ -895,7 +897,7 @@ export function SocialContent({ settings, transactions, connections }: Props) {
             <CardContent>
               {selectedTx.length === 0 ? (
                 <div className="flex flex-col items-center justify-center rounded-xl bg-slate-50 border border-dashed border-slate-200 aspect-square max-w-[400px] mx-auto gap-3 text-center p-8">
-                  <div className="text-4xl">📱</div>
+                  <Smartphone className="h-10 w-10 text-slate-400" />
                   <p className="text-sm font-medium text-slate-600">No deals selected</p>
                   <p className="text-xs text-muted-foreground">
                     Select deals in Post Setup to preview your carousel.
@@ -1092,7 +1094,7 @@ export function SocialContent({ settings, transactions, connections }: Props) {
                     size="lg"
                     onClick={handlePublish}
                     disabled={!selectedTx.length || publishing || publishResult?.success === true}
-                    className="shrink-0 gap-2 bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white"
+                    className="shrink-0 gap-2"
                   >
                     {publishing ? (
                       <><Loader2 className="h-4 w-4 animate-spin" />Publishing…</>
@@ -1145,13 +1147,13 @@ export function SocialContent({ settings, transactions, connections }: Props) {
           </Card>
 
           {/* Canva Export ────────────────────────────────────────────────── */}
-          <Card className="rounded-xl border-violet-200 bg-violet-50/30 shadow-sm">
+          <Card className="rounded-xl border-slate-200 bg-slate-50/50 shadow-sm">
             <CardContent className="pt-5">
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                 <div>
                   <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Canva Finishing Mode</div>
                   <div className="font-medium text-slate-900 text-sm flex items-center gap-2">
-                    <Package className="h-4 w-4 text-violet-500" />
+                    <Package className="h-4 w-4 text-slate-500" />
                     Export for Canva
                   </div>
                   <div className="text-xs text-slate-500 mt-0.5">
@@ -1165,12 +1167,12 @@ export function SocialContent({ settings, transactions, connections }: Props) {
                   size="sm"
                   onClick={handleCanvaExport}
                   disabled={!selectedTx.length || exporting}
-                  className="gap-2 shrink-0 border-violet-300 text-violet-700 hover:bg-violet-50"
+                  className="gap-2 shrink-0"
                 >
                   {exporting ? <><Loader2 className="h-4 w-4 animate-spin" />Exporting…</> : <><Package className="h-4 w-4" />Export for Canva</>}
                 </Button>
               </div>
-              <p className="text-xs text-slate-400 mt-3 border-t border-violet-100 pt-3">
+              <p className="text-xs text-slate-400 mt-3 border-t border-slate-100 pt-3">
                 Package includes all slide PNGs, your caption, structured content data, and a Canva finishing guide — for when you want full design control.
               </p>
             </CardContent>
@@ -1178,7 +1180,10 @@ export function SocialContent({ settings, transactions, connections }: Props) {
 
           {/* Tips ────────────────────────────────────────────────────────── */}
           <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/50 px-5 py-4 text-xs text-muted-foreground space-y-2">
-            <p className="font-semibold text-slate-700">📸 Tips for best results</p>
+            <p className="font-semibold text-slate-700 flex items-center gap-1.5">
+              <Camera className="h-3.5 w-3.5" />
+              Tips for best results
+            </p>
             <ul className="space-y-1 list-disc list-inside">
               <li>Post Tuesday–Thursday, 9–11am or 6–8pm for highest reach</li>
               <li>Add a property photo to each deal — click &ldquo;Add photo&rdquo; next to each listing</li>
