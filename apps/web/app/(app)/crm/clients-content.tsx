@@ -171,7 +171,7 @@ import { parseMoneyLoose } from "@/lib/import/normalizers/normalize-money";
 import { normalizeDateFormats } from "@/lib/import/normalizers/normalize-dates";
 import { WorkflowSuggestionsPanel } from "@/components/workflow-suggestions-panel";
 import { ClientConversationPanel } from "@/components/client-conversation-panel";
-import { CockpitStrip, CockpitStat, SEMANTIC, GOLD, magnitudePct } from "@/components/cockpit-ui";
+import { CockpitStrip, CockpitStat, ScoreDial, SEMANTIC, GOLD, magnitudePct } from "@/components/cockpit-ui";
 import type { SparkPoint } from "@/components/sparkline";
 
 // ── Props ─────────────────────────────────────────────────────────────────────
@@ -3948,79 +3948,55 @@ export function ClientsContent({
             </div>
           ) : (
             <div className="space-y-5">
-              {/* Hero KPI row */}
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                <Card className="rounded-2xl border-emerald-200 bg-gradient-to-br from-emerald-50 to-card shadow-sm">
-                  <CardContent className="pt-4 pb-3 px-4">
-                    <div className="flex items-center gap-1.5 mb-1">
-                      <Gem className="h-4 w-4 text-emerald-500" />
-                      <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                        Total Portfolio LGV
-                      </span>
-                    </div>
-                    <p className="text-2xl font-bold text-foreground tabular-nums">
-                      {fmtCurrency(valuationResult.totalLGV)}
-                    </p>
-                    <p className="text-[11px] text-muted-foreground mt-0.5">
-                      forward-looking lifetime value
-                    </p>
-                  </CardContent>
-                </Card>
-
-                <Card className="rounded-2xl border-blue-200 bg-gradient-to-br from-blue-50 to-card shadow-sm">
-                  <CardContent className="pt-4 pb-3 px-4">
-                    <div className="flex items-center gap-1.5 mb-1">
-                      <PieChart className="h-4 w-4 text-blue-500" />
-                      <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                        Top 12% → GCI
-                      </span>
-                    </div>
-                    <p className="text-2xl font-bold text-foreground tabular-nums">
-                      {valuationResult.top12PctGCI}%
-                    </p>
-                    <p className="text-[11px] text-muted-foreground mt-0.5">
-                      of total GCI from top clients
-                    </p>
-                  </CardContent>
-                </Card>
-
-                <Card className={cn(
-                  "rounded-2xl shadow-sm",
-                  valuationResult.portfolioHealth === "Concentrated" ? "border-amber-400" :
-                  valuationResult.portfolioHealth === "Balanced" ? "border-blue-400" : "border-emerald-400",
-                )}>
-                  <CardContent className="pt-4 pb-3 px-4">
-                    <div className="flex items-center gap-1.5 mb-1">
-                      <Shield className={cn(
-                        "h-4 w-4",
-                        valuationResult.portfolioHealth === "Concentrated" ? "text-amber-500" :
-                        valuationResult.portfolioHealth === "Balanced" ? "text-blue-500" : "text-emerald-500",
-                      )} />
-                      <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                        Portfolio Health
-                      </span>
-                    </div>
-                    <p className="text-2xl font-bold text-foreground">
-                      {valuationResult.portfolioHealth}
-                    </p>
-                    <p className="text-[11px] text-muted-foreground mt-0.5">
-                      {valuationResult.portfolioHealth === "Concentrated"
+              {/* Portfolio cockpit strip */}
+              <CockpitStrip className="px-5 py-4">
+                <div className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                  Portfolio
+                </div>
+                <div className="grid grid-cols-3 gap-5">
+                  <CockpitStat
+                    label="Total Portfolio LGV"
+                    value={fmtCurrency(valuationResult.totalLGV)}
+                    color={SEMANTIC.strong}
+                    icon={<Gem className="h-3.5 w-3.5" />}
+                    sub="forward-looking lifetime value"
+                  />
+                  <CockpitStat
+                    label="Top 12% → GCI"
+                    value={`${valuationResult.top12PctGCI}%`}
+                    color={SEMANTIC.onTrack}
+                    icon={<PieChart className="h-3.5 w-3.5" />}
+                    sub="from top clients"
+                  />
+                  <CockpitStat
+                    label="Portfolio Health"
+                    value={<span className="text-xl">{valuationResult.portfolioHealth}</span>}
+                    color={
+                      valuationResult.portfolioHealth === "Concentrated"
+                        ? SEMANTIC.watch
+                        : valuationResult.portfolioHealth === "Balanced"
+                        ? SEMANTIC.onTrack
+                        : SEMANTIC.strong
+                    }
+                    icon={<Shield className="h-3.5 w-3.5" />}
+                    sub={
+                      valuationResult.portfolioHealth === "Concentrated"
                         ? "high dependency on few clients"
                         : valuationResult.portfolioHealth === "Balanced"
                         ? "moderate client spread"
-                        : "well-distributed revenue"}
-                    </p>
-                  </CardContent>
-                </Card>
-              </div>
+                        : "well-distributed revenue"
+                    }
+                  />
+                </div>
+              </CockpitStrip>
 
               {/* Client valuation cards */}
               <div className="space-y-3">
                 <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  Client Valuations — sorted by composite score
+                  Client valuations — sorted by composite score
                 </p>
-                {valuationResult.valuations.map((v) => (
-                  <ValuationCard key={v.clientId ?? v.name} valuation={v} />
+                {valuationResult.valuations.map((v, i) => (
+                  <ValuationCard key={v.clientId ?? v.name} valuation={v} rank={i + 1} />
                 ))}
               </div>
             </div>
@@ -7181,16 +7157,28 @@ function _SummaryCard({
 
 // ── Valuation Card ──────────────────────────────────────────────────────────
 
-function ValuationCard({ valuation: v }: { valuation: ClientValuation }) {
+function ValuationCard({ valuation: v, rank }: { valuation: ClientValuation; rank: number }) {
   const tc = TIER_CONFIG[v.tier];
+  // §9.1 band for the 0–100 composite. Gold is reserved for the single #1 client
+  // (the top item the list is ranked by) — never every high scorer.
+  const isTop = rank === 1;
+  const scoreHex =
+    v.compositeScore >= 81 ? SEMANTIC.strong
+    : v.compositeScore >= 61 ? SEMANTIC.onTrack
+    : v.compositeScore >= 41 ? SEMANTIC.watch
+    : SEMANTIC.risk;
   return (
     <Card className="rounded-2xl shadow-sm hover:shadow-md transition-shadow">
       <CardContent className="pt-4 pb-3 px-4 space-y-3">
-        {/* Header: name + tier + score */}
+        {/* Header: rank + composite dial + name + tier + LGV */}
         <div className="flex items-center gap-2.5 min-w-0">
-          <div className="h-9 w-9 rounded-full bg-primary/10 text-primary flex items-center justify-center text-sm font-semibold shrink-0">
-            {v.name.charAt(0).toUpperCase()}
-          </div>
+          <span
+            className="text-[11px] font-bold tabular-nums w-4 text-center shrink-0"
+            style={{ color: isTop ? GOLD : "#94A3B8" }}
+          >
+            {rank}
+          </span>
+          <ScoreDial score={v.compositeScore} size={40} hex={scoreHex} isStrong={isTop} />
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
               <span className="text-sm font-semibold text-foreground truncate">
@@ -7204,11 +7192,14 @@ function ValuationCard({ valuation: v }: { valuation: ClientValuation }) {
               </Badge>
             </div>
             <p className="text-[11px] text-muted-foreground">
-              Score {v.compositeScore}/100 · Lifetime {fmtCurrency(v.lifetimeGCI)}
+              Lifetime {fmtCurrency(v.lifetimeGCI)} · composite {v.compositeScore}/100
             </p>
           </div>
           <div className="text-right shrink-0">
-            <p className="text-lg font-bold tabular-nums text-foreground">
+            <p
+              className={cn("text-lg font-bold tabular-nums", !isTop && "text-foreground")}
+              style={isTop ? { color: GOLD } : undefined}
+            >
               {fmtCurrency(v.lgv)}
             </p>
             <p className="text-[10px] text-muted-foreground">LGV</p>
@@ -7245,7 +7236,7 @@ function ValuationCard({ valuation: v }: { valuation: ClientValuation }) {
             icon={<Heart className="h-3 w-3" />}
             label="Health"
             value={`${v.healthContributionPct}%`}
-            color="rose"
+            color="red"
           />
         </div>
 
@@ -7279,14 +7270,14 @@ function MetricPill({
   icon: React.ReactNode;
   label: string;
   value: string;
-  color: "emerald" | "blue" | "violet" | "amber" | "rose";
+  color: "emerald" | "blue" | "violet" | "amber" | "red";
 }) {
   const styles: Record<string, string> = {
     emerald: "bg-emerald-50 text-emerald-700 border-emerald-200",
     blue:    "bg-blue-50 text-blue-700 border-blue-200",
     violet:  "bg-violet-50 text-violet-700 border-violet-200",
     amber:   "bg-amber-50 text-amber-700 border-amber-200",
-    rose:    "bg-rose-50 text-rose-700 border-rose-200",
+    red:     "bg-red-50 text-red-700 border-red-200",
   };
   return (
     <span

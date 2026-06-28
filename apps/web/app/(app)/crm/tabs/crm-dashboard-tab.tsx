@@ -354,13 +354,13 @@ export function CrmDashboardTab({
     <div className="space-y-6">
       {/* ── Intelligence Briefing ─────────────────────────────────────── */}
       {briefing.totalCount > 0 && (
-        <Card className="rounded-2xl border-violet-200 bg-violet-50/60 shadow-sm">
+        <Card className="rounded-2xl border shadow-sm">
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Sparkles className="h-4 w-4 text-violet-500" />
-                <CardTitle className="text-sm font-semibold text-violet-900">
-                  Today&apos;s Briefing
+                <CardTitle className="text-sm font-semibold text-foreground">
+                  Today&apos;s briefing
                 </CardTitle>
                 <div className="flex items-center gap-1.5 ml-1">
                   {visibleItems.filter((i) => i.severity === "urgent").length > 0 && (
