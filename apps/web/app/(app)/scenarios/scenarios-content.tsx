@@ -10,7 +10,14 @@ import { survivalResult } from "@/lib/engines/survival-engine";
 import { buildHealthReport } from "@/lib/engines/health-report";
 import { compute as computeRunwayScore } from "@/lib/engines/runway-score-engine";
 import { seasonalFractionElapsed } from "@/lib/engines/projection-engine";
-import { fmtCurrency, fmtPct } from "@/lib/formatters";
+import { fmtCurrency, fmtCompact, fmtPct } from "@/lib/formatters";
+import {
+  KpiStrip,
+  CockpitStat,
+  ScoreDial,
+  scoreBand,
+  SEMANTIC,
+} from "@/components/cockpit-ui";
 import {
   SlidersHorizontal,
   TrendingUp,
@@ -19,6 +26,9 @@ import {
   Info,
   ChevronDown,
   ChevronUp,
+  DollarSign,
+  Receipt,
+  Wallet,
 } from "lucide-react";
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -41,14 +51,6 @@ function DeltaIcon({ delta, inverted = false }: { delta: number; inverted?: bool
   if (positive) return <TrendingUp className="h-3.5 w-3.5" />;
   if (negative) return <TrendingDown className="h-3.5 w-3.5" />;
   return <Minus className="h-3.5 w-3.5" />;
-}
-
-function gradeColor(grade: string) {
-  if (grade.startsWith("A")) return "text-emerald-600";
-  if (grade === "B") return "text-blue-500";
-  if (grade === "C") return "text-amber-500";
-  if (grade === "D") return "text-orange-500";
-  return "text-red-500";
 }
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -350,13 +352,55 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-slate-800 flex items-center gap-2">
-          <SlidersHorizontal className="h-6 w-6 text-violet-500" />
+          <SlidersHorizontal className="h-6 w-6 text-slate-400" />
           Scenario Engine
         </h1>
         <p className="mt-1 text-sm text-slate-500">
           Adjust inputs to see how changes affect your tax burden, net income, and runway score.
         </p>
       </div>
+
+      {/* Projection cockpit strip — your current-state anchors */}
+      <KpiStrip cols={4} label="Your projection">
+        <CockpitStat
+          label="Projected GCI"
+          value={fmtCompact(seed.projectedAnnualGCI)}
+          color={SEMANTIC.strong}
+          icon={<DollarSign className="h-3.5 w-3.5" />}
+        />
+        <CockpitStat
+          label="Take-Home"
+          value={fmtCompact(current.netIncome)}
+          color={SEMANTIC.strong}
+          icon={<Wallet className="h-3.5 w-3.5" />}
+        />
+        <CockpitStat
+          label="Tax Owed"
+          value={fmtCompact(current.taxOwed)}
+          color={SEMANTIC.watch}
+          icon={<Receipt className="h-3.5 w-3.5" />}
+          sub={`${fmtPct(current.effectiveRate)} effective`}
+        />
+        <div className="flex items-center gap-3 min-w-0">
+          <ScoreDial
+            score={current.runwayScore}
+            size={48}
+            hex={scoreBand(current.runwayScore).hex}
+            isStrong={scoreBand(current.runwayScore).isStrong}
+            numberColor="#F8FAFC"
+          />
+          <div className="min-w-0">
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+              Runway Score
+            </div>
+            <div className="mt-0.5 text-[11px] text-slate-500 tabular-nums">
+              {current.survivalMonths >= 24
+                ? "24+ mo cash runway"
+                : `${current.survivalMonths.toFixed(1)} mo cash runway`}
+            </div>
+          </div>
+        </div>
+      </KpiStrip>
 
       {/* Trust indicator */}
       <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
@@ -394,7 +438,7 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
                 step={gciStep}
                 value={scenarioGCI}
                 onChange={(e) => setScenarioGCI(Number(e.target.value))}
-                className="w-full accent-violet-500"
+                className="w-full accent-slate-600"
               />
               <div className="flex justify-between text-[10px] text-slate-400">
                 <span>{fmtCurrency(gciMin)}</span>
@@ -442,7 +486,7 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
                   step={500}
                   value={scenarioRRSP}
                   onChange={(e) => setScenarioRRSP(clamp(Number(e.target.value), 0, 100_000))}
-                  className="w-full rounded-lg border border-slate-300 bg-white py-2 pl-7 pr-3 text-sm text-slate-800 tabular-nums placeholder:text-slate-400 focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500"
+                  className="w-full rounded-lg border border-slate-300 bg-white py-2 pl-7 pr-3 text-sm text-slate-800 tabular-nums placeholder:text-slate-400 focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-400"
                 />
               </div>
             </div>
@@ -457,7 +501,7 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
                   onClick={() => setScenarioIncorporated(false)}
                   className={`rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
                     !scenarioIncorporated
-                      ? "border-violet-500 bg-violet-50 text-violet-600"
+                      ? "border-blue-500 bg-blue-50 text-blue-600"
                       : "border-slate-300 bg-white text-slate-500 hover:text-slate-700"
                   }`}
                 >
@@ -468,7 +512,7 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
                   onClick={() => setScenarioIncorporated(true)}
                   className={`rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
                     scenarioIncorporated
-                      ? "border-violet-500 bg-violet-50 text-violet-600"
+                      ? "border-blue-500 bg-blue-50 text-blue-600"
                       : "border-slate-300 bg-white text-slate-500 hover:text-slate-700"
                   }`}
                 >
@@ -492,7 +536,7 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
                       onClick={() => setScenarioCompMethod(method)}
                       className={`rounded-lg border px-2 py-2 text-xs font-medium capitalize transition-colors ${
                         scenarioCompMethod === method
-                          ? "border-violet-500 bg-violet-50 text-violet-600"
+                          ? "border-blue-500 bg-blue-50 text-blue-600"
                           : "border-slate-300 bg-white text-slate-500 hover:text-slate-700"
                       }`}
                     >
@@ -540,7 +584,7 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
                           clamp(Number(e.target.value), 0, 50_000),
                         )
                       }
-                      className="w-full rounded-lg border border-slate-300 bg-white py-2 pl-7 pr-3 text-sm text-slate-800 tabular-nums placeholder:text-slate-400 focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500"
+                      className="w-full rounded-lg border border-slate-300 bg-white py-2 pl-7 pr-3 text-sm text-slate-800 tabular-nums placeholder:text-slate-400 focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-400"
                     />
                   </div>
                 </div>
@@ -564,7 +608,7 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
                           clamp(Number(e.target.value), 0, 1_000_000),
                         )
                       }
-                      className="w-full rounded-lg border border-slate-300 bg-white py-2 pl-7 pr-3 text-sm text-slate-800 tabular-nums placeholder:text-slate-400 focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500"
+                      className="w-full rounded-lg border border-slate-300 bg-white py-2 pl-7 pr-3 text-sm text-slate-800 tabular-nums placeholder:text-slate-400 focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-400"
                     />
                   </div>
                 </div>
@@ -585,7 +629,7 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
                         clamp(Number(e.target.value), 0, 168),
                       )
                     }
-                    className="w-full rounded-lg border border-slate-300 bg-white py-2 px-3 text-sm text-slate-800 tabular-nums placeholder:text-slate-400 focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500"
+                    className="w-full rounded-lg border border-slate-300 bg-white py-2 px-3 text-sm text-slate-800 tabular-nums placeholder:text-slate-400 focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-400"
                   />
                 </div>
               </div>
@@ -655,7 +699,7 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
                     label="Runway Score"
                     value={`${current.runwayScore}`}
                     badge={current.runwayGrade}
-                    badgeColor={gradeColor(current.runwayGrade)}
+                    badgeHex={scoreBand(current.runwayScore).hex}
                   />
                   <MetricRow
                     label="Cash Runway"
@@ -683,12 +727,12 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
             </div>
 
             {/* Scenario Column */}
-            <div className="rounded-xl border border-violet-200 bg-violet-50/50 shadow-sm p-5">
+            <div className="rounded-xl border border-slate-300 bg-slate-50 shadow-sm p-5">
               <div className="mb-4">
-                <h3 className="text-xs font-semibold uppercase tracking-wider text-violet-600">
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-600">
                   What If
                 </h3>
-                <p className="mt-0.5 text-[10px] text-violet-400">Hypothetical — does not change your data</p>
+                <p className="mt-0.5 text-[10px] text-slate-400">Hypothetical — does not change your data</p>
               </div>
               <div className="space-y-1">
                 {/* Primary metrics — larger */}
@@ -713,7 +757,7 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
                     label="Runway Score"
                     value={`${scenario.runwayScore}`}
                     badge={scenario.runwayGrade}
-                    badgeColor={gradeColor(scenario.runwayGrade)}
+                    badgeHex={scoreBand(scenario.runwayScore).hex}
                   />
                   <MetricRow
                     label="Cash Runway"
@@ -845,12 +889,13 @@ function MetricRow({
   label,
   value,
   badge,
-  badgeColor,
+  badgeHex,
 }: {
   label: string;
   value: string;
   badge?: string;
-  badgeColor?: string;
+  /** §9.1 band hex for the grade glyph — from scoreBand(score).hex. */
+  badgeHex?: string;
 }) {
   return (
     <div className="flex items-center justify-between">
@@ -858,7 +903,10 @@ function MetricRow({
       <span className="flex items-center gap-2 text-sm font-semibold text-slate-800 tabular-nums">
         {value}
         {badge && (
-          <span className={`text-xs font-bold ${badgeColor ?? "text-slate-400"}`}>
+          <span
+            className="text-xs font-bold"
+            style={{ color: badgeHex ?? "#94A3B8" }}
+          >
             {badge}
           </span>
         )}
@@ -901,7 +949,7 @@ function QuickButton({ label, onClick }: { label: string; onClick: () => void })
     <button
       type="button"
       onClick={onClick}
-      className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-violet-50 hover:border-violet-300 hover:text-violet-600 transition-colors"
+      className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-600 transition-colors"
     >
       {label}
     </button>

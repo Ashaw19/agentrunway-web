@@ -20,7 +20,6 @@ import {
   TrendingUp,
   Target,
   BarChart3,
-  ArrowRight,
   Plus,
   Trash2,
 } from "lucide-react";
@@ -54,16 +53,31 @@ import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import type { ListingAppointment, ClientStatus } from "@/lib/types/database";
 import { CLIENT_STATUS_LABELS, CLIENT_STATUS_COLORS } from "@/lib/types/database";
+import {
+  KpiStrip,
+  CockpitStat,
+  ScoreDial,
+  Chip,
+  scoreBand,
+  magnitudePct,
+  SEMANTIC,
+  GOLD,
+  type ChipColor,
+} from "@/components/cockpit-ui";
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 
-const STAGE_BADGE_COLORS: Record<UnifiedStage, string> = {
-  pre_qualifying: "bg-slate-100 text-slate-600 border-slate-200",
-  active:         "bg-blue-50 text-blue-600 border-blue-200",
-  offer:          "bg-indigo-50 text-indigo-600 border-indigo-200",
-  conditional:    "bg-violet-50 text-violet-600 border-violet-200",
-  firm:           "bg-emerald-50 text-emerald-600 border-emerald-200",
-  closed:         "bg-green-50 text-green-600 border-green-200",
+// Pipeline stage is a magnitude/progression axis (deal advancing toward close),
+// NOT the client-lifecycle axis — so it maps to the §9.1 progression
+// (slate → blue → amber → emerald), with firm/closed reading as the strong
+// emerald/gold "landed" end. Re-mapped off the old indigo/violet hand-picks.
+const STAGE_CHIP_COLORS: Record<UnifiedStage, ChipColor> = {
+  pre_qualifying: { bg: "bg-slate-100",   text: "text-slate-600",   border: "border-slate-200",   dot: "bg-slate-400" },
+  active:         { bg: "bg-blue-50",     text: "text-blue-600",     border: "border-blue-200",     dot: "bg-blue-500" },
+  offer:          { bg: "bg-amber-50",    text: "text-amber-600",    border: "border-amber-200",    dot: "bg-amber-500" },
+  conditional:    { bg: "bg-amber-50",    text: "text-amber-700",    border: "border-amber-200",    dot: "bg-amber-600" },
+  firm:           { bg: "bg-emerald-50",  text: "text-emerald-600",  border: "border-emerald-200",  dot: "bg-emerald-500" },
+  closed:         { bg: "bg-emerald-50",  text: "text-emerald-700",  border: "border-emerald-300",  dot: "bg-emerald-600" },
 };
 
 const STAGE_LABELS: Record<UnifiedStage, string> = {
@@ -75,11 +89,13 @@ const STAGE_LABELS: Record<UnifiedStage, string> = {
   closed:         "Closed",
 };
 
+// Source is an IDENTITY axis (which kind of pipeline item), not health — so
+// the icons are neutral slate instrument chrome; the glyph alone carries meaning.
 function sourceIcon(source: "deal" | "listing" | "buyer") {
   switch (source) {
-    case "deal":    return <Layers className="h-4 w-4 text-cyan-500" />;
-    case "listing": return <Home className="h-4 w-4 text-amber-500" />;
-    case "buyer":   return <User className="h-4 w-4 text-teal-500" />;
+    case "deal":    return <Layers className="h-4 w-4 text-slate-500" />;
+    case "listing": return <Home className="h-4 w-4 text-slate-500" />;
+    case "buyer":   return <User className="h-4 w-4 text-slate-500" />;
   }
 }
 
@@ -98,14 +114,8 @@ function sideBadge(side: "buy" | "sell" | "both") {
     case "sell":
       return <span className="inline-flex items-center rounded-md border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[11px] font-medium text-amber-600">Sell</span>;
     case "both":
-      return <span className="inline-flex items-center rounded-md border border-violet-200 bg-violet-50 px-1.5 py-0.5 text-[11px] font-medium text-violet-600">Both</span>;
+      return <span className="inline-flex items-center rounded-md border border-slate-200 bg-slate-100 px-1.5 py-0.5 text-[11px] font-medium text-slate-600">Both</span>;
   }
-}
-
-function accuracyColor(score: number): string {
-  if (score >= 80) return "text-emerald-600";
-  if (score >= 60) return "text-amber-500";
-  return "text-red-500";
 }
 
 function formatDate(iso: string | null): string {
@@ -340,49 +350,62 @@ export function PipelineContent({ seed }: { seed: PipelineSeedData }) {
         </div>
       ) : null}
 
-      {/* ── Summary Strip ───────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-        <SummaryCard
+      {/* ── Summary Strip — one cockpit instrument header ─────────────── */}
+      <KpiStrip label="Pipeline" cols={4}>
+        {/* GOLD reserved for the single headline figure. */}
+        <CockpitStat
           label="Total Weighted GCI"
           value={fmtCurrency(result.totalWeightedGCI)}
-          icon={<TrendingUp className="h-4 w-4 text-cyan-500" />}
-          primary
+          color={GOLD}
+          icon={<TrendingUp className="h-3.5 w-3.5" />}
         />
-        <SummaryCard
+        <CockpitStat
           label="Pipeline Deals"
-          value={String(result.dealCount)}
-          subValue={fmtCurrency(result.dealWeightedGCI)}
-          icon={<Layers className="h-4 w-4 text-cyan-500" />}
+          value={result.dealCount}
+          sub={fmtCurrency(result.dealWeightedGCI)}
+          color="#F8FAFC"
+          icon={<Layers className="h-3.5 w-3.5" />}
         />
-        <SummaryCard
+        <CockpitStat
           label="Active Listings"
-          value={String(result.listingCount)}
-          subValue={fmtCurrency(result.listingWeightedGCI)}
-          icon={<Home className="h-4 w-4 text-amber-500" />}
+          value={result.listingCount}
+          sub={fmtCurrency(result.listingWeightedGCI)}
+          color="#F8FAFC"
+          icon={<Home className="h-3.5 w-3.5" />}
         />
-        <SummaryCard
+        <CockpitStat
           label="Tracked Buyers"
-          value={String(result.buyerCount)}
-          subValue={fmtCurrency(result.buyerWeightedGCI)}
-          icon={<User className="h-4 w-4 text-teal-500" />}
+          value={result.buyerCount}
+          sub={fmtCurrency(result.buyerWeightedGCI)}
+          color="#F8FAFC"
+          icon={<User className="h-3.5 w-3.5" />}
         />
         {result.accuracy.overallScore != null ? (
-          <SummaryCard
+          <CockpitStat
             label="Forecast Accuracy"
-            value={`${result.accuracy.overallScore}%`}
-            subValue={`${result.accuracy.sampleSize} closed`}
-            icon={<Target className="h-4 w-4 text-violet-500" />}
-            valueClassName={accuracyColor(result.accuracy.overallScore)}
+            value={
+              <div className="flex items-center gap-2">
+                <ScoreDial
+                  score={result.accuracy.overallScore}
+                  hex={scoreBand(result.accuracy.overallScore).hex}
+                  isStrong={scoreBand(result.accuracy.overallScore).isStrong}
+                  numberColor="#F8FAFC"
+                />
+              </div>
+            }
+            sub={`${result.accuracy.sampleSize} closed`}
+            icon={<Target className="h-3.5 w-3.5" />}
           />
         ) : (
-          <SummaryCard
+          <CockpitStat
             label="Forecast Accuracy"
             value="—"
-            subValue="Not enough data"
-            icon={<Target className="h-4 w-4 text-slate-500" />}
+            sub="Not enough data"
+            color={SEMANTIC.none}
+            icon={<Target className="h-3.5 w-3.5" />}
           />
         )}
-      </div>
+      </KpiStrip>
 
       {/* ── Pipeline Table ──────────────────────────────────────────── */}
       <div className="rounded-xl border border-border bg-card">
@@ -589,50 +612,6 @@ export function PipelineContent({ seed }: { seed: PipelineSeedData }) {
 
 // ── Sub-components ────────────────────────────────────────────────────────
 
-function SummaryCard({
-  label,
-  value,
-  subValue,
-  icon,
-  primary,
-  valueClassName,
-}: {
-  label: string;
-  value: string;
-  subValue?: string;
-  icon: React.ReactNode;
-  primary?: boolean;
-  valueClassName?: string;
-}) {
-  return (
-    <div
-      className={cn(
-        "rounded-xl border border-border bg-card px-4 py-3 shadow-sm",
-        primary && "lg:col-span-1",
-      )}
-    >
-      <div className="flex items-center gap-2 mb-2">
-        {icon}
-        <span className="text-xs font-medium text-muted-foreground">
-          {label}
-        </span>
-      </div>
-      <p
-        className={cn(
-          "text-lg font-bold tracking-tight text-foreground",
-          primary && "text-xl",
-          valueClassName,
-        )}
-      >
-        {value}
-      </p>
-      {subValue && (
-        <p className="mt-0.5 text-xs text-muted-foreground">{subValue}</p>
-      )}
-    </div>
-  );
-}
-
 function PipelineRow({
   item,
   onEditListing,
@@ -648,8 +627,8 @@ function PipelineRow({
   onBuyerStatusChange?: (newStatus: ClientStatus) => void;
   savingStatus?: boolean;
 }) {
-  const stageColor =
-    STAGE_BADGE_COLORS[item.unifiedStage] ?? STAGE_BADGE_COLORS.pre_qualifying;
+  const stageChipColor =
+    STAGE_CHIP_COLORS[item.unifiedStage] ?? STAGE_CHIP_COLORS.pre_qualifying;
   const stageLabel =
     STAGE_LABELS[item.unifiedStage] ?? item.stage;
 
@@ -719,14 +698,7 @@ function PipelineRow({
             </SelectContent>
           </Select>
         ) : (
-          <span
-            className={cn(
-              "inline-flex items-center rounded-md border px-1.5 py-0.5 text-[11px] font-medium",
-              stageColor,
-            )}
-          >
-            {stageLabel}
-          </span>
+          <Chip color={stageChipColor}>{stageLabel}</Chip>
         )}
       </TableCell>
       <TableCell>{sideBadge(item.side)}</TableCell>
@@ -778,7 +750,7 @@ function AccuracyCard({
     return (
       <div className="rounded-xl border border-border bg-card p-6">
         <div className="flex items-center gap-2 mb-4">
-          <Target className="h-5 w-5 text-violet-500" />
+          <Target className="h-5 w-5 text-slate-500" />
           <h3 className="text-sm font-semibold text-foreground">
             Forecast Accuracy
           </h3>
@@ -790,24 +762,24 @@ function AccuracyCard({
     );
   }
 
+  const band = scoreBand(accuracy.overallScore);
+
   return (
     <div className="rounded-xl border border-border bg-card p-6">
       <div className="flex items-center gap-2 mb-4">
-        <Target className="h-5 w-5 text-violet-500" />
+        <Target className="h-5 w-5 text-slate-500" />
         <h3 className="text-sm font-semibold text-foreground">
           Forecast Accuracy
         </h3>
       </div>
 
-      <div className="flex items-baseline gap-3 mb-4">
-        <span
-          className={cn(
-            "text-4xl font-bold tracking-tight",
-            accuracyColor(accuracy.overallScore),
-          )}
-        >
-          {accuracy.overallScore}%
-        </span>
+      <div className="flex items-center gap-3 mb-4">
+        <ScoreDial
+          score={accuracy.overallScore}
+          size={64}
+          hex={band.hex}
+          isStrong={band.isStrong}
+        />
         <span className="text-sm text-muted-foreground">
           Based on {accuracy.sampleSize} closed deal
           {accuracy.sampleSize !== 1 ? "s" : ""}
@@ -838,13 +810,26 @@ function AccuracyCard({
   );
 }
 
+// §9.1 progression for the funnel stages: slate (entry) → blue (advancing) →
+// emerald (near-close). The bar fill is magnitude-scaled against the widest
+// stage so attrition reads as a descending instrument, like the insights funnel.
+const FUNNEL_BAR_COLORS = [
+  SEMANTIC.none,    // slate — earliest / widest stage
+  SEMANTIC.onTrack, // blue
+  SEMANTIC.onTrack, // blue
+  SEMANTIC.strong,  // emerald — closest to landing
+  SEMANTIC.strong,  // emerald
+];
+
 function FunnelCard({ funnel }: { funnel: FunnelStep[] }) {
   const hasData = funnel.some((s) => s.count > 0);
+  const steps = funnel.filter((step) => step.stage !== "closed");
+  const maxCount = Math.max(...steps.map((s) => s.count), 1);
 
   return (
     <div className="rounded-xl border border-border bg-card p-6">
       <div className="flex items-center gap-2 mb-4">
-        <BarChart3 className="h-5 w-5 text-cyan-500" />
+        <BarChart3 className="h-5 w-5 text-slate-500" />
         <h3 className="text-sm font-semibold text-foreground">
           Conversion Funnel
         </h3>
@@ -855,34 +840,38 @@ function FunnelCard({ funnel }: { funnel: FunnelStep[] }) {
           Conversion data will appear as deals move through stages.
         </p>
       ) : (
-        <div className="flex items-center gap-1 flex-wrap">
-          {funnel
-            .filter((step) => step.stage !== "closed")
-            .map((step, i, arr) => (
-              <div key={step.stage} className="flex items-center gap-1">
-                <div className="flex flex-col items-center">
+        <div className="space-y-2.5">
+          {steps.map((step, i) => {
+            const barColor = FUNNEL_BAR_COLORS[Math.min(i, FUNNEL_BAR_COLORS.length - 1)];
+            return (
+              <div key={step.stage} className="space-y-1">
+                <div className="flex items-center justify-between">
                   <span className="text-xs font-medium text-muted-foreground capitalize">
                     {step.stage}
                   </span>
-                  <span className="text-lg font-bold text-foreground tabular-nums">
-                    {step.count}
-                  </span>
-                </div>
-                {i < arr.length - 1 && (
-                  <div className="flex flex-col items-center mx-1.5">
-                    <span className="text-[10px] text-muted-foreground tabular-nums mb-0.5">
-                      {step.conversionRate != null && i > 0
-                        ? ""
-                        : ""}
-                      {arr[i + 1].conversionRate != null
-                        ? fmtPct(arr[i + 1].conversionRate!)
-                        : ""}
+                  <div className="flex items-center gap-2 shrink-0">
+                    {step.conversionRate != null && (
+                      <span className="text-[10px] text-muted-foreground tabular-nums">
+                        {fmtPct(step.conversionRate)} from prev
+                      </span>
+                    )}
+                    <span className="text-sm font-bold text-foreground tabular-nums">
+                      {step.count}
                     </span>
-                    <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/50" />
                   </div>
-                )}
+                </div>
+                <div className="h-2 rounded-full bg-slate-200 overflow-hidden">
+                  <div
+                    className="h-full rounded-full"
+                    style={{
+                      width: `${Math.max(magnitudePct(step.count, maxCount), 2)}%`,
+                      background: barColor,
+                    }}
+                  />
+                </div>
               </div>
-            ))}
+            );
+          })}
         </div>
       )}
     </div>

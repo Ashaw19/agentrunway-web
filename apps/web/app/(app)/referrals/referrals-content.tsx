@@ -8,9 +8,7 @@ import {
   Search,
   DollarSign,
   Users,
-  CheckCircle2,
   Clock,
-  XCircle,
   Trash2,
   Lock,
 } from "lucide-react";
@@ -36,6 +34,13 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { fmtCurrency } from "@/lib/formatters";
+import {
+  KpiStrip,
+  CockpitStat,
+  Chip,
+  SEMANTIC,
+  type ChipColor,
+} from "@/components/cockpit-ui";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import Link from "next/link";
@@ -84,36 +89,81 @@ interface Props {
 type StatusFilter = "all" | Referral["status"];
 type DirectionFilter = "all" | "inbound" | "outbound";
 
+// Referral status pills — on-system §9.1 ChipColor hues (no icon; the Chip
+// primitive carries a leading LED dot). pending=amber (building/watch),
+// active=blue (on track), closed=emerald (earned), expired/cancelled=neutral
+// slate / red (at-risk).
 const STATUS_CONFIG: Record<
   Referral["status"],
-  { label: string; color: string; icon: React.ElementType }
+  { label: string; chip: ChipColor }
 > = {
   pending: {
     label: "Pending",
-    color: "bg-amber-100 text-amber-700",
-    icon: Clock,
+    chip: {
+      bg: "bg-amber-50",
+      text: "text-amber-700",
+      border: "border-amber-200",
+      dot: "bg-amber-500",
+    },
   },
   active: {
     label: "Active",
-    color: "bg-blue-100 text-blue-700",
-    icon: Users,
+    chip: {
+      bg: "bg-blue-50",
+      text: "text-blue-700",
+      border: "border-blue-200",
+      dot: "bg-blue-500",
+    },
   },
   closed: {
     label: "Closed",
-    color: "bg-emerald-100 text-emerald-700",
-    icon: CheckCircle2,
+    chip: {
+      bg: "bg-emerald-50",
+      text: "text-emerald-700",
+      border: "border-emerald-200",
+      dot: "bg-emerald-500",
+    },
   },
   expired: {
     label: "Expired",
-    color: "bg-slate-100 text-slate-500",
-    icon: XCircle,
+    chip: {
+      bg: "bg-slate-100",
+      text: "text-slate-500",
+      border: "border-slate-200",
+      dot: "bg-slate-400",
+    },
   },
   cancelled: {
     label: "Cancelled",
-    color: "bg-red-100 text-red-600",
-    icon: XCircle,
+    chip: {
+      bg: "bg-red-50",
+      text: "text-red-600",
+      border: "border-red-200",
+      dot: "bg-red-500",
+    },
   },
 };
+
+// Direction is a 2-way categorical (not a §9.1 health axis). Use the codebase's
+// canonical FlightLog direction pair — outbound blue / inbound emerald — so the
+// non-colliding categorical hues read the same everywhere. (Replaces the prior
+// inbound-blue / outbound-violet, which broke the §9.1 no-violet rule.)
+const DIRECTION_CONFIG = {
+  inbound: {
+    label: "Inbound",
+    icon: ArrowDownLeft,
+    iconBg: "bg-emerald-50",
+    iconText: "text-emerald-600",
+    selected: "border-emerald-300 bg-emerald-50 text-emerald-700",
+  },
+  outbound: {
+    label: "Outbound",
+    icon: ArrowUpRight,
+    iconBg: "bg-blue-50",
+    iconText: "text-blue-600",
+    selected: "border-blue-300 bg-blue-50 text-blue-700",
+  },
+} as const;
 
 // ── Empty form state ─────────────────────────────────────────────────────────
 
@@ -385,45 +435,33 @@ export function ReferralsContent({
         </Button>
       </div>
 
-      {/* KPI Cards */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="flex items-center gap-3 rounded-xl border border-blue-200 bg-blue-50/60 px-4 py-3">
-          <div className="rounded-lg bg-blue-100 p-1.5">
-            <ArrowDownLeft className="h-3.5 w-3.5 text-blue-600" />
-          </div>
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-blue-600">Inbound</p>
-            <p className="text-lg font-bold text-slate-800">{kpis.inbound}</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-3 rounded-xl border border-violet-200 bg-violet-50/60 px-4 py-3">
-          <div className="rounded-lg bg-violet-100 p-1.5">
-            <ArrowUpRight className="h-3.5 w-3.5 text-violet-600" />
-          </div>
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-violet-600">Outbound</p>
-            <p className="text-lg font-bold text-slate-800">{kpis.outbound}</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50/60 px-4 py-3">
-          <div className="rounded-lg bg-emerald-100 p-1.5">
-            <DollarSign className="h-3.5 w-3.5 text-emerald-600" />
-          </div>
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-600">Fees Earned</p>
-            <p className="text-lg font-bold text-slate-800">{fmtCurrency(kpis.totalFeesEarned)}</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50/60 px-4 py-3">
-          <div className="rounded-lg bg-amber-100 p-1.5">
-            <Clock className="h-3.5 w-3.5 text-amber-600" />
-          </div>
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-amber-600">Pending / Active</p>
-            <p className="text-lg font-bold text-slate-800">{kpis.pending + kpis.active}</p>
-          </div>
-        </div>
-      </div>
+      {/* KPI cockpit strip */}
+      <KpiStrip cols={4} label="Referral activity">
+        <CockpitStat
+          label="Inbound"
+          value={kpis.inbound}
+          color={SEMANTIC.strong}
+          icon={<ArrowDownLeft className="h-3.5 w-3.5" />}
+        />
+        <CockpitStat
+          label="Outbound"
+          value={kpis.outbound}
+          color={SEMANTIC.onTrack}
+          icon={<ArrowUpRight className="h-3.5 w-3.5" />}
+        />
+        <CockpitStat
+          label="Fees Earned"
+          value={fmtCurrency(kpis.totalFeesEarned)}
+          color={SEMANTIC.strong}
+          icon={<DollarSign className="h-3.5 w-3.5" />}
+        />
+        <CockpitStat
+          label="Pending / Active"
+          value={kpis.pending + kpis.active}
+          color={SEMANTIC.watch}
+          icon={<Clock className="h-3.5 w-3.5" />}
+        />
+      </KpiStrip>
 
       {/* Filters */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -481,7 +519,8 @@ export function ReferralsContent({
         <div className="space-y-3">
           {filtered.map((r) => {
             const cfg = STATUS_CONFIG[r.status];
-            const _StatusIcon = cfg.icon;
+            const dir = DIRECTION_CONFIG[r.direction];
+            const DirIcon = dir.icon;
             const estimatedFee =
               Number(r.estimated_value) * (Number(r.referral_fee_pct) / 100);
 
@@ -495,19 +534,8 @@ export function ReferralsContent({
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex items-start gap-3 flex-1 min-w-0">
                       {/* Direction icon */}
-                      <div
-                        className={cn(
-                          "mt-0.5 rounded-lg p-2 shrink-0",
-                          r.direction === "inbound"
-                            ? "bg-blue-50"
-                            : "bg-violet-50"
-                        )}
-                      >
-                        {r.direction === "inbound" ? (
-                          <ArrowDownLeft className="h-4 w-4 text-blue-600" />
-                        ) : (
-                          <ArrowUpRight className="h-4 w-4 text-violet-600" />
-                        )}
+                      <div className={cn("mt-0.5 rounded-lg p-2 shrink-0", dir.iconBg)}>
+                        <DirIcon className={cn("h-4 w-4", dir.iconText)} />
                       </div>
 
                       <div className="min-w-0 flex-1">
@@ -515,16 +543,9 @@ export function ReferralsContent({
                           <span className="font-semibold text-sm truncate">
                             {r.client_name}
                           </span>
-                          <Badge
-                            variant="secondary"
-                            className={cn("text-[10px] shrink-0", cfg.color)}
-                          >
-                            {cfg.label}
-                          </Badge>
+                          <Chip color={cfg.chip}>{cfg.label}</Chip>
                           <Badge variant="outline" className="text-[10px]">
-                            {r.direction === "inbound"
-                              ? "Inbound"
-                              : "Outbound"}
+                            {dir.label}
                           </Badge>
                         </div>
                         <p className="text-xs text-muted-foreground mt-0.5">
@@ -549,15 +570,18 @@ export function ReferralsContent({
                     {/* Right side — financials */}
                     <div className="text-right shrink-0">
                       {r.status === "closed" && Number(r.actual_fee_paid) > 0 ? (
-                        <p className="text-sm font-bold text-emerald-600">
+                        <p
+                          className="text-sm font-bold tabular-nums"
+                          style={{ color: SEMANTIC.strong }}
+                        >
                           {fmtCurrency(Number(r.actual_fee_paid))}
                         </p>
                       ) : Number(r.estimated_value) > 0 ? (
-                        <p className="text-sm font-medium text-slate-600">
+                        <p className="text-sm font-medium text-slate-600 tabular-nums">
                           ~{fmtCurrency(estimatedFee)}
                         </p>
                       ) : null}
-                      <p className="text-[10px] text-muted-foreground mt-0.5">
+                      <p className="text-[10px] text-muted-foreground mt-0.5 tabular-nums">
                         {r.referral_fee_pct}% fee · {r.referral_date}
                       </p>
                     </div>
@@ -584,27 +608,25 @@ export function ReferralsContent({
           <div className="space-y-4 mt-2">
             {/* Direction */}
             <div className="grid grid-cols-2 gap-2">
-              {(["inbound", "outbound"] as const).map((dir) => (
-                <button
-                  key={dir}
-                  onClick={() => setForm({ ...form, direction: dir })}
-                  className={cn(
-                    "flex items-center justify-center gap-2 rounded-lg border px-4 py-3 text-sm font-medium transition-all",
-                    form.direction === dir
-                      ? dir === "inbound"
-                        ? "border-blue-300 bg-blue-50 text-blue-700"
-                        : "border-violet-300 bg-violet-50 text-violet-700"
-                      : "border-slate-200 text-slate-500 hover:border-slate-300"
-                  )}
-                >
-                  {dir === "inbound" ? (
-                    <ArrowDownLeft className="h-4 w-4" />
-                  ) : (
-                    <ArrowUpRight className="h-4 w-4" />
-                  )}
-                  {dir === "inbound" ? "Inbound" : "Outbound"}
-                </button>
-              ))}
+              {(["inbound", "outbound"] as const).map((dir) => {
+                const dc = DIRECTION_CONFIG[dir];
+                const DcIcon = dc.icon;
+                return (
+                  <button
+                    key={dir}
+                    onClick={() => setForm({ ...form, direction: dir })}
+                    className={cn(
+                      "flex items-center justify-center gap-2 rounded-lg border px-4 py-3 text-sm font-medium transition-all",
+                      form.direction === dir
+                        ? dc.selected
+                        : "border-slate-200 text-slate-500 hover:border-slate-300"
+                    )}
+                  >
+                    <DcIcon className="h-4 w-4" />
+                    {dc.label}
+                  </button>
+                );
+              })}
             </div>
 
             <Separator />

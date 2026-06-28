@@ -191,7 +191,7 @@ export function OpenHouseSetupContent({
         .from("profile-media")
         .getPublicUrl(path);
       setPropertyPhotoUrl(`${url}?t=${Date.now()}`);
-      toast.success("Property photo uploaded ✓");
+      toast.success("Property photo uploaded");
     } catch (err) {
       console.error("[open-house-setup] photo upload failed:", err);
       toast.error("Upload failed — please try again.");
@@ -255,7 +255,7 @@ export function OpenHouseSetupContent({
 
       setHasPublished(true);
       setSlugLocked(true);
-      toast.success(isActive ? "Open house page saved and live ✓" : "Open house page saved (inactive) ✓");
+      toast.success(isActive ? "Open house page saved and live" : "Open house page saved (inactive)");
     } catch (err) {
       console.error("[open-house-setup] save failed:", err);
       toast.error("Failed to save — please try again.");
@@ -588,7 +588,7 @@ export function OpenHouseSetupContent({
               <div className="text-sm text-muted-foreground">
                 Profile photo from your AR account.{" "}
                 <a href="/profile" className="text-primary underline underline-offset-4 hover:opacity-80">
-                  Update in Profile →
+                  Update in Profile
                 </a>
               </div>
             </div>
@@ -667,8 +667,8 @@ export function OpenHouseSetupContent({
         >
           {isActive ? (
             <>
-              <ToggleRight className="h-6 w-6 text-emerald-600" aria-hidden="true" />
-              <span className="font-medium text-emerald-600">Page is live</span>
+              <ToggleRight className="h-6 w-6 text-emerald-500" aria-hidden="true" />
+              <span className="font-medium text-emerald-500">Page is live</span>
               <span className="text-muted-foreground">— visible to visitors</span>
             </>
           ) : (

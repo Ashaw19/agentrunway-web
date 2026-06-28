@@ -17,9 +17,10 @@ import { ExplainButton } from "@/components/explain-button";
 import { GuideLink } from "@/components/guide-link";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
-import { ChevronDown, ChevronRight, Plus, Check, X, Trash2, Info, ExternalLink, ChevronsUpDown, Camera, Receipt, ArrowRight, Download, FileText, RefreshCw, AlertTriangle, Clock, Lightbulb } from "lucide-react";
+import { ChevronDown, ChevronRight, Plus, Check, X, Trash2, Info, ExternalLink, ChevronsUpDown, Camera, Receipt, ArrowRight, Download, FileText, RefreshCw, AlertTriangle, Clock, Lightbulb, Sparkles } from "lucide-react";
 import { fmtCurrency, fmtPct } from "@/lib/formatters";
-import { KpiCard } from "@/components/kpi-card";
+import { KpiStrip, CockpitStat, SEMANTIC } from "@/components/cockpit-ui";
+import type { SparkPoint } from "@/components/sparkline";
 import {
   computeGCI,
   type ExpenseCategoryWithItems,
@@ -131,15 +132,18 @@ interface Props {
   recurringExpenses?: RecurringExpense[];
 }
 
-// Per-category colour accent (left border + header icon tint)
+// Per-category colour accent (left border + badge tint). A purely CATEGORICAL
+// legend (8 distinct hues to tell categories apart) — NOT a health axis. Kept
+// distinct, with the two off-brand members re-toned onto on-system Tailwind
+// hues per §9.1 (orange → amber-warm red; indigo → on-system sky).
 const CAT_COLORS: Record<string, { border: string; badge: string }> = {
   vehicle:       { border: "border-l-blue-500",    badge: "bg-blue-50 text-blue-700"    },
   marketing:     { border: "border-l-violet-500",  badge: "bg-violet-50 text-violet-700" },
   office_tech:   { border: "border-l-teal-500",    badge: "bg-teal-50 text-teal-700"    },
   professional:  { border: "border-l-amber-500",   badge: "bg-amber-50 text-amber-700"  },
   education:     { border: "border-l-emerald-500", badge: "bg-emerald-50 text-emerald-700" },
-  meals:         { border: "border-l-orange-400",  badge: "bg-orange-50 text-orange-700" },
-  entertainment: { border: "border-l-indigo-500",  badge: "bg-indigo-50 text-indigo-700" },
+  meals:         { border: "border-l-red-500",     badge: "bg-red-50 text-red-700"      },
+  entertainment: { border: "border-l-sky-500",     badge: "bg-sky-50 text-sky-700"      },
   other:         { border: "border-l-slate-400",   badge: "bg-slate-100 text-slate-600"  },
 };
 
@@ -847,6 +851,28 @@ export function ExpensesContent({
     0,
   ) + recurringYTDTotal;
 
+  // ── YTD-by-month cumulative spark for the YTD Expenses KPI ────────────
+  // Cumulative running total per month: receipts dated in each month plus the
+  // recurring monthly run-rate, accumulated Jan→current month. A trajectory of
+  // the same number the headline shows, not a separate metric.
+  const ytdExpenseSpark: SparkPoint[] = useMemo(() => {
+    const recurringRunRate = monthlyTotal; // recurring + per-item /mo equivalents
+    const receiptsByMonth = new Array(12).fill(0);
+    for (const r of receipts) {
+      if (!r.expense_date || r.total_amount == null) continue;
+      const d = new Date(r.expense_date + "T00:00:00");
+      if (d.getFullYear() !== thisYear) continue;
+      receiptsByMonth[d.getMonth()] += Number(r.total_amount);
+    }
+    const points: SparkPoint[] = [];
+    let running = 0;
+    for (let m = 0; m < monthsElapsed; m++) {
+      running += Math.max(receiptsByMonth[m], recurringRunRate);
+      points.push({ value: running, projected: false });
+    }
+    return points;
+  }, [receipts, thisYear, monthsElapsed, monthlyTotal]);
+
   // ── YTD GCI for expense ratio ─────────────────────────────────────────
   const ytdGCI = transactions.reduce((sum, tx) => sum + computeGCI(tx), 0);
   const expenseRatio = ytdGCI > 0 ? effectiveTotal / ytdGCI : 0;
@@ -926,13 +952,14 @@ export function ExpensesContent({
     : survivalResult(0, monthlyTotal, 0, 0);
 
   // Cash-runway color via the engine's single semantic contract (§9.1/§9.5):
-  // healthy (4–<6mo) reads amber/watch, not emerald.
+  // healthy (4–<6mo) reads amber/watch, not emerald. §9.1 hexes for the dark
+  // KPI strip (white-on-slate), keyed off the engine's RiskColorBand.
   const cashRunwayBand = riskColorBand(survival.riskLevel);
-  const cashRunwayValueClass: Record<RiskColorBand, string> = {
-    red: "text-red-700",
-    amber: "text-amber-700",
-    emerald: "text-emerald-700",
-    slate: "text-slate-700",
+  const cashRunwayStatColor: Record<RiskColorBand, string> = {
+    red: SEMANTIC.risk,
+    amber: SEMANTIC.watch,
+    emerald: SEMANTIC.strong,
+    slate: SEMANTIC.none,
   };
 
   // ── Donut chart data — per-category effective YTD (receipts + recurring estimates + recurring_expenses table) ──
@@ -1258,25 +1285,35 @@ export function ExpensesContent({
         </div>
       </div>
 
-      {/* KPI cards */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <KpiCard label="YTD Expenses" value={fmtCurrency(effectiveTotal)} colorScheme="rose" layout="horizontal" />
-        <KpiCard label="Monthly Recurring" value={fmtCurrency(monthlyTotal)} colorScheme="amber" layout="horizontal" />
-        <KpiCard
+      {/* KPI strip — cockpit instrument header (replaces the legacy KpiCard band) */}
+      <KpiStrip cols={4} label="Expense Health">
+        {/* YTD Expenses — watch metric (spend is something to watch, not celebrate) */}
+        <CockpitStat
+          label="YTD Expenses"
+          value={fmtCurrency(effectiveTotal)}
+          color={SEMANTIC.watch}
+          spark={ytdExpenseSpark}
+          sparkColor={SEMANTIC.watch}
+        />
+        {/* Monthly Recurring — neutral run-rate count */}
+        <CockpitStat
+          label="Monthly Recurring"
+          value={fmtCurrency(monthlyTotal)}
+        />
+        {/* Expense Ratio — 0–1 health metric, band-coloured against the 25–30% target */}
+        <CockpitStat
           label="Expense Ratio"
           value={ytdGCI > 0 ? fmtPct(expenseRatio) : "—"}
-          colorScheme={ratioStatus === "healthy" ? "emerald" : ratioStatus === "warning" ? "amber" : "red"}
-          valueClassName={ratioStatus === "healthy" ? "text-emerald-700" : ratioStatus === "warning" ? "text-amber-700" : "text-red-700"}
-          layout="horizontal"
+          color={ratioStatus === "healthy" ? SEMANTIC.strong : ratioStatus === "warning" ? SEMANTIC.watch : SEMANTIC.risk}
+          sub="25–30% target"
         />
-        <KpiCard
+        {/* Cash Runway — §9.1 by months (4–<6mo reads amber via the survival engine band) */}
+        <CockpitStat
           label="Cash Runway"
           value={survival.label}
-          colorScheme={cashRunwayBand}
-          valueClassName={cashRunwayValueClass[cashRunwayBand]}
-          layout="horizontal"
+          color={cashRunwayStatColor[cashRunwayBand]}
         />
-      </div>
+      </KpiStrip>
 
       {/* ── Filing period filter ──────────────────────────────────────── */}
       <div className="flex flex-wrap items-center gap-2">
@@ -1405,7 +1442,7 @@ export function ExpensesContent({
 
       {/* ── GST34 Pre-Fill Summary ───────────────────────────────────────── */}
       {gst34Result && activePeriod && (
-        <Card className="border-l-4 border-l-sky-500">
+        <Card className="border-l-4 border-l-blue-500">
           <CardHeader className="pb-2">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
@@ -1509,12 +1546,12 @@ export function ExpensesContent({
 
       {/* ── Brokerage Statement Reconciliation ─────────────────────────────── */}
       {gst34Result && activePeriod && (
-        <Card className="border-l-4 border-l-indigo-400">
+        <Card className="border-l-4 border-l-violet-500">
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <CardTitle className="text-base flex items-center gap-2">
-                  <FileText className="h-4 w-4 text-indigo-500" />
+                  <FileText className="h-4 w-4 text-violet-500" />
                   Verify with Brokerage Statement
                 </CardTitle>
                 <CardDescription className="mt-0.5 text-xs">
@@ -1538,7 +1575,7 @@ export function ExpensesContent({
                 <div
                   className={cn(
                     "flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed px-4 py-6 text-center transition-colors cursor-pointer",
-                    reconUploading ? "border-indigo-300 bg-indigo-50/50" : "border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/30",
+                    reconUploading ? "border-violet-300 bg-violet-50/50" : "border-slate-200 hover:border-violet-300 hover:bg-violet-50/30",
                   )}
                   onClick={() => reconFileRef.current?.click()}
                 >
@@ -1555,8 +1592,8 @@ export function ExpensesContent({
                   />
                   {reconUploading ? (
                     <>
-                      <RefreshCw className="h-6 w-6 text-indigo-500 animate-spin" />
-                      <p className="text-sm text-indigo-600 font-medium">Analyzing statement…</p>
+                      <RefreshCw className="h-6 w-6 text-violet-500 animate-spin" />
+                      <p className="text-sm text-violet-600 font-medium">Analyzing statement…</p>
                       <p className="text-xs text-muted-foreground">AI is extracting transactions and matching against your records</p>
                     </>
                   ) : (
@@ -1673,7 +1710,7 @@ export function ExpensesContent({
                     {reconResult.matches.some((m) => m.decision === "add") && (
                       <Button
                         size="sm"
-                        className="bg-indigo-600 hover:bg-indigo-700"
+                        className="bg-violet-600 hover:bg-violet-700"
                         disabled={reconAdding}
                         onClick={commitReconDeals}
                       >
@@ -1815,7 +1852,7 @@ export function ExpensesContent({
                       <span className={cn(
                         "shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium",
                         tip.category === "deductions" ? "bg-emerald-50 text-emerald-600" :
-                        tip.category === "gst_hst" ? "bg-sky-50 text-sky-600" :
+                        tip.category === "gst_hst" ? "bg-blue-50 text-blue-600" :
                         tip.category === "records" ? "bg-slate-100 text-slate-600" :
                         tip.category === "filing" ? "bg-amber-50 text-amber-600" :
                         "bg-violet-50 text-violet-600",
@@ -2236,15 +2273,15 @@ export function ExpensesContent({
                             const ytd = reYTDAmount(re);
                             const freqLabel = (re.frequency ?? "monthly") === "monthly" ? "/mo" : (re.frequency ?? "monthly") === "quarterly" ? "/qtr" : "/yr";
                             return (
-                              <TableRow key={`re-${re.id}`} className="group bg-indigo-50/30 hover:bg-indigo-50/50">
+                              <TableRow key={`re-${re.id}`} className="group bg-slate-50/40 hover:bg-slate-100/60">
                                 <TableCell className="pl-12 py-1.5">
                                   <div className="flex items-center gap-1.5">
-                                    <RefreshCw className="h-3 w-3 text-indigo-400 shrink-0" />
-                                    <span className="text-sm text-indigo-700">{re.name}</span>
+                                    <RefreshCw className="h-3 w-3 text-slate-400 shrink-0" />
+                                    <span className="text-sm text-slate-700">{re.name}</span>
                                     <span className="text-[10px] text-muted-foreground">{freqLabel}</span>
                                     <button
                                       onClick={() => openRecurringDialog(re)}
-                                      className="opacity-0 group-hover:opacity-100 transition-opacity text-indigo-400 hover:text-indigo-600"
+                                      className="opacity-0 group-hover:opacity-100 transition-opacity text-slate-400 hover:text-slate-600"
                                       title="Edit in Recurring Expenses"
                                     >
                                       <RefreshCw className="h-3 w-3" />
@@ -2252,13 +2289,13 @@ export function ExpensesContent({
                                   </div>
                                 </TableCell>
                                 <TableCell className="py-1.5" />
-                                <TableCell className="text-right py-1.5 text-sm tabular-nums text-indigo-700">
+                                <TableCell className="text-right py-1.5 text-sm tabular-nums text-slate-700">
                                   {ytd > 0 ? fmtCurrency(ytd) : "—"}
                                 </TableCell>
                                 <TableCell className="text-right py-1.5 hidden sm:table-cell text-xs font-medium tabular-nums text-emerald-600">
                                   {ytd > 0 ? fmtCurrency(ytd) : "—"}
                                 </TableCell>
-                                <TableCell className="text-right py-1.5 text-sm tabular-nums text-indigo-700 font-medium">
+                                <TableCell className="text-right py-1.5 text-sm tabular-nums text-slate-700 font-medium">
                                   {fmtCurrency(monthly)}
                                 </TableCell>
                               </TableRow>
@@ -2578,7 +2615,7 @@ export function ExpensesContent({
             {voiceBanner && (
               <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2">
                 <div className="flex items-start gap-2">
-                  <span className="text-base leading-none mt-0.5">✨</span>
+                  <Sparkles className="h-3.5 w-3.5 shrink-0 mt-0.5 text-amber-500" />
                   <p className="text-[11px] text-amber-800 leading-snug">
                     Pre-filled from voice — please review and edit before saving.
                     {voiceDraft?.missingFields && voiceDraft.missingFields.length > 0 && (
