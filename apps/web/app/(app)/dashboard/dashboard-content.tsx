@@ -2593,7 +2593,13 @@ export function DashboardContent({
           Hardcoded dark ("cockpit") by design — see item 3 of the rebuild
           spec: the hero leans into the instrument-panel identity rather than
           matching the light page chrome. */}
-      <Card data-tour="dashboard-score" className="boot-hero rounded-xl border-0 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 shadow-lg overflow-hidden relative">
+      {/* Deeper, softer drop-shadow pools beneath the dark hero so the eye eases
+          from the navy instrument panel into the light KPI tier below instead of
+          hitting a hard edge. Self-contained to the hero card — it travels with
+          the card and makes no assumption about what renders under it (the KPI
+          row is a reorderable registry card), which is why this stitch is safe
+          where a positional transition band was not. */}
+      <Card data-tour="dashboard-score" className="boot-hero rounded-xl border-0 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 shadow-[0_10px_24px_-14px_rgba(2,6,23,0.45),0_34px_60px_-30px_rgba(2,6,23,0.55)] overflow-hidden relative">
         {/* Top accent — a thin score-progress fill (replaces the old 4-stop
             rainbow that mapped to nothing). The filled portion uses the band
             color and runs to score%. On zero-data it stays a flat hairline. */}
@@ -2654,9 +2660,13 @@ export function DashboardContent({
               </div>
             </div>
 
-            {/* Right: Cash Runway co-hero — equal weight, with a derived
-                calendar anchor line. */}
-            <div className="boot-late sm:ml-auto rounded-xl border border-slate-700 bg-slate-800/50 px-5 py-3.5 shrink-0 min-w-[180px]" style={{ animationDelay: "0.7s" }}>
+            {/* Right: Cash Runway — STRONG SECONDARY to the gauge (was an
+                equal-weight co-hero). The gauge is the single primary anchor
+                that leads the eye; this recessed panel (lighter border/fill,
+                text-2xl number) is the supporting read so attention flows
+                gauge → cash instead of ping-ponging between two equal anchors.
+                Still prominent: cash runway stays a large, band-coloured number. */}
+            <div className="boot-late sm:ml-auto rounded-xl border border-slate-700/50 bg-slate-800/40 px-5 py-3.5 shrink-0 min-w-[180px]" style={{ animationDelay: "0.7s" }}>
               <div className="flex items-center gap-1">
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Cash Runway</p>
                 <MetricInfo tip={cashPosition.source === "implied"
@@ -2666,7 +2676,7 @@ export function DashboardContent({
                 <GuideLink anchor="cash-runway" label="Cash Runway explained in Guide" />
                 {isPro && <ExplainButton question="What is my current cash runway and how can I extend it?" />}
               </div>
-              <p className={cn("text-3xl font-bold mt-1 leading-none", riskBandText[riskColorBand(survival.riskLevel)])}>
+              <p className={cn("text-2xl font-bold mt-1 leading-none", riskBandText[riskColorBand(survival.riskLevel)])}>
                 {formatSurvivalDisplay(survival)}
               </p>
               {/* Direction-of-change vs the most-recent prior daily history row.
