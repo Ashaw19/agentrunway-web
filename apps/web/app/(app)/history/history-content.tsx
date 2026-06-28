@@ -45,7 +45,7 @@ import type { ImportResult, ExtractedDeal } from "@/app/api/import-history/route
 import type { ExtractionQuality } from "@/lib/import/types";
 import { applyValidation } from "@/lib/import/validation/validate-transactions";
 import { computeImportExternalId, dedupeByImportExternalId } from "@/lib/import/external-id";
-import { clampSalePrice, clampCommissionPct } from "@/lib/import/clamp-db-range";
+import { clampSalePrice, clampCommissionPct, clampGci } from "@/lib/import/clamp-db-range";
 import dynamic from "next/dynamic";
 import type { YoYDataPoint } from "@/components/year-over-year-chart";
 
@@ -930,7 +930,7 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
             address: deal.address || null,
             close_date: deal.date || null,
             year: importData.year,
-            gci: deal.gci,
+            gci: clampGci(deal.gci, 0), // client_records.gci is numeric(10,2) — a >$100M parse error overflows + aborts the batch
             // Stable key: deal fingerprint + normalized split-client name
             import_external_id: `${dealExtId}|c:${clientName.trim().toLowerCase()}`,
           }));
@@ -1201,7 +1201,7 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
             address: d.address || null,
             close_date: d.date || null,
             year: yearData.year,
-            gci: d.gci,
+            gci: clampGci(d.gci, 0), // client_records.gci is numeric(10,2) — a >$100M parse error overflows + aborts the batch
             import_external_id: `${dealExtId}|c:${clientName.toLowerCase()}`,
           };
         })

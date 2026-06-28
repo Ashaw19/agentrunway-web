@@ -45,6 +45,21 @@ export const COMMISSION_PCT_MAX = 0.25;
 export const COMMISSION_PCT_MIN = 0;
 
 /**
+ * Upper bound for GCI fields. Set to the STRICTER of the two GCI columns so a
+ * single helper is safe for both:
+ *   - client_records.gci      numeric(10,2) → max 99,999,999.99
+ *   - transactions.gci_override numeric(14,2) + chk_tx_gci_override_non_negative
+ * No real single-deal GCI approaches $100M, so clamping to the tighter bound
+ * loses no legitimate economic data while preventing a numeric-overflow abort
+ * on client_records (e.g. a column-swap pulling a property value into the GCI
+ * column) and a CHECK-violation abort on a negative gci_override (an accounting
+ * `(1,500)` parens value read as -1500).
+ */
+export const GCI_MAX = 99_999_999.99;
+/** Lower bound for GCI fields (chk_tx_gci_override_non_negative / sane income). */
+export const GCI_MIN = 0;
+
+/**
  * Return `value` when it is a finite number inside the sale_price CHECK range,
  * otherwise the caller's `fallback`. Never returns a value that would violate
  * chk_tx_sale_price_non_negative / chk_tx_sale_price_reasonable.
@@ -82,6 +97,29 @@ export function clampCommissionPct<F>(
     Number.isFinite(value) &&
     value >= COMMISSION_PCT_MIN &&
     value <= COMMISSION_PCT_MAX
+  ) {
+    return value;
+  }
+  return fallback;
+}
+
+/**
+ * Return `value` when it is a finite, non-negative number within the GCI bound
+ * (0 … 99,999,999.99), otherwise `fallback`. Guards BOTH GCI columns:
+ * client_records.gci (numeric(10,2) — overflow aborts the batch) and
+ * transactions.gci_override (chk_tx_gci_override_non_negative — a negative
+ * value aborts the batch). `NaN`, `Infinity`, negatives, and >$100M overflow
+ * all fall back, so a garbage GCI cell can no longer poison the import.
+ */
+export function clampGci<F>(
+  value: number | null | undefined,
+  fallback: F,
+): number | F {
+  if (
+    typeof value === "number" &&
+    Number.isFinite(value) &&
+    value >= GCI_MIN &&
+    value <= GCI_MAX
   ) {
     return value;
   }
