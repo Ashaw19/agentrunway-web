@@ -1822,7 +1822,7 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
               "border-l-emerald-500",
               "border-l-amber-500",
               "border-l-teal-500",
-              "border-l-rose-500",
+              "border-l-red-500",
             ];
             const accentBorder = accentBorders[idx % accentBorders.length];
 
