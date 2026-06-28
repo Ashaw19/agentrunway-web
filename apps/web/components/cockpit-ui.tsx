@@ -451,3 +451,96 @@ export function Chip({
     </span>
   );
 }
+
+/* ── CrmSection system — one neutral section shell (colour reserved for state) ─ */
+
+/**
+ * The shared class system for the client-detail panel's sections. Replaces the
+ * former per-section "rainbow" (each card a different sky/emerald/amber/violet/…
+ * hue with no semantic meaning) with one neutral chrome, so the only colour the
+ * eye catches inside the panel is genuine state — a status pill, a flight-log
+ * direction node, a GCI value.
+ *
+ * Exposed as class constants (not a wrapper component) so existing sections can
+ * adopt the system in place — swapping their coloured wrapper/header classes for
+ * these — without restructuring the deeply-nested JSX they contain.
+ */
+export const CRM_SECTION_CARD =
+  "rounded-2xl border border-slate-200/70 bg-white/50 p-4 space-y-3 dark:border-slate-800/60 dark:bg-slate-900/20";
+
+/** The section header `<h3>` — neutral, scannable, colour-free. */
+export const CRM_SECTION_HEADER =
+  "text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 flex items-center gap-2";
+
+/** The leading icon chip inside the header. The icon inherits this text colour. */
+export const CRM_SECTION_ICON_CHIP =
+  "h-5 w-5 rounded-md bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400 flex items-center justify-center";
+
+/* ── FlightLog — message / activity history as a vertical flight-log rail ─── */
+
+/** Which way a touch flowed — drives the §9.1 colour of its rail node. */
+export type FlightLogDirection = "outbound" | "inbound" | "note";
+
+/** Node chrome per direction: §9.1 blue (outbound) / emerald (inbound) / slate (note). */
+const FLIGHT_LOG_NODE: Record<FlightLogDirection, string> = {
+  outbound: "border-blue-200 text-blue-600 dark:border-blue-900 dark:text-blue-400",
+  inbound: "border-emerald-200 text-emerald-600 dark:border-emerald-900 dark:text-emerald-400",
+  note: "border-slate-200 text-slate-500 dark:border-slate-700 dark:text-slate-400",
+};
+
+export interface FlightLogItem {
+  /** Activity glyph (a lucide icon node). */
+  icon: React.ReactNode;
+  direction: FlightLogDirection;
+  title: string;
+  /** A pre-formatted relative time, e.g. "3 days ago". */
+  time: string;
+  description?: string | null;
+}
+
+/**
+ * A client's touches as a vertical flight log: a connecting spine with one
+ * node per touch, each node coloured by its §9.1 direction (outbound blue /
+ * inbound emerald / note slate) and carrying the activity's icon. The spine
+ * passes behind the opaque nodes so the log reads as a rail of stops.
+ */
+export function FlightLog({
+  items,
+  className,
+}: {
+  items: FlightLogItem[];
+  className?: string;
+}) {
+  return (
+    <ol className={cn("relative space-y-3", className)}>
+      {/* Spine — runs behind the node centres (≈11px from the left edge). */}
+      {items.length > 1 && (
+        <span
+          aria-hidden
+          className="pointer-events-none absolute left-[10.5px] top-3 bottom-3 w-px bg-slate-200 dark:bg-slate-700"
+        />
+      )}
+      {items.map((it, i) => (
+        <li key={i} className="relative flex gap-3">
+          <span
+            className={cn(
+              "z-10 mt-0.5 flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full border bg-white dark:bg-slate-900",
+              FLIGHT_LOG_NODE[it.direction],
+            )}
+          >
+            {it.icon}
+          </span>
+          <div className="min-w-0 flex-1 pb-0.5">
+            <div className="flex items-center justify-between gap-2">
+              <span className="truncate text-xs font-semibold text-foreground">{it.title}</span>
+              <span className="shrink-0 text-[11px] text-muted-foreground">{it.time}</span>
+            </div>
+            {it.description && (
+              <p className="mt-0.5 text-xs text-muted-foreground">{it.description}</p>
+            )}
+          </div>
+        </li>
+      ))}
+    </ol>
+  );
+}

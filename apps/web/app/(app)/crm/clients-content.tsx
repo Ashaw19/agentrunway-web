@@ -100,9 +100,14 @@ import {
   Star,
   Gift,
   PartyPopper,
+  Clock,
+  Mail,
+  MessageSquare,
+  Home,
+  StickyNote,
 } from "lucide-react";
 import { ShowingsSection } from "./showings-section";
-import { fmtCurrency } from "@/lib/formatters";
+import { fmtCurrency, fmtCompact } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 import type {
   Client,
@@ -171,7 +176,8 @@ import { parseMoneyLoose } from "@/lib/import/normalizers/normalize-money";
 import { normalizeDateFormats } from "@/lib/import/normalizers/normalize-dates";
 import { WorkflowSuggestionsPanel } from "@/components/workflow-suggestions-panel";
 import { ClientConversationPanel } from "@/components/client-conversation-panel";
-import { CockpitStrip, CockpitStat, ScoreDial, SEMANTIC, GOLD, magnitudePct } from "@/components/cockpit-ui";
+import { CockpitStrip, CockpitStat, ScoreDial, SEMANTIC, GOLD, magnitudePct, FlightLog, type FlightLogItem, CRM_SECTION_CARD, CRM_SECTION_HEADER, CRM_SECTION_ICON_CHIP } from "@/components/cockpit-ui";
+import { activityDirection } from "@/lib/crm/activity-direction";
 import type { SparkPoint } from "@/components/sparkline";
 
 // ── Props ─────────────────────────────────────────────────────────────────────
@@ -652,6 +658,32 @@ const STATUS_HEADER_GRADIENT: Record<ClientStatus, string> = {
   in_flight: "from-violet-500 to-purple-600",
   cruising:  "from-blue-500 to-blue-600",
 };
+
+// Lifecycle-stage hex for the detail panel's left edge — the *-400 shade of
+// each status's CLIENT_STATUS_COLORS dot, so the edge reads as the same
+// lifecycle axis as the status pill in the same panel.
+const STATUS_EDGE_HEX: Record<ClientStatus, string> = {
+  boarding:  "#38BDF8", // sky-400
+  scheduled: "#94A3B8", // slate-400
+  in_flight: "#A78BFA", // violet-400
+  cruising:  "#60A5FA", // blue-400
+};
+
+// Activity glyph for the flight-log rail (lucide, replacing the emoji map). The
+// node's COLOUR carries direction; this icon carries the activity TYPE.
+function activityLucideIcon(type: ActivityType) {
+  const cls = "h-3 w-3";
+  switch (type) {
+    case "call":    return <Phone className={cls} />;
+    case "email":   return <Mail className={cls} />;
+    case "text":    return <MessageSquare className={cls} />;
+    case "showing": return <Home className={cls} />;
+    case "meeting": return <Handshake className={cls} />;
+    case "offer":   return <FileText className={cls} />;
+    case "note":    return <StickyNote className={cls} />;
+    default:        return <Activity className={cls} />;
+  }
+}
 
 function dominantSide(
   deals: ClientRecord[],
@@ -4047,7 +4079,11 @@ export function ClientsContent({
           setTaskNotes("");
         }
       }}>
-        <SheetContent side="right" className="sm:max-w-[880px] w-full overflow-y-auto p-0">
+        <SheetContent
+          side="right"
+          className="sm:max-w-[880px] w-full overflow-y-auto p-0 border-l-4"
+          style={selectedClient ? { borderLeftColor: STATUS_EDGE_HEX[selectedClient.status] } : undefined}
+        >
           {selectedClient && (
             <div className="flex flex-col">
               {/* ── Profile Header ───────────────────────────────────── */}
@@ -4241,11 +4277,41 @@ export function ClientsContent({
               {/* ── Body ────────────────────────────────────────────────── */}
               <div className="px-4 py-4 space-y-3">
 
+                {/* Client instrument strip — lifetime value at a glance, in the
+                    same dark-cockpit shell as the dashboard + CRM-tab headers. */}
+                {(() => {
+                  const lifetimeGci = clientDeals.reduce((s, d) => s + (d.gci ?? 0), 0);
+                  return (
+                    <CockpitStrip animate={false} className="px-4 py-3">
+                      <div className="grid grid-cols-3 gap-3">
+                        <CockpitStat
+                          label="Lifetime GCI"
+                          value={fmtCompact(lifetimeGci)}
+                          color={lifetimeGci > 0 ? SEMANTIC.strong : "#F8FAFC"}
+                          icon={<DollarSign className="h-3.5 w-3.5" />}
+                        />
+                        <CockpitStat
+                          label="Deals"
+                          value={clientDeals.length}
+                          color={clientDeals.length > 0 ? SEMANTIC.onTrack : "#F8FAFC"}
+                          icon={<Layers className="h-3.5 w-3.5" />}
+                        />
+                        <CockpitStat
+                          label="Last Contact"
+                          value={selectedClient.last_contact_at ? relativeDate(selectedClient.last_contact_at) : "—"}
+                          color="#F8FAFC"
+                          icon={<Clock className="h-3.5 w-3.5" />}
+                        />
+                      </div>
+                    </CockpitStrip>
+                  );
+                })()}
+
                 {/* Contact info section */}
-                <div className="rounded-2xl border border-sky-200/60 bg-sky-50/30 dark:bg-sky-950/10 p-4 space-y-3">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-sky-700 dark:text-sky-400 flex items-center gap-2">
-                    <div className="h-5 w-5 rounded-md bg-sky-100 dark:bg-sky-900 flex items-center justify-center">
-                      <Phone className="h-3 w-3 text-sky-600 dark:text-sky-400" />
+                <div className={CRM_SECTION_CARD}>
+                  <h3 className={CRM_SECTION_HEADER}>
+                    <div className={CRM_SECTION_ICON_CHIP}>
+                      <Phone className="h-3 w-3" />
                     </div>
                     Contact Information
                   </h3>
@@ -4365,10 +4431,10 @@ export function ClientsContent({
                 {(() => {
                   const addrLabels = getCountryLabels(selectedClient.country ?? "Canada");
                   return (
-                    <div className="rounded-2xl border border-emerald-200/60 bg-emerald-50/30 dark:bg-emerald-950/10 p-4 space-y-3">
-                      <h3 className="text-xs font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400 flex items-center gap-2">
-                        <div className="h-5 w-5 rounded-md bg-emerald-100 dark:bg-emerald-900 flex items-center justify-center">
-                          <MapPin className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
+                    <div className={CRM_SECTION_CARD}>
+                      <h3 className={CRM_SECTION_HEADER}>
+                        <div className={CRM_SECTION_ICON_CHIP}>
+                          <MapPin className="h-3 w-3" />
                         </div>
                         Address
                       </h3>
@@ -4417,10 +4483,10 @@ export function ClientsContent({
                 })()}
 
                 {/* Details */}
-                <div className="rounded-2xl border border-amber-200/60 bg-amber-50/30 dark:bg-amber-950/10 p-4 space-y-3">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400 flex items-center gap-2">
-                    <div className="h-5 w-5 rounded-md bg-amber-100 dark:bg-amber-900 flex items-center justify-center">
-                      <FileText className="h-3 w-3 text-amber-600 dark:text-amber-400" />
+                <div className={CRM_SECTION_CARD}>
+                  <h3 className={CRM_SECTION_HEADER}>
+                    <div className={CRM_SECTION_ICON_CHIP}>
+                      <FileText className="h-3 w-3" />
                     </div>
                     Details
                   </h3>
@@ -4569,11 +4635,11 @@ export function ClientsContent({
                   )}
 
                 {/* Relationships */}
-                <div className="rounded-2xl border border-violet-200/60 bg-violet-50/30 dark:bg-violet-950/10 p-4 space-y-3">
+                <div className={CRM_SECTION_CARD}>
                   <div className="flex items-center justify-between">
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-violet-700 dark:text-violet-400 flex items-center gap-2">
-                      <div className="h-5 w-5 rounded-md bg-violet-100 dark:bg-violet-900 flex items-center justify-center">
-                        <Link2 className="h-3 w-3 text-violet-600 dark:text-violet-400" />
+                    <h3 className={CRM_SECTION_HEADER}>
+                      <div className={CRM_SECTION_ICON_CHIP}>
+                        <Link2 className="h-3 w-3" />
                       </div>
                       Relationships
                     </h3>
@@ -4775,10 +4841,10 @@ export function ClientsContent({
                 </div>
 
                 {/* AI Actions */}
-                <div className="rounded-2xl border border-indigo-200/60 bg-indigo-50/30 dark:bg-indigo-950/10 p-4 space-y-2">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-400 flex items-center gap-2">
-                    <div className="h-5 w-5 rounded-md bg-indigo-100 dark:bg-indigo-900 flex items-center justify-center">
-                      <Sparkles className="h-3 w-3 text-indigo-600 dark:text-indigo-400" />
+                <div className={CRM_SECTION_CARD}>
+                  <h3 className={CRM_SECTION_HEADER}>
+                    <div className={CRM_SECTION_ICON_CHIP}>
+                      <Sparkles className="h-3 w-3" />
                     </div>
                     AI Actions
                   </h3>
@@ -5030,11 +5096,11 @@ export function ClientsContent({
                 </div>
 
                 {/* Activity section */}
-                <div className="rounded-2xl border border-blue-200/60 bg-blue-50/30 dark:bg-blue-950/10 p-4 space-y-3">
+                <div className={CRM_SECTION_CARD}>
                   <div className="flex items-center justify-between">
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-blue-700 dark:text-blue-400 flex items-center gap-2">
-                      <div className="h-5 w-5 rounded-md bg-blue-100 dark:bg-blue-900 flex items-center justify-center">
-                        <Activity className="h-3 w-3 text-blue-600 dark:text-blue-400" />
+                    <h3 className={CRM_SECTION_HEADER}>
+                      <div className={CRM_SECTION_ICON_CHIP}>
+                        <Activity className="h-3 w-3" />
                       </div>
                       Activity
                     </h3>
@@ -5084,32 +5150,24 @@ export function ClientsContent({
                   {clientActivities.length === 0 ? (
                     <p className="text-xs text-muted-foreground py-3 text-center">No activity logged yet.</p>
                   ) : (
-                    <div className="relative border-l-2 border-muted-foreground/20 ml-2 space-y-0">
-                      {clientActivities.map((act) => (
-                        <div key={act.id} className="relative pl-4 pb-3 last:pb-0">
-                          <div className="absolute -left-1.5 top-0.5 h-3 w-3 rounded-full bg-blue-400 border-2 border-background" />
-                          <div className="flex items-start gap-1.5">
-                            <span className="text-sm leading-none mt-0.5 shrink-0">{ACTIVITY_TYPE_ICONS[act.type]}</span>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center justify-between gap-2">
-                                <span className="text-xs font-semibold text-foreground">{ACTIVITY_TYPE_LABELS[act.type]}</span>
-                                <span className="text-[11px] text-muted-foreground shrink-0">{relativeDate(act.activity_date)}</span>
-                              </div>
-                              {act.description && <p className="text-xs text-muted-foreground mt-0.5">{act.description}</p>}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+                    <FlightLog
+                      items={clientActivities.map((act): FlightLogItem => ({
+                        icon: activityLucideIcon(act.type),
+                        direction: activityDirection(act.type),
+                        title: ACTIVITY_TYPE_LABELS[act.type],
+                        time: relativeDate(act.activity_date),
+                        description: act.description,
+                      }))}
+                    />
                   )}
                 </div>
 
                 {/* Tasks section */}
-                <div className="rounded-2xl border border-orange-200/60 bg-orange-50/30 dark:bg-orange-950/10 p-4 space-y-3">
+                <div className={CRM_SECTION_CARD}>
                   <div className="flex items-center justify-between">
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-orange-700 dark:text-orange-400 flex items-center gap-2">
-                      <div className="h-5 w-5 rounded-md bg-orange-100 dark:bg-orange-900 flex items-center justify-center">
-                        <ListTodo className="h-3 w-3 text-orange-600 dark:text-orange-400" />
+                    <h3 className={CRM_SECTION_HEADER}>
+                      <div className={CRM_SECTION_ICON_CHIP}>
+                        <ListTodo className="h-3 w-3" />
                       </div>
                       Tasks
                     </h3>
@@ -5201,11 +5259,11 @@ export function ClientsContent({
                 />
 
                 {/* Listing Appointments */}
-                <div className="rounded-2xl border border-orange-200/60 bg-orange-50/30 dark:bg-orange-950/10 p-4 space-y-3">
+                <div className={CRM_SECTION_CARD}>
                   <div className="flex items-center justify-between">
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-orange-700 dark:text-orange-400 flex items-center gap-2">
-                      <div className="h-5 w-5 rounded-md bg-orange-100 dark:bg-orange-900 flex items-center justify-center">
-                        <CalendarDays className="h-3 w-3 text-orange-600 dark:text-orange-400" />
+                    <h3 className={CRM_SECTION_HEADER}>
+                      <div className={CRM_SECTION_ICON_CHIP}>
+                        <CalendarDays className="h-3 w-3" />
                       </div>
                       Listing Appointments
                     </h3>
@@ -5354,10 +5412,10 @@ export function ClientsContent({
 
                 {/* Pipeline Deals (linked via client_id) */}
                 {linkedPipelineDeals.length > 0 && (
-                  <div className="rounded-2xl border border-blue-200/60 bg-blue-50/30 dark:bg-blue-950/10 p-4 space-y-3">
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-blue-700 dark:text-blue-400 flex items-center gap-2">
-                      <div className="h-5 w-5 rounded-md bg-blue-100 dark:bg-blue-900 flex items-center justify-center">
-                        <Layers className="h-3 w-3 text-blue-600 dark:text-blue-400" />
+                  <div className={CRM_SECTION_CARD}>
+                    <h3 className={CRM_SECTION_HEADER}>
+                      <div className={CRM_SECTION_ICON_CHIP}>
+                        <Layers className="h-3 w-3" />
                       </div>
                       Active Pipeline Deals
                     </h3>
@@ -5365,7 +5423,7 @@ export function ClientsContent({
                       {linkedPipelineDeals.map((deal) => {
                         const gci = deal.estimated_price * deal.estimated_commission_pct;
                         return (
-                          <div key={deal.id} className="py-1.5 px-2 rounded-lg bg-white/50 dark:bg-blue-900/20 border border-blue-100/60 dark:border-blue-800/30">
+                          <div key={deal.id} className="py-1.5 px-2 rounded-lg bg-white/50 dark:bg-slate-900/30 border border-slate-200/60 dark:border-slate-800/40">
                             <div className="flex items-center justify-between">
                               <div className="min-w-0 flex-1">
                                 <p className="text-xs font-medium text-foreground truncate">
@@ -5393,16 +5451,16 @@ export function ClientsContent({
 
                 {/* Deal History */}
                 {clientDeals.length > 0 && (
-                  <div className="rounded-2xl border border-green-200/60 bg-green-50/30 dark:bg-green-950/10 p-4 space-y-3">
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-green-700 dark:text-green-400 flex items-center gap-2">
-                      <div className="h-5 w-5 rounded-md bg-green-100 dark:bg-green-900 flex items-center justify-center">
-                        <DollarSign className="h-3 w-3 text-green-600 dark:text-green-400" />
+                  <div className={CRM_SECTION_CARD}>
+                    <h3 className={CRM_SECTION_HEADER}>
+                      <div className={CRM_SECTION_ICON_CHIP}>
+                        <DollarSign className="h-3 w-3" />
                       </div>
                       Deal History
                     </h3>
                     <div className="space-y-1.5">
                       {clientDeals.map((deal) => (
-                        <div key={deal.id} className="py-1.5 px-2 rounded-lg bg-white/50 dark:bg-green-900/20 border border-green-100/60 dark:border-green-800/30 space-y-1.5">
+                        <div key={deal.id} className="py-1.5 px-2 rounded-lg bg-white/50 dark:bg-slate-900/30 border border-slate-200/60 dark:border-slate-800/40 space-y-1.5">
                             <div className="flex items-center justify-between">
                               <div className="min-w-0 flex-1">
                                 <p className="text-xs font-medium text-foreground truncate">
