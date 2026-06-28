@@ -45,6 +45,14 @@ import { fmtCurrency, fmtPct } from "@/lib/formatters";
 import { ExplainButton } from "@/components/explain-button";
 import { GuideLink } from "@/components/guide-link";
 import {
+  KpiStrip,
+  CockpitStat,
+  ScoreDial,
+  scoreBand,
+  SEMANTIC,
+  magnitudePct,
+} from "@/components/cockpit-ui";
+import {
   computeGCI,
   computeWeightedGCI,
   getAgentPct,
@@ -138,14 +146,16 @@ function computeProjectedNet(projectedGCI: number, settings: UserSettings | null
   return agentGross - txFees - brokerageFeeAnnual;
 }
 
-function gradeStyle(grade: string) {
-  if (grade === "A+") return { ring: "ring-emerald-400", text: "text-white", pill: "bg-emerald-100 text-emerald-800 border-emerald-200", bar: "bg-emerald-500", label: "Exceptional", cardBg: "border-emerald-200 bg-emerald-50/70" };
-  if (grade === "A")  return { ring: "ring-emerald-300", text: "text-white", pill: "bg-emerald-100 text-emerald-800 border-emerald-200", bar: "bg-emerald-400", label: "Excellent",   cardBg: "border-emerald-200 bg-emerald-50/70" };
-  if (grade === "B")  return { ring: "ring-blue-400",    text: "text-white", pill: "bg-blue-100 text-blue-800 border-blue-200",         bar: "bg-blue-500",    label: "Strong",      cardBg: "border-blue-200 bg-blue-50/70"       };
-  if (grade === "C")  return { ring: "ring-amber-400",   text: "text-white", pill: "bg-amber-100 text-amber-800 border-amber-200",       bar: "bg-amber-400",   label: "Developing",  cardBg: "border-amber-200 bg-amber-50/70"     };
-  if (grade === "D")  return { ring: "ring-orange-400",  text: "text-white", pill: "bg-orange-100 text-orange-800 border-orange-200",    bar: "bg-orange-400",  label: "Needs Work",  cardBg: "border-orange-200 bg-orange-50/70"   };
-  return { ring: "ring-red-500", text: "text-white", pill: "bg-red-100 text-red-800 border-red-200", bar: "bg-red-500", label: "Critical", cardBg: "border-red-200 bg-red-50/70" };
-}
+// Grade prose label keyed off the canonical letter grade (kept for the hero
+// caption). Colour is no longer derived here — it comes from scoreBand() (§9.1).
+const GRADE_LABEL: Record<string, string> = {
+  "A+": "Exceptional",
+  A: "Excellent",
+  B: "Strong",
+  C: "Developing",
+  D: "Needs Work",
+  F: "Critical",
+};
 
 // Color derives from the engine's single semantic contract (riskColorBand,
 // §9.1/§9.5): healthy (4–<6mo) reads amber/watch, not blue. Labels stay keyed
@@ -384,7 +394,8 @@ export function ReportsContent({
     ytdGCI, goalGCI, fraction, pipelineWeighted, expensesYTD,
   );
   const runwayScore = computeRunwayScore(healthReport, benchmark.percentile, survival.months);
-  const gs = gradeStyle(runwayScore.grade);
+  const scoreColors = scoreBand(runwayScore.score);
+  const gradeLabel = GRADE_LABEL[runwayScore.grade] ?? "—";
   const rs = riskStyle(survival.riskLevel);
 
   // ── Probability Bands ─────────────────────────────────────────────────────────
@@ -720,57 +731,66 @@ export function ReportsContent({
       {tab === "overview" && (<>
 
       {/* ── 1. Business Health Score (Hero) ───────────────────────────────────── */}
-      <div className={`rounded-2xl overflow-hidden border shadow-sm ${gs.cardBg}`}>
-        <div className="px-6 py-4 border-b border-border/40 flex items-center gap-2">
-          <Zap className="h-4 w-4 text-amber-500" />
-          <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Business Health Score</span>
+      {/* Dark cockpit instrument hero — the canonical ScoreDial replaces the
+          former hand-rolled gold gauge + gradeStyle ladder. Colour comes from
+          the §9.1 band (scoreBand); gold appears only when the score is Strong. */}
+      <div className="relative overflow-hidden rounded-2xl border-0 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 shadow-[0_10px_24px_-14px_rgba(2,6,23,0.45),0_34px_60px_-30px_rgba(2,6,23,0.55)]">
+        <div className="absolute top-0 left-0 right-0 h-[3px] bg-slate-700/60">
+          <div
+            className="h-full"
+            style={{ width: `${Math.max(0, Math.min(100, runwayScore.score))}%`, backgroundColor: scoreColors.isStrong ? "#F0A800" : scoreColors.hex }}
+          />
+        </div>
+        <div className="px-6 py-4 border-b border-slate-700/50 flex items-center gap-2">
+          <Zap className="h-4 w-4 text-slate-400" />
+          <span className="text-xs font-semibold uppercase tracking-widest text-slate-400">Business Health Score</span>
         </div>
         <div className="px-6 py-6 flex flex-col sm:flex-row gap-8 items-center sm:items-start">
-          {/* Grade circle — matches Dashboard's amber-gold signature */}
+          {/* Canonical ScoreDial — band colour + Strong-gold from the engine. */}
           <div className="flex flex-col items-center gap-3 shrink-0">
-            <div
-              className={`relative flex h-28 w-28 items-center justify-center rounded-full ring-4 ${gs.ring}`}
-              style={{
-                background: "linear-gradient(135deg, #F0A800 0%, #D97706 55%, #a85c00 100%)",
-                boxShadow: "0 0 20px rgba(240,168,0,0.35), inset 0 1px 1px rgba(255,255,255,0.2)",
-              }}
-            >
-              <div className="text-center">
-                <div className="text-4xl font-black leading-none" style={{ color: "#15110A" }}>{runwayScore.grade}</div>
-                <div className="text-xs mt-1" style={{ color: "#5a3e00" }}>{runwayScore.score}/100</div>
+            <ScoreDial
+              score={runwayScore.score}
+              size={112}
+              hex={scoreColors.hex}
+              isStrong={scoreColors.isStrong}
+              numberColor="#F8FAFC"
+            />
+            <div className="text-center">
+              <div className="text-2xl font-black leading-none tabular-nums" style={{ color: scoreColors.isStrong ? "#F0A800" : "#F8FAFC" }}>
+                {runwayScore.grade}
               </div>
+              <div className="mt-1 text-xs font-semibold text-slate-400">{gradeLabel}</div>
             </div>
-            <span className={`rounded-full px-3 py-0.5 text-xs font-semibold border ${gs.pill}`}>
-              {gs.label}
-            </span>
           </div>
-          {/* Components */}
+          {/* Component sub-scores — §9.1 magnitude bars, band colour per score. */}
           <div className="flex-1 grid sm:grid-cols-2 gap-x-8 gap-y-4 w-full">
-            {runwayScore.components.map((comp) => (
-              <div key={comp.label}>
-                <div className="flex justify-between mb-1.5 text-xs">
-                  <span className="text-foreground font-medium">{comp.label}</span>
-                  <span className="text-muted-foreground">
-                    {comp.weight} &middot; <span className="text-foreground font-semibold">{Math.round(comp.score)}</span>
-                  </span>
+            {runwayScore.components.map((comp) => {
+              const band = scoreBand(comp.score);
+              return (
+                <div key={comp.label}>
+                  <div className="flex justify-between mb-1.5 text-xs">
+                    <span className="text-slate-200 font-medium">{comp.label}</span>
+                    <span className="text-slate-400">
+                      {comp.weight} &middot; <span className="text-slate-100 font-semibold tabular-nums">{Math.round(comp.score)}</span>
+                    </span>
+                  </div>
+                  <div className="h-1.5 rounded-full bg-slate-700/60 overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all"
+                      style={{
+                        width: `${magnitudePct(comp.score, 100)}%`,
+                        backgroundColor: band.isStrong ? "#F0A800" : band.hex,
+                      }}
+                    />
+                  </div>
                 </div>
-                <div className="h-1.5 rounded-full bg-slate-200 overflow-hidden">
-                  <div
-                    className={`h-full rounded-full transition-all ${
-                      comp.score >= 80 ? "bg-emerald-500" :
-                      comp.score >= 60 ? "bg-blue-500" :
-                      comp.score >= 40 ? "bg-amber-400" : "bg-red-500"
-                    }`}
-                    style={{ width: `${comp.score}%` }}
-                  />
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
         {!runwayScore.hasEnoughData && (
           <div className="px-6 pb-4">
-            <p className="text-xs text-muted-foreground">Add closed transactions to get a fully personalised score.</p>
+            <p className="text-xs text-slate-400">Add closed transactions to get a fully personalised score.</p>
           </div>
         )}
       </div>
@@ -807,62 +827,46 @@ export function ReportsContent({
       })()}
 
       {/* ── 2. YTD Snapshot ───────────────────────────────────────────────────── */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card className="rounded-2xl border border-emerald-200 bg-emerald-50/70 shadow-sm">
-          <CardHeader className="pb-1">
-            <CardDescription className="text-xs font-semibold uppercase tracking-wide text-emerald-700 flex items-center gap-1">
-              <DollarSign className="h-3.5 w-3.5" /> YTD GCI
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <div className="text-2xl font-bold text-slate-800">{fmtCurrency(ytdGCI)}</div>
-            {vsLastYearGCI !== null ? (
-              <p className={`text-xs mt-0.5 flex items-center gap-0.5 ${vsLastYearGCI >= 0 ? "text-emerald-600" : "text-red-500"}`}>
+      {/* Canonical cockpit KPI band — replaces the four pale gradient cards. */}
+      <KpiStrip cols={4} label="YTD Snapshot">
+        <CockpitStat
+          label="YTD GCI"
+          value={fmtCurrency(ytdGCI)}
+          color={SEMANTIC.strong}
+          icon={<DollarSign className="h-3.5 w-3.5" />}
+          sub={
+            vsLastYearGCI !== null ? (
+              <span className="flex items-center gap-0.5" style={{ color: vsLastYearGCI >= 0 ? SEMANTIC.strong : SEMANTIC.risk }}>
                 {vsLastYearGCI >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
                 {vsLastYearGCI >= 0 ? "+" : ""}{fmtCurrency(Math.abs(vsLastYearGCI))} vs last yr
-              </p>
+              </span>
             ) : (
-              <p className="text-xs mt-0.5 text-emerald-600/70">{ytdTx.length} deals closed</p>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="rounded-2xl border border-blue-200 bg-blue-50/70 shadow-sm">
-          <CardHeader className="pb-1">
-            <CardDescription className="text-xs font-semibold uppercase tracking-wide text-blue-700 flex items-center gap-1">
-              <BarChart2 className="h-3.5 w-3.5" /> Avg Deal
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <div className="text-2xl font-bold text-slate-800">{fmtCurrency(avgDealSize)}</div>
-            <p className="text-xs mt-0.5 text-blue-600/80">{buyerDeals}B / {sellerDeals}S side</p>
-          </CardContent>
-        </Card>
-
-        <Card className="rounded-2xl border border-purple-200 bg-purple-50/70 shadow-sm">
-          <CardHeader className="pb-1">
-            <CardDescription className="text-xs font-semibold uppercase tracking-wide text-purple-700 flex items-center gap-1">
-              <Layers className="h-3.5 w-3.5" /> Pipeline
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <div className="text-2xl font-bold text-slate-800">{fmtCurrency(pipelineWeighted)}</div>
-            <p className="text-xs mt-0.5 text-purple-600/80">{pipelineDeals.length} active deals</p>
-          </CardContent>
-        </Card>
-
-        <Card className="rounded-2xl border border-teal-200 bg-teal-50/70 shadow-sm">
-          <CardHeader className="pb-1">
-            <CardDescription className="text-xs font-semibold uppercase tracking-wide text-teal-700 flex items-center gap-1">
-              <Target className="h-3.5 w-3.5" /> Projected Year-End
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <div className="text-2xl font-bold text-slate-800">{fmtCurrency(projectedGCI)}</div>
-            <p className="text-xs mt-0.5 text-teal-600/80">~{Math.round(projectedDeals)} deals</p>
-          </CardContent>
-        </Card>
-      </div>
+              `${ytdTx.length} deals closed`
+            )
+          }
+        />
+        <CockpitStat
+          label="Avg Deal"
+          value={fmtCurrency(avgDealSize)}
+          color="#F8FAFC"
+          icon={<BarChart2 className="h-3.5 w-3.5" />}
+          sub={`${buyerDeals}B / ${sellerDeals}S side`}
+        />
+        <CockpitStat
+          label="Pipeline"
+          value={fmtCurrency(pipelineWeighted)}
+          color={SEMANTIC.onTrack}
+          icon={<Layers className="h-3.5 w-3.5" />}
+          sub={`${pipelineDeals.length} active deals`}
+        />
+        <CockpitStat
+          label="Projected Year-End"
+          value={fmtCurrency(projectedGCI)}
+          color={SEMANTIC.onTrack}
+          icon={<Target className="h-3.5 w-3.5" />}
+          sub={`~${Math.round(projectedDeals)} deals`}
+        />
+      </KpiStrip>
 
       {/* ── Goal Progress ──────────────────────────────────────────────────────── */}
       {goalGCI > 0 && (
@@ -1022,12 +1026,24 @@ export function ReportsContent({
             <div className="grid grid-cols-2 sm:grid-cols-4 divide-x divide-slate-100 border-t border-slate-200">
               {[
                 { label: "You keep", value: fmtPct(ytdGCI > 0 ? agentNet / ytdGCI : 0), sub: "of gross GCI" },
-                { label: "Expense ratio", value: `${expenseRatio.toFixed(1)}%`, sub: expenseRatio <= 30 ? "✓ Healthy" : "⚠ Review" },
+                {
+                  label: "Expense ratio",
+                  value: `${expenseRatio.toFixed(1)}%`,
+                  sub: (
+                    <span className="inline-flex items-center justify-center gap-1">
+                      {expenseRatio <= 30 ? (
+                        <><CheckCircle className="h-3 w-3 text-emerald-500" /> Healthy</>
+                      ) : (
+                        <><AlertTriangle className="h-3 w-3 text-amber-500" /> Review</>
+                      )}
+                    </span>
+                  ),
+                },
                 { label: "Net pre-tax", value: fmtCurrency(netPreTax), sub: "after all costs" },
                 { label: "Effective take", value: fmtPct(ytdGCI > 0 ? netPreTax / ytdGCI : 0), sub: "of every $1" },
               ].map((s) => (
                 <div key={s.label} className="px-4 py-4 text-center">
-                  <div className="text-sm font-bold text-slate-900">{s.value}</div>
+                  <div className="text-sm font-bold text-slate-900 tabular-nums">{s.value}</div>
                   <div className="text-xs text-slate-500 mt-0.5">{s.label}</div>
                   <div className="text-[10px] text-slate-400">{s.sub}</div>
                 </div>
@@ -1098,13 +1114,16 @@ export function ReportsContent({
           {/* Stacked proportion bar */}
           {netForTax > 0 && taxResult.totalBurden > 0 && (
             <div className="mb-5">
+              {/* Categorical legend: Federal / Provincial / CPP. Kept as three
+                  distinct hues (real categories), re-toned onto on-system
+                  colours — Provincial swapped off violet to slate. */}
               <div className="flex h-5 w-full rounded-full overflow-hidden gap-px">
                 <div
                   className="bg-blue-500 h-full transition-all"
                   style={{ width: `${Math.min(99, (taxResult.federalTax / netForTax) * 100)}%` }}
                 />
                 <div
-                  className="bg-violet-500 h-full transition-all"
+                  className="bg-slate-500 h-full transition-all"
                   style={{ width: `${Math.min(99, (taxResult.provincialTax / netForTax) * 100)}%` }}
                 />
                 <div
@@ -1119,7 +1138,7 @@ export function ReportsContent({
                   Federal {fmtCurrency(taxResult.federalTax)}
                 </span>
                 <span className="flex items-center gap-1">
-                  <span className="h-2 w-2 rounded-full bg-violet-500 inline-block" />
+                  <span className="h-2 w-2 rounded-full bg-slate-500 inline-block" />
                   Provincial {fmtCurrency(taxResult.provincialTax)}
                 </span>
                 <span className="flex items-center gap-1">
@@ -1265,8 +1284,8 @@ export function ReportsContent({
 
       {/* ── 7. Benchmark + Cash Runway ────────────────────────────────────────── */}
       <div className="grid gap-4 sm:grid-cols-2">
-        {/* Benchmark */}
-        <Card className="rounded-2xl border border-purple-200 bg-purple-50/40 shadow-sm">
+        {/* Benchmark — neutral cockpit card (was purple). */}
+        <Card className="rounded-2xl border-slate-200 shadow-sm">
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-1.5">
               Benchmark Standing
@@ -1277,13 +1296,13 @@ export function ReportsContent({
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {/* Percentile gradient track */}
+              {/* Percentile magnitude track — slate→blue on-system ramp. */}
               <div>
                 <div className="flex justify-between text-sm mb-2">
                   <span className="text-slate-600">Cohort percentile</span>
-                  <span className="font-bold text-purple-800">P{benchmark.percentile}</span>
+                  <span className="font-bold text-slate-800 tabular-nums">P{benchmark.percentile}</span>
                 </div>
-                <div className="relative h-4 rounded-full bg-gradient-to-r from-slate-200 via-blue-300 to-purple-500 overflow-visible">
+                <div className="relative h-4 rounded-full bg-gradient-to-r from-slate-200 via-blue-300 to-blue-500 overflow-visible">
                   <div
                     className="absolute top-0 h-full w-1 bg-white rounded-full shadow-sm"
                     style={{ left: `calc(${benchmark.percentile}% - 2px)` }}
@@ -1298,16 +1317,16 @@ export function ReportsContent({
               <div className="space-y-1.5 text-sm">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Cohort median</span>
-                  <span className="font-medium">{fmtCurrency(benchmark.cohortMedianGCI)}</span>
+                  <span className="font-medium tabular-nums">{fmtCurrency(benchmark.cohortMedianGCI)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">vs Established Agents</span>
-                  <span className="font-medium">P{benchmark.nationalPercentile}</span>
+                  <span className="font-medium tabular-nums">P{benchmark.nationalPercentile}</span>
                 </div>
                 {benchmark.distanceToNextTier != null && benchmark.distanceToNextTier > 0 && (
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">To {benchmark.nextTierLabel}</span>
-                    <span className="font-medium text-purple-700">{fmtCurrency(benchmark.distanceToNextTier)}</span>
+                    <span className="font-medium text-blue-700 tabular-nums">{fmtCurrency(benchmark.distanceToNextTier)}</span>
                   </div>
                 )}
               </div>
@@ -1443,7 +1462,7 @@ export function ReportsContent({
                       {prior !== null && (
                         <TableCell className="text-right text-sm">
                           {yoyChange !== null ? (
-                            <span className={yoyChange >= 0 ? "font-medium text-emerald-700" : "font-medium text-rose-600"}>
+                            <span className={yoyChange >= 0 ? "font-medium text-emerald-700 tabular-nums" : "font-medium text-red-600 tabular-nums"}>
                               {yoyChange >= 0 ? "+" : ""}{fmtPct(yoyChange)}
                             </span>
                           ) : "—"}
@@ -1464,7 +1483,7 @@ export function ReportsContent({
                 yoyTrajectory === "accelerating"
                   ? "border-emerald-200 bg-emerald-50 text-emerald-800"
                   : yoyTrajectory === "declining"
-                  ? "border-rose-200 bg-rose-50 text-rose-800"
+                  ? "border-red-200 bg-red-50 text-red-800"
                   : "border-slate-200 bg-slate-50 text-slate-700",
               )}>
                 {yoyTrajectory === "accelerating" ? (

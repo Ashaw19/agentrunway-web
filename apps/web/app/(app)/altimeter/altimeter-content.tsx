@@ -36,6 +36,16 @@ import { fmtCurrency, fmtCompact, fmtPct } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 import dynamic from "next/dynamic";
 import type { MonthlyDataPoint } from "@/components/monthly-chart";
+import {
+  KpiStrip,
+  CockpitStat,
+  ScoreDial,
+  scoreBand,
+  SEMANTIC,
+  Chip,
+  type ChipColor,
+} from "@/components/cockpit-ui";
+import type { SparkPoint } from "@/components/sparkline";
 
 const MonthlyChart = dynamic(() => import("@/components/monthly-chart").then(m => m.MonthlyChart), { ssr: false });
 import {
@@ -88,18 +98,22 @@ function MetricInfo({ tip }: { tip: string }) {
 
 // ── Pipeline stage config ──────────────────────────────────────────────────
 
+// Pipeline stages are legitimate categorical data (lead → showing → offer →
+// conditional → firm → closed). Re-toned onto the §9.1 progression — slate
+// (cold) → blue (in motion) → amber (negotiating) → emerald (committed/done) —
+// each an on-system ChipColor so the row reads as the same instrument while
+// keeping its stage distinctions.
 const PIPELINE_STAGE_CONFIG: Array<{
   key: string;
   label: string;
-  dotClass: string;
-  chipClass: string;
+  color: ChipColor;
 }> = [
-  { key: "lead",        label: "Lead",        dotClass: "bg-slate-400",   chipClass: "border-slate-200 bg-slate-50 text-slate-600" },
-  { key: "showing",     label: "Showing",     dotClass: "bg-blue-500",    chipClass: "border-blue-200 bg-blue-50 text-blue-700" },
-  { key: "offer",       label: "Offer",       dotClass: "bg-amber-500",   chipClass: "border-amber-200 bg-amber-50 text-amber-700" },
-  { key: "conditional", label: "Conditional", dotClass: "bg-amber-600",   chipClass: "border-amber-300 bg-amber-100 text-amber-800" },
-  { key: "firm",        label: "Firm",        dotClass: "bg-emerald-500", chipClass: "border-emerald-200 bg-emerald-50 text-emerald-700" },
-  { key: "closed",      label: "Closed",      dotClass: "bg-green-600",   chipClass: "border-green-300 bg-green-50 text-green-800" },
+  { key: "lead",        label: "Lead",        color: { dot: "bg-slate-400",   bg: "bg-slate-50",    text: "text-slate-600",   border: "border-slate-200" } },
+  { key: "showing",     label: "Showing",     color: { dot: "bg-blue-500",    bg: "bg-blue-50",     text: "text-blue-700",    border: "border-blue-200" } },
+  { key: "offer",       label: "Offer",       color: { dot: "bg-amber-500",   bg: "bg-amber-50",    text: "text-amber-700",   border: "border-amber-200" } },
+  { key: "conditional", label: "Conditional", color: { dot: "bg-amber-600",   bg: "bg-amber-100",   text: "text-amber-800",   border: "border-amber-300" } },
+  { key: "firm",        label: "Firm",        color: { dot: "bg-emerald-500", bg: "bg-emerald-50",  text: "text-emerald-700", border: "border-emerald-200" } },
+  { key: "closed",      label: "Closed",      color: { dot: "bg-emerald-600", bg: "bg-emerald-100", text: "text-emerald-800", border: "border-emerald-300" } },
 ];
 
 // ── Insight icons ──────────────────────────────────────────────────────────
@@ -426,6 +440,14 @@ export function AltimeterContent({
     now,
   );
 
+  // GCI trajectory sparkline for the KPI strip — the same monthly series the
+  // chart renders, mapped to the cockpit SparkPoint shape (actuals solid,
+  // projected months as the dashed tail).
+  const gciSpark: SparkPoint[] = monthlyChartData.map((m) => ({
+    value: m.gci,
+    projected: m.projected,
+  }));
+
   // ── Commission side mix ────────────────────────────────────────────────
   const buyerDeals = transactions.filter(tx => tx.side === "buyer");
   const listingDeals = transactions.filter(tx => tx.side === "seller");
@@ -516,6 +538,57 @@ export function AltimeterContent({
       {/* Funny dismissible banner */}
       <AltimeterBanner />
 
+      {/* KPI cockpit strip — the instrument header. Runway Score (composite
+          0–100, formerly only fed to insights) leads as a ScoreDial; the
+          headline production numbers sit beside it. Always rendered so a sparse
+          account reads as an instrument awaiting data, not a broken page. */}
+      <KpiStrip
+        cols={4}
+        label="Flight instruments"
+        progress={goalGCI > 0 ? gciProgress : undefined}
+      >
+        <div className="flex items-center gap-3 min-w-0">
+          <ScoreDial
+            score={runwayScore.score}
+            size={48}
+            hex={scoreBand(runwayScore.score).hex}
+            isStrong={scoreBand(runwayScore.score).isStrong}
+            numberColor="#F8FAFC"
+          />
+          <div className="min-w-0">
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+              Runway Score
+            </div>
+            <div className="mt-0.5 text-[11px] text-slate-500">
+              {runwayScore.stateLabel}
+            </div>
+          </div>
+        </div>
+        <CockpitStat
+          label="YTD GCI"
+          value={fmtCompact(ytdGCI)}
+          color={SEMANTIC.strong}
+          icon={<DollarSign className="h-3.5 w-3.5" />}
+          spark={gciSpark}
+          sparkColor={SEMANTIC.strong}
+          sub={`Projected ${fmtCompact(projectedGCI)} year-end`}
+        />
+        <CockpitStat
+          label="Closed Deals"
+          value={String(ytdDealCount)}
+          color="#F8FAFC"
+          icon={<BarChart2 className="h-3.5 w-3.5" />}
+          sub={ytdDealCount > 0 ? `Avg ${fmtCurrency(avgDealSize)} / deal` : "No deals yet"}
+        />
+        <CockpitStat
+          label="Pipeline"
+          value={fmtCompact(pipelineWeightedGCI)}
+          color={SEMANTIC.onTrack}
+          icon={<TrendingUp className="h-3.5 w-3.5" />}
+          sub={`${pipelineCount} active deal${pipelineCount !== 1 ? "s" : ""} · weighted`}
+        />
+      </KpiStrip>
+
       {/* First-run guidance banner */}
       {transactions.length === 0 && (
         <Card className="border-dashed border-amber-300 bg-amber-50/60">
@@ -583,7 +656,7 @@ export function AltimeterContent({
                   <div>
                     <div className="flex justify-between text-xs mb-1">
                       <span className="text-slate-500 font-medium">Buyer</span>
-                      <span className="font-semibold text-slate-700">{fmtCurrency(buyerGCI)} · {buyerDeals.length} deal{buyerDeals.length !== 1 ? "s" : ""}</span>
+                      <span className="font-semibold text-slate-700 tabular-nums">{fmtCurrency(buyerGCI)} · {buyerDeals.length} deal{buyerDeals.length !== 1 ? "s" : ""}</span>
                     </div>
                     <Progress value={ytdGCI > 0 ? (buyerGCI / ytdGCI) * 100 : 0} className="h-1.5 [&>div]:bg-blue-500" />
                   </div>
@@ -592,16 +665,16 @@ export function AltimeterContent({
                   <div>
                     <div className="flex justify-between text-xs mb-1">
                       <span className="text-slate-500 font-medium">Seller / Listing</span>
-                      <span className="font-semibold text-slate-700">{fmtCurrency(listingGCI)} · {listingDeals.length} deal{listingDeals.length !== 1 ? "s" : ""}</span>
+                      <span className="font-semibold text-slate-700 tabular-nums">{fmtCurrency(listingGCI)} · {listingDeals.length} deal{listingDeals.length !== 1 ? "s" : ""}</span>
                     </div>
-                    <Progress value={ytdGCI > 0 ? (listingGCI / ytdGCI) * 100 : 0} className="h-1.5 [&>div]:bg-violet-500" />
+                    <Progress value={ytdGCI > 0 ? (listingGCI / ytdGCI) * 100 : 0} className="h-1.5 [&>div]:bg-amber-500" />
                   </div>
                 )}
                 {dualGCI > 0 && (
                   <div>
                     <div className="flex justify-between text-xs mb-1">
                       <span className="text-slate-500 font-medium">Both / Double-ended</span>
-                      <span className="font-semibold text-slate-700">{fmtCurrency(dualGCI)} · {dualDeals.length} deal{dualDeals.length !== 1 ? "s" : ""}</span>
+                      <span className="font-semibold text-slate-700 tabular-nums">{fmtCurrency(dualGCI)} · {dualDeals.length} deal{dualDeals.length !== 1 ? "s" : ""}</span>
                     </div>
                     <Progress value={ytdGCI > 0 ? (dualGCI / ytdGCI) * 100 : 0} className="h-1.5 [&>div]:bg-emerald-500" />
                   </div>
@@ -636,21 +709,22 @@ export function AltimeterContent({
                     const count = pipelineByStage[stage.key] ?? 0;
                     if (count === 0) return null;
                     return (
-                      <div key={stage.key} className={cn("flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium", stage.chipClass)}>
-                        <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", stage.dotClass)} />
+                      <Chip key={stage.key} color={stage.color}>
                         <span>{stage.label}</span>
-                        <span className="font-bold ml-0.5">{count}</span>
-                      </div>
+                        <span className="ml-0.5 font-bold tabular-nums">{count}</span>
+                      </Chip>
                     );
                   })}
                   {Object.entries(pipelineByStage)
                     .filter(([key]) => !PIPELINE_STAGE_CONFIG.some(s => s.key === key))
                     .map(([key, count]) => (
-                      <div key={key} className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-600">
-                        <span className="h-1.5 w-1.5 rounded-full bg-slate-400 shrink-0" />
+                      <Chip
+                        key={key}
+                        color={{ dot: "bg-slate-400", bg: "bg-slate-50", text: "text-slate-600", border: "border-slate-200" }}
+                      >
                         <span className="capitalize">{key}</span>
-                        <span className="font-bold ml-0.5">{count}</span>
-                      </div>
+                        <span className="ml-0.5 font-bold tabular-nums">{count}</span>
+                      </Chip>
                     ))}
                 </div>
                 <p className="mt-3 text-xs text-muted-foreground">
@@ -761,12 +835,16 @@ export function AltimeterContent({
           wys.momentum === "gaining" ? "text-emerald-600" :
           wys.momentum === "losing" ? "text-amber-600" :
           "text-slate-500";
+        // Ordinal performance bands (worst→best). Re-toned onto §9.1: the
+        // off-brand violet `leading` band now carries commission-gold — the
+        // genuine top state, and only ever one band is active at a time, so
+        // gold stays reserved for the single best item.
         const bandColors: Record<PerformanceBand, { bg: string; text: string; active: string }> = {
           launching:   { bg: "bg-slate-100",  text: "text-slate-500",   active: "bg-slate-700 text-white" },
           climbing:    { bg: "bg-blue-50",    text: "text-blue-500",    active: "bg-blue-600 text-white" },
-          competitive: { bg: "bg-emerald-50", text: "text-emerald-500", active: "bg-emerald-600 text-white" },
-          advancing:   { bg: "bg-amber-50",   text: "text-amber-600",   active: "bg-amber-500 text-white" },
-          leading:     { bg: "bg-violet-50",  text: "text-violet-500",  active: "bg-violet-600 text-white" },
+          competitive: { bg: "bg-blue-50",    text: "text-blue-600",    active: "bg-blue-700 text-white" },
+          advancing:   { bg: "bg-emerald-50", text: "text-emerald-600", active: "bg-emerald-600 text-white" },
+          leading:     { bg: "bg-amber-50",   text: "text-amber-700",   active: "bg-brand-gold text-white" },
         };
         return (
           <Card className="rounded-xl border-slate-200 bg-white shadow-sm">
@@ -811,7 +889,7 @@ export function AltimeterContent({
       })()}
 
       {/* Benchmark */}
-      <Card className="rounded-xl border-violet-200 bg-white shadow-sm">
+      <Card className="rounded-xl border-slate-200 bg-white shadow-sm">
         <CardHeader className="pb-2">
           <div className="flex items-center gap-1.5">
             <CardTitle className="text-base">Benchmark</CardTitle>
