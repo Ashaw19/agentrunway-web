@@ -260,6 +260,7 @@ export default async function DashboardPage({
       teamWelcome={teamWelcome}
       recurringExpMonthly={recurringExpMonthly}
       recurringExpYTD={recurringExpYTD}
+      dataAsOf={new Date().toISOString()}
     />
   );
 }
