@@ -25,6 +25,7 @@ import { Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Sparkline, type SparkPoint } from "@/components/sparkline";
 import { flightPathSegments } from "@/lib/charts/flight-path-geometry";
+import { bandColorHexForScore } from "@/lib/engines/runway-score-engine";
 import {
   CLIENT_STATUS_COLORS,
   CLIENT_STATUS_LABELS,
@@ -139,6 +140,57 @@ export function CockpitStat({
       )}
     </div>
   );
+}
+
+/* ── KpiStrip — the standard headline-numbers band ─────────────────────── */
+
+/**
+ * The convenience wrapper every page's KPI header should use: a CockpitStrip
+ * with the standard padding + responsive grid baked in, so KPI bands converge
+ * across the app instead of each page re-rolling the gradient-card anti-pattern.
+ * Put CockpitStat children inside.
+ */
+export function KpiStrip({
+  children,
+  label,
+  progress,
+  cols = 4,
+  className,
+}: {
+  children: React.ReactNode;
+  /** Optional eyebrow label above the stats. */
+  label?: string;
+  /** 0–100 fill of the top hairline. */
+  progress?: number;
+  /** Column count at the lg breakpoint (always 2-up on small screens). */
+  cols?: 2 | 3 | 4;
+  className?: string;
+}) {
+  const grid = cols === 3 ? "lg:grid-cols-3" : cols === 2 ? "sm:grid-cols-2" : "lg:grid-cols-4";
+  return (
+    <CockpitStrip className={cn("px-5 py-4", className)} progress={progress}>
+      {label && (
+        <div className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+          {label}
+        </div>
+      )}
+      <div className={cn("grid grid-cols-2 gap-5", grid)}>{children}</div>
+    </CockpitStrip>
+  );
+}
+
+/* ── Score band helper ─────────────────────────────────────────────────── */
+
+/**
+ * The §9.1 band for any 0–100 score (re-exports the engine's canonical
+ * `bandColorHexForScore`). `isStrong` marks the top band (≥81) so a ScoreDial
+ * caller never has to re-derive a magic threshold or mint gold off-contract.
+ */
+export function scoreBand(score: number): { hex: string; isStrong: boolean } {
+  return {
+    hex: bandColorHexForScore(score),
+    isStrong: Number.isFinite(score) && score >= 81,
+  };
 }
 
 /* ── ScoreDial — small static radial echoing the Runway gauge ──────────── */
@@ -357,5 +409,45 @@ export function FlightPath({
         ))
       )}
     </div>
+  );
+}
+
+/** Tailwind class config for a chip — same shape as CLIENT_STATUS_COLORS entries. */
+export interface ChipColor {
+  bg: string;
+  text: string;
+  border: string;
+  dot: string;
+}
+
+/**
+ * Config-driven status/stage chip with an LED dot, for the many non-lifecycle
+ * pills across the app (deal status, pipeline stage, referral status, pace…).
+ * Pass an on-system ChipColor so every chip reads as the same instrument while
+ * keeping its own categorical semantics. Lifecycle/client-status pills should
+ * still use StatusChip.
+ */
+export function Chip({
+  color,
+  children,
+  className,
+}: {
+  color: ChipColor;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold whitespace-nowrap",
+        color.bg,
+        color.text,
+        color.border,
+        className,
+      )}
+    >
+      <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", color.dot)} />
+      {children}
+    </span>
   );
 }

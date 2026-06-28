@@ -209,7 +209,7 @@ export const PACE_STATUS_LABELS: Record<PaceStatus, string> = {
 };
 
 export const ORG_INSIGHT_SEVERITY_COLORS: Record<OrgInsightSeverity, string> = {
-  critical: "text-rose-500 bg-rose-500/10 border-rose-500/20",
+  critical: "text-red-500 bg-red-500/10 border-red-500/20", // §9.1 risk (was rose)
   warning: "text-amber-500 bg-amber-500/10 border-amber-500/20",
   info: "text-blue-500 bg-blue-500/10 border-blue-500/20",
   praise: "text-emerald-500 bg-emerald-500/10 border-emerald-500/20",
