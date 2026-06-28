@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { fmtCompact } from "@/lib/formatters";
+import { CockpitStrip, SEMANTIC } from "@/components/cockpit-ui";
 import type {
   Client,
   ClientRecord,
@@ -107,11 +108,11 @@ function ListingRow({ appt, clientName }: { appt: ListingAppointment; clientName
   const daysActive = daysSince(appt.appointment_date);
   return (
     <div className="flex items-start gap-3 py-2.5 px-3 rounded-lg border bg-white/50 border-border/40 dark:bg-muted/20">
-      <CalendarDays className="h-4 w-4 text-orange-500 shrink-0 mt-0.5" />
+      <CalendarDays className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-sm font-semibold text-foreground">{appt.property_address || "Address TBD"}</span>
-          <span className="text-[9px] font-semibold border rounded-full px-2 py-0 bg-orange-50 text-orange-700 border-orange-200">
+          <span className="text-[9px] font-semibold border rounded-full px-2 py-0 bg-amber-50 text-amber-700 border-amber-200">
             Active Listing
           </span>
         </div>
@@ -277,27 +278,40 @@ export function PipelineTab({
 
   return (
     <div className="space-y-8 pb-8">
-      {/* Header */}
-      <div className="flex items-center justify-between pt-1">
-        <div>
-          <div className="flex items-center gap-3">
-            <h2 className="text-base font-bold text-foreground">Weekly Pipeline</h2>
-            <Link href="/pipeline" className="text-xs text-cyan-400 hover:text-cyan-300 transition-colors">
-              View full pipeline →
-            </Link>
+      {/* Cockpit strip header */}
+      <CockpitStrip className="px-5 py-4">
+        <div className="flex items-end justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-3">
+              <h2 className="text-base font-bold text-white">Weekly pipeline</h2>
+              <Link href="/pipeline" className="text-xs text-slate-400 hover:text-slate-200 transition-colors">
+                View full pipeline →
+              </Link>
+            </div>
+            <p className="text-xs text-slate-500 mt-0.5">{today}</p>
           </div>
-          <p className="text-xs text-muted-foreground mt-0.5">{today}</p>
+          <div className="flex items-center gap-5 shrink-0">
+            {totalPipelineGCI > 0 && (
+              <div className="text-right">
+                <div className="text-lg font-bold tabular-nums leading-none" style={{ color: SEMANTIC.strong }}>{fmtCompact(totalPipelineGCI)}</div>
+                <div className="text-[10px] uppercase tracking-wider text-slate-500 mt-0.5">pipeline GCI</div>
+              </div>
+            )}
+            <div className="text-right">
+              <div className="text-lg font-bold tabular-nums leading-none text-white">{inMotionCount}</div>
+              <div className="text-[10px] uppercase tracking-wider text-slate-500 mt-0.5">closing</div>
+            </div>
+            <div className="text-right">
+              <div className="text-lg font-bold tabular-nums leading-none text-white">{onDeck.length}</div>
+              <div className="text-[10px] uppercase tracking-wider text-slate-500 mt-0.5">on deck</div>
+            </div>
+            <div className="text-right">
+              <div className="text-lg font-bold tabular-nums leading-none" style={{ color: checkIn.length > 0 ? SEMANTIC.watch : "#F8FAFC" }}>{checkIn.length}</div>
+              <div className="text-[10px] uppercase tracking-wider text-slate-500 mt-0.5">to check in</div>
+            </div>
+          </div>
         </div>
-        <div className="flex items-center gap-4 text-xs text-muted-foreground">
-          {totalPipelineGCI > 0 && (
-            <span className="font-semibold text-emerald-600 tabular-nums">{fmtCompact(totalPipelineGCI)} GCI</span>
-          )}
-          <span><span className="font-semibold text-foreground">{inMotionCount}</span> closing</span>
-          <span><span className="font-semibold text-foreground">{onDeck.length}</span> on deck</span>
-          <span className={cn("font-semibold", checkIn.length > 0 ? "text-amber-600" : "text-foreground")}>{checkIn.length}</span>
-          <span>to check in</span>
-        </div>
-      </div>
+      </CockpitStrip>
 
       {/* ── Section 1: In Motion ─────────────────────────────────────────── */}
       {inMotionCount > 0 && (
@@ -342,7 +356,7 @@ export function PipelineTab({
             icon={<CircleDot className="h-4 w-4 text-white" />}
             label="On Deck"
             count={onDeck.length}
-            color="bg-violet-500"
+            color="bg-blue-500"
             description="Pre-approved buyers with recent momentum — who writes an offer next?"
             totalValue={onDeckValue}
           />
