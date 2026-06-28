@@ -33,29 +33,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, Pencil, Trash2, Layers, DollarSign, TrendingUp, Info, CheckCircle2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Layers, DollarSign, TrendingUp, CheckCircle2 } from "lucide-react";
 import { fmtCurrency, fmtPct } from "@/lib/formatters";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-
-function MetricInfo({ tip }: { tip: string }) {
-  return (
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Info className="h-3.5 w-3.5 text-muted-foreground/50 hover:text-muted-foreground cursor-help transition-colors shrink-0" />
-        </TooltipTrigger>
-        <TooltipContent side="top" className="max-w-[220px] text-center leading-snug">
-          {tip}
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
-  );
-}
+import { KpiStrip, CockpitStat, SEMANTIC } from "@/components/cockpit-ui";
 
 import {
   computeEstimatedGCI,
@@ -125,7 +105,7 @@ const STAGE_CHIP: Record<string, string> = {
   offer:       "bg-amber-100 text-amber-800 border border-amber-200",
   conditional: "bg-purple-100 text-purple-800 border border-purple-200",
   firm:        "bg-emerald-100 text-emerald-800 border border-emerald-200",
-  closed:      "bg-green-600 text-white border border-green-700",
+  closed:      "bg-emerald-600 text-white border border-emerald-700",
 };
 
 const SIDE_CHIP: Record<string, string> = {
@@ -487,39 +467,28 @@ export function TransactionsPipelineTab({ pipelineDeals, settings, closedTransac
         </Button>
       </div>
 
-      {/* KPI strip */}
-      <div className="grid gap-4 sm:grid-cols-3">
-        <div className="flex items-center gap-3 rounded-2xl border border-blue-200 bg-gradient-to-br from-blue-100 to-blue-50 px-5 py-4 shadow-sm">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-200">
-            <Layers className="h-5 w-5 text-blue-700" />
-          </div>
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">Active Deals</p>
-            <p className="text-2xl font-bold text-slate-800">{deals.length}</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-3 rounded-2xl border border-purple-200 bg-gradient-to-br from-purple-100 to-purple-50 px-5 py-4 shadow-sm">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-purple-200">
-            <TrendingUp className="h-5 w-5 text-purple-700" />
-          </div>
-          <div>
-            <span className="flex items-center gap-1">
-              <p className="text-xs font-semibold uppercase tracking-wide text-purple-700">Weighted GCI</p>
-              <MetricInfo tip="Your pipeline total adjusted for each deal's probability of closing — a more realistic picture than face value." />
-            </span>
-            <p className="text-2xl font-bold text-slate-800">{fmtCurrency(totalWeighted)}</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-3 rounded-2xl border border-teal-200 bg-gradient-to-br from-teal-100 to-teal-50 px-5 py-4 shadow-sm">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-teal-200">
-            <DollarSign className="h-5 w-5 text-teal-700" />
-          </div>
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-teal-700">Avg Deal Value</p>
-            <p className="text-2xl font-bold text-slate-800">{deals.length > 0 ? fmtCurrency(avgDealValue) : "—"}</p>
-          </div>
-        </div>
-      </div>
+      {/* KPI cockpit strip */}
+      <KpiStrip cols={3} label="Pipeline">
+        <CockpitStat
+          label="Active Deals"
+          value={deals.length}
+          color="#F8FAFC"
+          icon={<Layers className="h-3.5 w-3.5" />}
+        />
+        <CockpitStat
+          label="Weighted GCI"
+          value={fmtCurrency(totalWeighted)}
+          color={SEMANTIC.onTrack}
+          icon={<TrendingUp className="h-3.5 w-3.5" />}
+          sub="adjusted for close probability"
+        />
+        <CockpitStat
+          label="Avg Deal Value"
+          value={deals.length > 0 ? fmtCurrency(avgDealValue) : "—"}
+          color={SEMANTIC.strong}
+          icon={<DollarSign className="h-3.5 w-3.5" />}
+        />
+      </KpiStrip>
 
       {/* Table */}
       <Card className="rounded-2xl border-slate-200 shadow-sm">

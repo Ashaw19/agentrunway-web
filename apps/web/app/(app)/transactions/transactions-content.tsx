@@ -37,6 +37,7 @@ import { Plus, Pencil, Trash2, DollarSign, Briefcase, TrendingUp, AlertTriangle,
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { fmtCurrency } from "@/lib/formatters";
+import { KpiStrip, CockpitStat, SEMANTIC } from "@/components/cockpit-ui";
 import { computeGCI, getAgentPct, type Transaction, type PipelineDeal, type HistoryItem, type UserSettings } from "@/lib/types/database";
 import { TransactionsPipelineTab } from "./transactions-pipeline-tab";
 import { TransactionsHistoryTab } from "./transactions-history-tab";
@@ -443,36 +444,27 @@ export function TransactionsContent({ initialTransactions, initialPipelineDeals,
       {/* Deals tab content — hidden when pipeline is active */}
       {tab === "deals" && <>
 
-      {/* KPI strip */}
-      <div className="grid gap-4 sm:grid-cols-3">
-        <div className="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50/70 px-4 py-3 shadow-sm">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-200">
-            <DollarSign className="h-4 w-4 text-emerald-700" />
-          </div>
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-700">YTD GCI</p>
-            <p className="text-lg font-bold text-slate-800">{fmtCurrency(ytdGCI)}</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-3 rounded-xl border border-blue-200 bg-blue-50/70 px-4 py-3 shadow-sm">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-200">
-            <Briefcase className="h-4 w-4 text-blue-700" />
-          </div>
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-blue-700">Closed Deals</p>
-            <p className="text-lg font-bold text-slate-800">{ytdCount}</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-3 rounded-xl border border-purple-200 bg-purple-50/70 px-4 py-3 shadow-sm">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-purple-200">
-            <TrendingUp className="h-4 w-4 text-purple-700" />
-          </div>
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-purple-700">Avg Deal Size</p>
-            <p className="text-lg font-bold text-slate-800">{ytdCount > 0 ? fmtCurrency(avgDealSize) : "—"}</p>
-          </div>
-        </div>
-      </div>
+      {/* KPI cockpit strip */}
+      <KpiStrip cols={3} label="This year">
+        <CockpitStat
+          label="YTD GCI"
+          value={fmtCurrency(ytdGCI)}
+          color={SEMANTIC.strong}
+          icon={<DollarSign className="h-3.5 w-3.5" />}
+        />
+        <CockpitStat
+          label="Closed Deals"
+          value={ytdCount}
+          color="#F8FAFC"
+          icon={<Briefcase className="h-3.5 w-3.5" />}
+        />
+        <CockpitStat
+          label="Avg Deal Size"
+          value={ytdCount > 0 ? fmtCurrency(avgDealSize) : "—"}
+          color={SEMANTIC.onTrack}
+          icon={<TrendingUp className="h-3.5 w-3.5" />}
+        />
+      </KpiStrip>
 
       {/* Insight strip — velocity, mix, avg take-home */}
       {transactions.length >= 2 && (
@@ -487,7 +479,7 @@ export function TransactionsContent({ initialTransactions, initialPipelineDeals,
               </span>
             )}
             {last30Deals < prior30Deals && (
-              <span className="flex items-center gap-0.5 text-xs font-medium text-rose-500">
+              <span className="flex items-center gap-0.5 text-xs font-medium text-red-500">
                 <ArrowDown className="h-3 w-3" />vs prior
               </span>
             )}
