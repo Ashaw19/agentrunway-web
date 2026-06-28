@@ -26,7 +26,6 @@ import {
   Plus,
   Trash2,
   Pencil,
-  ArrowRight,
   ListTodo,
   Mail,
   MessageSquare,
@@ -35,12 +34,30 @@ import {
   Tag,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { FlightPath } from "@/components/cockpit-ui";
 import type {
   FlightPlan,
   FlightPlanStep,
   ClientStatus,
 } from "@/lib/types/database";
 import { CLIENT_STATUS_LABELS } from "@/lib/types/database";
+
+// ── Action glyph mapping (icon conveys the step's action; colour is reserved) ─
+
+type FlightAction = "task" | "email" | "text";
+
+const ACTION_LABEL: Record<FlightAction, string> = {
+  task: "Task",
+  email: "Email",
+  text: "Text",
+};
+
+function actionIcon(type: FlightAction) {
+  const cls = "h-3.5 w-3.5";
+  if (type === "email") return <Mail className={cls} />;
+  if (type === "text") return <MessageSquare className={cls} />;
+  return <ListTodo className={cls} />;
+}
 
 // ── Props ───────────────────────────────────────────────────────────────────
 
@@ -288,27 +305,22 @@ export function FlightPlansTab({
                       {totalDays > 0 ? ` over ${totalDays} days` : ""}
                     </p>
 
-                    {/* Mini timeline */}
-                    {planSteps.length > 0 && (
-                      <div className="flex items-center gap-1 mt-2 flex-wrap">
-                        {planSteps.map((step, i) => (
-                          <div key={step.id} className="flex items-center gap-1">
-                            <div className="flex items-center gap-1 rounded-full bg-sky-50 border border-sky-200 px-2 py-0.5">
-                              <span className="text-[9px] font-semibold text-sky-600">
-                                Day {step.delay_days}
-                              </span>
-                              <span className="text-[9px] text-sky-500">·</span>
-                              <span className="text-[9px] text-sky-700">
-                                {step.action_type === "task" ? "📋" : step.action_type === "email" ? "✉️" : "💬"}
-                              </span>
-                            </div>
-                            {i < planSteps.length - 1 && (
-                              <ArrowRight className="h-2.5 w-2.5 text-muted-foreground/40 shrink-0" />
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                    {/* Runway — always rendered, so a 0-step Default reads as a
+                        path awaiting its first touch, not an empty card. */}
+                    <FlightPath
+                      className="mt-2.5"
+                      status={plan.trigger_status}
+                      originLabel={
+                        plan.trigger_status
+                          ? CLIENT_STATUS_LABELS[plan.trigger_status]
+                          : "Manual"
+                      }
+                      stops={planSteps.map((step) => ({
+                        day: step.delay_days,
+                        icon: actionIcon(step.action_type),
+                        label: ACTION_LABEL[step.action_type],
+                      }))}
+                    />
                   </div>
 
                   <div className="flex items-center gap-2 shrink-0">
@@ -518,27 +530,25 @@ export function FlightPlansTab({
               </div>
             </div>
 
-            {/* Visual timeline preview */}
+            {/* Visual runway preview */}
             {steps.length > 0 && (
               <div className="border-t border-border/40 pt-3">
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">
-                  Timeline Preview
+                  Runway Preview
                 </p>
-                <div className="flex items-center gap-1 flex-wrap">
-                  <div className="rounded-full bg-emerald-50 border border-emerald-200 px-2.5 py-1">
-                    <span className="text-[10px] font-semibold text-emerald-700">Trigger</span>
-                  </div>
-                  {steps.map((step) => (
-                    <div key={step.key} className="flex items-center gap-1">
-                      <ArrowRight className="h-3 w-3 text-muted-foreground/40 shrink-0" />
-                      <div className="rounded-full bg-sky-50 border border-sky-200 px-2.5 py-1">
-                        <span className="text-[10px] font-semibold text-sky-700">
-                          Day {step.delay_days} · {step.action_type === "task" ? "📋" : step.action_type === "email" ? "✉️" : "💬"}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                <FlightPath
+                  status={triggerStatus === "none" ? null : triggerStatus}
+                  originLabel={
+                    triggerStatus === "none"
+                      ? "Manual"
+                      : CLIENT_STATUS_LABELS[triggerStatus]
+                  }
+                  stops={steps.map((step) => ({
+                    day: step.delay_days,
+                    icon: actionIcon(step.action_type),
+                    label: ACTION_LABEL[step.action_type],
+                  }))}
+                />
               </div>
             )}
 
