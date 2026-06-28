@@ -30,6 +30,14 @@ import {
 } from "./card-registry";
 import { CountUp } from "@/components/count-up";
 import { Sparkline, type SparkPoint } from "@/components/sparkline";
+import {
+  buildScoreTrajectory,
+  caretDirection,
+  priorComponentScores,
+  cashRunwayDelta,
+  shouldWriteHistoryToday,
+  type ScoreHistoryPoint,
+} from "@/lib/dashboard/trajectory";
 import { FreshnessIndicator } from "@/components/freshness-indicator";
 import { useRouter } from "next/navigation";
 import { useConfetti } from "@/hooks/use-confetti";
@@ -196,6 +204,8 @@ interface Props {
   briefingItems?: BriefingItem[];
   upcomingConditions?: Array<{ address: string; condition_date: string; client_name: string; days_until: number }>;
   runwayScoreSnapshot?: { score: number; month: string } | null;
+  /** Last 12 daily Runway Score history rows (ASC) — backs the trajectory. */
+  scoreHistory?: ScoreHistoryPoint[];
   dashboardLayout?: DashboardLayout | null;
   communicationProfile?: CommunicationProfile | null;
   businessIdentity?: BusinessIdentity | null;
@@ -302,6 +312,7 @@ export function DashboardContent({
   briefingItems = [],
   upcomingConditions = [],
   runwayScoreSnapshot = null,
+  scoreHistory = [],
   dashboardLayout = null,
   communicationProfile = null,
   businessIdentity = null,
@@ -398,6 +409,7 @@ export function DashboardContent({
   }
   const { fire: fireConfetti } = useConfetti();
   const confettiFiredRef = useRef(false);
+  const historyWrittenRef = useRef(false);
   const now = new Date();
   const currentYear = now.getFullYear();
   const _isDecember = now.getMonth() === 11; // 0-indexed
@@ -700,6 +712,29 @@ export function DashboardContent({
       ? runwayScore.score - runwayScoreSnapshot.score
       : null;
 
+  // ── Runway Score / Cash Runway trajectory derivations ─────────────────
+  // All from the pure trajectory module — no score/band math here (engine is
+  // source of truth). Carets/deltas read against the most-recent PRIOR daily
+  // history row; suppressed entirely when no prior row exists.
+  const currentDateKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  const latestHistoryDate = scoreHistory.length ? scoreHistory[scoreHistory.length - 1].captured_on : null;
+  // Seed the trajectory ONLY from a snapshot that is a genuinely earlier
+  // period (different month) — never fabricate a duplicate point from this
+  // month's snapshot.
+  const trajectorySeedScore =
+    runwayScoreSnapshot != null && runwayScoreSnapshot.month !== currentMonthKey
+      ? runwayScoreSnapshot.score
+      : null;
+  const scoreTrajectory = hasData
+    ? buildScoreTrajectory(scoreHistory, runwayScore.score, currentDateKey, trajectorySeedScore)
+    : [];
+  const priorComps = priorComponentScores(scoreHistory, currentDateKey);
+  const cashDelta = cashRunwayDelta(
+    scoreHistory,
+    survival.riskLevel === "notConfigured" ? null : survival.months,
+    currentDateKey,
+  );
+
   // Persist full score breakdown to Supabase so mobile reads the same values.
   // Saves every time the score changes (not just once/month) for real-time parity.
   useEffect(() => {
@@ -735,6 +770,30 @@ export function DashboardContent({
         } else {
           console.error("Runway score snapshot save failed after retry:", error.message);
         }
+      }
+
+      // ── Daily Runway Score history (trajectory backing) ───────────────────
+      // At most ONE write per day. Date guard skips when today's row already
+      // exists; ref guard blocks a 2nd write when the score changes again this
+      // session. Do NOT write on every render/refresh (the thrash verify flagged).
+      if (!historyWrittenRef.current && shouldWriteHistoryToday(latestHistoryDate, currentDateKey)) {
+        historyWrittenRef.current = true; // set before await to block re-entry
+        const { error: histErr } = await supabase
+          .from("runway_score_history")
+          .upsert(
+            {
+              user_id: user.id,
+              captured_on: currentDateKey,
+              score: runwayScore.score,
+              components: snapshot.components,
+              cash_runway_months:
+                survival.riskLevel === "notConfigured" || !Number.isFinite(survival.months)
+                  ? null
+                  : Math.round(survival.months * 10) / 10,
+            },
+            { onConflict: "user_id,captured_on" },
+          );
+        if (histErr) console.warn("Runway score history write failed (non-fatal):", histErr.message);
       }
     })();
     return () => { cancelled = true; };
@@ -2558,6 +2617,8 @@ export function DashboardContent({
                   stateLabel={runwayScore.stateLabel}
                   bandHex={scoreBandHex}
                   isStrong={scoreIsStrong}
+                  trajectory={scoreTrajectory}
+                  trajectoryColor={scoreBandHex}
                 />
               ) : (
                 <div className="flex h-[132px] w-[132px] shrink-0 items-center justify-center rounded-full border-2 border-dashed border-slate-700">
@@ -2608,6 +2669,19 @@ export function DashboardContent({
               <p className={cn("text-3xl font-bold mt-1 leading-none", riskBandText[riskColorBand(survival.riskLevel)])}>
                 {formatSurvivalDisplay(survival)}
               </p>
+              {/* Direction-of-change vs the most-recent prior daily history row.
+                  Suppressed entirely when there is no prior cash value
+                  (cashDelta === null). emerald/amber/slate per §9.1; up = more
+                  runway (good), down = less. */}
+              {cashDelta !== null && (
+                <p className={cn(
+                  "text-[11px] font-semibold tabular-nums mt-1 flex items-center gap-0.5",
+                  cashDelta > 0 ? "text-emerald-500" : cashDelta < 0 ? "text-amber-500" : "text-slate-400",
+                )}>
+                  {cashDelta > 0 ? <ArrowUpRight className="h-3 w-3" /> : cashDelta < 0 ? <ArrowDownRight className="h-3 w-3" /> : <Minus className="h-3 w-3" />}
+                  {cashDelta > 0 ? `+${cashDelta.toFixed(1)}` : cashDelta.toFixed(1)} mo vs last check
+                </p>
+              )}
               {/* Derived calendar anchor — computed from survival.months, never
                   a hardcoded month (item 6 acceptance criterion). */}
               {cashRunwayAnchor && (
@@ -2658,10 +2732,13 @@ export function DashboardContent({
             <div className="mt-3 grid grid-cols-5 gap-3 border-t border-slate-700 pt-3">
               {runwayScore.components.map((c, i) => {
                 const compHex = bandColorHexForScore(c.score);
-                // On the 0–100 component scale, ≥61 (On Track / Strong) reads
-                // as an "up" signal; below that reads as a "watch / down"
-                // signal. The caret is a direction cue, not a band boundary.
-                const isUp = c.score >= 61;
+                // Direction-of-CHANGE vs the SAME component's score in the most
+                // recent prior daily history row. Three states: up / flat /
+                // down. Suppressed entirely when there is no prior row
+                // (first-ever capture) — we never invent a direction. Bar/value
+                // color carries the §9.1 band; the caret carries movement, so
+                // meaning survives grayscale/colorblindness.
+                const dir = caretDirection(c.score, priorComps?.get(c.label));
                 return (
                 <div
                   key={c.label}
@@ -2672,7 +2749,7 @@ export function DashboardContent({
                 >
                   <p className="text-[10px] font-semibold text-slate-400">{c.label}</p>
                   <p className="text-sm font-bold mt-0.5 flex items-center justify-center gap-0.5" style={{ color: compHex }}>
-                    {isUp ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
+                    {dir === "up" ? <ArrowUpRight className="h-3 w-3" /> : dir === "down" ? <ArrowDownRight className="h-3 w-3" /> : dir === "flat" ? <Minus className="h-3 w-3" /> : null}
                     {c.score}
                     <span className="text-[10px] font-medium text-slate-500">/100</span>
                   </p>
