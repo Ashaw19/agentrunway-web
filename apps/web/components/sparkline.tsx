@@ -6,7 +6,10 @@ import {
   pointsToPath,
   areaPath,
   pathLength,
+  smoothPath,
+  smoothAreaPath,
   type SparkPoint,
+  type XY,
 } from "@/lib/charts/sparkline-geometry";
 
 export type { SparkPoint };
@@ -25,6 +28,17 @@ interface SparklineProps {
   /** Animation delay seconds (sync with the hero boot when desired). */
   delay?: number;
   ariaLabel?: string;
+  /** Render the line as a monotone-cubic curve instead of a jagged polyline. */
+  smooth?: boolean;
+  /** Draw the soft area fill under the line. Disable on busy dark surfaces. */
+  fill?: boolean;
+  /** Peak opacity of the area-fill gradient (top stop). */
+  fillOpacity?: number;
+  /**
+   * Reserve this fraction (0–0.5) of the height as top/bottom margin so small
+   * relative changes read as a gentle drift, not a full-height zigzag.
+   */
+  headroom?: number;
 }
 
 const VIEW_W = 100;
@@ -45,11 +59,18 @@ export function Sparkline({
   animate = true,
   delay = 0,
   ariaLabel,
+  smooth = false,
+  fill = true,
+  fillOpacity = 0.22,
+  headroom = 0,
 }: SparklineProps) {
   if (data.length < 2) return null;
 
   const values = data.map((d) => d.value);
-  const pts = sparklinePoints(values, VIEW_W, VIEW_H);
+  const pts = sparklinePoints(values, VIEW_W, VIEW_H, 2, headroom);
+  const toLine = (p: XY[]) => (smooth ? smoothPath(p) : pointsToPath(p));
+  const toArea = (p: XY[]) =>
+    smooth ? smoothAreaPath(p, VIEW_H) : areaPath(p, VIEW_H);
 
   // Split into the actual run and the projected continuation. The projected
   // segment includes the last actual point so the dashed line joins the solid.
@@ -58,7 +79,10 @@ export function Sparkline({
   const actualPts = hasProjected ? pts.slice(0, firstProjected) : pts;
   const projectedPts = hasProjected ? pts.slice(firstProjected - 1) : [];
 
-  const len = pathLength(actualPts);
+  // Overestimate the draw-in dash length for smooth curves: a Bézier is longer
+  // than its control polyline, and an under-length dash would leave the tail
+  // hidden at rest (dashoffset 0). Overestimating only hides more at the start.
+  const len = pathLength(actualPts) * (smooth ? 1.5 : 1);
   const lastActual = actualPts[actualPts.length - 1];
   const gradId = `spark-fill-${color.replace(/[^a-z0-9]/gi, "")}`;
 
@@ -73,24 +97,26 @@ export function Sparkline({
     >
       <defs>
         <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={color} stopOpacity="0.22" />
+          <stop offset="0%" stopColor={color} stopOpacity={fillOpacity} />
           <stop offset="100%" stopColor={color} stopOpacity="0" />
         </linearGradient>
       </defs>
 
       {/* Soft area fill under the actuals. */}
-      <path
-        d={areaPath(actualPts, VIEW_H)}
-        fill={`url(#${gradId})`}
-        stroke="none"
-        className={animate ? "spark-fade" : undefined}
-        style={animate ? { animationDelay: `${delay}s` } : undefined}
-      />
+      {fill && (
+        <path
+          d={toArea(actualPts)}
+          fill={`url(#${gradId})`}
+          stroke="none"
+          className={animate ? "spark-fade" : undefined}
+          style={animate ? { animationDelay: `${delay}s` } : undefined}
+        />
+      )}
 
       {/* Projected dashed continuation (drawn first, sits under the actuals). */}
       {projectedPts.length >= 2 && (
         <path
-          d={pointsToPath(projectedPts)}
+          d={toLine(projectedPts)}
           fill="none"
           stroke={projectedColor}
           strokeWidth={1.5}
@@ -105,7 +131,7 @@ export function Sparkline({
 
       {/* Actuals line with a draw-in sweep that rests fully-drawn. */}
       <path
-        d={pointsToPath(actualPts)}
+        d={toLine(actualPts)}
         fill="none"
         stroke={color}
         strokeWidth={1.75}
