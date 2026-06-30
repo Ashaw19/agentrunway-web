@@ -13,6 +13,13 @@ export interface PipelineSeedData {
   buyerClients: BuyerClient[];
   closedTransactions: ClosedTransaction[];
   defaultCommissionPct: number;
+  // ── Pre-transactional Opportunities (migrations 00153-00156) ──────────
+  // `opportunities` is the unified read surface (opportunities_v) the new
+  // Opportunities section + cockpit strip read from. `referralOpportunities`
+  // is the raw referral table — it rolls into the unified Pipeline Weighted
+  // total via the forecast engine (spec §2.2).
+  opportunities: import("@/lib/types/database").OpportunityV[];
+  referralOpportunities: import("@/lib/types/database").ReferralOpportunity[];
 }
 
 // ── Page ───────────────────────────────────────────────────────────────────
@@ -33,8 +40,14 @@ export default async function PipelinePage() {
   // ── Live Supabase queries ───────────────────────────────────────────
   const year = new Date().getFullYear();
 
-  const [dealsResult, listingsResult, clientsResult, txResult] =
-    await Promise.all([
+  const [
+    dealsResult,
+    listingsResult,
+    clientsResult,
+    txResult,
+    opportunitiesResult,
+    referralsResult,
+  ] = await Promise.all([
       supabase
         .from("pipeline_deals")
         .select("*")
@@ -61,6 +74,21 @@ export default async function PipelinePage() {
         .eq("status", "closed")
         .gte("date", `${year}-01-01`)
         .not("pipeline_deal_id", "is", null)
+        .limit(10000),
+      // Unified pre-transactional opportunities (opportunities_v). RLS
+      // (security_invoker) scopes to the caller; user_id filter is belt-and-
+      // suspenders for index use. KPIs need converted/lost rows too, so this
+      // is NOT filtered to status='open' here — the section filters for display.
+      supabase
+        .from("opportunities_v")
+        .select("*")
+        .eq("user_id", user.id)
+        .limit(10000),
+      // Raw referral rows feed the unified Pipeline Weighted forecast total.
+      supabase
+        .from("referral_opportunities")
+        .select("*")
+        .eq("user_id", user.id)
         .limit(10000),
     ]);
 
@@ -103,6 +131,8 @@ export default async function PipelinePage() {
     buyerClients,
     closedTransactions,
     defaultCommissionPct: 0.025,
+    opportunities: opportunitiesResult.data ?? [],
+    referralOpportunities: referralsResult.data ?? [],
   };
 
   return <PipelineContent seed={seed} />;

@@ -520,11 +520,19 @@ export function DashboardContent({
   const hasData = transactions.length > 0 || historyItems.length > 0;
 
   // ── Pipeline ──────────────────────────────────────────────────────────
-  const pipelineWeightedGCI = pipelineDeals.reduce(
+  // Exclude terminal stages from the "active pipeline" aggregates. "closed"
+  // deals become transactions; "lost" deals (a buyer prospect marked lost via
+  // the Opportunities flow — fn_mark_opportunity_lost sets stage='lost' and
+  // keeps the row) are dead. Counting either would overstate active deals and
+  // surface a phantom "lost" bucket in pipeline-by-stage.
+  const activePipelineDeals = pipelineDeals.filter(
+    (d) => d.stage !== "closed" && d.stage !== "lost",
+  );
+  const pipelineWeightedGCI = activePipelineDeals.reduce(
     (sum, d) => sum + computeWeightedGCI(d),
     0,
   );
-  const pipelineCount = pipelineDeals.length;
+  const pipelineCount = activePipelineDeals.length;
 
   // ── Listing appointment weighted GCI ─────────────────────────────────
   // Canonical helper (projection-engine) — single source for the listing
@@ -1139,7 +1147,7 @@ export function DashboardContent({
   const dualGCI = dualDeals.reduce((s, tx) => s + computeGCI(tx), 0);
 
   // ── Pipeline by stage ────────────────────────────────────────────────
-  const pipelineByStage = pipelineDeals.reduce<Record<string, number>>((acc, deal) => {
+  const pipelineByStage = activePipelineDeals.reduce<Record<string, number>>((acc, deal) => {
     const stage = (deal.stage ?? "lead") as string;
     acc[stage] = (acc[stage] ?? 0) + 1;
     return acc;

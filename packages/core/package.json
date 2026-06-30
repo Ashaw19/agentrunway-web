@@ -5,6 +5,7 @@
   "exports": {
     "./engines": "./engines/index.ts",
     "./engines/*": "./engines/*.ts",
+    "./lib/opportunity-loss-reasons": "./lib/opportunity-loss-reasons.ts",
     "./types/database": "./types/database.ts",
     "./types/organizations": "./types/organizations.ts",
     "./formatters": "./formatters.ts",

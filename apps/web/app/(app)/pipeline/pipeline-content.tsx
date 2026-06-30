@@ -23,6 +23,7 @@ import {
   ArrowRight,
   Plus,
   Trash2,
+  Share2,
 } from "lucide-react";
 import {
   Table,
@@ -54,6 +55,7 @@ import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import type { ListingAppointment, ClientStatus } from "@/lib/types/database";
 import { CLIENT_STATUS_LABELS, CLIENT_STATUS_COLORS } from "@/lib/types/database";
+import { OpportunitiesSection } from "./components/opportunities-section";
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -75,19 +77,21 @@ const STAGE_LABELS: Record<UnifiedStage, string> = {
   closed:         "Closed",
 };
 
-function sourceIcon(source: "deal" | "listing" | "buyer") {
+function sourceIcon(source: "deal" | "listing" | "buyer" | "referral") {
   switch (source) {
-    case "deal":    return <Layers className="h-4 w-4 text-cyan-500" />;
-    case "listing": return <Home className="h-4 w-4 text-amber-500" />;
-    case "buyer":   return <User className="h-4 w-4 text-teal-500" />;
+    case "deal":     return <Layers className="h-4 w-4 text-cyan-500" />;
+    case "listing":  return <Home className="h-4 w-4 text-amber-500" />;
+    case "buyer":    return <User className="h-4 w-4 text-teal-500" />;
+    case "referral": return <Share2 className="h-4 w-4 text-slate-500" />;
   }
 }
 
-function sourceLabel(source: "deal" | "listing" | "buyer") {
+function sourceLabel(source: "deal" | "listing" | "buyer" | "referral") {
   switch (source) {
-    case "deal":    return "Deal";
-    case "listing": return "Listing";
-    case "buyer":   return "Buyer";
+    case "deal":     return "Deal";
+    case "listing":  return "Listing";
+    case "buyer":    return "Buyer";
+    case "referral": return "Referral";
   }
 }
 
@@ -126,6 +130,8 @@ export function PipelineContent({ seed }: { seed: PipelineSeedData }) {
         buyerClients: seed.buyerClients,
         closedTransactions: seed.closedTransactions,
         defaultCommissionPct: seed.defaultCommissionPct,
+        // Referrals roll into the unified Pipeline Weighted total (spec §2.2).
+        referralOpportunities: seed.referralOpportunities,
       }),
     [seed],
   );
@@ -315,6 +321,11 @@ export function PipelineContent({ seed }: { seed: PipelineSeedData }) {
 
   return (
     <div className="space-y-6">
+      {/* ── Pre-transactional Opportunities (cockpit strip + section +
+          dialogs). Mounted above the existing pipeline sections so the
+          pre-pipeline activity reads first. ──────────────────────────── */}
+      <OpportunitiesSection opportunities={seed.opportunities} />
+
       {/* ── Page Header ─────────────────────────────────────────────── */}
       <div className="flex items-center justify-between">
         <div>

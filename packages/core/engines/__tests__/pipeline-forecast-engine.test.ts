@@ -14,7 +14,7 @@ import {
   type BuyerClient,
   type ClosedTransaction,
 } from "../pipeline-forecast-engine";
-import type { PipelineDeal, ListingAppointment } from "../../types/database";
+import type { PipelineDeal, ListingAppointment, ReferralOpportunity } from "../../types/database";
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -32,6 +32,8 @@ function makeDeal(overrides: Partial<PipelineDeal> & Pick<PipelineDeal, "id" | "
     probability_override: null,
     client_id: null,
     original_estimated_price: null,
+    lost_reason: null,
+    lost_at: null,
     created_at: "2026-01-01T00:00:00Z",
     updated_at: "2026-03-01T00:00:00Z",
     ...overrides,
@@ -51,6 +53,9 @@ function makeListing(overrides: Partial<ListingAppointment> & Pick<ListingAppoin
     expected_close_date: null,
     listing_agreement_date: null,
     notes: null,
+    close_odds_pct: null,
+    lost_reason: null,
+    converted_to_pipeline_deal_id: null,
     created_at: "2026-01-01T00:00:00Z",
     updated_at: "2026-03-01T00:00:00Z",
     ...overrides,
@@ -63,6 +68,35 @@ function makeBuyer(overrides: Partial<BuyerClient> & Pick<BuyerClient, "id" | "s
     preApproved: true,
     targetCloseDate: null,
     statusChangedAt: null,
+    ...overrides,
+  };
+}
+
+let referralCounter = 0;
+function makeReferral(overrides: Partial<ReferralOpportunity> = {}): ReferralOpportunity {
+  referralCounter += 1;
+  return {
+    id: `ref-${referralCounter}`,
+    user_id: "user-1",
+    referred_person_name: "Referred Person",
+    client_id: null,
+    referrer_name: null,
+    referrer_client_id: null,
+    referral_date: "2026-03-01",
+    referral_type: "unknown",
+    estimated_price: 400_000,
+    estimated_commission_pct: DEFAULT_COMMISSION,
+    close_odds_pct: null,
+    expected_close_date: null,
+    notes: null,
+    status: "open",
+    lost_reason: null,
+    lost_at: null,
+    converted_at: null,
+    converted_to_pipeline_deal_id: null,
+    converted_to_listing_appointment_id: null,
+    created_at: "2026-01-01T00:00:00Z",
+    updated_at: "2026-03-01T00:00:00Z",
     ...overrides,
   };
 }
@@ -506,6 +540,28 @@ describe("computePipelineForecast — filters", () => {
     expect(result.items[0].id).toBe("active-deal");
   });
 
+  it("excludes lost buyer deals entirely — even when a stale probability_override survives mark-lost", () => {
+    // A buyer prospect logged via the Opportunities flow carries
+    // probability_override (e.g. 0.25). fn_mark_opportunity_lost flips
+    // stage→'lost' but does NOT clear the override. computeProbability
+    // honors the override before consulting PIPELINE_STAGE_DEFAULTS.lost (0),
+    // so without the stage filter this lost deal would add 500_000 * 0.025 *
+    // 0.25 = 3_125 of phantom weighted GCI to the headline forecast and a
+    // phantom "pre_qualifying" item. The filter must drop it outright.
+    const deals: PipelineDeal[] = [
+      makeDeal({ id: "active-deal", stage: "offer", estimated_price: 500_000 }),
+      makeDeal({ id: "lost-with-override", stage: "lost", estimated_price: 500_000, probability_override: 0.25, lost_reason: "chose_other_agent", lost_at: "2026-06-30T00:00:00Z" }),
+      makeDeal({ id: "lost-no-override", stage: "lost", estimated_price: 800_000, lost_reason: "decided_not_to_transact", lost_at: "2026-06-30T00:00:00Z" }),
+    ];
+    const result = computePipelineForecast(emptyInput({ pipelineDeals: deals }));
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0].id).toBe("active-deal");
+    expect(result.dealCount).toBe(1);
+    // Headline total reflects only the active deal: 500k * 0.025 * 0.5 = 6_250.
+    expect(result.dealWeightedGCI).toBeCloseTo(6_250, 2);
+    expect(result.totalWeightedGCI).toBeCloseTo(6_250, 2);
+  });
+
   it("excludes sold/expired/withdrawn listings from items", () => {
     const listings: ListingAppointment[] = [
       makeListing({ id: "active-listing", status: "active" }),
@@ -561,5 +617,63 @@ describe("computePreTransactionalWeightedGCI", () => {
       pipelineDeals: [makeDeal({ id: "d1", stage: "firm", estimated_price: 700_000 })],
     }));
     expect(computePreTransactionalWeightedGCI(result)).toBe(0);
+  });
+});
+
+// ── 12. close_odds_pct override on listing appointments ─────────────────────
+
+describe("pipeline-forecast-engine — close_odds_pct override", () => {
+  it("listing appointment with close_odds_pct=null uses existing LISTING_PROBABILITIES default", () => {
+    // scheduled status → existing default 0.15
+    const input = emptyInput({
+      listingAppointments: [makeListing({ id: "la-odds-null", status: "scheduled", estimated_list_price: 400_000, close_odds_pct: null })],
+    });
+    const out = computePipelineForecast(input);
+    const listing = out.items.find((i) => i.source === "listing")!;
+    expect(listing.probability).toBeCloseTo(0.15, 5);
+  });
+
+  it("listing appointment with close_odds_pct set overrides the stage default", () => {
+    const input = emptyInput({
+      listingAppointments: [makeListing({ id: "la-odds-7", status: "scheduled", estimated_list_price: 400_000, close_odds_pct: 0.7 })],
+    });
+    const out = computePipelineForecast(input);
+    const listing = out.items.find((i) => i.source === "listing")!;
+    expect(listing.probability).toBeCloseTo(0.7, 5);
+  });
+
+  it("listing appointment with close_odds_pct=0 produces zero weighted GCI (explicit zero)", () => {
+    const input = emptyInput({
+      listingAppointments: [makeListing({ id: "la-odds-0", status: "active", estimated_list_price: 500_000, estimated_commission_pct: 0.025, close_odds_pct: 0 })],
+    });
+    const out = computePipelineForecast(input);
+    const listing = out.items.find((i) => i.source === "listing")!;
+    expect(listing.weightedGCI).toBe(0);
+  });
+});
+
+// ── 13. Referrals as a fourth input source ──────────────────────────────────
+
+describe("pipeline-forecast-engine — referrals as a fourth input source", () => {
+  it("referrals contribute to weighted GCI when status='open'", () => {
+    const input = emptyInput({
+      referralOpportunities: [
+        makeReferral({ status: "open", estimated_price: 500_000, estimated_commission_pct: 0.025, close_odds_pct: 0.3 }),
+      ],
+    });
+    const out = computePipelineForecast(input);
+    const ref = out.items.find((i) => i.source === "referral")!;
+    expect(ref.weightedGCI).toBeCloseTo(500_000 * 0.025 * 0.3, 2);
+  });
+
+  it("converted and lost referrals contribute nothing", () => {
+    const input = emptyInput({
+      referralOpportunities: [
+        makeReferral({ status: "converted", converted_at: "2026-06-01T00:00:00Z" }),
+        makeReferral({ status: "lost", lost_reason: "chose_other_agent", lost_at: "2026-06-01T00:00:00Z" }),
+      ],
+    });
+    const out = computePipelineForecast(input);
+    expect(out.items.filter((i) => i.source === "referral").length).toBe(0);
   });
 });

@@ -13,7 +13,7 @@ export type TransactionStatus = "closed" | "pending" | "fallen";
 export type TxDatePrecision = "day" | "month" | "quarter" | "year";
 export type TxSource = "manual" | "imported";
 
-export type PipelineStage = "lead" | "showing" | "offer" | "conditional" | "firm" | "closed";
+export type PipelineStage = "lead" | "showing" | "offer" | "conditional" | "firm" | "closed" | "lost";
 
 export const PIPELINE_STAGE_DEFAULTS: Record<PipelineStage, number> = {
   lead: 0.1,
@@ -22,7 +22,22 @@ export const PIPELINE_STAGE_DEFAULTS: Record<PipelineStage, number> = {
   conditional: 0.75,
   firm: 0.9,
   closed: 1.0,
+  lost: 0.0,
 };
+
+// Shared loss-reason vocabulary mirrored by CHECK constraints on
+// listing_appointments, pipeline_deals, and referral_opportunities
+// (migrations 00153, 00154, 00155). Source of truth for labels lives at
+// packages/core/lib/opportunity-loss-reasons.ts.
+export type OpportunityLossReason =
+  | "chose_other_agent"
+  | "decided_not_to_transact"
+  | "price_disagreement"
+  | "timing_deferred"
+  | "out_of_area"
+  | "financing_fell_through"
+  | "lost_contact"
+  | "other";
 
 export type MilestoneType =
   | "gciThreshold"
@@ -477,6 +492,8 @@ export interface PipelineDeal {
   probability_override: number | null;
   client_id: string | null;                // FK to clients table
   original_estimated_price: number | null;  // snapshot at creation for accuracy tracking
+  lost_reason: OpportunityLossReason | null; // 00154: reason when stage='lost'
+  lost_at: string | null;                    // 00154b: timestamp when stage='lost'
 
   created_at: string;
   updated_at: string;
@@ -850,8 +867,65 @@ export interface ListingAppointment {
   expected_close_date:      string | null; // when the agent expects the listing to sell
   listing_agreement_date:   string | null; // when the listing agreement was signed
   notes:                string | null;
+  // ── Opportunity-tier fields (migration 00153) ──────────────────────────
+  close_odds_pct:                number | null;  // user-set 0..1 odds; NULL = engine default
+  lost_reason:                   OpportunityLossReason | null;
+  converted_to_pipeline_deal_id: string | null;  // FK → pipeline_deals.id; set on promote
   created_at:           string;
   updated_at:           string;
+}
+
+// ── Referral Opportunities (migration 00155) ─────────────────────────────────
+export type ReferralType = "seller" | "buyer" | "unknown";
+export type OpportunityStatus = "open" | "converted" | "lost";
+
+export interface ReferralOpportunity {
+  id:                                  string;
+  user_id:                             string;
+  referred_person_name:                string;
+  client_id:                           string | null;
+  referrer_name:                       string | null;
+  referrer_client_id:                  string | null;
+  referral_date:                       string;
+  referral_type:                       ReferralType;
+  estimated_price:                     number | null;
+  estimated_commission_pct:            number | null;
+  close_odds_pct:                      number | null;
+  expected_close_date:                 string | null;
+  notes:                               string | null;
+  status:                              OpportunityStatus;
+  lost_reason:                         OpportunityLossReason | null;
+  lost_at:                             string | null;
+  converted_at:                        string | null;
+  converted_to_pipeline_deal_id:       string | null;
+  converted_to_listing_appointment_id: string | null;
+  created_at:                          string;
+  updated_at:                          string;
+}
+
+// ── opportunities_v view (migration 00156) ───────────────────────────────────
+// Unified read shape over listing_appointments + buyer-side pipeline_deals
+// + referral_opportunities. Source for the new opportunity-conversion-engine.
+export type OpportunityType = "listing_appointment" | "buyer_prospect" | "referral";
+
+export interface OpportunityV {
+  id:                                  string;
+  user_id:                             string;
+  opportunity_type:                    OpportunityType;
+  title:                               string;
+  client_id:                           string | null;
+  opportunity_date:                    string;        // YYYY-MM-DD
+  expected_close_date:                 string | null;
+  estimated_price:                     number | null;
+  estimated_commission_pct:            number;        // view COALESCEs to 0.025
+  close_odds_pct:                      number | null;
+  status:                              OpportunityStatus;
+  lost_reason:                         OpportunityLossReason | null;
+  converted_to_pipeline_deal_id:       string | null;
+  converted_to_listing_appointment_id: string | null;
+  notes:                               string | null;
+  created_at:                          string;
+  updated_at:                          string;
 }
 
 // ── Buyer Financing Type (migration 00049) ───────────────────────────────────

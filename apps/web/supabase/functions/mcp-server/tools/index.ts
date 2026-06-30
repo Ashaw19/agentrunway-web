@@ -2,6 +2,7 @@ import type { SupabaseClient } from "npm:@supabase/supabase-js@2";
 import { getAnalyticsTools } from "./analytics.ts";
 import { getTransactionTools } from "./transactions.ts";
 import { getPipelineTools } from "./pipeline.ts";
+import { getOpportunityTools } from "./opportunities.ts";
 import { getCrmTools } from "./crm.ts";
 import { getExpenseTools } from "./expenses.ts";
 import { getOutreachTools } from "./outreach.ts";
@@ -76,6 +77,9 @@ export function buildToolRegistry(
                   "get_transactions", "get_transaction_summary",
                   // Pipeline (Step 6)
                   "get_pipeline", "get_pipeline_forecast",
+                  // Pre-Transactional Opportunities
+                  "list_opportunities", "create_opportunity", "promote_opportunity",
+                  "advance_buyer_prospect_stage", "mark_opportunity_lost",
                   // CRM (Step 7)
                   "get_clients", "get_client_detail",
                   // Expenses (Step 8)
@@ -83,7 +87,7 @@ export function buildToolRegistry(
                   // Outreach + Settings (Step 9)
                   "get_flight_control_priorities", "get_user_settings",
                 ],
-                phase: "Phase 1 complete — 16 tools live",
+                phase: "Phase 1 + Opportunities — 21 tools live",
               },
               null,
               2,
@@ -96,6 +100,7 @@ export function buildToolRegistry(
     ...getAnalyticsTools(supabase, userId),    // Step 4
     ...getTransactionTools(supabase, userId),  // Step 5
     ...getPipelineTools(supabase, userId),     // Step 6
+    ...getOpportunityTools(supabase, userId),  // Pre-Transactional Opportunities
     ...getCrmTools(supabase, userId),          // Step 7
     ...getExpenseTools(supabase, userId),      // Step 8
     ...getOutreachTools(supabase, userId),     // Step 9

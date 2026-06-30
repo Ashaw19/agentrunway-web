@@ -124,7 +124,14 @@ type CloseForm = {
 
 export function TransactionsPipelineTab({ pipelineDeals, settings, closedTransactions = [] }: Props) {
   const supabase = useMemo(() => createClient(), []);
-  const [deals, setDeals] = useState(pipelineDeals);
+  // Exclude terminal "lost" deals. A buyer prospect marked lost via the
+  // Opportunities flow keeps its pipeline_deals row at stage='lost'; it must
+  // not render among active deals (it would show a blank stage chip and
+  // inflate the active-deal count). The edit form never produces a 'lost'
+  // stage, so filtering the incoming prop is sufficient.
+  const [deals, setDeals] = useState(() =>
+    pipelineDeals.filter((d) => d.stage !== "lost"),
+  );
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm());
@@ -209,7 +216,8 @@ export function TransactionsPipelineTab({ pipelineDeals, settings, closedTransac
         ? String(deal.estimated_commission_pct * 100)
         : "2.5",
       side: deal.side,
-      stage: deal.stage,
+      // Editor doesn't expose 'lost' — that path is the Lost dialog. Defensive fallback if a lost row is opened.
+      stage: deal.stage === "lost" ? "lead" : deal.stage,
       expected_close_date: deal.expected_close_date ?? "",
       probability_override:
         deal.probability_override != null
@@ -259,6 +267,11 @@ export function TransactionsPipelineTab({ pipelineDeals, settings, closedTransac
       expected_close_date: form.expected_close_date || null,
       probability_override: parsed.probability_override,
       notes: form.notes.slice(0, FIELD_LIMITS.notes),
+      // The form never yields stage='lost' (line ~213 remaps a lost deal to
+      // 'lead' on open). Editing therefore "resurrects" a lost deal — clear
+      // the stale loss metadata so it does not linger on a now-active row.
+      lost_reason: null,
+      lost_at: null,
     };
 
     let failed = false;
