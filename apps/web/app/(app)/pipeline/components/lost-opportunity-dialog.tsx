@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
+import { supabaseErrorMessage } from "@/lib/crm/opportunity-form";
 import {
   OPPORTUNITY_LOSS_REASONS,
   lossReasonLabel,
@@ -80,7 +81,7 @@ export function LostOpportunityDialog({
       onOpenChange(false);
       onLost();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to mark lost.");
+      toast.error(supabaseErrorMessage(err, "Failed to mark lost."));
       console.error(err);
     } finally {
       setSaving(false);

@@ -22,6 +22,7 @@ import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { fmtCurrency } from "@/lib/formatters";
+import { supabaseErrorMessage } from "@/lib/crm/opportunity-form";
 import type { OpportunityV } from "@/lib/types/database";
 
 type ReferralTarget = "buyer_prospect" | "listing_appointment";
@@ -81,7 +82,7 @@ export function PromoteOpportunityDialog({
       onOpenChange(false);
       onPromoted();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to promote.");
+      toast.error(supabaseErrorMessage(err, "Failed to promote."));
       console.error(err);
     } finally {
       setSaving(false);

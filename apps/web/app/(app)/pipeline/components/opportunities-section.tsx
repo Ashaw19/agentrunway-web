@@ -22,6 +22,7 @@ import { Plus, Briefcase } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
+import { supabaseErrorMessage } from "@/lib/crm/opportunity-form";
 import type { OpportunityV } from "@/lib/types/database";
 import { OpportunityCockpitStrip } from "./opportunity-cockpit-strip";
 import { OpportunityCard } from "./opportunity-card";
@@ -99,7 +100,7 @@ export function OpportunitiesSection({
       toast.success("Close odds updated.");
       router.refresh();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to update odds.");
+      toast.error(supabaseErrorMessage(err, "Failed to update odds."));
       console.error(err);
     }
   };

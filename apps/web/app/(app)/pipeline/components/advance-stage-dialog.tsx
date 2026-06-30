@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
+import { supabaseErrorMessage } from "@/lib/crm/opportunity-form";
 import type { OpportunityV } from "@/lib/types/database";
 
 type AdvanceStage = "offer" | "conditional" | "firm";
@@ -63,7 +64,7 @@ export function AdvanceStageDialog({
       onOpenChange(false);
       onAdvanced();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to advance stage.");
+      toast.error(supabaseErrorMessage(err, "Failed to advance stage."));
       console.error(err);
     } finally {
       setSaving(false);

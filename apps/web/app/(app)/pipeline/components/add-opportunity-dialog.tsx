@@ -34,6 +34,7 @@ import {
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { fmtCurrency } from "@/lib/formatters";
+import { isUuid, supabaseErrorMessage } from "@/lib/crm/opportunity-form";
 import type { ReferralType } from "@/lib/types/database";
 
 type Tab = "listing_appointment" | "buyer_prospect" | "referral";
@@ -49,6 +50,7 @@ function num(v: string): number | null {
   const n = Number(v);
   return Number.isFinite(n) ? n : null;
 }
+
 
 export function AddOpportunityDialog({
   open,
@@ -172,9 +174,14 @@ export function AddOpportunityDialog({
           toast.error("Commission must be between 0% and 50%.");
           return;
         }
+        const laClientId = la.client_id.trim();
+        if (laClientId && !isUuid(laClientId)) {
+          toast.error("Client ID must be a valid client UUID, not a name — find it on the Clients tab.");
+          return;
+        }
         const { error } = await supabase.from("listing_appointments").insert({
           user_id: user.id,
-          client_id: la.client_id.trim() || null,
+          client_id: laClientId || null,
           property_address: la.property_address.trim(),
           appointment_date: la.appointment_date || todayLocal(),
           estimated_list_price: num(la.estimated_list_price),
@@ -201,9 +208,14 @@ export function AddOpportunityDialog({
           toast.error("Commission must be between 0% and 50%.");
           return;
         }
+        const bpClientId = bp.client_id.trim();
+        if (!isUuid(bpClientId)) {
+          toast.error("Client ID must be a valid client UUID, not a name — find it on the Clients tab.");
+          return;
+        }
         const { error } = await supabase.from("pipeline_deals").insert({
           user_id: user.id,
-          client_id: bp.client_id.trim(),
+          client_id: bpClientId,
           side: "buyer",
           stage: "lead",
           address: bp.address.trim() || "",
@@ -231,11 +243,16 @@ export function AddOpportunityDialog({
           toast.error("Commission must be between 0% and 50%.");
           return;
         }
+        const rfReferrerClientId = rf.referrer_client_id.trim();
+        if (rfReferrerClientId && !isUuid(rfReferrerClientId)) {
+          toast.error("Referrer Client ID must be a valid client UUID, not a name — find it on the Clients tab.");
+          return;
+        }
         const { error } = await supabase.from("referral_opportunities").insert({
           user_id: user.id,
           referred_person_name: rf.referred_person_name.trim(),
           referrer_name: rf.referrer_name.trim() || null,
-          referrer_client_id: rf.referrer_client_id.trim() || null,
+          referrer_client_id: rfReferrerClientId || null,
           referral_type: rf.referral_type,
           referral_date: rf.referral_date || todayLocal(),
           estimated_price: num(rf.estimated_price),
@@ -253,9 +270,7 @@ export function AddOpportunityDialog({
       onOpenChange(false);
       onSaved();
     } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Failed to save opportunity.",
-      );
+      toast.error(supabaseErrorMessage(err));
       console.error(err);
     } finally {
       setSaving(false);
@@ -306,7 +321,7 @@ export function AddOpportunityDialog({
             <div className="grid gap-1.5">
               <Label>Client ID (optional)</Label>
               <Input
-                placeholder="client UUID (optional)"
+                placeholder="UUID from the Clients tab (optional)"
                 value={la.client_id}
                 onChange={(e) => setLa({ ...la, client_id: e.target.value })}
               />
@@ -373,7 +388,7 @@ export function AddOpportunityDialog({
             <div className="grid gap-1.5">
               <Label>Client ID *</Label>
               <Input
-                placeholder="client UUID (required — buyers are a client record)"
+                placeholder="UUID from the Clients tab — required, buyers are a client record"
                 value={bp.client_id}
                 onChange={(e) => setBp({ ...bp, client_id: e.target.value })}
               />
@@ -456,7 +471,7 @@ export function AddOpportunityDialog({
               <div className="grid gap-1.5">
                 <Label>Referrer Client ID (optional)</Label>
                 <Input
-                  placeholder="client UUID"
+                  placeholder="UUID from the Clients tab (optional)"
                   value={rf.referrer_client_id}
                   onChange={(e) => setRf({ ...rf, referrer_client_id: e.target.value })}
                 />
