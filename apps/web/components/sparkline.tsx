@@ -5,7 +5,6 @@ import {
   sparklinePoints,
   pointsToPath,
   areaPath,
-  pathLength,
   smoothPath,
   smoothAreaPath,
   type SparkPoint,
@@ -79,10 +78,6 @@ export function Sparkline({
   const actualPts = hasProjected ? pts.slice(0, firstProjected) : pts;
   const projectedPts = hasProjected ? pts.slice(firstProjected - 1) : [];
 
-  // Overestimate the draw-in dash length for smooth curves: a Bézier is longer
-  // than its control polyline, and an under-length dash would leave the tail
-  // hidden at rest (dashoffset 0). Overestimating only hides more at the start.
-  const len = pathLength(actualPts) * (smooth ? 1.5 : 1);
   const lastActual = actualPts[actualPts.length - 1];
   const gradId = `spark-fill-${color.replace(/[^a-z0-9]/gi, "")}`;
 
@@ -129,7 +124,13 @@ export function Sparkline({
         />
       )}
 
-      {/* Actuals line with a draw-in sweep that rests fully-drawn. */}
+      {/* Actuals line with a draw-in sweep that rests fully-drawn.
+          pathLength="100" normalizes the path's intrinsic length so the dash
+          math in CSS works in path-percent regardless of how the svg gets
+          stretched by `preserveAspectRatio="none"`. Without it,
+          `vectorEffect="non-scaling-stroke"` interprets the dash array in
+          screen pixels — and any rendered width > computed path length leaves
+          the tail invisible at rest (the bug that left the end dot floating). */}
       <path
         d={toLine(actualPts)}
         fill="none"
@@ -138,12 +139,9 @@ export function Sparkline({
         strokeLinecap="round"
         strokeLinejoin="round"
         vectorEffect="non-scaling-stroke"
+        pathLength={animate ? 100 : undefined}
         className={animate ? "spark-draw" : undefined}
-        style={
-          animate
-            ? ({ ["--spark-len"]: len, animationDelay: `${delay}s` } as React.CSSProperties)
-            : undefined
-        }
+        style={animate ? { animationDelay: `${delay}s` } : undefined}
       />
 
       {/* Current-value dot at the last actual point. */}
