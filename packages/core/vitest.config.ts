@@ -7,6 +7,7 @@ export default defineConfig({
     include: [
       "engines/__tests__/**/*.test.ts",
       "tax-copy/__tests__/**/*.test.ts",
+      "lib/__tests__/**/*.test.ts",
     ],
   },
 });
