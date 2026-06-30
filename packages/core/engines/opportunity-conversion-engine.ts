@@ -51,3 +51,61 @@ export function computeOpportunityWeightedGci(rows: OpportunityRow[]): number {
   }
   return total;
 }
+
+export interface OpportunityKpis {
+  openCount: number;
+  weightedGci: number;
+  conversionRatePct: number | null;
+  lossRatePct: number | null;
+  topLossReasons: Array<{ reason: string; count: number; pct: number }>;
+}
+
+export function computeOpportunityKpis(
+  rows: OpportunityRow[],
+  windowDays: number,
+  now: Date = new Date(),
+): OpportunityKpis {
+  const cutoff = now.getTime() - windowDays * 86_400_000;
+
+  let openCount = 0;
+  let converted = 0;
+  let lost = 0;
+  const lossReasonCounts = new Map<string, number>();
+
+  for (const r of rows) {
+    if (r.status === "open") {
+      openCount += 1;
+      continue;
+    }
+    const t = Date.parse(r.updated_at);
+    if (isNaN(t) || t < cutoff) continue;
+
+    if (r.status === "converted") {
+      converted += 1;
+    } else if (r.status === "lost") {
+      lost += 1;
+      const key = r.lost_reason ?? "other";
+      lossReasonCounts.set(key, (lossReasonCounts.get(key) ?? 0) + 1);
+    }
+  }
+
+  const closedTotal = converted + lost;
+  const conversionRatePct = closedTotal === 0 ? null : converted / closedTotal;
+  const lossRatePct       = closedTotal === 0 ? null : lost / closedTotal;
+
+  const topLossReasons = Array.from(lossReasonCounts.entries())
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .map(([reason, count]) => ({
+      reason,
+      count,
+      pct: lost === 0 ? 0 : count / lost,
+    }));
+
+  return {
+    openCount,
+    weightedGci: computeOpportunityWeightedGci(rows),
+    conversionRatePct,
+    lossRatePct,
+    topLossReasons,
+  };
+}

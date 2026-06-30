@@ -81,3 +81,77 @@ describe("computeOpportunityWeightedGci", () => {
     expect(computeOpportunityWeightedGci(rows)).toBe(0);
   });
 });
+
+import { computeOpportunityKpis } from "../opportunity-conversion-engine";
+
+describe("computeOpportunityKpis", () => {
+  // Anchor "now" for window math — every row's updated_at is relative to this.
+  const NOW = new Date("2026-06-30T12:00:00Z");
+
+  function rowAt(daysAgo: number, o: Partial<OpportunityRow>): OpportunityRow {
+    const d = new Date(NOW.getTime() - daysAgo * 86_400_000);
+    return row({ ...o, updated_at: d.toISOString() });
+  }
+
+  it("returns null conversion rate when no closed events in window", () => {
+    const rows = [rowAt(10, { status: "open" })];
+    const k = computeOpportunityKpis(rows, 90, NOW);
+    expect(k.conversionRatePct).toBe(null);
+    expect(k.lossRatePct).toBe(null);
+    expect(k.openCount).toBe(1);
+  });
+
+  it("computes 50% conversion when 1 converted + 1 lost in window", () => {
+    const rows = [
+      rowAt(10, { status: "converted" }),
+      rowAt(15, { status: "lost", lost_reason: "chose_other_agent" }),
+    ];
+    const k = computeOpportunityKpis(rows, 90, NOW);
+    expect(k.conversionRatePct).toBe(0.5);
+    expect(k.lossRatePct).toBe(0.5);
+  });
+
+  it("100% conversion when all converted", () => {
+    const rows = [
+      rowAt(5,  { status: "converted" }),
+      rowAt(20, { status: "converted" }),
+    ];
+    const k = computeOpportunityKpis(rows, 90, NOW);
+    expect(k.conversionRatePct).toBe(1);
+    expect(k.lossRatePct).toBe(0);
+  });
+
+  it("excludes rows older than the window", () => {
+    const rows = [
+      rowAt(95, { status: "converted" }),                            // outside
+      rowAt(10, { status: "lost", lost_reason: "lost_contact" }),    // inside
+    ];
+    const k = computeOpportunityKpis(rows, 90, NOW);
+    // 0 converted / (0 converted + 1 lost) = 0
+    expect(k.conversionRatePct).toBe(0);
+    expect(k.lossRatePct).toBe(1);
+  });
+
+  it("ranks top loss reasons by count, then alphabetical for ties", () => {
+    const rows = [
+      rowAt(5,  { status: "lost", lost_reason: "chose_other_agent" }),
+      rowAt(6,  { status: "lost", lost_reason: "chose_other_agent" }),
+      rowAt(7,  { status: "lost", lost_reason: "price_disagreement" }),
+      rowAt(8,  { status: "lost", lost_reason: "lost_contact" }),
+    ];
+    const k = computeOpportunityKpis(rows, 90, NOW);
+    expect(k.topLossReasons[0]).toEqual({ reason: "chose_other_agent",   count: 2, pct: 0.5 });
+    // tie between price_disagreement (1) and lost_contact (1) — alpha order: lost_contact first
+    expect(k.topLossReasons[1].reason).toBe("lost_contact");
+    expect(k.topLossReasons[2].reason).toBe("price_disagreement");
+  });
+
+  it("openCount is independent of window (always current open)", () => {
+    const rows = [
+      rowAt(200, { status: "open" }),  // very old open row
+      rowAt(5,   { status: "open" }),
+    ];
+    const k = computeOpportunityKpis(rows, 90, NOW);
+    expect(k.openCount).toBe(2);
+  });
+});
