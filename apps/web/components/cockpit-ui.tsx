@@ -135,17 +135,17 @@ export function CockpitStat({
       {sub && <div className="mt-1 text-[11px] text-slate-500 tabular-nums">{sub}</div>}
       {spark && spark.length >= 2 && (
         <div className="mt-1.5">
-          {/* Clean cockpit-strip read: monotone-smooth curve + vertical headroom
-              (small changes drift gently instead of slamming edge-to-edge) + a
-              whisper of fill instead of the boxy mass that read as "broken" on
-              the dark strip. */}
+          {/* Clean cockpit-strip read: a monotone-smooth line with vertical
+              headroom (small changes drift gently instead of slamming
+              edge-to-edge). No area fill — on the dark strip the fill read as a
+              boxy mass with a hard edge; a thin glowing line is clearer. */}
           <Sparkline
             data={spark}
             color={sparkColor ?? color}
             animate={animate}
             smooth
             headroom={0.22}
-            fillOpacity={0.1}
+            fill={false}
           />
         </div>
       )}
