@@ -14,6 +14,7 @@ ALTER TABLE pipeline_deals
   ADD COLUMN IF NOT EXISTS lost_reason text        DEFAULT NULL,
   ADD COLUMN IF NOT EXISTS lost_at     timestamptz DEFAULT NULL;
 
+ALTER TABLE pipeline_deals DROP CONSTRAINT IF EXISTS pipeline_deals_lost_reason_values;
 ALTER TABLE pipeline_deals
   ADD CONSTRAINT pipeline_deals_lost_reason_values
     CHECK (

@@ -540,6 +540,28 @@ describe("computePipelineForecast — filters", () => {
     expect(result.items[0].id).toBe("active-deal");
   });
 
+  it("excludes lost buyer deals entirely — even when a stale probability_override survives mark-lost", () => {
+    // A buyer prospect logged via the Opportunities flow carries
+    // probability_override (e.g. 0.25). fn_mark_opportunity_lost flips
+    // stage→'lost' but does NOT clear the override. computeProbability
+    // honors the override before consulting PIPELINE_STAGE_DEFAULTS.lost (0),
+    // so without the stage filter this lost deal would add 500_000 * 0.025 *
+    // 0.25 = 3_125 of phantom weighted GCI to the headline forecast and a
+    // phantom "pre_qualifying" item. The filter must drop it outright.
+    const deals: PipelineDeal[] = [
+      makeDeal({ id: "active-deal", stage: "offer", estimated_price: 500_000 }),
+      makeDeal({ id: "lost-with-override", stage: "lost", estimated_price: 500_000, probability_override: 0.25, lost_reason: "chose_other_agent", lost_at: "2026-06-30T00:00:00Z" }),
+      makeDeal({ id: "lost-no-override", stage: "lost", estimated_price: 800_000, lost_reason: "decided_not_to_transact", lost_at: "2026-06-30T00:00:00Z" }),
+    ];
+    const result = computePipelineForecast(emptyInput({ pipelineDeals: deals }));
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0].id).toBe("active-deal");
+    expect(result.dealCount).toBe(1);
+    // Headline total reflects only the active deal: 500k * 0.025 * 0.5 = 6_250.
+    expect(result.dealWeightedGCI).toBeCloseTo(6_250, 2);
+    expect(result.totalWeightedGCI).toBeCloseTo(6_250, 2);
+  });
+
   it("excludes sold/expired/withdrawn listings from items", () => {
     const listings: ListingAppointment[] = [
       makeListing({ id: "active-listing", status: "active" }),

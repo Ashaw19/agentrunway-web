@@ -203,7 +203,16 @@ export function computePipelineForecast(
   const items: UnifiedPipelineItem[] = [];
 
   // ── 1. Map pipeline deals ──────────────────────────────────────────
-  const activeDeals = input.pipelineDeals.filter((d) => d.stage !== "closed");
+  // Exclude BOTH terminal stages. "closed" = won (now a transaction);
+  // "lost" = dead (buyer prospect marked lost via fn_mark_opportunity_lost).
+  // A lost deal must not surface as an active item: it would inflate
+  // dealCount, render as a phantom pre-qualifying row, and — because a
+  // marked-lost buyer prospect retains its probability_override — add a
+  // non-zero weightedGCI to the headline forecast (PIPELINE_STAGE_DEFAULTS.lost
+  // never applies when an override is present).
+  const activeDeals = input.pipelineDeals.filter(
+    (d) => d.stage !== "closed" && d.stage !== "lost",
+  );
   for (const deal of activeDeals) {
     const prob = computeProbability(deal);
     const gci = computeEstimatedGCI(deal);

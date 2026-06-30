@@ -26,6 +26,23 @@ export interface OpportunityRow {
   updated_at: string;           // ISO timestamp
 }
 
+/**
+ * Default close odds for a pre-transactional opportunity when the user has
+ * not set close_odds_pct. These are a deliberately FLAT, opportunity-stage
+ * heuristic for the "Weighted Pre-Contract GCI" leading-indicator card.
+ *
+ * INTENTIONAL DIVERGENCE (documented per CLAUDE.md checkpoint 2): a buyer
+ * prospect is also a pipeline_deal, so the same row is ALSO weighted by the
+ * pipeline-forecast engine for the "Pipeline Weighted" forecast card — and
+ * that engine uses PIPELINE_STAGE_DEFAULTS (lead 0.10, showing 0.25), which
+ * are calibrated for stage progression of an under-contract-bound deal. So a
+ * no-override lead-stage buyer prospect weights at 0.10 in the Pipeline
+ * forecast but 0.25 here. This is by design: the two cards measure different
+ * things — a flat pre-contract opportunity heuristic vs a stage-calibrated
+ * forecast. They are NOT meant to reconcile to the same number. If a single
+ * canonical buyer-odds model is ever wanted, that is a metrics-design call
+ * (escalate to metrics-design-champion), not a silent alignment.
+ */
 export const OPPORTUNITY_DEFAULT_ODDS: Record<OpportunityType, number> = {
   listing_appointment: 0.40,
   buyer_prospect:      0.25,

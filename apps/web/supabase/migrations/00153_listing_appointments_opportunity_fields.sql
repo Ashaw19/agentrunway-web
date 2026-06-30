@@ -9,14 +9,17 @@ ALTER TABLE listing_appointments
   ADD COLUMN IF NOT EXISTS lost_reason                 text         DEFAULT NULL,
   ADD COLUMN IF NOT EXISTS converted_to_pipeline_deal_id uuid       REFERENCES pipeline_deals(id) ON DELETE SET NULL DEFAULT NULL;
 
+ALTER TABLE listing_appointments DROP CONSTRAINT IF EXISTS listing_appointments_close_odds_range;
 ALTER TABLE listing_appointments
   ADD CONSTRAINT listing_appointments_close_odds_range
     CHECK (close_odds_pct IS NULL OR (close_odds_pct >= 0 AND close_odds_pct <= 1));
 
+ALTER TABLE listing_appointments DROP CONSTRAINT IF EXISTS listing_appointments_lost_reason_when_lost;
 ALTER TABLE listing_appointments
   ADD CONSTRAINT listing_appointments_lost_reason_when_lost
     CHECK (status <> 'lost' OR lost_reason IS NOT NULL);
 
+ALTER TABLE listing_appointments DROP CONSTRAINT IF EXISTS listing_appointments_lost_reason_values;
 ALTER TABLE listing_appointments
   ADD CONSTRAINT listing_appointments_lost_reason_values
     CHECK (

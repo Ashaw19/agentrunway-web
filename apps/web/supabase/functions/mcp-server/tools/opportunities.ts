@@ -111,7 +111,12 @@ export function getOpportunityTools(supabase: SupabaseClient, userId: string): M
           expected_close_date: r.expected_close_date,
           estimated_price: r.estimated_price,
           estimated_commission_pct: r.estimated_commission_pct,
-          estimated_gci: Math.round((r.estimated_price ?? 0) * (r.estimated_commission_pct ?? 0.025)),
+          // Commission fallback is 0 to match computeOpportunityWeightedGci
+          // (which uses `?? 0` and skips zero-GCI rows). The view already
+          // COALESCEs listing/referral commission to 0.025; only a buyer
+          // prospect could carry NULL here, and it must read $0 in the row
+          // exactly as the weighted-GCI KPI treats it — no phantom display GCI.
+          estimated_gci: Math.round((r.estimated_price ?? 0) * (r.estimated_commission_pct ?? 0)),
           close_odds_pct: r.close_odds_pct,
           lost_reason: r.lost_reason,
           notes: r.notes,
