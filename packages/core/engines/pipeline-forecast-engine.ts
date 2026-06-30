@@ -10,6 +10,7 @@ import type {
   PipelineDeal,
   PipelineStage,
   ListingAppointment,
+  ReferralOpportunity,
   TransactionSide,
 } from "../types/database";
 
@@ -32,7 +33,7 @@ export type UnifiedStage =
 
 export interface UnifiedPipelineItem {
   id: string;
-  source: "deal" | "listing" | "buyer";
+  source: "deal" | "listing" | "buyer" | "referral";
   name: string;              // address or client name
   stage: string;             // original stage from the source
   unifiedStage: UnifiedStage;
@@ -88,9 +89,12 @@ export interface PipelineForecastResult {
   dealWeightedGCI: number;
   listingWeightedGCI: number;
   buyerWeightedGCI: number;
+  /** Referral opportunities (migration 00155). Open referrals only. */
+  referralWeightedGCI: number;
   dealCount: number;
   listingCount: number;
   buyerCount: number;
+  referralCount: number;
   /** Deals with no expectedCloseDate or with a date >180 days in the past. */
   staleDealCount: number;
   /** WeightedGCI contribution of stale deals — flag for the UI to caveat the total. */
@@ -127,6 +131,10 @@ export interface PipelineForecastInput {
   closedTransactions: ClosedTransaction[];
   /** Default commission rate when listing doesn't have one */
   defaultCommissionPct: number; // e.g. 0.025
+  /** Pre-transactional referral opportunities (migration 00155). Only
+   * status='open' rows contribute to weighted GCI. Caller passes the
+   * full list; engine filters internally. */
+  referralOpportunities?: ReferralOpportunity[];
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────
@@ -226,7 +234,11 @@ export function computePipelineForecast(
     const value = listing.estimated_list_price ?? 0;
     const commPct =
       listing.estimated_commission_pct ?? input.defaultCommissionPct;
-    const prob = LISTING_PROBABILITIES[listing.status] ?? 0.15;
+    // close_odds_pct (migration 00153) overrides the stage default when
+    // the agent has explicitly set a probability on this listing. When
+    // NULL, behavior is bit-for-bit preserved: LISTING_PROBABILITIES[
+    // listing.status] ?? 0.15. See spec §2.2 binding guardrail.
+    const prob = listing.close_odds_pct ?? LISTING_PROBABILITIES[listing.status] ?? 0.15;
     const gci = value * commPct;
     items.push({
       id: listing.id,
@@ -270,20 +282,56 @@ export function computePipelineForecast(
     });
   }
 
-  // ── 4. Compute accuracy ────────────────────────────────────────────
+  // ── 4. Map referral opportunities ──────────────────────────────────
+  // Migration 00155. Only status='open' rows contribute to weighted GCI.
+  // Default close odds=0.20 (matches OPPORTUNITY_DEFAULT_ODDS.referral in
+  // opportunity-conversion-engine).
+  const openReferrals = (input.referralOpportunities ?? []).filter((r) => r.status === "open");
+  for (const ref of openReferrals) {
+    const value = ref.estimated_price ?? 0;
+    const commission = ref.estimated_commission_pct ?? input.defaultCommissionPct;
+    const prob = ref.close_odds_pct ?? 0.20;
+    const estimatedGCI = value * commission;
+    items.push({
+      id: ref.id,
+      source: "referral",
+      name: ref.referred_person_name,
+      stage: ref.referral_type,
+      unifiedStage: "pre_qualifying",
+      side:
+        ref.referral_type === "seller"
+          ? "sell"
+          : ref.referral_type === "buyer"
+            ? "buy"
+            : "both",
+      estimatedValue: value,
+      commissionPct: commission,
+      estimatedGCI,
+      probability: prob,
+      weightedGCI: estimatedGCI * prob,
+      expectedCloseDate: ref.expected_close_date ?? null,
+      clientName: ref.referred_person_name,
+      daysInStage: null,
+      manualOverride: ref.close_odds_pct !== null && ref.close_odds_pct !== undefined,
+    });
+  }
+
+  // ── 5. Compute accuracy ────────────────────────────────────────────
   const accuracy = computeAccuracy(input);
 
-  // ── 5. Compute funnels ─────────────────────────────────────────────
+  // ── 6. Compute funnels ─────────────────────────────────────────────
   const funnel = computeFunnel(input);
 
-  // ── 6. Aggregate ───────────────────────────────────────────────────
+  // ── 7. Aggregate ───────────────────────────────────────────────────
   const dealItems = items.filter((i) => i.source === "deal");
   const listingItems = items.filter((i) => i.source === "listing");
   const buyerItems = items.filter((i) => i.source === "buyer");
+  const referralItems = items.filter((i) => i.source === "referral");
 
   const dealWeightedGCI = dealItems.reduce((s, i) => s + i.weightedGCI, 0);
   const listingWeightedGCI = listingItems.reduce((s, i) => s + i.weightedGCI, 0);
   const buyerWeightedGCI = buyerItems.reduce((s, i) => s + i.weightedGCI, 0);
+  const referralWeightedGCI = referralItems.reduce((s, i) => s + i.weightedGCI, 0);
 
   // Stale deals: deals with no expectedCloseDate or with a date >180 days
   // in the past (the "parked indefinitely" signal). Without this flag the
@@ -300,13 +348,16 @@ export function computePipelineForecast(
 
   return {
     items,
-    totalWeightedGCI: dealWeightedGCI + listingWeightedGCI + buyerWeightedGCI,
+    totalWeightedGCI:
+      dealWeightedGCI + listingWeightedGCI + buyerWeightedGCI + referralWeightedGCI,
     dealWeightedGCI,
     listingWeightedGCI,
     buyerWeightedGCI,
+    referralWeightedGCI,
     dealCount: dealItems.length,
     listingCount: listingItems.length,
     buyerCount: buyerItems.length,
+    referralCount: referralItems.length,
     staleDealCount: staleItems.length,
     staleWeightedGCI,
     accuracy,

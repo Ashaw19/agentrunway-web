@@ -241,6 +241,9 @@ describe("Pipeline Deal Computations", () => {
       expect(PIPELINE_STAGE_DEFAULTS.conditional).toBe(0.75);
       expect(PIPELINE_STAGE_DEFAULTS.firm).toBe(0.9);
       expect(PIPELINE_STAGE_DEFAULTS.closed).toBe(1.0);
+      // Migration 00154 added 'lost' as a terminal stage with 0.0 probability —
+      // lost deals contribute nothing to weighted GCI by construction.
+      expect(PIPELINE_STAGE_DEFAULTS.lost).toBe(0.0);
     });
 
     it("has a probability for every PipelineStage (shape completeness)", () => {
@@ -251,6 +254,7 @@ describe("Pipeline Deal Computations", () => {
         "conditional",
         "firm",
         "closed",
+        "lost",
       ];
       for (const stage of allStages) {
         const prob = PIPELINE_STAGE_DEFAULTS[stage];
