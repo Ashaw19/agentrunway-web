@@ -359,6 +359,8 @@ function makeDeal(overrides: Partial<PipelineDeal> & { id: string }): PipelineDe
     probability_override: null,
     client_id: null,
     original_estimated_price: null,
+    lost_reason: null,
+    lost_at: null,
     created_at: "2026-03-01",
     updated_at: "2026-03-01",
   };

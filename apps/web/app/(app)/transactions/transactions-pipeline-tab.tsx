@@ -209,7 +209,8 @@ export function TransactionsPipelineTab({ pipelineDeals, settings, closedTransac
         ? String(deal.estimated_commission_pct * 100)
         : "2.5",
       side: deal.side,
-      stage: deal.stage,
+      // Editor doesn't expose 'lost' — that path is the Lost dialog. Defensive fallback if a lost row is opened.
+      stage: deal.stage === "lost" ? "lead" : deal.stage,
       expected_close_date: deal.expected_close_date ?? "",
       probability_override:
         deal.probability_override != null
