@@ -38,3 +38,16 @@ export function effectiveOdds(row: OpportunityRow): number {
   }
   return OPPORTUNITY_DEFAULT_ODDS[row.opportunity_type];
 }
+
+export function computeOpportunityWeightedGci(rows: OpportunityRow[]): number {
+  let total = 0;
+  for (const r of rows) {
+    if (r.status !== "open") continue;
+    const price = r.estimated_price ?? 0;
+    const pct = r.estimated_commission_pct ?? 0;
+    const gci = price * pct;
+    if (gci === 0) continue;
+    total += gci * effectiveOdds(r);
+  }
+  return total;
+}
