@@ -42,11 +42,55 @@ describe("normalizeDateFormats — Pass 1: Excel serials in a labelled Date colu
 
   it("does not convert any serial when there is no Date column (avoids false positives)", () => {
     const csv = "Name,GCI,SalePrice\nJane,45000,450000";
-    const out = normalizeDateFormats(csv);
-    // No labelled date column AND it is CSV-shaped, so the generic fallback
-    // regex applies only to standalone cell-boundary serials. 45000 is inside
-    // a CSV row adjacent to other cells, so it must stay money.
-    expect(out).toContain("45000");
+    // CSV-shaped content with no date-classified column: Pass 1 must not run
+    // at all. Exact equality — toContain("45000") would pass via "450000".
+    expect(normalizeDateFormats(csv)).toBe(csv);
+  });
+
+  it("converts serials in a date column the classifier recognizes beyond the bare regex (Paid)", () => {
+    // "Paid" is a date keyword in the column classifier but does not match the
+    // legacy /date|closing|settlement/ header regex. The serial in that column
+    // converts; the same-magnitude GCI in the next column survives.
+    const csv = "Name,Paid,GCI\nJane Buyer,45292,45000";
+    expect(normalizeDateFormats(csv)).toBe("Name,Paid,GCI\nJane Buyer,2024-01-01,45000");
+  });
+});
+
+describe("normalizeDateFormats — CRM contact imports (no date-labelled header)", () => {
+  // Regression for the 2026-07-02 Daily QA finding: contact CSVs routinely have
+  // no date-classified column, and the old whole-document fallback rewrote any
+  // bare 5-digit cell in 42000–48399 (a $45,000 Budget) into an ISO date —
+  // silent money loss on the Ellis onboarding critical path.
+
+  it("leaves a 5-digit Budget cell untouched on a contact import", () => {
+    const csv =
+      "Name,Email,Phone,Budget,Source\n" +
+      "Jane Buyer,jane@example.ca,506-555-0100,45000,Referral";
+    expect(normalizeDateFormats(csv)).toBe(csv);
+  });
+
+  it("leaves multiple serial-range money cells untouched across columns and rows", () => {
+    const csv =
+      "Name,Budget,Max Price,Source\n" +
+      "Jane Buyer,45000,47500,Referral\n" +
+      "Sam Seller,42005,46000,Open House";
+    expect(normalizeDateFormats(csv)).toBe(csv);
+  });
+
+  it("still leaves money alone when headers are non-keyword-y (Created, Last Activity)", () => {
+    const csv =
+      "Name,Created,Last Activity,Budget,Source\n" +
+      "Jane Buyer,2026-01-05,2026-06-30,45000,Referral";
+    expect(normalizeDateFormats(csv)).toBe(csv);
+  });
+});
+
+describe("normalizeDateFormats — unstructured content keeps the generic serial fallback", () => {
+  it("converts a standalone cell-boundary serial in non-tabular prose", () => {
+    const text = "Deal record\n45292\nCommission paid in full";
+    const out = normalizeDateFormats(text);
+    expect(out).toContain("2024-01-01");
+    expect(out).not.toContain("45292");
   });
 });
 

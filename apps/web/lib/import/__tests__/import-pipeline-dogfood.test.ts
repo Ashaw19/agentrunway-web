@@ -72,9 +72,10 @@ const FIXTURE_CSV = [
 /** Mirror the production write path: build the transactions upsert payload from cell rows. */
 function buildUpsertPayload(csv: string, year: number) {
   const norm = normalizeTextDocument(csv, true);
-  // normalizeDateFormats runs on content in production before extraction; apply it
-  // to each surviving row so the Excel-serial / slash-date passes fire.
-  const rows = norm.cleaned_content.split("\n").map((line) => splitCsvRow(normalizeDateFormats(line)));
+  // normalizeDateFormats runs on the WHOLE document in production (route.ts /
+  // clients-content.tsx) so serial conversion can scope itself to the labelled
+  // date column. Per-line application would hide the header from Pass 1.
+  const rows = normalizeDateFormats(norm.cleaned_content).split("\n").map(splitCsvRow);
   const cls = norm.column_classification!;
   const header = cls.header_row_index;
 

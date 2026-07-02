@@ -13,6 +13,7 @@
  */
 
 import { splitCsvRow } from "./normalize-text";
+import { classifyColumns } from "../heuristics/column-classifier";
 
 // ── Pass 1: Excel serial → ISO ────────────────────────────────────────────────
 
@@ -41,10 +42,15 @@ export function excelSerialToISO(serial: number): string {
  * Normalize date formats in document content before sending to the LLM.
  *
  * Pass 1 — Excel serial numbers (5-digit integers in the ~42000–48000 range):
- *   Strategy: if the content is a CSV with a labelled Date column, only convert
- *   serials in THAT column to avoid false-positives on GCI/price values that
- *   happen to fall in the same numeric range (e.g. a $45,000 commission).
- *   Falls back to a generic cell-boundary regex for non-CSV content.
+ *   Strategy: serial→date conversion is scoped to a date-CLASSIFIED column only.
+ *   The date column is found via the explicit date-header regex, or failing
+ *   that via the column classifier's richer date keyword list (paid, settled,
+ *   possession, firm date, …). Tabular content with NO date-classified column
+ *   gets no serial conversion at all — a bare 5-digit cell there is money
+ *   (a $45,000 Budget/GCI), and rewriting it is silent data corruption
+ *   (2026-07-02 Daily QA finding, CRM contact imports). The generic
+ *   cell-boundary fallback regex applies only to non-tabular content
+ *   (prose, PDF-extracted text, TSV).
  *
  * Pass 2 — Slash dates (DD/MM/YYYY vs MM/DD/YYYY):
  *   If any date has a day > 12 in the first position → unambiguously DD/MM.
@@ -60,9 +66,15 @@ export function normalizeDateFormats(content: string): string {
   const SERIAL_RE = /^(4[2-7]\d{3}|48[0-3]\d\d)$/;
 
   const lines = content.split("\n");
+  const cellRows = lines.map(splitCsvRow);
+
+  // Date-column detection, two detectors in order:
+  //  (a) explicit date-header regex — unchanged legacy behavior;
+  //  (b) the column classifier's date keyword list, which also recognizes
+  //      headers like "Paid", "Settled", "Possession", "Firm Date".
   let dateColIdx = -1;
   for (let i = 0; i < Math.min(lines.length, 5); i++) {
-    const cells = splitCsvRow(lines[i]);
+    const cells = cellRows[i];
     if (cells.length >= 3) {
       const idx = cells.findIndex(c =>
         /\b(?:close[\s_]?)?date\b|\bclosing\b|\bsettlement[\s_]date\b/i.test(c.trim())
@@ -70,11 +82,22 @@ export function normalizeDateFormats(content: string): string {
       if (idx >= 0) { dateColIdx = idx; break; }
     }
   }
+  const classification = classifyColumns(cellRows, 5);
+  if (dateColIdx === -1 && classification && classification.date !== -1) {
+    dateColIdx = classification.date;
+  }
+
+  // Tabular = the classifier found a header row, or at least two lines split
+  // into 2+ comma cells. A tabular document without a date-classified column
+  // must NOT get serial conversion: bare 5-digit cells there are money.
+  const isTabular =
+    classification !== null ||
+    cellRows.filter(cells => cells.length >= 2).length >= 2;
 
   let result: string;
   if (dateColIdx >= 0) {
-    result = lines.map(line => {
-      const cells = splitCsvRow(line);
+    result = lines.map((line, i) => {
+      const cells = cellRows[i];
       if (cells.length > dateColIdx) {
         const cell = cells[dateColIdx].trim();
         if (SERIAL_RE.test(cell)) {
@@ -84,6 +107,8 @@ export function normalizeDateFormats(content: string): string {
       }
       return line;
     }).join("\n");
+  } else if (isTabular) {
+    result = content; // structured table, no date column — never rewrite cells
   } else {
     result = content.replace(
       /(?<=^|[\t,\n])(4[2-7]\d{3}|48[0-3]\d\d)(?=$|[\t,\n])/gm,
