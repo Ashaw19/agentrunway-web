@@ -2242,7 +2242,7 @@ export function ClientsContent({
         tags: newClientTags,
         birthdate: newClientBirthdate || null,
         notes: notesValue || null,
-        property_interest: newClientBudget ? parseMoneyLoose(newClientBudget) : null,
+        property_interest: newClientBudget ? parsePrice(newClientBudget) : null,
         preferred_contact: newClientPreferredContact || "phone",
         timeframe: newClientTimeframe || null,
         street_address: streetValue || null,
