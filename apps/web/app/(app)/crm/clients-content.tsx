@@ -174,7 +174,7 @@ import { WorkflowSuggestionsPanel } from "@/components/workflow-suggestions-pane
 import { ClientConversationPanel } from "@/components/client-conversation-panel";
 import { CockpitStrip, CockpitStat, ScoreDial, SEMANTIC, GOLD, magnitudePct, FlightLog, type FlightLogItem, CRM_SECTION_CARD, CRM_SECTION_HEADER, CRM_SECTION_ICON_CHIP } from "@/components/cockpit-ui";
 import { activityDirection } from "@/lib/crm/activity-direction";
-import { Sparkline, type SparkPoint } from "@/components/sparkline";
+import { Sparkline } from "@/components/sparkline";
 import { HoverCard, HoverCardTrigger, HoverCardContent } from "@/components/ui/hover-card";
 import { buildClientGciSpark } from "@/lib/charts/client-gci-spark";
 
@@ -291,53 +291,6 @@ function nowIso(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}T${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
-// ── KPI trajectory sparklines ──────────────────────────────────────────────────
-// Buckets every closed deal by close-month into cumulative series so the four
-// headline numbers (clients / repeat rate / GCI / deals) carry a real trajectory
-// instead of rendering as dead integers. Shows the last 12 months that have
-// activity. Returns empty arrays when there isn't enough history to plot a line.
-function buildKpiSparks(groups: ClientGroup[]): {
-  clients: SparkPoint[];
-  repeat: SparkPoint[];
-  gci: SparkPoint[];
-  deals: SparkPoint[];
-} {
-  type D = { ym: string; gci: number; key: string };
-  const ds: D[] = [];
-  for (const g of groups) {
-    const key = g.clientId ?? g.name;
-    for (const d of g.deals) {
-      if (!d.close_date || d.condition_status === "collapsed") continue;
-      ds.push({ ym: d.close_date.slice(0, 7), gci: d.gci ?? 0, key });
-    }
-  }
-  if (ds.length === 0) return { clients: [], repeat: [], gci: [], deals: [] };
-  const months = Array.from(new Set(ds.map((d) => d.ym))).sort();
-  const shown = new Set(months.slice(-12));
-  let cumGci = 0;
-  let cumDeals = 0;
-  const seen = new Set<string>();
-  const perClient = new Map<string, number>();
-  const out = { clients: [] as SparkPoint[], repeat: [] as SparkPoint[], gci: [] as SparkPoint[], deals: [] as SparkPoint[] };
-  for (const m of months) {
-    for (const d of ds.filter((x) => x.ym === m)) {
-      cumGci += d.gci;
-      cumDeals += 1;
-      seen.add(d.key);
-      perClient.set(d.key, (perClient.get(d.key) ?? 0) + 1);
-    }
-    if (shown.has(m)) {
-      let repeatClients = 0;
-      for (const n of perClient.values()) if (n > 1) repeatClients += 1;
-      const repeatPct = seen.size > 0 ? Math.round((repeatClients / seen.size) * 100) : 0;
-      out.clients.push({ value: seen.size, projected: false });
-      out.repeat.push({ value: repeatPct, projected: false });
-      out.gci.push({ value: Math.round(cumGci), projected: false });
-      out.deals.push({ value: cumDeals, projected: false });
-    }
-  }
-  return out;
-}
 
 // ── Lead Source options ────────────────────────────────────────────────────────
 
@@ -1437,7 +1390,6 @@ export function ClientsContent({
       ? Math.round((repeatCount / clientsWithDeals.length) * 100)
       : 0;
   const totalDeals = grouped.reduce((s, g) => s + g.dealCount, 0);
-  const kpiSparks = useMemo(() => buildKpiSparks(grouped), [grouped]);
 
   const sourceStats = useMemo(() => computeSourceStats(localRecords), [localRecords]);
   const topSource = sourceStats[0] ?? null;
@@ -3521,23 +3473,21 @@ export function ClientsContent({
         </div>
       </div>
 
-      {/* KPI cockpit strip — headline numbers with real trajectory sparklines */}
+      {/* KPI cockpit strip — clean headline readouts. (Sparklines removed: the
+          four series are cumulative totals that only ever climb, so a trend line
+          repeated nothing the number already says and read as noise.) */}
       <CockpitStrip className="px-5 py-4" progress={Math.min(100, Math.round((repeatRate / 35) * 100))}>
         <div className="grid grid-cols-2 gap-5 lg:grid-cols-4">
           <CockpitStat
             label="Total Clients"
             value={clientsLoading ? "…" : grouped.length}
             color="#F8FAFC"
-            spark={kpiSparks.clients}
-            sparkColor={SEMANTIC.none}
             icon={<Users className="h-3.5 w-3.5" />}
           />
           <CockpitStat
             label="Repeat Rate"
             value={`${repeatRate}%`}
             color={SEMANTIC.watch}
-            spark={kpiSparks.repeat}
-            sparkColor={SEMANTIC.watch}
             icon={<RotateCcw className="h-3.5 w-3.5" />}
             sub={`${repeatCount} repeat client${repeatCount === 1 ? "" : "s"}`}
           />
@@ -3545,16 +3495,13 @@ export function ClientsContent({
             label="Lifetime GCI"
             value={fmtCurrency(totalGCI)}
             color={SEMANTIC.strong}
-            spark={kpiSparks.gci}
-            sparkColor={SEMANTIC.strong}
             icon={<DollarSign className="h-3.5 w-3.5" />}
+            sub={totalDeals > 0 ? `${fmtCurrency(Math.round(totalGCI / totalDeals))} avg / deal` : undefined}
           />
           <CockpitStat
             label="Total Deals"
             value={totalDeals}
             color={SEMANTIC.onTrack}
-            spark={kpiSparks.deals}
-            sparkColor={SEMANTIC.onTrack}
             icon={<Layers className="h-3.5 w-3.5" />}
           />
         </div>
