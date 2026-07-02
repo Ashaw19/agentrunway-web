@@ -312,7 +312,8 @@ export function PipelineContent({ seed }: { seed: PipelineSeedData }) {
       if (error) throw error;
       toast.success("Listing appointment removed.");
       router.refresh();
-    } catch {
+    } catch (err) {
+      console.error(err);
       toast.error("Failed to delete listing appointment.");
     } finally {
       setDeletingId(null);

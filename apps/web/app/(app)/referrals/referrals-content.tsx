@@ -340,6 +340,7 @@ export function ReferralsContent({
     const supabase = createClient();
     const { error } = await supabase.from("referrals").delete().eq("id", id).eq("user_id", userId);
     if (error) {
+      console.error(error);
       toast.error("Failed to delete referral.");
     } else {
       setReferrals((prev) => prev.filter((r) => r.id !== id));
