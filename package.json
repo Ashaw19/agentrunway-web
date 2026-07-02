@@ -16,5 +16,10 @@
   "devDependencies": {
     "tsx": "^4.21.0",
     "turbo": "^2.9.8"
+  },
+  "pnpm": {
+    "overrides": {
+      "@types/react": "~19.1.10"
+    }
   }
 }
