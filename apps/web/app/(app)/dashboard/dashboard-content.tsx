@@ -31,7 +31,6 @@ import {
 import { CountUp } from "@/components/count-up";
 import { Sparkline, type SparkPoint } from "@/components/sparkline";
 import {
-  buildScoreTrajectory,
   caretDirection,
   priorComponentScores,
   cashRunwayDelta,
@@ -726,16 +725,6 @@ export function DashboardContent({
   // history row; suppressed entirely when no prior row exists.
   const currentDateKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
   const latestHistoryDate = scoreHistory.length ? scoreHistory[scoreHistory.length - 1].captured_on : null;
-  // Seed the trajectory ONLY from a snapshot that is a genuinely earlier
-  // period (different month) — never fabricate a duplicate point from this
-  // month's snapshot.
-  const trajectorySeedScore =
-    runwayScoreSnapshot != null && runwayScoreSnapshot.month !== currentMonthKey
-      ? runwayScoreSnapshot.score
-      : null;
-  const scoreTrajectory = hasData
-    ? buildScoreTrajectory(scoreHistory, runwayScore.score, currentDateKey, trajectorySeedScore)
-    : [];
   const priorComps = priorComponentScores(scoreHistory, currentDateKey);
   const cashDelta = cashRunwayDelta(
     scoreHistory,
@@ -2631,8 +2620,6 @@ export function DashboardContent({
                   stateLabel={runwayScore.stateLabel}
                   bandHex={scoreBandHex}
                   isStrong={scoreIsStrong}
-                  trajectory={scoreTrajectory}
-                  trajectoryColor={scoreBandHex}
                 />
               ) : (
                 <div className="flex h-[132px] w-[132px] shrink-0 items-center justify-center rounded-full border-2 border-dashed border-slate-700">
