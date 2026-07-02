@@ -2,7 +2,6 @@
 
 import { cn } from "@/lib/utils";
 import { CountUp } from "@/components/count-up";
-import { Sparkline, type SparkPoint } from "@/components/sparkline";
 import type { RunwayStateLabel } from "@/lib/engines/runway-score-engine";
 
 /**
@@ -36,14 +35,6 @@ interface RunwayGaugeProps {
   isStrong: boolean;
   /** Skip boot motion (e.g. zero-data placeholder). */
   animate?: boolean;
-  /**
-   * Score trajectory series (all actuals — no projected tail). Rendered as a
-   * thin sparkline beneath the radial when it has ≥2 points. The caller passes
-   * the engine-derived series; this component never computes it.
-   */
-  trajectory?: SparkPoint[];
-  /** Sparkline stroke (§9.1 band color via bandColorHexForScore). */
-  trajectoryColor?: string;
 }
 
 export function RunwayGauge({
@@ -52,8 +43,6 @@ export function RunwayGauge({
   bandHex,
   isStrong,
   animate = true,
-  trajectory,
-  trajectoryColor,
 }: RunwayGaugeProps) {
   // Geometry. A 270° sweep arc (gauge-style, gap at the bottom) reads more
   // like an instrument than a full ring.
@@ -82,9 +71,8 @@ export function RunwayGauge({
   const glowFilter = isStrong ? "url(#gauge-gold-glow)" : undefined;
 
   return (
-    <div className="flex flex-col items-center gap-1.5 shrink-0">
     <div
-      className="relative"
+      className="relative shrink-0"
       style={{ width: size, height: size }}
       role="img"
       aria-label={`Runway Score ${Math.round(clamped)} out of 100, ${stateLabel}`}
@@ -167,21 +155,6 @@ export function RunwayGauge({
           {stateLabel}
         </span>
       </div>
-    </div>
-      {/* Thin score-trajectory strip beneath the radial. All actuals (no
-          projected tail). Sparkline returns null for <2 points; the length
-          guard just avoids an empty wrapper. Stroke = the current band color
-          (§9.1) — never gold (gold stays Strong-only and gauge-only). */}
-      {trajectory && trajectory.length >= 2 && (
-        <div style={{ width: size }}>
-          <Sparkline
-            data={trajectory}
-            color={trajectoryColor ?? bandHex}
-            animate={animate}
-            ariaLabel={`Runway Score trend, last ${trajectory.length} points`}
-          />
-        </div>
-      )}
     </div>
   );
 }

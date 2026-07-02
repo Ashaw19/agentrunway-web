@@ -1,6 +1,5 @@
 import { describe, it, expect } from "vitest";
 import {
-  buildScoreTrajectory,
   caretDirection,
   priorComponentScores,
   cashRunwayDelta,
@@ -23,75 +22,6 @@ function row(
     cash_runway_months: opts.cash ?? null,
   };
 }
-
-describe("buildScoreTrajectory", () => {
-  it("empty history + no seed + live → 1 point (no line)", () => {
-    const pts = buildScoreTrajectory([], 50, TODAY, null);
-    expect(pts).toEqual([{ value: 50, projected: false }]);
-  });
-
-  it("empty history + distinct seed + live → 2 points [seed, live]", () => {
-    const pts = buildScoreTrajectory([], 50, TODAY, 40);
-    expect(pts).toEqual([
-      { value: 40, projected: false },
-      { value: 50, projected: false },
-    ]);
-  });
-
-  it("two prior days (both before today) + live → [30,40,50], all actual", () => {
-    const hist = [row("2026-06-26", 30), row("2026-06-27", 40)];
-    const pts = buildScoreTrajectory(hist, 50, TODAY, null);
-    expect(pts).toEqual([
-      { value: 30, projected: false },
-      { value: 40, projected: false },
-      { value: 50, projected: false },
-    ]);
-    expect(pts.every((p) => p.projected === false)).toBe(true);
-  });
-
-  it("history containing today's row → live OVERRIDES today's value", () => {
-    const hist = [row("2026-06-27", 30), row(TODAY, 45)];
-    const pts = buildScoreTrajectory(hist, 50, TODAY, null);
-    expect(pts).toEqual([
-      { value: 30, projected: false },
-      { value: 50, projected: false },
-    ]);
-  });
-
-  it("single today-row + live + seed → [seed, live] (today overridden, then seeded to 2)", () => {
-    const hist = [row(TODAY, 45)];
-    const pts = buildScoreTrajectory(hist, 50, TODAY, 40);
-    expect(pts).toEqual([
-      { value: 40, projected: false },
-      { value: 50, projected: false },
-    ]);
-  });
-
-  it("single today-row + live + null seed → [live] (1 point)", () => {
-    const hist = [row(TODAY, 45)];
-    const pts = buildScoreTrajectory(hist, 50, TODAY, null);
-    expect(pts).toEqual([{ value: 50, projected: false }]);
-  });
-
-  it("15 distinct prior days + live → exactly 12 points (tail kept)", () => {
-    const hist: ScoreHistoryPoint[] = [];
-    for (let d = 1; d <= 15; d++) {
-      hist.push(row(`2026-06-${String(d).padStart(2, "0")}`, d)); // all < TODAY (28th), distinct
-    }
-    const pts = buildScoreTrajectory(hist, 99, TODAY, null);
-    expect(pts).toHaveLength(12);
-    // 15 history + 1 live = 16 → tail of 12 = scores [5..15, 99]
-    expect(pts[0].value).toBe(5);
-    expect(pts[10].value).toBe(15);
-    expect(pts[11].value).toBe(99);
-  });
-
-  it("UNSORTED input still yields ascending output", () => {
-    const hist = [row("2026-06-27", 40), row("2026-06-25", 20), row("2026-06-26", 30)];
-    const pts = buildScoreTrajectory(hist, 50, TODAY, null);
-    expect(pts.map((p) => p.value)).toEqual([20, 30, 40, 50]);
-  });
-});
 
 describe("caretDirection", () => {
   it.each([
