@@ -221,8 +221,8 @@ export default function NetIncomeMetricPage() {
               <p className="mt-3 leading-relaxed text-slate-600">
                 Tracking pre-tax net income throughout the year also enables preparing for tax obligations.
                 Rather than discovering a large tax obligation at filing time, agents who monitor
-                net income can calculate their quarterly instalment obligations and set aside the
-                right amount from each commission cheque.
+                net income can calculate their quarterly instalment obligations and see the estimated
+                tax amount each commission cheque carries.
               </p>
 
               {/* Key insight */}

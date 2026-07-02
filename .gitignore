@@ -67,3 +67,6 @@ package-lock.json
 test-results/
 playwright-report/
 blob-report/
+
+# git worktrees never live inside the repo — they belong at ../worktrees/ (see CLAUDE.md)
+/worktrees/
