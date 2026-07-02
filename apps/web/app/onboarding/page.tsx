@@ -248,6 +248,8 @@ export default function OnboardingPage() {
       if (!user) {
         savingRef.current = false;
         setSaving(false);
+        toast.error("Your session expired. Please sign in again — your answers will only take a minute to redo.");
+        router.push("/login");
         return;
       }
 
@@ -796,7 +798,7 @@ export default function OnboardingPage() {
                     </button>
                   </div>
                   <p className="text-xs text-white/35">
-                    Some brokerages withhold the HST portion and remit it to CRA on your behalf. This changes how we calculate your take-home pay and what you need to set aside.
+                    Some brokerages withhold the HST portion and remit it to CRA on your behalf. This changes how we calculate your take-home pay and your estimated HST owing.
                     {brokerageWithholdsHst && " Nice — one less thing to worry about."}
                   </p>
                 </div>

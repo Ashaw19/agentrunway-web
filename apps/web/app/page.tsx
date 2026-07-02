@@ -251,7 +251,7 @@ function HeroDashboardPreview() {
                 <div>
                   <p className="text-[10px] font-semibold text-amber-300">⚡ High Impact</p>
                   <p className="mt-0.5 text-[10px] leading-relaxed text-slate-400">
-                    Set aside $4,200 this quarter for estimated tax instalments.
+                    Estimated tax instalment this quarter: $4,200.
                   </p>
                 </div>
               </div>
@@ -607,7 +607,7 @@ export default async function Home() {
                           {
                             icon: "⚡",
                             label: "High Impact",
-                            text: "Set aside $4,200 for Q3 estimated tax instalment.",
+                            text: "Q3 estimated tax instalment: $4,200.",
                             border: "border-amber-400/25",
                             bg: "rgba(251,191,36,0.05)",
                             labelColor: "text-amber-300",

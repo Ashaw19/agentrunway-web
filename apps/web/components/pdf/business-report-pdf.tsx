@@ -1510,12 +1510,12 @@ export function BusinessReportPDF({
               <View style={s.taxTile}>
                 <Text style={s.taxTileLabel}>QUARTERLY INSTALMENT</Text>
                 <Text style={s.taxTileValue}>{fmtCurrency(taxResult.quarterlyEstimate)}</Text>
-                <Text style={s.taxTileSub}>Set aside quarterly</Text>
+                <Text style={s.taxTileSub}>Estimated per quarter</Text>
               </View>
               <View style={[s.taxTile, s.taxTileHighlight]}>
-                <Text style={[s.taxTileLabel, s.taxTileHighlightLabel]}>PER-DEAL SET-ASIDE</Text>
+                <Text style={[s.taxTileLabel, s.taxTileHighlightLabel]}>PER-DEAL TAX ESTIMATE</Text>
                 <Text style={[s.taxTileValue, s.taxTileHighlightValue]}>{fmtCurrency(taxResult.perDealSetAside)}</Text>
-                <Text style={[s.taxTileSub, s.taxTileHighlightSub]}>Reserve per closed deal</Text>
+                <Text style={[s.taxTileSub, s.taxTileHighlightSub]}>Estimated per closed deal</Text>
               </View>
             </View>
           </View>
