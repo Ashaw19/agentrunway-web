@@ -196,6 +196,40 @@ export function getOptimalSendTime(opts: {
 }
 
 /**
+ * Map an outreach opportunity type to the client segment whose send
+ * windows best fit it. Single source of truth for the queue's send-time
+ * hints — the trigger type is the strongest segment signal the queue
+ * carries without another DB read.
+ */
+export function segmentForOutreachType(opportunityType: string): ClientSegment {
+  switch (opportunityType) {
+    case "buyer_inventory_match":
+      return "buyer";
+    case "seller_timing_hesitation":
+      return "seller";
+    case "closing_anniversary":
+    case "post_close_3":
+    case "post_close_14":
+    case "post_close_90":
+    case "review_request":
+    case "referral_ask":
+    case "multi_deal_milestone":
+    case "mortgage_renewal_due":
+    case "mortgage_renewal_window":
+    case "mortgage_renewal_finance":
+    case "past_client_check_in":
+    case "property_value_milestone":
+      return "past_client";
+    case "new_client_welcome":
+    case "timeframe_approaching":
+      return "lead";
+    default:
+      // idle_client, birthday, seasonal_*, pain_point_inactive, contact_anniversary…
+      return "unknown";
+  }
+}
+
+/**
  * Score a specific send time (0-100).
  * Used to evaluate user-chosen send times.
  */

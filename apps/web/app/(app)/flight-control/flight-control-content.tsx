@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import type { OutreachQueueItem, OutreachOpportunityType, TopOpportunity, NewsletterQueue } from "@/lib/types/database";
 import { useAiChat } from "@/lib/ai-chat-context";
+import { getOptimalSendTime, segmentForOutreachType } from "@/lib/engines/send-time-engine";
 import { NewsletterSection } from "./newsletter-section";
 
 // ── Opportunity type icons ──────────────────────────────────────────────────
@@ -445,6 +446,23 @@ function ReviewDrawer({
         </SheetHeader>
 
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
+          {/* Optimal send window (send-time engine; informational only —
+              nothing is scheduled or sent automatically) */}
+          <div className="flex items-center gap-2 rounded-lg border border-border/60 bg-muted/40 px-3 py-2">
+            <Clock className="h-3.5 w-3.5 shrink-0 text-violet-500" />
+            <p className="text-[11px] text-muted-foreground">
+              Best send window:{" "}
+              <span className="font-semibold text-foreground/85">
+                {getOptimalSendTime({
+                  segment: segmentForOutreachType(item.opportunity_type),
+                }).toLocaleString("en-CA", {
+                  weekday: "long",
+                  hour: "numeric",
+                })}
+              </span>
+              {" · based on when clients like this typically respond"}
+            </p>
+          </div>
           <div className="space-y-1.5">
             <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
               Subject
