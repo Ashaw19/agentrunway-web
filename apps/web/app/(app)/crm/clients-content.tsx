@@ -275,12 +275,11 @@ function recencyAccent(iso: string | null): string {
   return "bg-red-500"; // §9.1 at-risk
 }
 
-function recencyTextClass(iso: string | null): string {
-  if (!iso) return "text-muted-foreground";
-  const m = monthsAgo(iso);
-  if (m < 6) return "text-emerald-600";
-  if (m < 18) return "text-amber-600";
-  return "text-red-600";
+// Restraint pass (2026-07-04 aesthetics review): the recency signal is
+// already carried by the row's left edge bar (recencyAccent). Colouring the
+// date text too double-encoded it and added a third colour channel per row.
+function recencyTextClass(_iso: string | null): string {
+  return "text-muted-foreground";
 }
 
 function todayIso(): string {
@@ -3804,7 +3803,7 @@ export function ClientsContent({
                                         </span>
                                       )}
                                       {client?.tags?.[0] && (
-                                        <Badge variant="outline" className="text-[9px] bg-violet-50 text-violet-700 border-violet-200 shrink-0 py-0">
+                                        <Badge variant="outline" className="text-[9px] bg-slate-50 text-slate-600 border-slate-200 shrink-0 py-0 dark:bg-slate-800/60 dark:text-slate-300 dark:border-slate-700">
                                           {client.tags[0]}
                                         </Badge>
                                       )}
