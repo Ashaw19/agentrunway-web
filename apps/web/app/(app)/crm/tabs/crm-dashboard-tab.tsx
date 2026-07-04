@@ -81,6 +81,14 @@ import {
 } from "@/lib/engines/crm-analytics-engine";
 import { SummaryCard, relativeDate, fmtDate, todayIso, PRIORITY_STYLES, fmtResponseTime } from "../shared";
 import { toast } from "sonner";
+import { createClient } from "@/lib/supabase/client";
+import {
+  computeTodaysActions,
+  type TodayAction,
+  type TodayOpportunityInput,
+  type TodayDealInput,
+} from "@/lib/engines/today-actions-engine";
+import type { PipelineDeal } from "@/lib/types/database";
 
 // ── Draft button eligibility ─────────────────────────────────────────────────
 // Maps BriefingItem types → OutreachOpportunityType for the Draft endpoint.
@@ -278,6 +286,77 @@ export function CrmDashboardTab({
     }
   }, []);
 
+  // ── Today's 3 — cross-entity next-best-action strip ─────────────────────
+  // Opportunities + pipeline deals are fetched read-only here (RLS-scoped)
+  // because the CRM page load doesn't include them; briefing items come from
+  // the memo above. Ranking is deterministic (today-actions-engine).
+  const [oppRows, setOppRows] = useState<TodayOpportunityInput[]>([]);
+  const [dealInputs, setDealInputs] = useState<TodayDealInput[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const supabase = createClient();
+        const [oppRes, dealRes] = await Promise.all([
+          supabase
+            .from("opportunities_v")
+            .select(
+              "id, opportunity_type, status, estimated_price, estimated_commission_pct, close_odds_pct, expected_close_date, lost_reason, opportunity_date, updated_at, title, client_id",
+            )
+            .eq("status", "open")
+            .limit(500),
+          supabase
+            .from("pipeline_deals")
+            .select("*")
+            .in("stage", ["lead", "showing", "offer", "conditional", "firm"])
+            .limit(500),
+        ]);
+        if (cancelled) return;
+        if (oppRes.error) {
+          console.error("[todays-3] opportunities fetch failed:", oppRes.error);
+        } else {
+          setOppRows((oppRes.data ?? []) as TodayOpportunityInput[]);
+        }
+        if (dealRes.error) {
+          console.error("[todays-3] pipeline fetch failed:", dealRes.error);
+        } else {
+          const deals = (dealRes.data ?? []) as PipelineDeal[];
+          setDealInputs(
+            deals.map((deal) => ({
+              deal,
+              title: deal.address || deal.client_name || "(unnamed deal)",
+              clientId: deal.client_id,
+            })),
+          );
+        }
+      } catch (err) {
+        console.error("[todays-3] fetch failed:", err);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const clientGciById = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const r of records) {
+      if (r.client_id) map[r.client_id] = (map[r.client_id] ?? 0) + (r.gci ?? 0);
+    }
+    return map;
+  }, [records]);
+
+  const todaysActions = useMemo<TodayAction[]>(() => {
+    const items = briefing.items.filter((i) => !dismissedIds.has(i.id));
+    return computeTodaysActions({
+      briefingItems: items,
+      opportunities: oppRows,
+      deals: dealInputs,
+      clientGciById,
+    }).slice(0, 3);
+  }, [briefing, dismissedIds, oppRows, dealInputs, clientGciById]);
+
   // ── CRM Dashboard engine ────────────────────────────────────────────────
   const dashboard = useMemo(
     () => computeCrmDashboard({ clients, activities, records, periodDays }),
@@ -354,6 +433,73 @@ export function CrmDashboardTab({
 
   return (
     <div className="space-y-6">
+      {/* ── Today's 3 — highest-leverage actions across all streams ────── */}
+      {todaysActions.length > 0 && (
+        <div className="grid gap-2.5 sm:grid-cols-3">
+          {todaysActions.map((action, idx) => (
+            <div
+              key={action.id}
+              className="flex flex-col justify-between rounded-2xl border bg-card p-3.5 shadow-sm"
+            >
+              <div className="flex items-start gap-2.5">
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-violet-100 text-[12px] font-bold text-violet-700">
+                  {idx + 1}
+                </span>
+                <div className="min-w-0">
+                  <p className="truncate text-[13px] font-semibold text-foreground" title={action.title}>
+                    {action.title}
+                  </p>
+                  <p className="mt-0.5 text-[11px] text-muted-foreground">
+                    {action.detail}
+                    {action.valueDollars >= 1000 && (
+                      <span className="ml-1.5 font-medium text-emerald-600">
+                        ~${Math.round(action.valueDollars / 1000)}k
+                      </span>
+                    )}
+                  </p>
+                </div>
+              </div>
+              <div className="mt-2.5 flex justify-end">
+                {action.source === "briefing" && action.briefingItem ? (
+                  BRIEFING_TO_OUTREACH_TYPE[action.briefingItem.type] ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 gap-1.5 text-[11px]"
+                      disabled={draftingId === action.briefingItem.id}
+                      onClick={() => handleDraft(action.briefingItem!)}
+                    >
+                      {draftingId === action.briefingItem.id
+                        ? <Loader2 className="h-3 w-3 animate-spin" />
+                        : <Sparkles className="h-3 w-3 text-violet-500" />}
+                      Draft
+                    </Button>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-[11px]"
+                      onClick={() => onOpenDetailPanel(action.briefingItem!.clientId)}
+                    >
+                      View
+                    </Button>
+                  )
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-[11px]"
+                    onClick={() => { window.location.href = "/pipeline"; }}
+                  >
+                    Open Pipeline
+                  </Button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* ── Intelligence Briefing ─────────────────────────────────────── */}
       {briefing.totalCount > 0 && (
         <Card className="rounded-2xl border shadow-sm">
