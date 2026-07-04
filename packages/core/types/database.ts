@@ -1103,6 +1103,11 @@ export interface Client {
   scheduled_for:    string | null;  // ISO date — future date client plans to act
   scheduled_phrase: string | null;  // vague phrase ("after the holidays", "next spring")
 
+  // Engagement scoring (migration 00098; written nightly by the
+  // precompute-briefings cron via packages/core/engines/engagement-engine.ts)
+  engagement_score:      number;         // time-decayed weighted score, default 0
+  engagement_updated_at: string | null;  // last nightly refresh
+
   created_at: string;
   updated_at: string;
 }

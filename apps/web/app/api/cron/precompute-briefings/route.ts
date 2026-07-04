@@ -20,6 +20,10 @@ import {
   type PipelineDeal,
 } from "@/lib/types/database";
 import { seasonalFractionElapsed } from "@/lib/engines/projection-engine";
+import {
+  calculateEngagementScore,
+  toEngagementActivities,
+} from "@/lib/engines/engagement-engine";
 
 export const maxDuration = 300; // 5 minutes for batch processing
 
@@ -111,6 +115,11 @@ export async function GET(req: NextRequest) {
     const _results = await Promise.allSettled(
       batch.map(async (user) => {
         try {
+          // Refresh engagement scores FIRST so this run's hot-contacts
+          // query (and every other consumer of clients.engagement_score)
+          // reads today's values, not yesterday's.
+          await updateEngagementScores(supabase, user.user_id, now);
+
           const data = await gatherUserMetrics(supabase, user, {
             todayStr,
             yearStart,
@@ -150,6 +159,86 @@ export async function GET(req: NextRequest) {
   }
 
   return NextResponse.json({ status: "ok", processed, errors, total: users.length });
+}
+
+// ── Engagement Score Refresh ──────────────────────────────────────────────────
+// Migration 00098 added clients.engagement_score ("Updated daily via cron")
+// but no cron ever wrote it — hot contacts was silently empty for everyone.
+// This pass is that missing cron: run the canonical engagement engine over
+// each client's contact_activities and persist score + timestamp.
+
+/** Activities older than this contribute <2% of their weight (longest
+ *  half-life is 30d → 180d ≈ 6 half-lives). Bounds the query, not the math. */
+const ENGAGEMENT_LOOKBACK_DAYS = 180;
+const ENGAGEMENT_UPDATE_CHUNK = 20;
+
+async function updateEngagementScores(
+  supabase: AnySupabaseClient,
+  userId: string,
+  now: Date,
+): Promise<void> {
+  const lookbackIso = new Date(
+    now.getTime() - ENGAGEMENT_LOOKBACK_DAYS * 86_400_000,
+  ).toISOString();
+
+  const [clientsResult, activitiesResult] = await Promise.all([
+    supabase
+      .from("clients")
+      .select("id, engagement_score")
+      .eq("user_id", userId)
+      .limit(10000),
+    supabase
+      .from("contact_activities")
+      .select("client_id, type, activity_date")
+      .eq("user_id", userId)
+      .gte("activity_date", lookbackIso)
+      .limit(10000),
+  ]);
+
+  // Fail this user's pass loudly rather than writing zeros over real scores.
+  if (clientsResult.error) throw clientsResult.error;
+  if (activitiesResult.error) throw activitiesResult.error;
+
+  const byClient = new Map<string, { type: string | null; activity_date: string | null }[]>();
+  for (const act of activitiesResult.data ?? []) {
+    if (!act.client_id) continue;
+    const list = byClient.get(act.client_id) ?? [];
+    list.push(act);
+    byClient.set(act.client_id, list);
+  }
+
+  const nowIso = now.toISOString();
+  const updates: { id: string; score: number }[] = [];
+  for (const client of clientsResult.data ?? []) {
+    const result = calculateEngagementScore(
+      toEngagementActivities(byClient.get(client.id) ?? []),
+      now,
+    );
+    // Skip no-op writes (score unchanged — common for dormant clients at 0).
+    if (Math.abs(Number(client.engagement_score ?? 0) - result.score) < 0.01) continue;
+    updates.push({ id: client.id, score: result.score });
+  }
+
+  for (let i = 0; i < updates.length; i += ENGAGEMENT_UPDATE_CHUNK) {
+    const chunk = updates.slice(i, i + ENGAGEMENT_UPDATE_CHUNK);
+    const results = await Promise.all(
+      chunk.map((u) =>
+        supabase
+          .from("clients")
+          .update({ engagement_score: u.score, engagement_updated_at: nowIso })
+          .eq("id", u.id)
+          .eq("user_id", userId),
+      ),
+    );
+    for (const r of results) {
+      if (r.error) {
+        console.error(
+          `[precompute-briefings] engagement update failed for user ${userId}:`,
+          r.error,
+        );
+      }
+    }
+  }
 }
 
 // ── Metric Gathering ──────────────────────────────────────────────────────────
