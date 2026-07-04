@@ -67,12 +67,49 @@ const TREND_DECLINING_PCT = -0.1;
 
 // ── Tier thresholds ────────────────────────────────────────────────────────────
 
-function tierFromScore(score: number): EngagementTier {
+export function tierFromScore(score: number): EngagementTier {
   if (score > 80) return "hot";
   if (score >= 50) return "ascending";
   if (score >= 20) return "cruising";
   if (score >= 5) return "cooling";
   return "dormant";
+}
+
+// ── CRM activity-type mapping ──────────────────────────────────────────────────
+// contact_activities.type vocabulary (migration 00018: call | email | text |
+// showing | meeting | offer | note) differs from the engine's weighted types.
+// This map is the single source of truth for the translation; unmapped types
+// fall through to the engine's DEFAULT_WEIGHT / DEFAULT_HALF_LIFE.
+
+export const CRM_ACTIVITY_TYPE_MAP: Record<string, string> = {
+  call: "call",
+  email: "email_sent",
+  text: "text",
+  showing: "showing",
+  // A meeting is the same engagement signal as an appointment.
+  meeting: "appointment",
+  // An offer only happens mid-transaction — as high-signal as a showing.
+  offer: "appointment",
+  note: "note",
+};
+
+/**
+ * Convert raw contact_activities rows into the engine's activity shape.
+ * Rows with a null/empty date are dropped rather than treated as "now".
+ */
+export function toEngagementActivities(
+  rows: Array<{ type: string | null; activity_date: string | null }>
+): EngagementActivity[] {
+  const out: EngagementActivity[] = [];
+  for (const row of rows) {
+    if (!row.activity_date) continue;
+    const raw = (row.type ?? "note").toLowerCase();
+    out.push({
+      type: CRM_ACTIVITY_TYPE_MAP[raw] ?? raw,
+      occurred_at: row.activity_date,
+    });
+  }
+  return out;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
