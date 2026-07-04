@@ -87,6 +87,7 @@ import { toast } from "sonner";
 // Only types where a personalised email genuinely adds value are included.
 
 const BRIEFING_TO_OUTREACH_TYPE: Partial<Record<BriefingItem["type"], OutreachOpportunityType>> = {
+  relationship_decay:       "idle_client",
   birthday_today:           "birthday",
   birthday_soon:            "birthday",
   closing_anniversary:      "closing_anniversary",
@@ -117,6 +118,7 @@ function BriefingIcon({ type }: { type: BriefingItem["type"] }) {
   if (type === "vip_overdue")            return <Star className="h-3.5 w-3.5 text-amber-500" />;
   if (type === "uncontacted_lead")       return <UserX className="h-3.5 w-3.5 text-red-500" />;
   if (type === "in_flight_stale")        return <AlertCircle className="h-3.5 w-3.5 text-red-500" />;
+  if (type === "relationship_decay")     return <TrendingDown className="h-3.5 w-3.5 text-orange-500" />;
   if (type === "birthday_today")         return <Gift className="h-3.5 w-3.5 text-pink-500" />;
   if (type === "birthday_soon")          return <Gift className="h-3.5 w-3.5 text-pink-400" />;
   if (type === "closing_anniversary")    return <Key className="h-3.5 w-3.5 text-blue-500" />;

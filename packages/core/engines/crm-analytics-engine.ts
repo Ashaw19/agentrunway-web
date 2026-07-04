@@ -12,6 +12,7 @@ import type {
   ClientStatus,
   ListingAppointment,
 } from "../types/database";
+import { detectActivityDecay } from "./anomaly-engine";
 
 // ── Intelligence Briefing types ──────────────────────────────────────────────
 
@@ -19,6 +20,7 @@ export type BriefingItemType =
   | "vip_overdue"
   | "uncontacted_lead"
   | "in_flight_stale"
+  | "relationship_decay"
   | "birthday_today"
   | "birthday_soon"
   | "closing_anniversary"
@@ -483,10 +485,14 @@ export function computeIntelligenceBriefing(
 
   // ── Pre-compute last activity date per client ──────────────────────────────
   const lastActByClient = new Map<string, Date>();
+  const activityDatesByClient = new Map<string, string[]>();
   for (const a of activities) {
     const d = new Date(a.activity_date);
     const ex = lastActByClient.get(a.client_id);
     if (!ex || d > ex) lastActByClient.set(a.client_id, d);
+    const dates = activityDatesByClient.get(a.client_id) ?? [];
+    dates.push(a.activity_date);
+    activityDatesByClient.set(a.client_id, dates);
   }
 
   // ── Pre-compute closing dates by client (for anniversary detection) ────────
@@ -571,6 +577,33 @@ export function computeIntelligenceBriefing(
         detail: "Active deal. Clients expect regular updates",
         daysValue: daysSince,
       });
+    }
+
+    // ── 3b. Relationship decay (rhythm-based, via anomaly engine) ──────────────
+    // Catches regularly-contacted clients going quiet relative to their OWN
+    // cadence — a signal the flat SLA rules above (which key on status/tags)
+    // structurally miss. Runs after them so status SLAs keep precedence under
+    // the one-action-item-per-client cap. Requires 3+ logged activities, so
+    // never-contacted and freshly-imported clients cannot trigger it.
+    if (!importedSuppressed && !hasActionItem.has(client.id)) {
+      const decay = detectActivityDecay(
+        [{ name: client.name, activity_dates: activityDatesByClient.get(client.id) ?? [] }],
+        now,
+      );
+      if (decay.length > 0) {
+        const d = decay[0];
+        hasActionItem.add(client.id);
+        items.push({
+          id: `decay_${client.id}`,
+          type: "relationship_decay",
+          severity: d.severity === "alert" ? "urgent" : "attention",
+          clientId: client.id,
+          clientName: client.name,
+          title: `${client.name}: going quiet`,
+          detail: `${d.days_since_last_activity}d silent — usually every ${d.previous_frequency_days}d`,
+          daysValue: d.days_since_last_activity,
+        });
+      }
     }
 
     // ── 4. Birthday alerts (next 14 days) ──────────────────────────────────────
