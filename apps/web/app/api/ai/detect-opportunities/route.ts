@@ -23,6 +23,7 @@ import { createClient }       from "@/lib/supabase/server";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 import { requirePro } from "@/lib/require-pro";
 import type { OutreachQueueItem, AgentState } from "@agent-runway/core/types/database";
+import { POST_CLOSE_OPPORTUNITY_CONFIGS as POST_CLOSE_CONFIGS } from "@agent-runway/core/engines/nurture-engine";
 import type { SupabaseClient }    from "@supabase/supabase-js";
 import type { ClientMemoryFacts } from "@/lib/ai/client-memory-engine";
 import {
@@ -940,14 +941,7 @@ export async function detectAndDraftForUser(
   }
 
   // ── 4. Post-close nurture sequence (Batch 1) ──────────────────────────────
-  const POST_CLOSE_CONFIGS = [
-    { type: "post_close_3"   as const, days:  3, lookback:  5 },
-    { type: "post_close_14"  as const, days: 14, lookback:  7 },
-    { type: "post_close_90"  as const, days: 90, lookback: 30 },
-    { type: "review_request" as const, days: 21, lookback: 10 },
-    { type: "referral_ask"   as const, days: 45, lookback: 21 },
-  ];
-
+  // Cadence is canonical in @agent-runway/core/engines/nurture-engine (tuned in #117).
   for (const rec of records) {
     if (!rec.close_date || !rec.client_id) continue;
     if (recentlyContactedIds.has(rec.client_id)) continue; // suppress if recently contacted
@@ -2206,14 +2200,7 @@ export async function getTopOpportunities(
     }
   }
 
-  // 4. Post-close nurture
-  const POST_CLOSE_CONFIGS = [
-    { type: "post_close_3" as const, days: 3, lookback: 5 },
-    { type: "post_close_14" as const, days: 14, lookback: 7 },
-    { type: "post_close_90" as const, days: 90, lookback: 30 },
-    { type: "review_request" as const, days: 21, lookback: 10 },
-    { type: "referral_ask" as const, days: 45, lookback: 21 },
-  ];
+  // 4. Post-close nurture — cadence canonical in nurture-engine (tuned in #117)
   for (const rec of records) {
     if (!rec.close_date || !rec.client_id) continue;
     if (recentlyContactedIds.has(rec.client_id)) continue;
