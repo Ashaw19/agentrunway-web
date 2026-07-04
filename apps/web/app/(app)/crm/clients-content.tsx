@@ -174,6 +174,7 @@ import { WorkflowSuggestionsPanel } from "@/components/workflow-suggestions-pane
 import { ClientConversationPanel } from "@/components/client-conversation-panel";
 import { CockpitStrip, CockpitStat, ScoreDial, SEMANTIC, GOLD, magnitudePct, FlightLog, type FlightLogItem, CRM_SECTION_CARD, CRM_SECTION_HEADER, CRM_SECTION_ICON_CHIP } from "@/components/cockpit-ui";
 import { activityDirection } from "@/lib/crm/activity-direction";
+import { ClientMemoryPanel } from "./components/client-memory-panel";
 import { Sparkline } from "@/components/sparkline";
 import { HoverCard, HoverCardTrigger, HoverCardContent } from "@/components/ui/hover-card";
 import { buildClientGciSpark } from "@/lib/charts/client-gci-spark";
@@ -4831,6 +4832,9 @@ export function ClientsContent({
                     </div>
                   )}
                 </div>
+
+                {/* What Agent Runway remembers — AI memory profile */}
+                <ClientMemoryPanel clientId={selectedClient.id} />
 
                 {/* AI Actions */}
                 <div className={CRM_SECTION_CARD}>
