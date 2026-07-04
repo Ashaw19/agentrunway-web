@@ -168,7 +168,7 @@ export default function RealtorTaxEstimatorPage() {
         {/* ═══════════════════════════════════════════════════════════════════
             HERO
         ═══════════════════════════════════════════════════════════════════ */}
-        <section className="bg-slate-950 px-6 py-20 text-center sm:px-10 sm:py-24">
+        <section className="bg-slate-950 px-6 pt-16 pb-24 text-center sm:px-10 sm:pt-20 sm:pb-28">
           <div className="mx-auto max-w-3xl">
             <div className="mb-5 inline-flex items-center rounded-full border border-blue-500/30 bg-blue-500/10 px-4 py-1.5 text-xs font-semibold text-blue-400">
               Free Tool · Canadian Real Estate Agents
@@ -206,8 +206,10 @@ export default function RealtorTaxEstimatorPage() {
         {/* ═══════════════════════════════════════════════════════════════════
             CALCULATOR
         ═══════════════════════════════════════════════════════════════════ */}
-        <section className="bg-white px-6 pb-20 pt-12 sm:px-10">
-          <div className="mx-auto max-w-3xl">
+        {/* Calculator card floats up over the dark hero so the dark→light
+            transition happens on the card edge instead of a hard seam. */}
+        <section className="bg-slate-50 px-6 pb-20 sm:px-10">
+          <div className="relative z-10 mx-auto -mt-14 max-w-3xl rounded-2xl border border-slate-200 bg-white p-5 shadow-xl sm:-mt-16 sm:p-8">
             <TaxEstimator />
           </div>
         </section>

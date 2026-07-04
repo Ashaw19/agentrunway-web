@@ -470,9 +470,9 @@
   /* Base state: hidden + shifted down */
   .reveal {
     opacity: 0;
-    transform: translateY(24px);
-    transition: opacity 0.55s cubic-bezier(0.22, 1, 0.36, 1),
-                transform 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+    transform: translateY(16px);
+    transition: opacity 0.4s cubic-bezier(0.22, 1, 0.36, 1),
+                transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
   }
   /* Revealed state */
   .reveal[data-revealed="true"] {
@@ -480,10 +480,10 @@
     transform: translateY(0);
   }
   /* Delay variants */
-  .reveal-delay-1 { transition-delay: 0.08s; }
-  .reveal-delay-2 { transition-delay: 0.16s; }
-  .reveal-delay-3 { transition-delay: 0.24s; }
-  .reveal-delay-4 { transition-delay: 0.32s; }
+  .reveal-delay-1 { transition-delay: 0.05s; }
+  .reveal-delay-2 { transition-delay: 0.10s; }
+  .reveal-delay-3 { transition-delay: 0.15s; }
+  .reveal-delay-4 { transition-delay: 0.20s; }
 
   /* ─── Chart bar draw animation ────────────────────────────────────────── */
   .bar-draw {

@@ -78,27 +78,27 @@ export function CharterScarcityStrip({
   if (variant === "prominent") {
     return (
       <div
-        className={`mx-auto flex max-w-xl items-start gap-3 rounded-xl border border-amber-300 bg-gradient-to-r from-amber-50 to-orange-50 px-5 py-4 ${className}`}
+        className={`mx-auto flex max-w-xl items-start gap-3 rounded-xl border border-amber-500/40 bg-slate-900/70 px-5 py-4 shadow-[0_0_24px_rgba(245,158,11,0.12)] backdrop-blur-sm ${className}`}
       >
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-500">
-          <Sparkles className="h-4 w-4 text-white" />
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-amber-500/40 bg-amber-500/15">
+          <Sparkles className="h-4 w-4 text-amber-400" />
         </div>
         <div className="flex-1">
-          <p className="text-sm font-bold text-amber-900">
+          <p className="text-sm font-bold text-amber-300">
             Charter pricing — {charterRemaining} of {charterTotal} seats remaining
           </p>
-          <p className="mt-0.5 text-[13px] leading-relaxed text-amber-800">
+          <p className="mt-0.5 text-[13px] leading-relaxed text-slate-300">
             First 50 Agent Runway users lock in{" "}
-            <strong>$79/month for as long as your subscription stays active</strong>. After that, $99, then $149.{" "}
+            <strong className="text-white">$79/month for as long as your subscription stays active</strong>. After that, $99, then $149.{" "}
             <Link
               href="/pricing"
-              className="font-semibold underline underline-offset-2 hover:text-amber-950"
+              className="font-semibold text-amber-300 underline underline-offset-2 hover:text-amber-200"
             >
               Claim a seat →
             </Link>
           </p>
           {/* Progress bar */}
-          <div className="mt-2 h-1 overflow-hidden rounded-full bg-amber-200">
+          <div className="mt-2 h-1 overflow-hidden rounded-full bg-slate-700/70">
             <div
               className="h-full rounded-full bg-gradient-to-r from-amber-500 to-orange-500"
               style={{ width: `${percentFull}%` }}

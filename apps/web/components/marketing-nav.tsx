@@ -230,6 +230,7 @@ export function MarketingNav({
               width={28}
               height={28}
               className="rounded-lg"
+              priority
             />
             <span className="text-lg font-bold tracking-tight text-white">
               Agent Runway
