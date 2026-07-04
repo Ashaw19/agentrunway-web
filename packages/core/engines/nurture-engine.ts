@@ -44,6 +44,28 @@ export const POST_CLOSE_TEMPLATE: NurtureTemplate = {
   ],
 };
 
+/**
+ * Post-close opportunity detection cadence — CANONICAL.
+ *
+ * Consumed by /api/ai/detect-opportunities (both detectAndDraftForUser and
+ * getTopOpportunities). `days` is the offset from close_date to trigger_date;
+ * `lookback` is how many days past the trigger the opportunity may still
+ * surface before it reads as stale.
+ *
+ * Lookback windows were tuned in PR #117 against production behaviour
+ * (a "2 weeks since closing" card surfacing 44 days post-close). This
+ * cadence deliberately differs from POST_CLOSE_TEMPLATE above: the template
+ * is a 12-month email nurture sequence (not yet wired); these configs drive
+ * short-horizon opportunity cards. Do not merge the two.
+ */
+export const POST_CLOSE_OPPORTUNITY_CONFIGS = [
+  { type: "post_close_3", days: 3, lookback: 5 },
+  { type: "post_close_14", days: 14, lookback: 7 },
+  { type: "post_close_90", days: 90, lookback: 30 },
+  { type: "review_request", days: 21, lookback: 10 },
+  { type: "referral_ask", days: 45, lookback: 21 },
+] as const;
+
 /** Re-engagement sequence for cold contacts */
 export const RE_ENGAGEMENT_TEMPLATE: NurtureTemplate = {
   type: "re_engagement",
