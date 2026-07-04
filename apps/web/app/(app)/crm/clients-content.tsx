@@ -175,6 +175,7 @@ import { ClientConversationPanel } from "@/components/client-conversation-panel"
 import { CockpitStrip, CockpitStat, ScoreDial, SEMANTIC, GOLD, magnitudePct, FlightLog, type FlightLogItem, CRM_SECTION_CARD, CRM_SECTION_HEADER, CRM_SECTION_ICON_CHIP } from "@/components/cockpit-ui";
 import { activityDirection } from "@/lib/crm/activity-direction";
 import { ClientMemoryPanel } from "./components/client-memory-panel";
+import { tierFromScore } from "@/lib/engines/engagement-engine";
 import { Sparkline } from "@/components/sparkline";
 import { HoverCard, HoverCardTrigger, HoverCardContent } from "@/components/ui/hover-card";
 import { buildClientGciSpark } from "@/lib/charts/client-gci-spark";
@@ -3807,6 +3808,26 @@ export function ClientsContent({
                                           {client.tags[0]}
                                         </Badge>
                                       )}
+                                      {/* Engagement tier — only the top two tiers get a chip
+                                          (cooling/dormant surface via decay alerts instead;
+                                          keeps the row quiet per the sparkline lesson) */}
+                                      {client && (() => {
+                                        const tier = tierFromScore(Number(client.engagement_score ?? 0));
+                                        if (tier !== "hot" && tier !== "ascending") return null;
+                                        return (
+                                          <span
+                                            title="Engagement — auto-scored nightly from your logged activities"
+                                            className={cn(
+                                              "text-[9px] font-semibold rounded-full px-1.5 py-0 shrink-0 border",
+                                              tier === "hot"
+                                                ? "text-orange-700 bg-orange-50 border-orange-200"
+                                                : "text-emerald-700 bg-emerald-50 border-emerald-200",
+                                            )}
+                                          >
+                                            {tier === "hot" ? "Hot" : "Rising"}
+                                          </span>
+                                        );
+                                      })()}
                                       {hasClientId && (overdueByClient.get(group.clientId!) ?? 0) > 0 && (
                                         <span className="text-[9px] font-semibold text-rose-600 bg-rose-50 border border-rose-200 rounded-full px-1.5 py-0 shrink-0">
                                           {overdueByClient.get(group.clientId!)} overdue
