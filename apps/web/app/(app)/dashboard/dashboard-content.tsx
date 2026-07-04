@@ -712,6 +712,19 @@ export function DashboardContent({
   const scoreBandHex = bandColorHexForScore(runwayScore.score);
   const scoreIsStrong = runwayScore.stateLabel === "Strong";
 
+  // Presentation-only "calibrating" gate (2026-07-04 aesthetics review):
+  // with almost no data the composite score reads as an alarming failing
+  // grade on day one — a brand-new agent's first impression is a red dial.
+  // Until the account has real signal (3+ closed transactions, any annual
+  // history, or an active pipeline), the gauge renders neutral instead of
+  // judgmental. Score math, the engine, and the persisted mobile-parity
+  // snapshot are untouched — this gates DISPLAY only.
+  const isCalibrating =
+    hasData &&
+    historyItems.length === 0 &&
+    transactions.length < 3 &&
+    activePipelineDeals.length === 0;
+
   // ── Runway Score trend (month-over-month) ─────────────────────────────
   const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
   const scoreDelta =
@@ -2614,7 +2627,7 @@ export function DashboardContent({
           <div className="flex flex-col sm:flex-row sm:flex-nowrap sm:items-center gap-5 sm:gap-8">
             {/* Left: the single radial gauge (score + band word; no letter grade). */}
             <div className="flex items-center gap-4 min-w-0">
-              {hasData ? (
+              {hasData && !isCalibrating ? (
                 <RunwayGauge
                   score={runwayScore.score}
                   stateLabel={runwayScore.stateLabel}
@@ -2622,8 +2635,13 @@ export function DashboardContent({
                   isStrong={scoreIsStrong}
                 />
               ) : (
-                <div className="flex h-[132px] w-[132px] shrink-0 items-center justify-center rounded-full border-2 border-dashed border-slate-700">
+                <div className="flex h-[132px] w-[132px] shrink-0 flex-col items-center justify-center gap-1 rounded-full border-2 border-dashed border-slate-700">
                   <span className="text-3xl font-black leading-none text-slate-600">—</span>
+                  {isCalibrating && (
+                    <span className="text-[9px] font-semibold uppercase tracking-wider text-slate-500">
+                      Calibrating
+                    </span>
+                  )}
                 </div>
               )}
               <div className="min-w-0">
@@ -2642,8 +2660,13 @@ export function DashboardContent({
                     Your Runway Score appears after you log your first transaction or import history.
                   </p>
                 )}
+                {isCalibrating && (
+                  <p className="text-xs text-slate-400 mt-1 max-w-xs leading-snug">
+                    Calibrating — your score activates as your first deals, pipeline, and expenses land.
+                  </p>
+                )}
                 {/* Month-over-month trend — neutral up/down, gray on no change. */}
-                {hasData && scoreDelta !== null && (
+                {hasData && !isCalibrating && scoreDelta !== null && (
                   <p className={cn(
                     "text-[11px] font-semibold tabular-nums mt-1 flex items-center gap-0.5",
                     scoreDelta > 0 ? "text-emerald-500" : scoreDelta < 0 ? "text-amber-500" : "text-slate-400",
