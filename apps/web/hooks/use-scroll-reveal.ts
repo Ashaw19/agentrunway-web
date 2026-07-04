@@ -16,9 +16,12 @@ interface ScrollRevealOptions {
 export function useScrollReveal<T extends HTMLElement = HTMLDivElement>(
   options: ScrollRevealOptions = {}
 ) {
+  // Trigger BEFORE the element enters the viewport (20% early) so fast
+  // scrollers never see a blank canvas waiting to fade in. The old values
+  // (threshold 0.12, -40px margin) left visible dead zones mid-scroll.
   const {
-    threshold = 0.12,
-    rootMargin = "0px 0px -40px 0px",
+    threshold = 0.01,
+    rootMargin = "0px 0px 20% 0px",
     once = true,
   } = options;
 
