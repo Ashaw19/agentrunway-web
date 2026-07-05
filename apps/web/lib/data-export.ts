@@ -289,9 +289,13 @@ function serializeCell(value: unknown): string {
 
 function csvEscape(value: string): string {
   if (value === "") return "";
-  // Prevent Excel/Sheets formula injection by prefixing dangerous leading characters.
-  const first = value.charAt(0);
-  if (first === "=" || first === "+" || first === "-" || first === "@" || first === "|" || first === "\t") {
+  // Prevent Excel/Sheets formula injection by prefixing dangerous leading
+  // characters. Also inspect the first NON-whitespace character: some importers
+  // strip leading spaces/non-breaking-spaces before evaluating a cell, so
+  // " =cmd()" would otherwise slip past a bare charAt(0) check.
+  const dangerous = new Set(["=", "+", "-", "@", "|", "\t", "\r"]);
+  const firstNonSpace = value.replace(/^\s+/, "").charAt(0);
+  if (dangerous.has(value.charAt(0)) || dangerous.has(firstNonSpace)) {
     value = "'" + value;
   }
   if (/[",\r\n]/.test(value)) {
