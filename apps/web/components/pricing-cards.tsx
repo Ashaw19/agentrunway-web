@@ -140,21 +140,10 @@ export function PricingCards() {
 
   return (
     <div>
-      {/* ── Charter banner ── */}
-      {currentTier === "charter" && tierInfo && (
-        <div className="mb-8 mx-auto max-w-xl rounded-xl border border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50 px-6 py-4 text-center">
-          <div className="flex items-center justify-center gap-2 mb-1">
-            <Sparkles className="h-4 w-4 text-amber-600" />
-            <span className="text-sm font-bold text-amber-900">Charter Membership</span>
-            <Sparkles className="h-4 w-4 text-amber-600" />
-          </div>
-          <p className="text-sm text-amber-800">
-            <span className="font-bold text-amber-900">{tierInfo.charterRemaining}</span> of{" "}
-            {tierInfo.charterTotal} charter spots remaining. Lock in{" "}
-            <span className="font-bold">${indivPrice.monthly}/mo for as long as your subscription stays active.</span>
-          </p>
-        </div>
-      )}
+      {/* Charter messaging deliberately lives ONLY in CharterScarcityStrip
+          (rendered by /pricing directly above this component) — a second
+          hand-rolled banner here duplicated it with divergent copy
+          ("spots" vs "seats") and off-system cream styling. */}
 
       {currentTier === "early_adopter" && (
         <div className="mb-8 mx-auto max-w-xl rounded-xl border border-blue-200 bg-gradient-to-r from-blue-50 to-indigo-50 px-6 py-4 text-center">
@@ -319,7 +308,7 @@ export function PricingCards() {
           <p className="text-center text-xs text-slate-400">
             {currentTier === "charter" ? "Charter" : "Early Adopter"} rates are locked as long as
             your subscription remains active. Standard pricing will be ${INDIVIDUAL_PRICES.standard.monthly}/mo after{" "}
-            {currentTier === "charter" ? "charter spots fill" : "the early adopter period"}.
+            {currentTier === "charter" ? "charter seats fill" : "the early adopter period"}.
           </p>
         </div>
       )}
