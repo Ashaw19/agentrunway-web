@@ -210,20 +210,19 @@ export function computeCrmDashboard(input: CrmDashboardInput): CrmDashboardResul
         )
       : null; // No prior period → null (UI displays "New" instead of misleading 0%)
 
-  // Overdue: clients with no activity in 30+ days (active stages only: boarding / in_flight)
+  // Overdue: clients with no activity in 30+ days (active stages only: boarding / scheduled / in_flight)
+  // Track each client's most-recent activity date AND the type of THAT activity
+  // in one pass, so the reported type always matches the latest date. A prior
+  // version filled the type map from first-encountered order ("assumed sorted
+  // desc"), which reported an older activity's type whenever the input wasn't
+  // actually pre-sorted descending.
   const lastActivityByClient = new Map<string, Date>();
+  const lastActivityTypeByClient = new Map<string, ActivityType>();
   for (const a of activities) {
     const d = new Date(a.activity_date);
     const existing = lastActivityByClient.get(a.client_id);
     if (!existing || d > existing) {
       lastActivityByClient.set(a.client_id, d);
-    }
-  }
-
-  const lastActivityTypeByClient = new Map<string, ActivityType>();
-  // Activities are assumed sorted desc, so the first found per client is latest
-  for (const a of activities) {
-    if (!lastActivityTypeByClient.has(a.client_id)) {
       lastActivityTypeByClient.set(a.client_id, a.type);
     }
   }

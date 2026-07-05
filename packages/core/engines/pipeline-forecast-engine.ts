@@ -351,7 +351,11 @@ export function computePipelineForecast(
   const staleItems = dealItems.filter((i) => {
     if (!i.expectedCloseDate) return true;
     const t = new Date(i.expectedCloseDate).getTime();
-    return Number.isFinite(t) && t < cutoff;
+    // An unparseable close date (e.g. "TBD" or a mis-imported serial) is a
+    // suspect date, not a fresh one — treat it as stale so the forecast can
+    // warn on it rather than silently counting it at full weight.
+    if (!Number.isFinite(t)) return true;
+    return t < cutoff;
   });
   const staleWeightedGCI = staleItems.reduce((s, i) => s + i.weightedGCI, 0);
 

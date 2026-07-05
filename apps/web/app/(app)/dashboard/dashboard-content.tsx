@@ -737,7 +737,16 @@ export function DashboardContent({
   // source of truth). Carets/deltas read against the most-recent PRIOR daily
   // history row; suppressed entirely when no prior row exists.
   const currentDateKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-  const latestHistoryDate = scoreHistory.length ? scoreHistory[scoreHistory.length - 1].captured_on : null;
+  // The score-history fetch orders captured_on DESC, so scoreHistory[length-1]
+  // is the OLDEST row, not the latest — reading it that way defeated the
+  // "one write per day" date-guard below. captured_on is an ISO date string, so
+  // the lexicographic max is the chronological latest, independent of fetch order.
+  const latestHistoryDate = scoreHistory.length
+    ? scoreHistory.reduce(
+        (max, r) => (r.captured_on > max ? r.captured_on : max),
+        scoreHistory[0].captured_on,
+      )
+    : null;
   const priorComps = priorComponentScores(scoreHistory, currentDateKey);
   const cashDelta = cashRunwayDelta(
     scoreHistory,
