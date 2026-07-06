@@ -159,7 +159,7 @@ const QUICK_REFS: QuickRef[] = [
   {
     title: "Flight Statuses",
     value: "4 stages",
-    sublabel: "Boarding → Scheduled → In-Flight → Cruising",
+    sublabel: "Boarding · Scheduled · In-Flight · Cruising",
     icon: Plane,
     anchor: "client-status-flight-metaphor",
   },
