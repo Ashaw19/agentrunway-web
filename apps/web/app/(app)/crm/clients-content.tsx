@@ -1743,8 +1743,10 @@ export function ClientsContent({
                   : c
               )
             );
-            toast.success(`${priorName} auto-promoted to Boarding`, {
-              description: "A real touchpoint was logged, so this client moved out of Cruising.",
+            const newLabel = CLIENT_STATUS_LABELS[newStatus as ClientStatus] ?? "Boarding";
+            const priorLabel = CLIENT_STATUS_LABELS[priorStatus as ClientStatus] ?? "its previous stage";
+            toast.success(`${priorName} auto-promoted to ${newLabel}`, {
+              description: `A real touchpoint was logged, so this client moved out of ${priorLabel}.`,
             });
           }
         }

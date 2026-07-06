@@ -65,7 +65,7 @@ const SECTION_META: Record<string, { icon: LucideIcon; description: string; colo
   },
   "CLIENT STATUS — FLIGHT METAPHOR": {
     icon: Plane,
-    description: "The 6 client lifecycle stages from Boarding to Cruising",
+    description: "The 4 client lifecycle stages from Boarding to Cruising",
     color: "from-sky-500/15 to-sky-600/5 border-sky-500/20",
   },
   "PIPELINE STAGES & PROBABILITIES": {
@@ -159,7 +159,7 @@ const QUICK_REFS: QuickRef[] = [
   {
     title: "Flight Statuses",
     value: "4 stages",
-    sublabel: "Boarding → Scheduled → In-Flight → Cruising",
+    sublabel: "Boarding · Scheduled · In-Flight · Cruising",
     icon: Plane,
     anchor: "client-status-flight-metaphor",
   },
