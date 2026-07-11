@@ -687,7 +687,11 @@ export function FlightControlContent({
 
         // Find the drafted message for this client
         const drafted = (draftData.queue as QueueItemWithClient[]).find(
-          (q) => q.client_id === opp.client_id && q.status === "ready" && q.ai_subject,
+          (q) =>
+            q.client_id === opp.client_id &&
+            q.opportunity_type === opp.opportunity_type &&
+            q.status === "ready" &&
+            q.ai_subject,
         );
         if (drafted) {
           setReviewItem(drafted);
@@ -717,7 +721,11 @@ export function FlightControlContent({
   // Find matching drafted messages for each opportunity
   const getDraftForOpp = (opp: TopOpportunity): QueueItemWithClient | null => {
     return queue.find(
-      (q) => q.client_id === opp.client_id && q.status === "ready" && q.ai_subject,
+      (q) =>
+        q.client_id === opp.client_id &&
+        q.opportunity_type === opp.opportunity_type &&
+        q.status === "ready" &&
+        q.ai_subject,
     ) ?? null;
   };
 
