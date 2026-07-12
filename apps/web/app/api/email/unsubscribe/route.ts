@@ -16,6 +16,18 @@ const TYPE_COLUMN_MAP: Record<string, string> = {
   "weekly-digest": "weekly_digest_enabled",
 };
 
+// Escape user-controlled values before interpolating into the HTML response.
+// This route echoes the `type` query param (see below); without escaping, a
+// crafted link reflects arbitrary markup onto the agentrunway.ca origin.
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 function htmlResponse(title: string, message: string, status = 200): NextResponse {
   const html = `<!DOCTYPE html>
 <html lang="en">
@@ -81,7 +93,7 @@ export async function GET(req: NextRequest) {
   if (!column) {
     return htmlResponse(
       "Unknown Email Type",
-      `The email type "${type}" is not recognized. Please contact support if you need help.`,
+      `The email type "${escapeHtml(type)}" is not recognized. Please contact support if you need help.`,
       400
     );
   }
