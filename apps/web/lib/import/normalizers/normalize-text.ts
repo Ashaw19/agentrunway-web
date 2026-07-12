@@ -29,6 +29,14 @@ export interface NormalizedTextResult {
   cleaned_content: string;
 
   /**
+   * The cleaned rows as an array (header + data, in order). Always satisfies
+   * `cleaned_rows.join("\n") === cleaned_content`. The import route chunks this
+   * for multi-call extraction of large reports; use
+   * `column_classification.header_row_index` to locate the header within it.
+   */
+  cleaned_rows: string[];
+
+  /**
    * Optional hint string to prepend to the LLM prompt column section.
    * Null when no structured column mapping was detected.
    * Example: "[Column mapping detected — tracker format] Name=col0, GCI=col6..."
@@ -56,7 +64,16 @@ export interface NormalizedTextResult {
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 
-const MAX_CHARS = 20_000;
+// Upper bound on cleaned text passed downstream. Raised 20_000 → 200_000 when
+// the import route moved to chunked multi-call extraction: the old 20K cap
+// silently dropped every row past ~20K chars (a multi-year report imported
+// PARTIAL with only a truncation_warning). The chunker now batches the full
+// row set across model calls, so this cap only needs to bound pathological
+// memory use — 200K chars (~2,000 rows) is far more than a single 300s run can
+// process, and anything beyond it hits the maxDuration → clear "split by year"
+// client message rather than a silent partial import. The request body is
+// already capped at 4.5MB upstream in the route.
+const MAX_CHARS = 200_000;
 
 /**
  * Exact labels that identify a subtotal / summary label cell.
@@ -367,6 +384,7 @@ export function normalizeTextDocument(
 
   return {
     cleaned_content,
+    cleaned_rows:          normalizedRows,
     column_hints:          columnHints,
     column_classification: classification,
     raw_header_row:        rawHeaderRow,

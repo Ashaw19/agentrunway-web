@@ -36,7 +36,10 @@
 //   B) Brokerage commission reports (party_a / party_b separated by "/")
 //   C) Freeform narrative / bullet-point text (prose summaries, notes, copy-pasted text)
 //
-// @param content     The document text to extract from (max 20 000 chars).
+// @param content     The document text to extract from. In production this is a
+//                    single chunk from planTextBatches (~12K chars); the slice
+//                    below is only a safety net for direct callers (e.g. the
+//                    accuracy-test runner) that pass a whole normalized document.
 // @param columnHints Optional column-mapping hint from the heuristic pre-classifier.
 //                    When provided it is injected directly before the document content
 //                    so the LLM knows which columns map to which fields.
@@ -50,7 +53,7 @@ The data below may be in any of these formats:
 
 ${columnHints ? `COLUMN MAPPING (pre-detected by heuristic scanner — use these to identify columns accurately):\n${columnHints}\n\n` : ""}DOCUMENT CONTENT:
 ---
-${content.slice(0, 20000)}
+${content.slice(0, 200000)}
 ---
 
 Return ONLY a raw JSON object (no markdown, no code fences). Required structure:
