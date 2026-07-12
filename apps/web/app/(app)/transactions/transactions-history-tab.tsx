@@ -1278,8 +1278,8 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
                   {importStatus === "rendering"
                     ? "Reading your brokerage report"
                     : batchProgress.total > 1
-                    ? "Analysing each year sheet with Groq — please wait"
-                    : "Groq is reading your transaction table — usually 5–10 seconds"}
+                    ? "Analysing each year sheet with AI — please wait"
+                    : "AI is reading your transaction table — usually 5–10 seconds"}
                 </p>
               </div>
             </div>

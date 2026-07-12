@@ -646,7 +646,11 @@ export async function POST(req: NextRequest) {
         textNormalized.column_hints ?? undefined,
       );
 
-      // Primary: Claude Haiku (fast, cheap), fallback to Groq Llama.
+      // Primary: Claude Haiku (fast, cheap); fallback: Claude Sonnet (stronger
+      // extraction for hard documents). Both Anthropic — moved off the Groq
+      // fallback 2026-07-05: Groq's free-tier per-request size limit rejected
+      // large brokerage reports outright, making it a broken fallback for
+      // exactly the big-report case that needs one.
       // maxOutputTokens raised 8000 → 32000: the per-deal extraction schema
       // (confidence + evidence objects) costs ~350-500 output tokens/deal, so
       // an 8000 cap truncated any report past ~20 deals — reproduced 2026-07-05,
@@ -663,9 +667,9 @@ export async function POST(req: NextRequest) {
         raw = text;
         outputTruncated = finishReason === "length";
       } catch (primaryErr) {
-        console.warn("[import] Primary model (Haiku) failed, falling back to Groq:", primaryErr);
+        console.warn("[import] Primary model (Haiku) failed, falling back to Sonnet:", primaryErr);
         const { text, finishReason } = await generateText({
-          model: models.fallback,
+          model: models.default,
           prompt: promptContent,
           temperature: 0.1,
           maxOutputTokens: 32000,
@@ -694,21 +698,25 @@ export async function POST(req: NextRequest) {
         };
       });
 
-      // Primary: Claude Haiku (native PDF support), fallback to Groq Llama (images only).
+      // Primary: Claude Haiku (native PDF support); fallback: Claude Sonnet.
+      // Both Anthropic and both handle native PDF, so — unlike the old Groq
+      // fallback — the fallback can retry the SAME content (PDFs included). No
+      // more image-only filtering or all-PDF dead-end.
       // maxOutputTokens raised 8000 → 32000 for the same reason as the text path:
       // multi-page PDF reports produce more deals than an 8000 cap can serialize.
+      const visionMessages = [
+        {
+          role: "user" as const,
+          content: [
+            ...documentContent,
+            { type: "text" as const, text: VISION_PROMPT },
+          ],
+        },
+      ];
       try {
         const { text, finishReason } = await generateText({
           model: models.fast,
-          messages: [
-            {
-              role: "user" as const,
-              content: [
-                ...documentContent,
-                { type: "text" as const, text: VISION_PROMPT },
-              ],
-            },
-          ],
+          messages: visionMessages,
           temperature: 0.1,
           maxOutputTokens: 32000,
           headers: aiHeaders,
@@ -716,26 +724,10 @@ export async function POST(req: NextRequest) {
         raw = text;
         outputTruncated = finishReason === "length";
       } catch (primaryErr) {
-        console.warn("[import] Vision model (Haiku) failed, falling back to Groq:", primaryErr);
-        // Groq doesn't support native PDF — filter to image-only content
-        const imageOnlyContent = documentContent.filter(
-          (c) => c.type === "image",
-        );
-        if (imageOnlyContent.length === 0) {
-          // All content was PDF (no image pages) — can't fall back to Groq
-          throw new Error("PDF extraction failed. Please try again or convert to images.");
-        }
+        console.warn("[import] Vision model (Haiku) failed, falling back to Sonnet:", primaryErr);
         const { text, finishReason } = await generateText({
-          model: models.fallback,
-          messages: [
-            {
-              role: "user" as const,
-              content: [
-                ...imageOnlyContent,
-                { type: "text" as const, text: VISION_PROMPT },
-              ],
-            },
-          ],
+          model: models.default,
+          messages: visionMessages,
           temperature: 0.1,
           maxOutputTokens: 32000,
           headers: aiHeaders,
