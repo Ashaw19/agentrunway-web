@@ -600,6 +600,11 @@ export async function POST(req: NextRequest) {
 
   try {
     let raw: string;
+    // Set when the model stopped because it hit the output-token ceiling
+    // (finishReason === "length"). A truncated response is cut off mid-JSON
+    // and will never parse — we detect it explicitly so the user gets an
+    // actionable "split your report" message instead of a cryptic parse error.
+    let outputTruncated = false;
     // Populated in the text path; used after parsing to wire provenance + truncation.
     let textNormalized: ReturnType<typeof normalizeTextDocument> | null = null;
 
@@ -641,26 +646,33 @@ export async function POST(req: NextRequest) {
         textNormalized.column_hints ?? undefined,
       );
 
-      // Primary: Claude Haiku (fast, cheap), fallback to Groq Llama
+      // Primary: Claude Haiku (fast, cheap), fallback to Groq Llama.
+      // maxOutputTokens raised 8000 → 32000: the per-deal extraction schema
+      // (confidence + evidence objects) costs ~350-500 output tokens/deal, so
+      // an 8000 cap truncated any report past ~20 deals — reproduced 2026-07-05,
+      // was breaking real agents' imports. 32000 covers ~80 deals; larger
+      // reports are caught by the finishReason check below.
       try {
-        const { text } = await generateText({
+        const { text, finishReason } = await generateText({
           model: models.fast,
           prompt: promptContent,
           temperature: 0.1,
-          maxOutputTokens: 8000,
+          maxOutputTokens: 32000,
           headers: aiHeaders,
         });
         raw = text;
+        outputTruncated = finishReason === "length";
       } catch (primaryErr) {
         console.warn("[import] Primary model (Haiku) failed, falling back to Groq:", primaryErr);
-        const { text } = await generateText({
+        const { text, finishReason } = await generateText({
           model: models.fallback,
           prompt: promptContent,
           temperature: 0.1,
-          maxOutputTokens: 8000,
+          maxOutputTokens: 32000,
           headers: aiHeaders,
         });
         raw = text;
+        outputTruncated = finishReason === "length";
       }
     } else {
       // ── Vision/document path: PDF pages or uploaded image(s) ─────────────
@@ -682,9 +694,11 @@ export async function POST(req: NextRequest) {
         };
       });
 
-      // Primary: Claude Haiku (native PDF support), fallback to Groq Llama (images only)
+      // Primary: Claude Haiku (native PDF support), fallback to Groq Llama (images only).
+      // maxOutputTokens raised 8000 → 32000 for the same reason as the text path:
+      // multi-page PDF reports produce more deals than an 8000 cap can serialize.
       try {
-        const { text } = await generateText({
+        const { text, finishReason } = await generateText({
           model: models.fast,
           messages: [
             {
@@ -696,10 +710,11 @@ export async function POST(req: NextRequest) {
             },
           ],
           temperature: 0.1,
-          maxOutputTokens: 8000,
+          maxOutputTokens: 32000,
           headers: aiHeaders,
         });
         raw = text;
+        outputTruncated = finishReason === "length";
       } catch (primaryErr) {
         console.warn("[import] Vision model (Haiku) failed, falling back to Groq:", primaryErr);
         // Groq doesn't support native PDF — filter to image-only content
@@ -710,7 +725,7 @@ export async function POST(req: NextRequest) {
           // All content was PDF (no image pages) — can't fall back to Groq
           throw new Error("PDF extraction failed. Please try again or convert to images.");
         }
-        const { text } = await generateText({
+        const { text, finishReason } = await generateText({
           model: models.fallback,
           messages: [
             {
@@ -722,11 +737,21 @@ export async function POST(req: NextRequest) {
             },
           ],
           temperature: 0.1,
-          maxOutputTokens: 8000,
+          maxOutputTokens: 32000,
           headers: aiHeaders,
         });
         raw = text;
+        outputTruncated = finishReason === "length";
       }
+    }
+
+    // Truncation guard: if the model hit the output-token ceiling, the JSON is
+    // cut off mid-object and will never parse. Fail fast with an actionable
+    // message instead of the misleading generic "could not produce structured
+    // data" error. Reproduced 2026-07-05 (report > ~20 deals at the old cap).
+    if (outputTruncated) {
+      console.error("[import-history] Output truncated (finishReason=length). Raw length:", raw.length);
+      throw new Error("REPORT_TOO_LARGE");
     }
 
     // Extract JSON from the LLM response — handles markdown fences, preamble text,
@@ -857,7 +882,9 @@ export async function POST(req: NextRequest) {
     const status = (err as { status?: number })?.status;
     console.error("[import] FAIL status=" + status + " msg=" + msg.slice(0, 300));
     const message =
-      msg.includes("body size")
+      msg.includes("REPORT_TOO_LARGE")
+        ? "This report has more transactions than we can read in one pass. Upload one year at a time, or split it into smaller files, and each part will import fine."
+        : msg.includes("body size")
         ? "Document too large. Try uploading fewer pages or a smaller file."
         : msg.includes("timeout")
         ? "Processing timed out. Try a smaller document or split into multiple files."
