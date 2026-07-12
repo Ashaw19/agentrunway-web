@@ -183,19 +183,14 @@ Required JSON structure:
         "names": "<high | medium | low>",
         "date": "<high | medium | low>",
         "address": "<high | medium | low | missing>"
-      },
-      "evidence": {
-        "gci": "<verbatim text that produced this value, or null>",
-        "sale_price": "<verbatim text, or null>",
-        "net_income": "<verbatim text, or null>",
-        "commission_percent": "<verbatim text, or null>",
-        "names": "<verbatim text, or null>",
-        "date": "<verbatim text, or null>",
-        "address": "<verbatim text, or null>"
       }
     }
   ]
 }
+
+NOTE: Do NOT include an "evidence" object or any verbatim source-text fields per deal.
+Keep each deal object to exactly the fields above — extra fields slow extraction and
+push large reports past the output limit.
 
 CRITICAL RULES:
 
@@ -510,9 +505,14 @@ function computeImportDebug(
   };
 }
 
-// Allow up to 60 seconds for LLM extraction (default 10-15s is too short for
-// large documents, especially vision-based extraction of multi-page PDFs).
-export const maxDuration = 60;
+// Allow up to 300 seconds for LLM extraction. 60s was NOT enough: a ~50-deal
+// brokerage report needs ~15-25K output tokens, which takes 2-4 minutes to
+// generate — Vercel killed the function at 60s with a 504 (non-JSON body), so
+// the frontend showed the bare generic "Extraction failed" and none of the
+// in-route error mapping ever ran. Verified 2026-07-12 against a real 3-page
+// Lone Wolf Trade Net Report. 300 is already used by sibling routes
+// (calendar-sync, precompute-briefings, weekly-digest), so the plan allows it.
+export const maxDuration = 300;
 
 // ── Route handler ─────────────────────────────────────────────────────────────
 
@@ -651,11 +651,13 @@ export async function POST(req: NextRequest) {
       // fallback 2026-07-05: Groq's free-tier per-request size limit rejected
       // large brokerage reports outright, making it a broken fallback for
       // exactly the big-report case that needs one.
-      // maxOutputTokens raised 8000 → 32000: the per-deal extraction schema
-      // (confidence + evidence objects) costs ~350-500 output tokens/deal, so
-      // an 8000 cap truncated any report past ~20 deals — reproduced 2026-07-05,
-      // was breaking real agents' imports. 32000 covers ~80 deals; larger
-      // reports are caught by the finishReason check below.
+      // maxOutputTokens raised 8000 → 32000: an 8000 cap truncated any report
+      // past ~20 deals — reproduced 2026-07-05, was breaking real agents'
+      // imports. The per-deal `evidence` object was removed from both prompts
+      // 2026-07-12 (it cost ~40-50% of each deal's output tokens and pushed
+      // 50-deal reports past the 60s wall clock); per-deal cost is now
+      // ~250-350 tokens, so 32000 covers ~100 deals. Larger reports are
+      // caught by the finishReason check below.
       try {
         const { text, finishReason } = await generateText({
           model: models.fast,
