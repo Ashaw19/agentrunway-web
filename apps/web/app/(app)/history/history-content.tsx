@@ -46,6 +46,7 @@ import type { ExtractionQuality } from "@/lib/import/types";
 import { applyValidation } from "@/lib/import/validation/validate-transactions";
 import { computeImportExternalId, dedupeByImportExternalId } from "@/lib/import/external-id";
 import { clampSalePrice, clampCommissionPct, clampGci } from "@/lib/import/clamp-db-range";
+import { readImportError, categorizeClientError, ImportRequestError } from "@/lib/import/client-error";
 import dynamic from "next/dynamic";
 import type { YoYDataPoint } from "@/components/year-over-year-chart";
 
@@ -744,8 +745,9 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
       });
 
       if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error((err as { error?: string }).error ?? "Extraction failed");
+        // Branch on status so a platform 504/502 (non-JSON body) surfaces an
+        // actionable message instead of the generic "Extraction failed".
+        throw new ImportRequestError(await readImportError(res));
       }
 
       const rawData = await res.json();
@@ -783,19 +785,18 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
       setImportStatus("preview");
     } catch (err) {
       console.error("[import] error:", err);
-      toast.error("Couldn't read the file — please try again.");
+      // Surface curated server messages (e.g. the 504 split-by-year hint) instead
+      // of always showing the generic line; fall back to generic only for
+      // unexpected client-side failures (file read, fetch throw).
+      const userMsg =
+        err instanceof ImportRequestError ? err.message : "Couldn't read the file — please try again.";
+      toast.error(userMsg);
       setImportStatus("idle");
       setImportOpen(false);
       // Fire-and-forget error telemetry — runs independently after UI has already updated
       void (async () => {
         try {
-          const msg = err instanceof Error ? err.message.toLowerCase() : String(err).toLowerCase();
-          const errorCategory =
-            msg.includes("rate limit") || msg.includes("429")         ? "rate_limit"        :
-            msg.includes("extraction failed")                         ? "extraction_failed" :
-            msg.includes("network") || msg.includes("fetch failed")   ? "network_error"     :
-            msg.includes("token") || msg.includes("context length")   ? "context_exceeded"  :
-                                                                        "unknown";
+          const errorCategory = categorizeClientError(err);
           const { data: { user: u } } = await supabase.auth.getUser();
           if (!u) return;
           await supabase.from("import_telemetry").insert({
