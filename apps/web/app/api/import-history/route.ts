@@ -10,6 +10,9 @@ import { normalizeTextDocument } from "@/lib/import/normalizers/normalize-text";
 import type { ColumnClassification } from "@/lib/import/heuristics/column-classifier";
 import type { ExtractionProvenance, ExtractionQuality, ImportDebug } from "@/lib/import/types";
 import { normalizeDateFormats } from "@/lib/import/normalizers/normalize-dates";
+import { planTextBatches } from "@/lib/import/chunking/plan-text-batches";
+import { planVisionBatches } from "@/lib/import/chunking/plan-vision-batches";
+import { runBatchedExtraction } from "@/lib/import/chunking/run-batched-extraction";
 
 // ── Exported types shared with the client component ──────────────────────────
 //
@@ -505,6 +508,77 @@ function computeImportDebug(
   };
 }
 
+// ── Model-call + parse helpers (shared by the batched text & vision paths) ────
+
+/**
+ * Run one extraction call with Haiku (fast/cheap) primary → Sonnet fallback.
+ * The caller supplies a thunk that builds the generateText args for a given
+ * model, so both the text (`prompt`) and vision (`messages`) paths reuse the
+ * same fallback logic while keeping full SDK type inference at the call site.
+ *
+ * maxOutputTokens stays at 32000 (~100 deals). Batches are sized so a single
+ * call never approaches that ceiling; `truncated` is surfaced only as a backstop
+ * for a pathologically dense batch.
+ */
+async function runWithFallback(
+  make: (model: typeof models.fast) => Promise<{ text: string; finishReason: string }>,
+): Promise<{ raw: string; truncated: boolean }> {
+  try {
+    const { text, finishReason } = await make(models.fast);
+    return { raw: text, truncated: finishReason === "length" };
+  } catch (primaryErr) {
+    console.warn("[import] Primary model (Haiku) failed, falling back to Sonnet:", primaryErr);
+    const { text, finishReason } = await make(models.default);
+    return { raw: text, truncated: finishReason === "length" };
+  }
+}
+
+/**
+ * Extract + parse the JSON object from one model response. Handles markdown
+ * fences, preamble text, and trailing commentary that would break a naive
+ * JSON.parse. Throws "JSON parse failed" when no valid { year, deals[] } object
+ * can be recovered (the outer handler maps that to an actionable message).
+ */
+function parseExtraction(raw: string): GroqRawResponse {
+  // Strategy 1: strip markdown fences.
+  const cleaned = raw
+    .replace(/^```(?:json)?\s*/m, "")
+    .replace(/\s*```\s*$/m, "")
+    .trim();
+
+  // Strategy 2: if that didn't start at '{', find the first COMPLETE { … } block
+  // via bracket counting (avoids grabbing a stray } in trailing commentary).
+  let jsonCandidate = cleaned;
+  if (!cleaned.startsWith("{")) {
+    const firstBrace = cleaned.indexOf("{");
+    if (firstBrace !== -1) {
+      let depth = 0;
+      let endIdx = -1;
+      for (let i = firstBrace; i < cleaned.length; i++) {
+        if (cleaned[i] === "{") depth++;
+        else if (cleaned[i] === "}") {
+          depth--;
+          if (depth === 0) { endIdx = i; break; }
+        }
+      }
+      if (endIdx !== -1) jsonCandidate = cleaned.slice(firstBrace, endIdx + 1);
+    }
+  }
+
+  let obj: { year?: unknown; deals?: unknown };
+  try {
+    obj = JSON.parse(jsonCandidate);
+  } catch {
+    console.error("[import-history] JSON parse failed. Response length:", raw.length, "First 100 chars:", raw.slice(0, 100));
+    throw new Error("JSON parse failed");
+  }
+  if (!obj || !Array.isArray(obj.deals)) {
+    console.error("[import-history] Malformed response schema. Response length:", raw.length);
+    throw new Error("JSON parse failed");
+  }
+  return { year: Number(obj.year) || 0, deals: obj.deals as GroqRawResponse["deals"] };
+}
+
 // Allow up to 300 seconds for LLM extraction. 60s was NOT enough: a ~50-deal
 // brokerage report needs ~15-25K output tokens, which takes 2-4 minutes to
 // generate — Vercel killed the function at 60s with a 504 (non-JSON body), so
@@ -599,12 +673,11 @@ export async function POST(req: NextRequest) {
   const aiHeaders = heliconeHeaders({ userId: user.id, feature: "import-history" });
 
   try {
-    let raw: string;
-    // Set when the model stopped because it hit the output-token ceiling
-    // (finishReason === "length"). A truncated response is cut off mid-JSON
-    // and will never parse — we detect it explicitly so the user gets an
-    // actionable "split your report" message instead of a cryptic parse error.
-    let outputTruncated = false;
+    // Parsed + merged extraction result (year + deals), assigned by whichever
+    // path runs below. Both the text and vision paths batch large inputs across
+    // multiple model calls and merge the deals in code — a single call caps at
+    // ~100 deals (32K output tokens), which a big multi-year report exceeds.
+    let parsed: GroqRawResponse;
     // Populated in the text path; used after parsing to wire provenance + truncation.
     let textNormalized: ReturnType<typeof normalizeTextDocument> | null = null;
 
@@ -641,156 +714,98 @@ export async function POST(req: NextRequest) {
       //    duplicate headers; detects column mapping for prompt injection)
       textNormalized = normalizeTextDocument(dateNormalized, true);
 
-      const promptContent = TEXT_PROMPT(
-        textNormalized.cleaned_content,
-        textNormalized.column_hints ?? undefined,
-      );
-
-      // Primary: Claude Haiku (fast, cheap); fallback: Claude Sonnet (stronger
-      // extraction for hard documents). Both Anthropic — moved off the Groq
-      // fallback 2026-07-05: Groq's free-tier per-request size limit rejected
-      // large brokerage reports outright, making it a broken fallback for
-      // exactly the big-report case that needs one.
-      // maxOutputTokens raised 8000 → 32000: an 8000 cap truncated any report
-      // past ~20 deals — reproduced 2026-07-05, was breaking real agents'
-      // imports. The per-deal `evidence` object was removed from both prompts
-      // 2026-07-12 (it cost ~40-50% of each deal's output tokens and pushed
-      // 50-deal reports past the 60s wall clock); per-deal cost is now
-      // ~250-350 tokens, so 32000 covers ~100 deals. Larger reports are
-      // caught by the finishReason check below.
-      try {
-        const { text, finishReason } = await generateText({
-          model: models.fast,
-          prompt: promptContent,
-          temperature: 0.1,
-          maxOutputTokens: 32000,
-          headers: aiHeaders,
-        });
-        raw = text;
-        outputTruncated = finishReason === "length";
-      } catch (primaryErr) {
-        console.warn("[import] Primary model (Haiku) failed, falling back to Sonnet:", primaryErr);
-        const { text, finishReason } = await generateText({
-          model: models.default,
-          prompt: promptContent,
-          temperature: 0.1,
-          maxOutputTokens: 32000,
-          headers: aiHeaders,
-        });
-        raw = text;
-        outputTruncated = finishReason === "length";
-      }
-    } else {
-      // ── Vision/document path: PDF pages or uploaded image(s) ─────────────
-      // Build message content: images/PDFs first, then the prompt text.
-      // When mimeType is "application/pdf", use Claude's native document type
-      // (handles all valid PDFs including those with uncommon color spaces that
-      // would fail pdfjs client-side). Otherwise use the image type for JPEG pages.
-      const documentContent = imageSources.map((img) => {
-        if (img.mimeType === "application/pdf") {
-          return {
-            type: "file" as const,
-            data: `data:application/pdf;base64,${img.base64}`,
-            mediaType: "application/pdf" as const,
-          };
-        }
-        return {
-          type: "image" as const,
-          image: `data:${img.mimeType};base64,${img.base64}`,
-        };
+      // ── Chunked extraction ───────────────────────────────────────────────
+      // Batch the normalized rows so a report bigger than one model call (~100
+      // deals) is extracted in pieces and merged in code. Each batch carries the
+      // title + header context block (via planTextBatches) so column meaning
+      // survives past the first chunk. Models: Haiku primary, Sonnet fallback —
+      // both Anthropic (moved off the Groq fallback 2026-07-05, whose free-tier
+      // per-request size limit rejected large brokerage reports outright).
+      const hints = textNormalized.column_hints ?? undefined;
+      const headerRowIndex = textNormalized.column_classification?.header_row_index ?? null;
+      const batchContents = planTextBatches({
+        rows: textNormalized.cleaned_rows,
+        headerRowIndex,
       });
 
-      // Primary: Claude Haiku (native PDF support); fallback: Claude Sonnet.
-      // Both Anthropic and both handle native PDF, so — unlike the old Groq
-      // fallback — the fallback can retry the SAME content (PDFs included). No
-      // more image-only filtering or all-PDF dead-end.
-      // maxOutputTokens raised 8000 → 32000 for the same reason as the text path:
-      // multi-page PDF reports produce more deals than an 8000 cap can serialize.
-      const visionMessages = [
-        {
-          role: "user" as const,
-          content: [
-            ...documentContent,
-            { type: "text" as const, text: VISION_PROMPT },
-          ],
-        },
-      ];
-      try {
-        const { text, finishReason } = await generateText({
-          model: models.fast,
-          messages: visionMessages,
-          temperature: 0.1,
-          maxOutputTokens: 32000,
-          headers: aiHeaders,
-        });
-        raw = text;
-        outputTruncated = finishReason === "length";
-      } catch (primaryErr) {
-        console.warn("[import] Vision model (Haiku) failed, falling back to Sonnet:", primaryErr);
-        const { text, finishReason } = await generateText({
-          model: models.default,
-          messages: visionMessages,
-          temperature: 0.1,
-          maxOutputTokens: 32000,
-          headers: aiHeaders,
-        });
-        raw = text;
-        outputTruncated = finishReason === "length";
-      }
-    }
+      // A truncated batch (even ~40 rows overflowing 32K tokens — pathologically
+      // dense) throws REPORT_TOO_LARGE inside runBatchedExtraction rather than
+      // merging a JSON object cut off mid-deal.
+      parsed = await runBatchedExtraction(
+        batchContents,
+        (content) =>
+          runWithFallback((model) =>
+            generateText({
+              model,
+              prompt: TEXT_PROMPT(content, hints),
+              temperature: 0.1,
+              maxOutputTokens: 32000,
+              headers: aiHeaders,
+            }),
+          ),
+        parseExtraction,
+      );
+    } else {
+      // ── Vision/document path: PDF pages or uploaded image(s) ─────────────
+      // Group discrete page images into batches so a long scanned report is
+      // OCR-extracted in pieces and merged. A single native-PDF blob is one
+      // indivisible source → planVisionBatches returns a single [[0]] group and
+      // Claude reads all its pages natively in that one call.
+      // Models: Haiku primary (native PDF), Sonnet fallback — both Anthropic and
+      // both native-PDF capable, so the fallback can retry the SAME content.
+      const pageGroups = planVisionBatches(imageSources.length);
 
-    // Truncation guard: if the model hit the output-token ceiling, the JSON is
-    // cut off mid-object and will never parse. Fail fast with an actionable
-    // message instead of the misleading generic "could not produce structured
-    // data" error. Reproduced 2026-07-05 (report > ~20 deals at the old cap).
-    if (outputTruncated) {
-      console.error("[import-history] Output truncated (finishReason=length). Raw length:", raw.length);
-      throw new Error("REPORT_TOO_LARGE");
-    }
-
-    // Extract JSON from the LLM response — handles markdown fences, preamble text,
-    // and trailing commentary that would break a naive JSON.parse.
-    let parsed: GroqRawResponse;
-    {
-      // Strategy 1: strip markdown fences
-      const cleaned = raw
-        .replace(/^```(?:json)?\s*/m, "")
-        .replace(/\s*```\s*$/m, "")
-        .trim();
-
-      // Strategy 2: if that didn't yield valid JSON, find the first COMPLETE { … } block
-      // Uses bracket counting rather than lastIndexOf to avoid grabbing a stray }
-      // in trailing commentary after the real JSON object.
-      let jsonCandidate = cleaned;
-      if (!cleaned.startsWith("{")) {
-        const firstBrace = cleaned.indexOf("{");
-        if (firstBrace !== -1) {
-          let depth = 0;
-          let endIdx = -1;
-          for (let i = firstBrace; i < cleaned.length; i++) {
-            if (cleaned[i] === "{") depth++;
-            else if (cleaned[i] === "}") {
-              depth--;
-              if (depth === 0) { endIdx = i; break; }
+      parsed = await runBatchedExtraction(
+        pageGroups,
+        (group) => {
+          // Build message content: images/PDFs first, then the prompt text. When
+          // mimeType is "application/pdf", use Claude's native document type
+          // (handles PDFs with uncommon color spaces that fail pdfjs client-side).
+          const documentContent = group.map((idx) => {
+            const img = imageSources[idx];
+            if (img.mimeType === "application/pdf") {
+              return {
+                type: "file" as const,
+                data: `data:application/pdf;base64,${img.base64}`,
+                mediaType: "application/pdf" as const,
+              };
             }
-          }
-          if (endIdx !== -1) {
-            jsonCandidate = cleaned.slice(firstBrace, endIdx + 1);
-          }
-        }
-      }
+            return {
+              type: "image" as const,
+              image: `data:${img.mimeType};base64,${img.base64}`,
+            };
+          });
 
-      try {
-        parsed = JSON.parse(jsonCandidate) as GroqRawResponse;
-      } catch {
-        // Log the raw response so we can diagnose in Vercel logs
-        console.error("[import-history] JSON parse failed. Response length:", raw.length, "First 100 chars:", raw.slice(0, 100));
-        throw new Error("JSON parse failed");
-      }
+          const visionMessages = [
+            {
+              role: "user" as const,
+              content: [
+                ...documentContent,
+                { type: "text" as const, text: VISION_PROMPT },
+              ],
+            },
+          ];
+
+          return runWithFallback((model) =>
+            generateText({
+              model,
+              messages: visionMessages,
+              temperature: 0.1,
+              maxOutputTokens: 32000,
+              headers: aiHeaders,
+            }),
+          );
+        },
+        parseExtraction,
+      );
     }
 
+    // Per-batch truncation + JSON parsing happened inside the loops above (each
+    // via parseExtraction); the batch deals were merged into `parsed`, which is
+    // a well-formed { year, deals } at this point. The defensive shape check
+    // below stays as a belt-and-suspenders guard.
     if (typeof parsed.year !== "number" || !Array.isArray(parsed.deals)) {
-      console.error("[import-history] Malformed response schema. Response length:", raw.length);
+      console.error("[import-history] Malformed merged response schema. Deals:", Array.isArray(parsed.deals) ? parsed.deals.length : "n/a");
       return NextResponse.json({ error: "Malformed response" }, { status: 422 });
     }
 
