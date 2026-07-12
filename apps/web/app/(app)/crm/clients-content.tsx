@@ -3631,12 +3631,17 @@ export function ClientsContent({
             </div>
           </div>{/* end control strip */}
 
-          {/* Client table */}
-          {!hasAnyData ? (
+          {/* Client table. Gate on whether CLIENTS exist (grouped), NOT on
+              transaction records — a contacts-only import (e.g. Follow Up Boss
+              export) populates the clients table with zero deal history, and
+              those contacts must still show. clientsLoading guards the
+              large-account (>500) client-side fetch so we don't flash the
+              empty state while it's still loading. */}
+          {!clientsLoading && grouped.length === 0 ? (
             <div className="flex flex-col items-center justify-center rounded-xl border border-border bg-card py-16 px-4 text-center">
               <Users className="mx-auto mb-3 h-10 w-10 text-muted-foreground/40" />
               <p className="text-sm font-medium text-muted-foreground max-w-md">
-                No clients yet. Use the <strong>Import CSV</strong> button above to import contacts from your current CRM, or add clients manually from the Transactions page.
+                No clients yet. Use the <strong>Import CSV</strong> button above to import contacts from your current CRM, or add clients manually with <strong>+ New Client</strong>.
               </p>
             </div>
           ) : (
