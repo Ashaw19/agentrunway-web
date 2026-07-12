@@ -98,19 +98,14 @@ Return ONLY a raw JSON object (no markdown, no code fences). Required structure:
         "names": "<high | medium | low> — high if name clearly stated, medium if partial, low if ambiguous",
         "date": "<high | medium | low> — high if explicit date, medium if quarter-inferred, low if estimated",
         "address": "<high | medium | low | missing> — missing if no address mentioned"
-      },
-      "evidence": {
-        "gci": "<verbatim text fragment from document that produced this value, e.g. 'GCI: $14,500' — or null if deterministic>",
-        "sale_price": "<verbatim text fragment, or null>",
-        "net_income": "<verbatim text fragment, or null>",
-        "commission_percent": "<verbatim text fragment, or null>",
-        "names": "<verbatim text fragment, or null>",
-        "date": "<verbatim text fragment, or null>",
-        "address": "<verbatim text fragment, or null>"
       }
     }
   ]
 }
+
+NOTE: Do NOT include an "evidence" object or any verbatim source-text fields per deal.
+Keep each deal object to exactly the fields above — extra fields slow extraction and
+push large reports past the output limit.
 
 ═══════════════════════════════════════════════════════════════════
 FORMAT A — Agent's Own Tracker (tabular, one client per row)
