@@ -37,6 +37,7 @@ interface PriorYearRow {
 import { survivalResult, riskColorBand, type RiskColorBand } from "@/lib/engines/survival-engine";
 import { EXPENSE_KEY_TO_T2125 } from "@/lib/engines/t2125-engine";
 import { clampSalePrice, clampCommissionPct, clampGci } from "@/lib/import/clamp-db-range";
+import { readImportError, ImportRequestError } from "@/lib/import/client-error";
 import dynamic from "next/dynamic";
 import type { DonutDataPoint } from "@/components/expense-donut";
 import { cn } from "@/lib/utils";
@@ -313,8 +314,10 @@ export function ExpensesContent({
         body: JSON.stringify(payload),
       });
       if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: "Upload failed" }));
-        throw new Error(err.error || "Upload failed");
+        // Same route as the history/transactions importers — a platform 504/502
+        // returns a non-JSON body, so branch on status for an actionable message
+        // instead of masking the timeout as a generic "Upload failed".
+        throw new ImportRequestError(await readImportError(res));
       }
       const data = await res.json();
       const deals: ImportedDeal[] = (data.deals || []).map((d: Record<string, unknown>, i: number) => ({

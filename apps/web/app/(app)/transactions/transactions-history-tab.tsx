@@ -44,6 +44,7 @@ import { cn } from "@/lib/utils";
 import type { ImportResult } from "@/app/api/import-history/route";
 import { computeImportExternalId, dedupeByImportExternalId } from "@/lib/import/external-id";
 import { clampSalePrice, clampCommissionPct, clampGci } from "@/lib/import/clamp-db-range";
+import { readImportError, categorizeClientError, ImportRequestError } from "@/lib/import/client-error";
 import dynamic from "next/dynamic";
 import type { YoYDataPoint } from "@/components/year-over-year-chart";
 
@@ -653,8 +654,9 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
       });
 
       if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error((err as { error?: string }).error ?? "Extraction failed");
+        // Branch on status so a platform 504/502 (non-JSON body) surfaces an
+        // actionable message instead of the generic "Extraction failed".
+        throw new ImportRequestError(await readImportError(res));
       }
 
       const rawData = await res.json();
@@ -696,6 +698,22 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
       toast.error(msg || "Couldn't read the file — please try again.");
       setImportStatus("idle");
       setImportOpen(false);
+      // Fire-and-forget error telemetry — mirrors the history importer so 504/5xx
+      // failures on this surface are observable too (this catch previously logged
+      // nothing, which is part of why the 504 went unnoticed for a week).
+      void (async () => {
+        try {
+          const errorCategory = categorizeClientError(err);
+          const { data: { user: u } } = await supabase.auth.getUser();
+          if (!u) return;
+          await supabase.from("import_telemetry").insert({
+            user_id:        u.id,
+            event_type:     "error",
+            file_type:      fileType,
+            error_category: errorCategory,
+          });
+        } catch { /* ignore — error telemetry must never throw */ }
+      })();
     } finally {
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
