@@ -13,6 +13,7 @@ import {
   excelSerialToISO,
   normalizeDateFormats,
 } from "../normalizers/normalize-dates";
+import { splitCsvRow } from "../normalizers/normalize-text";
 
 describe("excelSerialToISO — anchored conversion", () => {
   it("converts the documented anchor serial (44927 = 2023-01-01)", () => {
@@ -53,6 +54,26 @@ describe("normalizeDateFormats — Pass 1: Excel serials in a labelled Date colu
     // converts; the same-magnitude GCI in the next column survives.
     const csv = "Name,Paid,GCI\nJane Buyer,45292,45000";
     expect(normalizeDateFormats(csv)).toBe("Name,Paid,GCI\nJane Buyer,2024-01-01,45000");
+  });
+
+  it("preserves quoting on a quoted-comma field when converting a serial in the same row", () => {
+    // Regression: the serial-conversion re-join must re-escape. A "Last, First"
+    // name in a row whose Date cell is a serial previously came back as
+    //   Buyer, Jane,2024-01-01,45000
+    // (quotes dropped) → re-parsed as 4 columns, shifting GCI out and losing it.
+    const csv = 'Name,Close Date,GCI\n"Buyer, Jane",45292,45000';
+    const out = normalizeDateFormats(csv);
+    expect(out).toBe('Name,Close Date,GCI\n"Buyer, Jane",2024-01-01,45000');
+    // The re-parsed row must still be exactly 3 cells with GCI intact.
+    const lastRow = splitCsvRow(out.split("\n")[1]);
+    expect(lastRow).toEqual(["Buyer, Jane", "2024-01-01", "45000"]);
+  });
+
+  it("preserves an embedded quote in a quoted field across serial conversion", () => {
+    const csv = 'Name,Close Date,GCI\n"O""Brien, Pat",45292,45000';
+    const out = normalizeDateFormats(csv);
+    const lastRow = splitCsvRow(out.split("\n")[1]);
+    expect(lastRow).toEqual(['O"Brien, Pat', "2024-01-01", "45000"]);
   });
 });
 

@@ -864,7 +864,7 @@ export async function POST(req: NextRequest) {
       // Split deals by year and return array
       const yearResults: ImportResult[] = [];
       for (const yr of Array.from(dealYears).sort()) {
-        const yearDeals = parsed.deals.filter((d) => d.date.startsWith(String(yr)));
+        const yearDeals = parsed.deals.filter((d) => d.date?.startsWith(String(yr)) ?? false);
         if (yearDeals.length === 0) continue;
         const result = computeAggregates(
           yearDeals, yr,

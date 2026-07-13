@@ -12,7 +12,7 @@
  * Design: pure functions, no I/O, no framework imports.
  */
 
-import { splitCsvRow } from "./normalize-text";
+import { splitCsvRow, joinCsvRow } from "./normalize-text";
 import { classifyColumns } from "../heuristics/column-classifier";
 
 // ── Pass 1: Excel serial → ISO ────────────────────────────────────────────────
@@ -102,7 +102,11 @@ export function normalizeDateFormats(content: string): string {
         const cell = cells[dateColIdx].trim();
         if (SERIAL_RE.test(cell)) {
           cells[dateColIdx] = excelSerialToISO(parseInt(cell, 10));
-          return cells.join(",");
+          // Re-escape on re-join: splitCsvRow stripped quoting, so a bare
+          // join(",") would turn a quoted "Buyer, Jane" into two columns and
+          // silently shift every field after it. joinCsvRow re-quotes only the
+          // cells that need it, so plain rows still round-trip byte-for-byte.
+          return joinCsvRow(cells);
         }
       }
       return line;

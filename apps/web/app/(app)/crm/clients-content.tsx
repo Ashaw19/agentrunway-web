@@ -783,7 +783,17 @@ function parseImportDate(raw: string): string | null {
   const dateOnly = /^\d{4}-\d{2}-\d{2}$/.exec(trimmed);
   if (dateOnly) {
     const [y, m, d] = trimmed.split("-").map(Number);
-    return new Date(y, m - 1, d, 12, 0, 0, 0).toISOString();
+    const parsed = new Date(y, m - 1, d, 12, 0, 0, 0);
+    // Reject impossible calendar dates ("2024-13-45", "2024-00-00") instead of
+    // letting the Date constructor roll them over into a wrong-but-valid date.
+    if (
+      parsed.getFullYear() !== y ||
+      parsed.getMonth() !== m - 1 ||
+      parsed.getDate() !== d
+    ) {
+      return null;
+    }
+    return parsed.toISOString();
   }
   const d = new Date(trimmed);
   if (isNaN(d.getTime())) return null;

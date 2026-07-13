@@ -224,6 +224,32 @@ export function splitCsvRow(row: string): string[] {
   return result;
 }
 
+/**
+ * RFC 4180-escape a single cell for re-joining a row that was parsed by
+ * `splitCsvRow` (which strips surrounding quotes and unescapes doubled/backslash
+ * quotes). A bare `cells.join(",")` after mutating one cell silently corrupts
+ * the row: any field that originally contained a comma, quote, or newline loses
+ * its quoting and the embedded comma re-reads as a phantom delimiter downstream.
+ *
+ * Only cells that actually need quoting get quoted, so rows of plain values
+ * round-trip byte-for-byte (e.g. `Jane Buyer,2024-01-01,45000` stays bare).
+ */
+export function csvEscapeCell(cell: string): string {
+  if (/[",\r\n]/.test(cell)) {
+    return `"${cell.replace(/"/g, '""')}"`;
+  }
+  return cell;
+}
+
+/**
+ * Re-join a parsed-and-mutated cell array back into a CSV line, re-escaping any
+ * cell that needs it. Use this instead of `cells.join(",")` whenever the cells
+ * came from `splitCsvRow`/SheetJS and will be re-parsed downstream.
+ */
+export function joinCsvRow(cells: string[]): string {
+  return cells.map(csvEscapeCell).join(",");
+}
+
 /** Returns true if EVERY cell in the row is empty or whitespace. */
 function isBlankRow(cells: string[]): boolean {
   return cells.every(c => !c || c.trim() === "");
@@ -280,9 +306,11 @@ export function normalizeTextDocument(
   let cellRows: string[][] | null = null;
 
   if (Array.isArray(input)) {
-    // Already split by SheetJS
+    // Already split by SheetJS. Re-escape when re-joining so cells containing a
+    // comma/quote/newline don't lose their quoting and read as extra columns
+    // when the row is re-parsed downstream.
     cellRows = input as string[][];
-    rawRows  = cellRows.map(row => row.join(","));
+    rawRows  = cellRows.map(joinCsvRow);
   } else {
     // Use the quote-aware splitter for CSV so embedded newlines in quoted
     // fields are preserved within a single row rather than broken into two.
