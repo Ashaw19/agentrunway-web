@@ -4,6 +4,7 @@ import { useState, useMemo } from "react";
 import type { ScenarioSeedData } from "./page";
 import type { Province } from "@/lib/types/database";
 import { computeAgentGross, computeTxFees } from "@/lib/types/database";
+import { computePlanGross } from "@/lib/engines/real-compensation-engine";
 import { calculate as calculateTax } from "@/lib/engines/canadian-tax-engine";
 import { calculateCorporateTax } from "@/lib/engines/corporate-tax-engine";
 import { survivalResult } from "@/lib/engines/survival-engine";
@@ -87,18 +88,18 @@ function computeResult(
   txFeeCap: number,
   expensesYTD: number,
   ytdGCI: number,
+  comp: ScenarioSeedData["comp"],
 ): ComputedResult {
   // ── Match dashboard: deduct split, fees, brokerage, expenses before tax ──
-  // Dashboard: projectedNet = agentGross - txFees - brokerageFeeAnnual
-  //            netForTax     = projectedNet - annualExpenses
-  const { agentGross } = computeAgentGross(
-    annualGCI,
-    splitPreset,
-    postCapThreshold,
-    postCapAgentPct,
-    postCapBrokeragePct,
-  );
-  const txFees = computeTxFees(annualGCI, txFeeRate, txFeeCap);
+  // Plan-aware (REAL analytic waterfall or legacy split) — mirrors
+  // effective-cash.ts:projectedAgentNet on hypothetical annual figures.
+  const planScenario = comp
+    ? computePlanGross(comp, annualGCI, { dealCount })
+    : null;
+  const agentGross = planScenario
+    ? planScenario.shareBeforePlanFees
+    : computeAgentGross(annualGCI, splitPreset, postCapThreshold, postCapAgentPct, postCapBrokeragePct).agentGross;
+  const txFees = planScenario ? planScenario.planFees : computeTxFees(annualGCI, txFeeRate, txFeeCap);
   const brokerageFeeAnnual = monthlyBrokerageFee * 12;
 
   // Dashboard projects annual expenses: expensesYTD + monthlyRecurring * remainingMonths
@@ -235,6 +236,7 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
         seed.monthlyBrokerageFee,
         ...deductionArgs,
         seed.ytdGCI,
+        seed.comp,
       ),
     [seed, province, deductionArgs],
   );
@@ -257,6 +259,7 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
         seed.monthlyBrokerageFee,
         ...deductionArgs,
         seed.ytdGCI,
+        seed.comp,
       ),
     [
       scenarioGCI,

@@ -488,6 +488,11 @@ export interface PlanGrossResult {
   /** Agent income after plan splits AND plan-level fees (REAL: post-cap/CBR/
    *  BEOP/sign-up; simple: tx fees), BEFORE monthly_brokerage_fee. */
   grossAfterPlan: number;
+  /** Agent share after splits, BEFORE plan fees — for waterfall displays
+   *  ("agent gross" line). grossAfterPlan = shareBeforePlanFees − planFees. */
+  shareBeforePlanFees: number;
+  /** Plan-level fees (REAL: post-cap + CBR + BEOP + sign-up; simple: tx fees). */
+  planFees: number;
   /** grossAfterPlan / gci — the plan-aware replacement for getAgentPct()
    *  on labels and downstream scalar math. */
   effectiveAgentPct: number;
@@ -519,6 +524,8 @@ export function computePlanGross(
     return {
       plan: "simple_split",
       grossAfterPlan,
+      shareBeforePlanFees: agentGross,
+      planFees: txFees,
       effectiveAgentPct: gci > 0 ? grossAfterPlan / gci : SPLIT_PRESET_AGENT_PCT[settings.split_preset] ?? 0.8,
       capState: null,
     };
@@ -533,6 +540,8 @@ export function computePlanGross(
     return {
       plan: "real",
       grossAfterPlan: agg.agentNet,
+      shareBeforePlanFees: agg.agentShare,
+      planFees: agg.fees,
       effectiveAgentPct: agg.effectiveAgentPct,
       capState: result.capState,
     };
@@ -552,6 +561,8 @@ export function computePlanGross(
   return {
     plan: "real",
     grossAfterPlan: sim.agentNet,
+    shareBeforePlanFees: sim.agentShare,
+    planFees: sim.fees,
     effectiveAgentPct: sim.effectiveAgentPct,
     capState,
   };

@@ -40,6 +40,9 @@ import {
   PROVINCE_LABELS,
   type Province,
   type SplitPreset,
+  type CompPlan,
+  type RealCapTier,
+  REAL_CAP_TIER_DEFAULTS,
   type UserSettings,
   type PlaidItem,
   type CommunicationProfile,
@@ -407,6 +410,67 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
     if (error) { toast.error("Failed to save commission split — please try again."); return; }
     splitSaved.flash();
     toast.success("Commission split locked in ✓");
+  }
+
+  // ── Section 2b: Compensation plan (REAL Brokerage — migration 00161) ─────
+  // Figures default from the REAL income deck snapshot and are fully editable
+  // — REAL revises them periodically, so the user's plan docs win.
+  const [compPlan, setCompPlan] = useState<CompPlan>(settings.comp_plan ?? "simple_split");
+  const [realJoinDate, setRealJoinDate] = useState(settings.real_join_date ?? "");
+  const [realCapTier, setRealCapTier] = useState<RealCapTier>(settings.real_cap_tier ?? "solo_full");
+  const [realCapAmount, setRealCapAmount] = useState(String(settings.real_cap_amount ?? 15000));
+  const [realPreCapPct, setRealPreCapPct] = useState(String(Math.round((settings.real_pre_cap_agent_pct ?? 0.85) * 100)));
+  const [realPostCapPct, setRealPostCapPct] = useState(String(Math.round((settings.real_post_cap_agent_pct ?? 1) * 100)));
+  const [realPostCapFee, setRealPostCapFee] = useState(String(settings.real_post_cap_fee ?? 375));
+  const [realEliteFee, setRealEliteFee] = useState(String(settings.real_elite_fee ?? 175));
+  const [realEliteThreshold, setRealEliteThreshold] = useState(String(settings.real_elite_threshold ?? 9000));
+  const [realCbrFee, setRealCbrFee] = useState(String(settings.real_cbr_fee ?? 40));
+  const [realBeopAnnual, setRealBeopAnnual] = useState(String(settings.real_beop_annual ?? 1200));
+  const [realSignupFee, setRealSignupFee] = useState(String(settings.real_signup_fee ?? 249));
+  const [realCapPaidSeed, setRealCapPaidSeed] = useState(String(settings.real_cap_paid_seed ?? 0));
+  const [realPostCapFeesSeed, setRealPostCapFeesSeed] = useState(String(settings.real_post_cap_fees_paid_seed ?? 0));
+  const [savingRealPlan, setSavingRealPlan] = useState(false);
+  const realPlanSaved = useSaved();
+
+  // Tier change pre-fills cap amount + typical splits — every field stays editable.
+  function applyRealTier(tier: RealCapTier) {
+    setRealCapTier(tier);
+    setRealCapAmount(String(REAL_CAP_TIER_DEFAULTS[tier]));
+    if (tier === "solo_full") {
+      setRealPreCapPct("85");
+      setRealPostCapPct("100");
+    } else {
+      // Team tiers: a leader override typically continues pre- and post-cap.
+      setRealPreCapPct("70");
+      setRealPostCapPct("80");
+    }
+  }
+
+  async function saveRealPlan() {
+    setSavingRealPlan(true);
+    const { error } = await supabase
+      .from("user_settings")
+      .update({
+        comp_plan: compPlan,
+        real_join_date: realJoinDate || null,
+        real_cap_tier: realCapTier,
+        real_cap_amount: parseFloat(realCapAmount) || 0,
+        real_pre_cap_agent_pct: (parseFloat(realPreCapPct) || 0) / 100,
+        real_post_cap_agent_pct: (parseFloat(realPostCapPct) || 0) / 100,
+        real_post_cap_fee: parseFloat(realPostCapFee) || 0,
+        real_elite_fee: parseFloat(realEliteFee) || 0,
+        real_elite_threshold: parseFloat(realEliteThreshold) || 0,
+        real_cbr_fee: parseFloat(realCbrFee) || 0,
+        real_beop_annual: parseFloat(realBeopAnnual) || 0,
+        real_signup_fee: parseFloat(realSignupFee) || 0,
+        real_cap_paid_seed: parseFloat(realCapPaidSeed) || 0,
+        real_post_cap_fees_paid_seed: parseFloat(realPostCapFeesSeed) || 0,
+      })
+      .eq("user_id", settings.user_id);
+    setSavingRealPlan(false);
+    if (error) { toast.error("Failed to save compensation plan — please try again."); return; }
+    realPlanSaved.flash();
+    toast.success(compPlan === "real" ? "REAL plan saved ✓" : "Compensation plan saved ✓");
   }
 
   // ── Section 3: Brokerage Fees ────────────────────────────────────────────
@@ -1291,42 +1355,198 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
         </CardContent>
       </Card>
 
-      {/* Card 2 — Commission Structure */}
+      {/* Card 2 — Commission Structure (plan-aware: standard split or REAL) */}
       <Card className="rounded-xl border-l-4 border-l-violet-500 shadow-sm">
         <CardHeader>
           <CardTitle>Commission Structure</CardTitle>
           <CardDescription>
-            Your agent / brokerage revenue split on each deal.
+            How your brokerage pays you. Standard split covers most brokerages;
+            the REAL Brokerage plan models caps, post-cap fees, and per-deal fees.
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4">
           <div className="grid gap-1.5">
-            <Label>Commission Split (Agent / Brokerage)</Label>
+            <Label>Brokerage plan</Label>
             <Select
-              value={splitPreset}
-              onValueChange={(v) => setSplitPreset(v as SplitPreset)}
+              value={compPlan}
+              onValueChange={(v) => setCompPlan(v as CompPlan)}
             >
               <SelectTrigger className="max-w-xs">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {SPLIT_OPTIONS.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </SelectItem>
-                ))}
+                <SelectItem value="simple_split">Standard split</SelectItem>
+                <SelectItem value="real">REAL Brokerage</SelectItem>
               </SelectContent>
             </Select>
           </div>
-          <SaveRow
-            saving={savingSplit}
-            saved={splitSaved.saved}
-            onSave={saveSplit}
-          />
+
+          {compPlan === "simple_split" ? (
+            <>
+              <div className="grid gap-1.5">
+                <Label>Commission Split (Agent / Brokerage)</Label>
+                <Select
+                  value={splitPreset}
+                  onValueChange={(v) => setSplitPreset(v as SplitPreset)}
+                >
+                  <SelectTrigger className="max-w-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {SPLIT_OPTIONS.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <SaveRow
+                saving={savingSplit}
+                saved={splitSaved.saved}
+                onSave={async () => {
+                  // Persist the plan choice alongside the preset so switching
+                  // back from REAL → standard actually deactivates the waterfall.
+                  await saveRealPlan();
+                  await saveSplit();
+                }}
+              />
+            </>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                <div className="grid gap-1.5">
+                  <Label>Joined REAL on</Label>
+                  <Input
+                    type="date"
+                    value={realJoinDate}
+                    onChange={(e) => setRealJoinDate(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Anchors your anniversary year for the cap. Deals closed before
+                    this date stay on your previous split.
+                  </p>
+                </div>
+                <div className="grid gap-1.5">
+                  <Label>Cap tier</Label>
+                  <Select value={realCapTier} onValueChange={(v) => applyRealTier(v as RealCapTier)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="solo_full">Solo ($15,000 cap)</SelectItem>
+                      <SelectItem value="team_member">Team member ($7,500 cap)</SelectItem>
+                      <SelectItem value="mega_team">Mega team ($5,000 cap)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Picking a tier pre-fills typical figures — every field below stays editable.
+                  </p>
+                </div>
+                <div className="grid gap-1.5">
+                  <Label>Annual cap ($)</Label>
+                  <Input type="number" value={realCapAmount} onChange={(e) => setRealCapAmount(e.target.value)} />
+                  <p className="text-xs text-muted-foreground">
+                    Company dollar to REAL before you cap (15% of GCI counts toward it).
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="grid gap-1.5">
+                  <Label>Agent % before cap</Label>
+                  <div className="relative">
+                    <Input type="number" min={0} max={100} className="pr-8" value={realPreCapPct} onChange={(e) => setRealPreCapPct(e.target.value)} />
+                    <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">%</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    85% solo (REAL keeps 15%); typically 70% on a team (leader override).
+                  </p>
+                </div>
+                <div className="grid gap-1.5">
+                  <Label>Agent % after cap</Label>
+                  <div className="relative">
+                    <Input type="number" min={0} max={100} className="pr-8" value={realPostCapPct} onChange={(e) => setRealPostCapPct(e.target.value)} />
+                    <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">%</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    100% solo; typically 80% on a team. REAL charges flat fees per deal after cap.
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                <div className="grid gap-1.5">
+                  <Label>Post-cap fee / deal ($)</Label>
+                  <Input type="number" value={realPostCapFee} onChange={(e) => setRealPostCapFee(e.target.value)} />
+                </div>
+                <div className="grid gap-1.5">
+                  <Label>Elite fee / deal ($)</Label>
+                  <Input type="number" value={realEliteFee} onChange={(e) => setRealEliteFee(e.target.value)} />
+                </div>
+                <div className="grid gap-1.5">
+                  <Label>Elite threshold ($)</Label>
+                  <Input type="number" value={realEliteThreshold} onChange={(e) => setRealEliteThreshold(e.target.value)} />
+                  <p className="text-xs text-muted-foreground">
+                    Post-cap fees paid in the year before the lower Elite fee applies.
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                <div className="grid gap-1.5">
+                  <Label>CBR fee / deal ($)</Label>
+                  <Input type="number" value={realCbrFee} onChange={(e) => setRealCbrFee(e.target.value)} />
+                  <p className="text-xs text-muted-foreground">
+                    Compliance &amp; Broker Review. Set 0 if REAL confirms it is one-time.
+                  </p>
+                </div>
+                <div className="grid gap-1.5">
+                  <Label>Annual BEOP fee ($)</Label>
+                  <Input type="number" value={realBeopAnnual} onChange={(e) => setRealBeopAnnual(e.target.value)} />
+                  <p className="text-xs text-muted-foreground">
+                    Spread across your first 3 deals each anniversary year.
+                  </p>
+                </div>
+                <div className="grid gap-1.5">
+                  <Label>Sign-up fee ($, year 1)</Label>
+                  <Input type="number" value={realSignupFee} onChange={(e) => setRealSignupFee(e.target.value)} />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="grid gap-1.5">
+                  <Label>Cap already paid this year ($)</Label>
+                  <Input type="number" value={realCapPaidSeed} onChange={(e) => setRealCapPaidSeed(e.target.value)} />
+                  <p className="text-xs text-muted-foreground">
+                    Company dollar you already paid REAL this anniversary year on deals
+                    that are not in Agent Runway (mid-year switchers).
+                  </p>
+                </div>
+                <div className="grid gap-1.5">
+                  <Label>Post-cap fees already paid ($)</Label>
+                  <Input type="number" value={realPostCapFeesSeed} onChange={(e) => setRealPostCapFeesSeed(e.target.value)} />
+                  <p className="text-xs text-muted-foreground">
+                    Advances your Elite-threshold progress the same way.
+                  </p>
+                </div>
+              </div>
+
+              <p className="text-xs text-muted-foreground">
+                Defaults reflect a snapshot of REAL&apos;s income deck and may drift as REAL
+                revises its plan — your own plan documents are the source of truth, and every
+                figure here is editable. Net income estimates update across the dashboard,
+                forecast, reports, and tax projections.
+              </p>
+
+              <SaveRow saving={savingRealPlan} saved={realPlanSaved.saved} onSave={saveRealPlan} />
+            </>
+          )}
         </CardContent>
       </Card>
 
-      {/* Card PC — Post-Cap Split */}
+      {/* Card PC — Post-Cap Split (legacy concept — REAL models its own cap) */}
+      {compPlan !== "real" && (
       <Card className="rounded-xl border-l-4 border-l-violet-400 shadow-sm">
         <CardHeader>
           <div className="flex items-center gap-2">
@@ -1388,6 +1608,7 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
           <SaveRow saving={savingPostCap} saved={postCapSaved.saved} onSave={savePostCap} />
         </CardContent>
       </Card>
+      )}
 
       {/* Card 3 — Brokerage Fees */}
       <Card className="rounded-xl border-l-4 border-l-amber-500 shadow-sm">

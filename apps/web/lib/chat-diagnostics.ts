@@ -50,6 +50,10 @@ interface UserSettings {
   cash_reserve: number;
   experience_years: number;
   split_preset: string;
+  /** Compensation plan (REAL Brokerage — migration 00161). Optional: this is
+   *  a partial diagnostic slice; absent → simple_split. */
+  comp_plan?: string | null;
+  real_pre_cap_agent_pct?: number | null;
   monthly_brokerage_fee: number;
   tx_fee_rate_pct: number;
   tx_fee_annual_cap: number;
@@ -570,8 +574,16 @@ function diagForecast(ctx: DiagContext): string {
     closedTx.length, pipelineDeals.length, engineFraction,
   );
 
+  // Plan-aware: under comp_plan='real' the pXX_YY regex matches nothing —
+  // use the pre-cap split as the illustrative rate (diagnostic only; the
+  // canonical net comes from computePlanGross on real surfaces).
   const splitMatch = s.split_preset?.match(/p(\d+)_(\d+)/);
-  const agentPct = splitMatch ? Number(splitMatch[1]) / 100 : 1;
+  const agentPct =
+    s.comp_plan === "real"
+      ? (s.real_pre_cap_agent_pct ?? 0.85)
+      : splitMatch
+        ? Number(splitMatch[1]) / 100
+        : 1;
 
   const projectedAgentNet = projGCI * agentPct;
   const monthlyFees = (s.monthly_brokerage_fee ?? 0) * 12;
@@ -662,8 +674,14 @@ Note: Birthday outreach bypasses the 14-day suppression rule`;
 function diagTransactions(ctx: DiagContext): string {
   const { settings: s, closedTx, ytdGCI } = ctx;
 
+  // Plan-aware (see diagForecast note).
   const splitMatch = s.split_preset?.match(/p(\d+)_(\d+)/);
-  const agentPct = splitMatch ? Number(splitMatch[1]) / 100 : 1;
+  const agentPct =
+    s.comp_plan === "real"
+      ? (s.real_pre_cap_agent_pct ?? 0.85)
+      : splitMatch
+        ? Number(splitMatch[1]) / 100
+        : 1;
   const avgDeal = closedTx.length > 0 ? ytdGCI / closedTx.length : 0;
 
   // Check for GCI overrides
@@ -677,7 +695,7 @@ function diagTransactions(ctx: DiagContext): string {
   return `[TRANSACTION DIAGNOSTIC]
 YTD Closed Deals: ${closedTx.length}
 YTD GCI: ${fmtCurrency(ytdGCI)}
-Agent Split: ${(agentPct * 100).toFixed(0)}% → Agent Net: ${fmtCurrency(ytdGCI * agentPct)}
+Agent Split: ${(agentPct * 100).toFixed(0)}%${s.comp_plan === "real" ? " (REAL pre-cap — cap/fees not modeled in this diagnostic)" : ""} → Agent Net: ${fmtCurrency(ytdGCI * agentPct)}
 Average Deal GCI: ${fmtCurrency(avgDeal)}
 GCI Range: ${fmtCurrency(minGCI)} – ${fmtCurrency(maxGCI)}
 Deals with GCI Override: ${overrideCount}

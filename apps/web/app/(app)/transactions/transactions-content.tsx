@@ -332,7 +332,14 @@ export function TransactionsContent({ initialTransactions, initialPipelineDeals,
 
   // ── Insights ─────────────────────────────────────────────────────────────
   // Agent's brokerage split percentage (for "your cut" sub-label)
-  const agentPct = settings?.split_preset ? getAgentPct(settings.split_preset) : null;
+  // Plan-aware: under 'real' show the pre-cap split as the illustrative cut.
+  const agentPct = settings
+    ? settings.comp_plan === "real"
+      ? settings.real_pre_cap_agent_pct
+      : settings.split_preset
+        ? getAgentPct(settings.split_preset)
+        : null
+    : null;
 
   // Closing velocity: last 30 days vs prior 30 days
   const _now = new Date();

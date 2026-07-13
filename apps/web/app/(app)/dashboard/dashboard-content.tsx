@@ -104,11 +104,10 @@ import { fmtCurrency, fmtCompact, fmtPct } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 import { CANONICAL_TAX_DISCLAIMER, CANONICAL_TAX_DISCLAIMER_SHORT } from "@/lib/flight-crew/constants";
 import type { MonthlyDataPoint } from "@/components/monthly-chart";
+import { computePlanGross } from "@/lib/engines/real-compensation-engine";
 import {
   computeGCI,
   computeWeightedGCI,
-  computeTxFees,
-  computeAgentGross,
   PROVINCE_LABELS,
   type Transaction,
   type PipelineDeal,
@@ -510,6 +509,11 @@ export function DashboardContent({
   const ytdDealCount = transactions.length;
   const avgDealSize = ytdDealCount > 0 ? ytdGCI / ytdDealCount : 0;
 
+  // Per-deal inputs for the plan-aware compensation chain (the REAL waterfall
+  // needs deal-level GCI + dates; simple_split ignores them). Derived from the
+  // SAME array as ytdGCI so the two can never diverge.
+  const planDeals = transactions.map((tx) => ({ id: tx.id, date: tx.date, gci: computeGCI(tx) }));
+
   // ── Zero-data gate ────────────────────────────────────────────────────
   // The Runway Score, pace percentile, and behind-goal % are only meaningful
   // once there's business activity to score. On a brand-new account all five
@@ -626,11 +630,12 @@ export function DashboardContent({
   // Using expRemainingMonths avoids double-counting recurring costs already in expensesYTD.
   const expRemainingMonths = Math.max(0, 12 - (now.getMonth() + 1));
   const annualExpenses = expensesYTD + monthlyRecurring * expRemainingMonths;
-  const projectedNet = computeProjectedNet(projectedGCI, settings);
+  // Per-deal tax portion is more useful against projected deal count, not just YTD.
+  // Declared BEFORE projectedNet: the plan-aware chain needs it for REAL per-deal fees.
+  const projectedDealCount = projectedYearEndTransactions(ytdDealCount, pipelineCount, fraction);
+  const projectedNet = computeProjectedNet(projectedGCI, settings, projectedDealCount);
   // Net self-employment income = gross-of-brokerage minus all business expenses
   const netForTax = Math.max(0, projectedNet - annualExpenses);
-  // Per-deal tax portion is more useful against projected deal count, not just YTD
-  const projectedDealCount = projectedYearEndTransactions(ytdDealCount, pipelineCount, fraction);
   const taxResult = settings
     ? calculateTax(netForTax, settings.province, Math.max(projectedDealCount, 1))
     : null;
@@ -655,13 +660,16 @@ export function DashboardContent({
     ytdGCI,
     ytdAgentNet: (() => {
       if (!settings) return ytdGCI;
-      const { agentGross } = computeAgentGross(
-        ytdGCI, settings.split_preset, settings.post_cap_threshold_gci,
-        settings.post_cap_agent_pct, settings.post_cap_brokerage_pct,
-      );
-      const txFees = computeTxFees(ytdGCI, settings.tx_fee_rate_pct, settings.tx_fee_annual_cap);
+      // Plan-aware (REAL waterfall or legacy split) — must stay in lockstep
+      // with effective-cash.ts:computeEffectiveCashForSurvival's YTD block.
+      const { grossAfterPlan } = computePlanGross(settings, ytdGCI, {
+        deals: planDeals,
+        windowStart: `${now.getFullYear()}-01-01`,
+        windowEnd: `${now.getFullYear() + 1}-01-01`,
+        asOf: now.toISOString().slice(0, 10),
+      });
       const brokerageFees = settings.monthly_brokerage_fee * (now.getMonth() + 1);
-      return Math.max(0, agentGross - txFees - brokerageFees);
+      return Math.max(0, grossAfterPlan - brokerageFees);
     })(),
     ytdExpenses: expensesYTD,
     ytdTaxSetAside: taxResult ? taxResult.totalBurden * Math.min(fraction, 1) : 0,
@@ -1132,17 +1140,19 @@ export function DashboardContent({
 
   // ── YTD Net Take-Home calculations ────────────────────────────────────
   // This answers "what do I actually keep?" — the most important dashboard metric.
-  const ytdAgentGrossCalc = settings
-    ? computeAgentGross(
-        ytdGCI,
-        settings.split_preset,
-        settings.post_cap_threshold_gci,
-        settings.post_cap_agent_pct,
-        settings.post_cap_brokerage_pct,
-      )
+  // Plan-aware (REAL waterfall or legacy split). shareBeforePlanFees maps to
+  // the card's "agent gross" line; planFees to its fees line (tx fees under
+  // simple_split; post-cap + CBR + BEOP + sign-up under REAL).
+  const ytdPlanGross = settings
+    ? computePlanGross(settings, ytdGCI, {
+        deals: planDeals,
+        windowStart: `${now.getFullYear()}-01-01`,
+        windowEnd: `${now.getFullYear() + 1}-01-01`,
+        asOf: now.toISOString().slice(0, 10),
+      })
     : null;
-  const ytdAgentGross = ytdAgentGrossCalc?.agentGross ?? ytdGCI;
-  const ytdTxFees = settings ? computeTxFees(ytdGCI, settings.tx_fee_rate_pct, settings.tx_fee_annual_cap) : 0;
+  const ytdAgentGross = ytdPlanGross?.shareBeforePlanFees ?? ytdGCI;
+  const ytdTxFees = ytdPlanGross?.planFees ?? 0;
   const ytdBrokerageFeesTotal = settings ? settings.monthly_brokerage_fee * monthsElapsed : 0;
   const ytdNetBeforeTax = Math.max(0, ytdAgentGross - ytdTxFees - ytdBrokerageFeesTotal);
   // Prorated tax estimate (fraction of year elapsed)
@@ -1730,7 +1740,7 @@ export function DashboardContent({
           </div>
         </div>
         <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-slate-400 border-t border-emerald-100 pt-2.5">
-          <span>Split: {settings.split_preset ?? "custom"}</span>
+          <span>Split: {settings.comp_plan === "real" ? "REAL plan" : (settings.split_preset ?? "custom")}</span>
           {settings.monthly_brokerage_fee > 0 && <span>Monthly fee: {fmtCurrency(settings.monthly_brokerage_fee)}/mo × {monthsElapsed}mo</span>}
           {ytdTxFees > 0 && <span>Tx fees: {fmtCurrency(ytdTxFees)}</span>}
           <span className="italic">{CANONICAL_TAX_DISCLAIMER_SHORT}</span>
@@ -3853,22 +3863,20 @@ function buildMonthlyChartData(
 
 // ── Helper: Projected net income ──────────────────────────────────────────
 
-function computeProjectedNet(projectedGCI: number, settings: UserSettings | null): number {
+function computeProjectedNet(
+  projectedGCI: number,
+  settings: UserSettings | null,
+  projectedDealCount?: number,
+): number {
   if (!settings) return projectedGCI;
-  const { agentGross } = computeAgentGross(
-    projectedGCI,
-    settings.split_preset,
-    settings.post_cap_threshold_gci,
-    settings.post_cap_agent_pct,
-    settings.post_cap_brokerage_pct,
-  );
-  const txFees = computeTxFees(
-    projectedGCI,
-    settings.tx_fee_rate_pct,
-    settings.tx_fee_annual_cap,
-  );
+  // Plan-aware (REAL analytic waterfall or legacy split) — mirrors
+  // effective-cash.ts:projectedAgentNet exactly.
+  const { grossAfterPlan } = computePlanGross(settings, projectedGCI, {
+    dealCount: projectedDealCount,
+    asOf: new Date().toISOString().slice(0, 10),
+  });
   const brokerageFeeAnnual = settings.monthly_brokerage_fee * 12;
-  return agentGross - txFees - brokerageFeeAnnual;
+  return grossAfterPlan - brokerageFeeAnnual;
 }
 
 // ── Where You Stand Card ──────────────────────────────────────────────────────
