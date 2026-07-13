@@ -32,20 +32,22 @@ import {
 import { calculate as calculateCanadianTax, gstHstRate } from "./canadian-tax-engine";
 import { calculateCorporateTax } from "./corporate-tax-engine";
 import { computeHSTCollected } from "./hst-engine";
-import { computeAgentGross, computeTxFees } from "../types/database";
+import {
+  computePlanGross,
+  type CompSettingsSlice,
+  type RealDealInput,
+} from "./real-compensation-engine";
 import type { UserSettings } from "../types/database";
+
+/** Every field the plan-aware split/fee chain reads (legacy + REAL). */
+type PlanSettingsKeys = keyof CompSettingsSlice;
 
 export interface EffectiveCashInputs {
   /** UserSettings row (full). Required — we read split_preset, cash_reserve, HST flags, etc. */
   settings: Pick<
     UserSettings,
+    | PlanSettingsKeys
     | "province"
-    | "split_preset"
-    | "post_cap_threshold_gci"
-    | "post_cap_agent_pct"
-    | "post_cap_brokerage_pct"
-    | "tx_fee_rate_pct"
-    | "tx_fee_annual_cap"
     | "monthly_brokerage_fee"
     | "cash_reserve"
     | "gst_hst_registered"
@@ -56,6 +58,14 @@ export interface EffectiveCashInputs {
   >;
   /** YTD gross commission income (before split) — sum of closed transactions this year. */
   ytdGCI: number;
+  /**
+   * Closed transactions ({date, gci}) for the current calendar year.
+   * OPTIONAL for `simple_split` (aggregate math is exact); STRONGLY
+   * recommended under `comp_plan = 'real'` — with them the engine runs the
+   * exact per-deal waterfall; without them it falls back to the analytic
+   * simulation on `ytdGCI` (documented approximation).
+   */
+  transactions?: RealDealInput[];
   /** YTD business expenses (receipts + recurring). */
   expensesYTD: number;
   /** Monthly recurring expenses (used to project remaining-year expenses for tax). */
@@ -90,31 +100,19 @@ export interface EffectiveCashResult {
  */
 function projectedAgentNet(
   projectedGCI: number,
-  settings: Pick<
-    UserSettings,
-    | "split_preset"
-    | "post_cap_threshold_gci"
-    | "post_cap_agent_pct"
-    | "post_cap_brokerage_pct"
-    | "tx_fee_rate_pct"
-    | "tx_fee_annual_cap"
-    | "monthly_brokerage_fee"
-  >,
+  settings: Pick<UserSettings, PlanSettingsKeys | "monthly_brokerage_fee">,
+  projectedDealCount?: number,
+  now: Date = new Date(),
 ): number {
-  const { agentGross } = computeAgentGross(
-    projectedGCI,
-    settings.split_preset,
-    settings.post_cap_threshold_gci,
-    settings.post_cap_agent_pct,
-    settings.post_cap_brokerage_pct,
-  );
-  const txFees = computeTxFees(
-    projectedGCI,
-    settings.tx_fee_rate_pct,
-    settings.tx_fee_annual_cap,
-  );
+  // Plan-aware: simple_split path is byte-identical to the legacy
+  // computeAgentGross − computeTxFees chain; 'real' runs the analytic
+  // REAL waterfall (projections have no deal list).
+  const { grossAfterPlan } = computePlanGross(settings, projectedGCI, {
+    dealCount: projectedDealCount,
+    asOf: now.toISOString().slice(0, 10),
+  });
   const brokerageFeeAnnual = settings.monthly_brokerage_fee * 12;
-  return agentGross - txFees - brokerageFeeAnnual;
+  return grossAfterPlan - brokerageFeeAnnual;
 }
 
 // ── Shared helpers exported for use across surfaces ─────────────────────────
@@ -166,17 +164,11 @@ export interface ProjectedNetForTaxInputs {
   expensesYTD: number;
   /** Monthly recurring expenses (used to project remainder of year). */
   monthlyRecurring: number;
-  /** UserSettings slice needed to compute agent net (split, fees, brokerage). */
-  settings: Pick<
-    UserSettings,
-    | "split_preset"
-    | "post_cap_threshold_gci"
-    | "post_cap_agent_pct"
-    | "post_cap_brokerage_pct"
-    | "tx_fee_rate_pct"
-    | "tx_fee_annual_cap"
-    | "monthly_brokerage_fee"
-  >;
+  /** UserSettings slice needed to compute agent net (plan, split, fees, brokerage). */
+  settings: Pick<UserSettings, PlanSettingsKeys | "monthly_brokerage_fee">;
+  /** Projected year-end deal count — drives per-deal fee modeling under
+   *  `comp_plan = 'real'`. Optional; the engine estimates when absent. */
+  projectedDealCount?: number;
   /** Reference date (defaults to now). Used to count remaining months. */
   now?: Date;
 }
@@ -200,10 +192,10 @@ export interface ProjectedNetForTaxInputs {
 export function computeProjectedNetForTax(
   inputs: ProjectedNetForTaxInputs,
 ): number {
-  const { projectedGCI, expensesYTD, monthlyRecurring, settings, now = new Date() } = inputs;
+  const { projectedGCI, expensesYTD, monthlyRecurring, settings, projectedDealCount, now = new Date() } = inputs;
   const expRemainingMonths = Math.max(0, 12 - (now.getMonth() + 1));
   const annualExpenses = expensesYTD + monthlyRecurring * expRemainingMonths;
-  const projectedNet = projectedAgentNet(projectedGCI, settings);
+  const projectedNet = projectedAgentNet(projectedGCI, settings, projectedDealCount, now);
   return Math.max(0, projectedNet - annualExpenses);
 }
 
@@ -236,7 +228,7 @@ export function computeEffectiveCashForSurvival(
   const annualExpenses = expensesYTD + monthlyRecurring * expRemainingMonths;
 
   // ── Project net income for tax calc ─────────────────────────────────────
-  const projectedNet = projectedAgentNet(projectedGCI, settings);
+  const projectedNet = projectedAgentNet(projectedGCI, settings, projectedDealCount, now);
   const netForTax = Math.max(0, projectedNet - annualExpenses);
 
   // ── Annual tax burden (personal or corporate) ───────────────────────────
@@ -260,20 +252,20 @@ export function computeEffectiveCashForSurvival(
   }
 
   // ── YTD agent net (used as the "take-home before tax" starting point) ───
-  const { agentGross: ytdAgentGross } = computeAgentGross(
-    ytdGCI,
-    settings.split_preset,
-    settings.post_cap_threshold_gci,
-    settings.post_cap_agent_pct,
-    settings.post_cap_brokerage_pct,
-  );
-  const ytdTxFees = computeTxFees(
-    ytdGCI,
-    settings.tx_fee_rate_pct,
-    settings.tx_fee_annual_cap,
-  );
+  // Plan-aware: under 'real' with transactions provided this is the EXACT
+  // per-deal waterfall over the calendar YTD window; simple_split is the
+  // byte-identical legacy chain (agentGross − txFees).
+  const asOf = now.toISOString().slice(0, 10);
+  const yearStart = `${now.getFullYear()}-01-01`;
+  const yearEnd = `${now.getFullYear() + 1}-01-01`;
+  const { grossAfterPlan: ytdGrossAfterPlan } = computePlanGross(settings, ytdGCI, {
+    deals: inputs.transactions,
+    windowStart: yearStart,
+    windowEnd: yearEnd,
+    asOf,
+  });
   const ytdBrokerageFees = settings.monthly_brokerage_fee * (now.getMonth() + 1);
-  const ytdAgentNet = Math.max(0, ytdAgentGross - ytdTxFees - ytdBrokerageFees);
+  const ytdAgentNet = Math.max(0, ytdGrossAfterPlan - ytdBrokerageFees);
 
   // ── HST collected / ITCs on expenses ────────────────────────────────────
   // D-4 fix (Audit 1 2026-04-22): canonical HST helper. Returns 0 if not

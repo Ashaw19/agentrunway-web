@@ -68,6 +68,26 @@ export const SPLIT_PRESET_AGENT_PCT: Record<SplitPreset, number> = {
   p100_0: 1.0,
 };
 
+// ── Compensation plan (REAL Brokerage support — migration 00161) ────────────
+
+export type CompPlan = "simple_split" | "real";
+
+export type RealCapTier = "solo_full" | "team_member" | "mega_team";
+
+/** Default annual cap (company dollar to REAL) per tier, CAD.
+ *  Source: REAL income deck snapshot (Agent-Runway-REAL-Compensation-Variables-Spec §1).
+ *  User-editable in settings — REAL revises these periodically. */
+export const REAL_CAP_TIER_DEFAULTS: Record<RealCapTier, number> = {
+  solo_full: 15000,
+  team_member: 7500,
+  mega_team: 5000,
+};
+
+/** REAL's fixed company-dollar rate on pre-cap GCI (15%). The annual cap
+ *  counts THIS take — not GCI crossed. Engine constant per the spec; not
+ *  user-editable in v1. */
+export const REAL_COMPANY_DOLLAR_RATE = 0.15;
+
 export type Province =
   | "alberta"
   | "britishColumbia"
@@ -190,6 +210,25 @@ export interface UserSettings {
 
   // Split
   split_preset: SplitPreset;
+
+  // Compensation plan (REAL Brokerage support — migration 00161)
+  // 'simple_split' = legacy static preset (default, all non-REAL users).
+  // 'real' = REAL Brokerage per-deal waterfall — computed exclusively by
+  // packages/core/engines/real-compensation-engine.ts (canonical).
+  comp_plan: CompPlan;
+  real_join_date: string | null; // ISO date; anchors anniversary year; deals before it stay on split_preset
+  real_cap_tier: RealCapTier;
+  real_cap_amount: number;              // company dollar to REAL before cap flips ($15,000 solo default)
+  real_pre_cap_agent_pct: number;       // 0.85 solo (1 − 0.15 REAL − 0 override); 0.70 typical team member
+  real_post_cap_agent_pct: number;      // 1.0 solo; <1 when a team-leader override continues post-cap
+  real_post_cap_fee: number;            // flat per-deal fee to REAL after cap ($375)
+  real_elite_fee: number;               // reduced post-cap fee after elite threshold ($175)
+  real_elite_threshold: number;         // cumulative post-cap fees that trigger elite rate ($9,000)
+  real_cbr_fee: number;                 // Compliance & Broker Review fee per deal ($40) — set 0 if REAL confirms one-time
+  real_beop_annual: number;             // annual brokerage/E&O fee ($1,200), amortized over first 3 deals of anniversary year
+  real_signup_fee: number;              // one-time Year-1 fee ($249)
+  real_cap_paid_seed: number;           // company dollar already paid this anniversary year outside app data
+  real_post_cap_fees_paid_seed: number; // post-cap fees already paid this anniversary year outside app data
 
   // Transaction fees
   tx_fee_rate_pct: number;

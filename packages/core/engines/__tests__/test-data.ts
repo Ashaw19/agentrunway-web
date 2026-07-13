@@ -69,6 +69,24 @@ export function createTestSettings(
     // Split
     split_preset: "p80_20" as SplitPreset,
 
+    // Compensation plan (REAL Brokerage — migration 00161).
+    // Default fixture = legacy simple_split so every pre-REAL test keeps its
+    // exact expectations; REAL tests override comp_plan + real_* fields.
+    comp_plan: "simple_split",
+    real_join_date: null,
+    real_cap_tier: "solo_full",
+    real_cap_amount: 15_000,
+    real_pre_cap_agent_pct: 0.85,
+    real_post_cap_agent_pct: 1.0,
+    real_post_cap_fee: 375,
+    real_elite_fee: 175,
+    real_elite_threshold: 9_000,
+    real_cbr_fee: 40,
+    real_beop_annual: 1_200,
+    real_signup_fee: 249,
+    real_cap_paid_seed: 0,
+    real_post_cap_fees_paid_seed: 0,
+
     // Transaction fees
     tx_fee_rate_pct: 0.02,
     tx_fee_annual_cap: 3_000,
