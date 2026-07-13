@@ -339,7 +339,7 @@ export function ReportsContent({
   // ── Tax ───────────────────────────────────────────────────────────────────────
   const expRemainingMonths = Math.max(0, 12 - (now.getMonth() + 1));
   const annualExpenses = expensesYTD + monthlyRecurring * expRemainingMonths;
-  const projectedNet = computeProjectedNet(projectedGCI, settings);
+  const projectedNet = computeProjectedNet(projectedGCI, settings, projectedDeals);
   const netForTax = Math.max(0, projectedNet - annualExpenses);
   const personalTaxResult = calculateTax(netForTax, settings.province, Math.max(projectedDeals, 1));
   const corpTaxResult = settings.is_incorporated

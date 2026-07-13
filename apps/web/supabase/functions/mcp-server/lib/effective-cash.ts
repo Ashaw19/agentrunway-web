@@ -81,13 +81,22 @@ function simulateRealNet(
   const eliteFee = s.real_elite_fee ?? 175;
   const eliteThreshold = s.real_elite_threshold ?? 9000;
 
-  const companyDollar = Math.min(annualGci * REAL_COMPANY_DOLLAR_RATE, capAmount);
+  // Respect cap room already consumed this anniversary year (mid-year
+  // switcher seed) — mirrors packages/core/engines/real-compensation-engine.ts
+  // simulateRealCompensation (KEEP IN SYNC; fixed 2026-07-13).
+  const capPaidSeed = s.real_cap_paid_seed ?? 0;
+  const capRoom = Math.max(0, capAmount - capPaidSeed);
+  const companyDollar = Math.min(annualGci * REAL_COMPANY_DOLLAR_RATE, capRoom);
   const preCapGci = companyDollar / REAL_COMPANY_DOLLAR_RATE;
   const postCapGci = Math.max(0, annualGci - preCapGci);
   const agentShare = preCapGci * prePct + postCapGci * postPct;
 
-  const postCapDeals = Math.round(dealCount * (postCapGci / annualGci));
-  const dealsToElite = postCapFee > 0 ? Math.ceil(eliteThreshold / postCapFee) : 0;
+  // Never round a genuine post-cap slice down to zero deals.
+  const postCapDeals =
+    postCapGci > 0 ? Math.max(1, Math.round(dealCount * (postCapGci / annualGci))) : 0;
+  const postCapFeesPaidSeed = s.real_post_cap_fees_paid_seed ?? 0;
+  const feesToElite = Math.max(0, eliteThreshold - postCapFeesPaidSeed);
+  const dealsToElite = postCapFee > 0 ? Math.ceil(feesToElite / postCapFee) : 0;
   const fullFeeDeals = Math.min(postCapDeals, dealsToElite);
   const eliteDeals = Math.max(0, postCapDeals - fullFeeDeals);
   const postCapFees = fullFeeDeals * postCapFee + eliteDeals * eliteFee;

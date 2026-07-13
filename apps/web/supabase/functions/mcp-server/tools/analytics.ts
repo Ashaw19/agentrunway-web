@@ -510,7 +510,14 @@ export function getAnalyticsTools(supabase: SupabaseClient, userId: string): Mcp
             real_signup_fee: settings.real_signup_fee ?? null,
             real_cap_paid_seed: settings.real_cap_paid_seed ?? null,
             real_post_cap_fees_paid_seed: settings.real_post_cap_fees_paid_seed ?? null,
-            ytd_transactions: transactions.length,
+            // Full-year deal count, scaled to match projectedGCI (a full-year
+            // figure) — NOT the raw YTD count. Passing YTD count against a
+            // full-year GCI understated CBR/BEOP fee modeling for any agent
+            // partway through their year (fixed 2026-07-13 review).
+            ytd_transactions:
+              ytdGCI > 0
+                ? Math.max(transactions.length, Math.round(transactions.length * (projectedGCI / ytdGCI)))
+                : Math.max(1, Math.round(projectedGCI / 15000)),
           };
           netIncome = computeProjectedNetForTax({
             projectedGCI,

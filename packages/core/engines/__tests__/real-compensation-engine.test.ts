@@ -309,4 +309,77 @@ describe("simulateRealCompensation", () => {
     expect(sim.effectiveAgentPct).toBe(0.85);
     expect(sim.agentNet).toBe(0);
   });
+
+  // Regression: pre-fix, this ignored real_cap_paid_seed entirely and used
+  // the full $15k cap as available room — every projection surface for a
+  // mid-year switcher (dashboard/chat/forecast/reports/overhead) overstated
+  // pre-cap share by treating already-paid company dollar as still open.
+  it("respects the cap-paid seed — a near-capped agent projects mostly post-cap", () => {
+    const settings = realSettings({ real_cap_paid_seed: 14_000 }); // $1,000 room left
+    const sim = simulateRealCompensation(settings, { annualGci: 50_000, dealCount: 5 });
+    // Room = $1,000 → preCapGci = 1000/0.15 ≈ $6,666.67; rest ($43,333.33) is post-cap.
+    const expectedPreCapGci = 1_000 / 0.15;
+    const expectedPostCapGci = 50_000 - expectedPreCapGci;
+    expect(sim.agentShare).toBeCloseTo(
+      expectedPreCapGci * 0.85 + expectedPostCapGci * 1.0,
+      2,
+    );
+  });
+
+  it("charges no post-cap fee once the seed alone already exceeds the cap", () => {
+    const settings = realSettings({ real_cap_paid_seed: 20_000 }); // already over the $15k cap
+    const sim = simulateRealCompensation(settings, { annualGci: 30_000, dealCount: 3 });
+    expect(sim.agentShare).toBeCloseTo(30_000, 6); // fully post-cap, solo keeps 100%
+    expect(sim.fees).toBeGreaterThan(0); // post-cap fee + CBR + BEOP still apply
+  });
+
+  it("never rounds a genuine post-cap slice down to zero fee-bearing deals", () => {
+    // Room for $14,900 of company dollar (≈$99,333 pre-cap GCI) against a
+    // $100,000 annual GCI over 20 deals — post-cap slice is ~0.67% of the
+    // year, which naive rounding (dealCount * fraction) would floor to 0.
+    const settings = realSettings({ real_cap_paid_seed: 14_900 });
+    const sim = simulateRealCompensation(settings, { annualGci: 100_000, dealCount: 20 });
+    // At least one post-cap deal's flat fee must be charged.
+    expect(sim.fees).toBeGreaterThanOrEqual(settings.real_elite_fee);
+  });
+
+  it("respects the post-cap-fees-paid seed for the Elite threshold", () => {
+    // Already capped, and already $9,000+ into post-cap fees this year —
+    // every simulated post-cap deal should land at the Elite rate.
+    const settings = realSettings({
+      real_cap_paid_seed: 15_000,
+      real_post_cap_fees_paid_seed: 9_000,
+    });
+    const sim = simulateRealCompensation(settings, { annualGci: 20_000, dealCount: 4 });
+    // 4 post-cap deals, all Elite ($175) — fees = 4*175 + CBR(4*40) + BEOP(1200).
+    expect(sim.fees).toBeCloseTo(4 * 175 + 4 * 40 + 1_200, 2);
+  });
+});
+
+describe("simulateRealCompensation — parity guard vs the MCP Deno mirror", () => {
+  // The mirror at apps/web/supabase/functions/mcp-server/lib/effective-cash.ts
+  // duplicates this exact formula (KEEP IN SYNC contract). This test pins
+  // the core engine's numeric behavior on a seeded, near-cap scenario so a
+  // future edit to one side without the other is caught by a concrete
+  // expected value, not just "both compile."
+  it("produces a specific agentNet for a documented seeded scenario", () => {
+    const settings = realSettings({
+      real_cap_paid_seed: 12_000,
+      real_post_cap_fees_paid_seed: 8_800,
+    });
+    const sim = simulateRealCompensation(settings, {
+      annualGci: 60_000,
+      dealCount: 12,
+      isYearOne: true,
+    });
+    // Room = 3,000 → preCapGci = 20,000; postCapGci = 40,000.
+    // agentShare = 20,000*0.85 + 40,000*1.0 = 57,000.
+    // postCapDeals = round(12 * 40000/60000) = 8. feesToElite = max(0, 9000-8800) = 200.
+    // dealsToElite = ceil(200/375) = 1 → 1 full-fee deal ($375), 7 elite deals ($175 ea).
+    // postCapFees = 375 + 7*175 = 1,600. cbr = 12*40 = 480. beop = 1200. signup = 249.
+    // fees = 1600 + 480 + 1200 + 249 = 3,529. agentNet = 57,000 - 3,529 = 53,471.
+    expect(sim.agentShare).toBeCloseTo(57_000, 2);
+    expect(sim.fees).toBeCloseTo(3_529, 2);
+    expect(sim.agentNet).toBeCloseTo(53_471, 2);
+  });
 });

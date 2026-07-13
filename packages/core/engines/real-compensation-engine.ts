@@ -238,7 +238,7 @@ export function computeRealCompensation(
     capPaid = isCurrent ? settings.real_cap_paid_seed : 0;
     postCapFeesPaid = isCurrent ? settings.real_post_cap_fees_paid_seed : 0;
     dealsThisYear = 0;
-    cappedOnDate = capPaid >= settings.real_cap_amount ? start : null;
+    cappedOnDate = settings.real_cap_amount > 0 && capPaid >= settings.real_cap_amount ? start : null;
   };
 
   for (const deal of sorted) {
@@ -415,7 +415,14 @@ export function simulateRealCompensation(
     };
   }
 
-  const companyDollar = Math.min(annualGci * REAL_COMPANY_DOLLAR_RATE, settings.real_cap_amount);
+  // Respect cap room already consumed this anniversary year (the mid-year
+  // switcher seed). Without this, a projection for an agent who is close to
+  // capping treats the FULL cap as available and overstates pre-cap share —
+  // confirmed bug (2026-07-13 review): this path is exactly what mid-year
+  // switchers' projected-net figures run through everywhere (dashboard,
+  // chat, forecast, reports, overhead), since none of them pass a deal list.
+  const capRoom = Math.max(0, settings.real_cap_amount - settings.real_cap_paid_seed);
+  const companyDollar = Math.min(annualGci * REAL_COMPANY_DOLLAR_RATE, capRoom);
   const preCapGci = companyDollar / REAL_COMPANY_DOLLAR_RATE;
   const postCapGci = Math.max(0, annualGci - preCapGci);
   const agentShare =
@@ -423,11 +430,18 @@ export function simulateRealCompensation(
     postCapGci * settings.real_post_cap_agent_pct;
 
   // Post-cap deals under the uniform assumption; Elite flips mid-sequence.
-  const postCapDeals = Math.round(dealCount * (postCapGci / annualGci));
+  // Never round a genuine post-cap slice down to zero deals — that would
+  // silently drop the flat fee any positive post-cap GCI implies.
+  const postCapDeals =
+    postCapGci > 0 ? Math.max(1, Math.round(dealCount * (postCapGci / annualGci))) : 0;
+  // Elite threshold also respects fees already paid this anniversary year
+  // (seed), so the flip to the discounted rate lands at the right deal.
+  const feesToElite = Math.max(
+    0,
+    settings.real_elite_threshold - settings.real_post_cap_fees_paid_seed,
+  );
   const dealsToElite =
-    settings.real_post_cap_fee > 0
-      ? Math.ceil(settings.real_elite_threshold / settings.real_post_cap_fee)
-      : 0;
+    settings.real_post_cap_fee > 0 ? Math.ceil(feesToElite / settings.real_post_cap_fee) : 0;
   const fullFeeDeals = Math.min(postCapDeals, dealsToElite);
   const eliteDeals = Math.max(0, postCapDeals - fullFeeDeals);
   const postCapFees =
