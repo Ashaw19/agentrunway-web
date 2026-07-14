@@ -1495,6 +1495,7 @@ export function ClientsContent({
       p_duplicate_ids: duplicateIds,
     });
     if (error) {
+      console.error("[CRM merge] fn_merge_clients failed:", error.message, error.code);
       toast.error("Failed to merge clients — please try again.");
       return error.message;
     }
