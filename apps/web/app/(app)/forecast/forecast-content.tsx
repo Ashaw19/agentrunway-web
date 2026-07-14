@@ -19,8 +19,6 @@ import {
   computeGCI,
   computeWeightedGCI,
   getAgentPct,
-  computeTxFees,
-  computeAgentGross,
   PROVINCE_LABELS,
   type Transaction,
   type PipelineDeal,
@@ -29,6 +27,7 @@ import {
   type HistoryItem,
   type ListingAppointment,
 } from "@/lib/types/database";
+import { computePlanGross } from "@/lib/engines/real-compensation-engine";
 import {
   seasonalFractionElapsed,
   projectedYearEndGCI,
@@ -161,20 +160,18 @@ export function ForecastContent({
   const projectedDeals = projectedYearEndTransactions(ytdDealCount, pipelineDeals.length, fraction);
 
   // ── Financial waterfall ───────────────────────────────────────────────
-  const { agentGross, brokerageTake } = computeAgentGross(
-    projectedGCI,
-    settings.split_preset,
-    settings.post_cap_threshold_gci,
-    settings.post_cap_agent_pct,
-    settings.post_cap_brokerage_pct,
-  );
-  const txFees = computeTxFees(
-    projectedGCI,
-    settings.tx_fee_rate_pct,
-    settings.tx_fee_annual_cap,
-  );
+  // Plan-aware waterfall (REAL analytic or legacy split) — mirrors
+  // effective-cash.ts:projectedAgentNet. brokerageTake = GCI − agent share
+  // (REAL: company dollar + any team override; simple: brokerage %).
+  const planProjected = computePlanGross(settings, projectedGCI, {
+    dealCount: projectedDeals,
+    asOf: new Date().toISOString().slice(0, 10),
+  });
+  const agentGross = planProjected.shareBeforePlanFees;
+  const brokerageTake = Math.max(0, projectedGCI - agentGross);
+  const txFees = planProjected.planFees;
   const brokerageFeeAnnual = settings.monthly_brokerage_fee * 12;
-  const projectedNet = agentGross - txFees - brokerageFeeAnnual;
+  const projectedNet = planProjected.grossAfterPlan - brokerageFeeAnnual;
 
   // ── Expenses ──────────────────────────────────────────────────────────
   // Includes both legacy expense_items.monthly_recurring AND new recurring_expenses table
@@ -363,7 +360,10 @@ export function ForecastContent({
   };
 
   // ── Break-even analysis ───────────────────────────────────────────────
-  const agentPctVal = getAgentPct(settings.split_preset);
+  // Plan-aware: under 'real' use the projection's effective split (net of
+  // plan fees) so break-even math matches the waterfall above.
+  const agentPctVal =
+    settings.comp_plan === "real" ? planProjected.effectiveAgentPct : getAgentPct(settings.split_preset);
   const avgDealGCIForBreakEven = ytdDealCount > 0
     ? ytdGCI / ytdDealCount
     : projectedGCI / Math.max(projectedDeals, 1);
@@ -588,7 +588,9 @@ export function ForecastContent({
             </div>
             <div className="flex justify-between text-muted-foreground">
               <span>
-                Brokerage split ({fmtPct(1 - getAgentPct(settings.split_preset))})
+                {settings.comp_plan === "real"
+                  ? "REAL plan (company dollar + fees)"
+                  : `Brokerage split (${fmtPct(1 - getAgentPct(settings.split_preset))})`}
               </span>
               <span>-{fmtCurrency(brokerageTake)}</span>
             </div>

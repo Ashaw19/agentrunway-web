@@ -235,10 +235,14 @@ export default async function AppLayout({
           0,
         );
 
+        // Plan-aware: 'real' has no pXX_YY preset — label the plan instead.
         const splitMatch = settings.split_preset?.match(/p(\d+)_(\d+)/);
-        const splitLabel = splitMatch
-          ? `${splitMatch[1]}% agent / ${splitMatch[2]}% brokerage`
-          : settings.split_preset;
+        const splitLabel =
+          settings.comp_plan === "real"
+            ? `REAL plan (${Math.round((settings.real_pre_cap_agent_pct ?? 0.85) * 100)}% pre-cap)`
+            : splitMatch
+              ? `${splitMatch[1]}% agent / ${splitMatch[2]}% brokerage`
+              : settings.split_preset;
 
         financialContext = [
           `Current Year: ${currentYear}`,

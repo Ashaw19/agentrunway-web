@@ -56,8 +56,6 @@ import {
   computeGCI,
   computeWeightedGCI,
   getAgentPct,
-  computeTxFees,
-  computeAgentGross,
   PROVINCE_LABELS,
   type Transaction,
   type PipelineDeal,
@@ -66,6 +64,7 @@ import {
   type HistoryItem,
   type ListingAppointment,
 } from "@/lib/types/database";
+import { computePlanGross } from "@/lib/engines/real-compensation-engine";
 import dynamic from "next/dynamic";
 import type { YoYDataPoint } from "@/components/year-over-year-chart";
 import type { ProbabilityDataPoint } from "@/components/probability-chart";
@@ -128,22 +127,20 @@ interface Props {
 
 // ── buildHealthReport imported from @/lib/engines/health-report ──────────────
 
-function computeProjectedNet(projectedGCI: number, settings: UserSettings | null): number {
+function computeProjectedNet(
+  projectedGCI: number,
+  settings: UserSettings | null,
+  projectedDealCount?: number,
+): number {
   if (!settings) return projectedGCI;
-  const { agentGross } = computeAgentGross(
-    projectedGCI,
-    settings.split_preset,
-    settings.post_cap_threshold_gci,
-    settings.post_cap_agent_pct,
-    settings.post_cap_brokerage_pct,
-  );
-  const txFees = computeTxFees(
-    projectedGCI,
-    settings.tx_fee_rate_pct,
-    settings.tx_fee_annual_cap,
-  );
+  // Plan-aware (REAL analytic waterfall or legacy split) — mirrors
+  // effective-cash.ts:projectedAgentNet exactly.
+  const { grossAfterPlan } = computePlanGross(settings, projectedGCI, {
+    dealCount: projectedDealCount,
+    asOf: new Date().toISOString().slice(0, 10),
+  });
   const brokerageFeeAnnual = settings.monthly_brokerage_fee * 12;
-  return agentGross - txFees - brokerageFeeAnnual;
+  return grossAfterPlan - brokerageFeeAnnual;
 }
 
 // Grade prose label keyed off the canonical letter grade (kept for the hero
@@ -307,16 +304,19 @@ export function ReportsContent({
     : null;
 
   // ── Financial waterfall ───────────────────────────────────────────────────────
-  const { agentGross, brokerageTake } = computeAgentGross(
-    ytdGCI,
-    settings.split_preset,
-    settings.post_cap_threshold_gci,
-    settings.post_cap_agent_pct,
-    settings.post_cap_brokerage_pct,
-  );
-  const txFees = computeTxFees(ytdGCI, settings.tx_fee_rate_pct, settings.tx_fee_annual_cap);
+  // Plan-aware waterfall (REAL per-deal or legacy split) — same deal source
+  // as ytdGCI so the report can never disagree with the dashboard.
+  const planYtd = computePlanGross(settings, ytdGCI, {
+    deals: ytdTx.map((tx) => ({ date: tx.date, gci: computeGCI(tx) })),
+    windowStart: `${currentYear}-01-01`,
+    windowEnd: `${currentYear + 1}-01-01`,
+    asOf: now.toISOString().slice(0, 10),
+  });
+  const agentGross = planYtd.shareBeforePlanFees;
+  const brokerageTake = Math.max(0, ytdGCI - agentGross);
+  const txFees = planYtd.planFees;
   const brokerageFeeYTD = settings.monthly_brokerage_fee * (now.getMonth() + 1);
-  const agentNet = agentGross - txFees - brokerageFeeYTD;
+  const agentNet = planYtd.grossAfterPlan - brokerageFeeYTD;
 
   // ── Expenses ──────────────────────────────────────────────────────────────────
   // Includes both legacy expense_items.monthly_recurring AND new recurring_expenses table
@@ -339,7 +339,7 @@ export function ReportsContent({
   // ── Tax ───────────────────────────────────────────────────────────────────────
   const expRemainingMonths = Math.max(0, 12 - (now.getMonth() + 1));
   const annualExpenses = expensesYTD + monthlyRecurring * expRemainingMonths;
-  const projectedNet = computeProjectedNet(projectedGCI, settings);
+  const projectedNet = computeProjectedNet(projectedGCI, settings, projectedDeals);
   const netForTax = Math.max(0, projectedNet - annualExpenses);
   const personalTaxResult = calculateTax(netForTax, settings.province, Math.max(projectedDeals, 1));
   const corpTaxResult = settings.is_incorporated
@@ -565,7 +565,7 @@ export function ReportsContent({
         projectedGCI,
 
         // P&L
-        agentPct: getAgentPct(settings.split_preset),
+        agentPct: settings.comp_plan === "real" ? planYtd.effectiveAgentPct : getAgentPct(settings.split_preset),
         brokerageTake,
         txFees,
         brokerageFeeYTD,
@@ -985,7 +985,7 @@ export function ReportsContent({
 
             <WaterfallRow
               label="Brokerage split"
-              sublabel={`${Math.round((1 - getAgentPct(settings.split_preset)) * 100)}% brokerage`}
+              sublabel={settings.comp_plan === "real" ? "REAL plan" : `${Math.round((1 - getAgentPct(settings.split_preset)) * 100)}% brokerage`}
               amount={brokerageTake}
               pctOfGCI={ytdGCI > 0 ? (brokerageTake / ytdGCI) * 100 : 0}
             />

@@ -398,7 +398,12 @@ export function getAnalyticsTools(supabase: SupabaseClient, userId: string): Mcp
               "goal_gci, province, split_preset, post_cap_threshold_gci, " +
               "post_cap_agent_pct, post_cap_brokerage_pct, tx_fee_rate_pct, " +
               "tx_fee_annual_cap, monthly_brokerage_fee, use_national_seasonality, " +
-              "national_quarter_pcts",
+              "national_quarter_pcts, " +
+              // REAL plan fields (migration 00161) — plan-aware net-for-tax
+              "comp_plan, real_join_date, real_cap_amount, real_pre_cap_agent_pct, " +
+              "real_post_cap_agent_pct, real_post_cap_fee, real_elite_fee, " +
+              "real_elite_threshold, real_cbr_fee, real_beop_annual, " +
+              "real_signup_fee, real_cap_paid_seed, real_post_cap_fees_paid_seed",
             )
             .eq("user_id", userId)
             .maybeSingle(),
@@ -489,6 +494,30 @@ export function getAnalyticsTools(supabase: SupabaseClient, userId: string): Mcp
             tx_fee_rate_pct: settings.tx_fee_rate_pct ?? 0,
             tx_fee_annual_cap: settings.tx_fee_annual_cap ?? 0,
             monthly_brokerage_fee: settings.monthly_brokerage_fee ?? 0,
+            // REAL plan fields (migration 00161) — plan-aware net-for-tax.
+            // Live YTD deal count from the fetched transactions (not the
+            // stored settings counter) drives per-deal fee modeling.
+            comp_plan: settings.comp_plan ?? "simple_split",
+            real_join_date: settings.real_join_date ?? null,
+            real_cap_amount: settings.real_cap_amount ?? null,
+            real_pre_cap_agent_pct: settings.real_pre_cap_agent_pct ?? null,
+            real_post_cap_agent_pct: settings.real_post_cap_agent_pct ?? null,
+            real_post_cap_fee: settings.real_post_cap_fee ?? null,
+            real_elite_fee: settings.real_elite_fee ?? null,
+            real_elite_threshold: settings.real_elite_threshold ?? null,
+            real_cbr_fee: settings.real_cbr_fee ?? null,
+            real_beop_annual: settings.real_beop_annual ?? null,
+            real_signup_fee: settings.real_signup_fee ?? null,
+            real_cap_paid_seed: settings.real_cap_paid_seed ?? null,
+            real_post_cap_fees_paid_seed: settings.real_post_cap_fees_paid_seed ?? null,
+            // Full-year deal count, scaled to match projectedGCI (a full-year
+            // figure) — NOT the raw YTD count. Passing YTD count against a
+            // full-year GCI understated CBR/BEOP fee modeling for any agent
+            // partway through their year (fixed 2026-07-13 review).
+            ytd_transactions:
+              ytdGCI > 0
+                ? Math.max(transactions.length, Math.round(transactions.length * (projectedGCI / ytdGCI)))
+                : Math.max(1, Math.round(projectedGCI / 15000)),
           };
           netIncome = computeProjectedNetForTax({
             projectedGCI,

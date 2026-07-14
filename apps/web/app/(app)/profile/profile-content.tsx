@@ -159,9 +159,13 @@ export function ProfileContent({
   // ── Derived ───────────────────────────────────────────────────────────────
   const initials = getInitials(displayName || email.split("@")[0]);
   const currentTheme = COLOR_THEMES.find((t) => t.value === colorTheme) ?? COLOR_THEMES[0];
-  const agentPct = settings?.split_preset
-    ? Math.round(SPLIT_PRESET_AGENT_PCT[settings.split_preset] * 100)
-    : 80;
+  // Plan-aware: under 'real' show the pre-cap split.
+  const agentPct =
+    settings?.comp_plan === "real"
+      ? Math.round((settings.real_pre_cap_agent_pct ?? 0.85) * 100)
+      : settings?.split_preset
+        ? Math.round(SPLIT_PRESET_AGENT_PCT[settings.split_preset] * 100)
+        : 80;
   const memberSince = settings?.created_at
     ? new Date(settings.created_at).toLocaleDateString("en-CA", {
         year: "numeric",

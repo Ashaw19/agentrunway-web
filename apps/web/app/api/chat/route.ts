@@ -18,7 +18,8 @@ import {
 } from "@/lib/flags";
 import { AGENT_RUNWAY_VOICE } from "@/lib/outreach-prompts";
 import { requirePro } from "@/lib/require-pro";
-import { computeGCI, computeWeightedGCI, computeAgentGross, computeTxFees } from "@/lib/types/database";
+import { computeGCI, computeWeightedGCI } from "@/lib/types/database";
+import { computePlanGross, describeSplit } from "@/lib/engines/real-compensation-engine";
 import { fmtCurrency } from "@/lib/formatters";
 import {
   seasonalFractionElapsed,
@@ -357,8 +358,9 @@ export async function POST(req: NextRequest) {
       const expMonthsElapsed = expNow.getMonth() + 1;
       const legacyRecurringYTDEstimate = legacyMonthlyRecurring * expMonthsElapsed;
       const expensesYTD = Math.max(receiptTotal, legacyRecurringYTDEstimate) + recurringExpYTDTotal;
-      const splitMatch = settings.split_preset?.match(/p(\d+)_(\d+)/);
-      const splitLabel = splitMatch ? `${splitMatch[1]}% agent / ${splitMatch[2]}% brokerage` : settings.split_preset;
+      // Plan-aware label: 'real' has no pXX_YY preset — describeSplit renders
+      // "REAL plan (~XX% effective)" instead of a null regex match.
+      const splitLabel = describeSplit(settings);
       // Pace vs goal is computed in the engine outputs section below using
       // agent-specific seasonal weights (matching dashboard). Removed the
       // duplicate computation here that used settings.seasonal_weights directly
@@ -551,8 +553,15 @@ export async function POST(req: NextRequest) {
         // 2. Canadian Tax Engine — projected net income after expenses.
         // Moved above survival because cashPosition below needs ytdTaxSetAside.
         // agentPct is still used downstream (HST withholding example strings).
+        // Plan-aware: under 'real' the pXX_YY regex matches nothing — use the
+        // pre-cap split as the illustrative agent share for HST example strings.
         const splitMatch2 = settings.split_preset?.match(/p(\d+)_(\d+)/);
-        const agentPct = splitMatch2 ? Number(splitMatch2[1]) / 100 : 1;
+        const agentPct =
+          settings.comp_plan === "real"
+            ? settings.real_pre_cap_agent_pct
+            : splitMatch2
+              ? Number(splitMatch2[1]) / 100
+              : 1;
         // D-2 fix (Audit 1 2026-04-22): replaced old inline formula
         // `projGCI * agentPct - (expensesYTD / engineFraction)` with canonical
         // helper. Old formula ignored tx fees + monthly brokerage × 12, and
@@ -563,6 +572,7 @@ export async function POST(req: NextRequest) {
           expensesYTD,
           monthlyRecurring,
           settings,
+          projectedDealCount: projDeals,
         });
         const taxResult: CanadianTaxResult = calculateTax(
           projectedNetIncome,
@@ -603,16 +613,17 @@ export async function POST(req: NextRequest) {
         const ytdHstOnExpenses = settings.gst_hst_paid_on_expenses
           ? expensesYTD * (hstRateValue / (1 + hstRateValue))
           : 0;
-        const { agentGross: cpAgentGross } = computeAgentGross(
-          ytdGCI,
-          settings.split_preset,
-          settings.post_cap_threshold_gci,
-          settings.post_cap_agent_pct,
-          settings.post_cap_brokerage_pct,
-        );
-        const cpTxFees = computeTxFees(ytdGCI, settings.tx_fee_rate_pct, settings.tx_fee_annual_cap);
+        // Plan-aware (REAL waterfall or legacy split) — must stay in lockstep
+        // with dashboard-content.tsx's cash-position block (the 53/61 pair).
+        const { grossAfterPlan: cpGrossAfterPlan } = computePlanGross(settings, ytdGCI, {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          deals: ytdTx.map((tx: any) => ({ date: tx.date, gci: computeGCI(tx) })),
+          windowStart: `${now.getFullYear()}-01-01`,
+          windowEnd: `${now.getFullYear() + 1}-01-01`,
+          asOf: now.toISOString().slice(0, 10),
+        });
         const cpBrokerageFees = (settings.monthly_brokerage_fee ?? 0) * (now.getMonth() + 1);
-        const cpYtdAgentNet = Math.max(0, cpAgentGross - cpTxFees - cpBrokerageFees);
+        const cpYtdAgentNet = Math.max(0, cpGrossAfterPlan - cpBrokerageFees);
         const cashPosition: CashPositionResult = computeCashPosition({
           ytdGCI,
           ytdAgentNet: cpYtdAgentNet,

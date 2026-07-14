@@ -10,6 +10,9 @@ import { computeEffectiveCashForSurvival } from "@/lib/engines/effective-cash";
 
 /** Data the client component needs — pre-computed server-side. */
 export interface ScenarioSeedData {
+  /** Plan-aware compensation slice (comp_plan + real_* + legacy split/fee
+   *  fields). null when user_settings row is missing. */
+  comp: import("@agent-runway/core/engines/real-compensation-engine").CompSettingsSlice | null;
   /** Province slug from settings */
   province: string;
   /** Annual GCI goal */
@@ -178,6 +181,9 @@ export default async function ScenariosPage() {
     postCapBrokeragePct: settingsRow?.post_cap_brokerage_pct ?? 0,
     txFeeRate: settingsRow?.tx_fee_rate_pct ?? 0,
     txFeeCap: settingsRow?.tx_fee_annual_cap ?? 0,
+    // Full plan slice (REAL waterfall support) — settingsRow is a select("*")
+    // row, so the slice is complete; null settings → legacy defaults.
+    comp: settingsRow ?? null,
     estimatedWeeklyHours: settingsRow?.estimated_weekly_hours ?? null,
     vacationWeeks: settingsRow?.vacation_weeks_per_year ?? null,
   };

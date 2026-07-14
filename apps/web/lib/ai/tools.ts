@@ -1259,7 +1259,20 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
           const updates: Record<string, any> = { updated_at: new Date().toISOString() };
           const changed: string[] = [];
 
-          if (commissionSplit) { updates.split_preset = commissionSplit; changed.push(`commission split → ${commissionSplit.replace("p", "").replace("_", "/")}`); }
+          if (commissionSplit) {
+            // REAL-plan gate: a static preset is meaningless under the REAL
+            // waterfall and silently changing it would only affect pre-join
+            // legacy deals — confusing. Direct the user to Settings instead.
+            const { data: planRow } = await supabase
+              .from("user_settings")
+              .select("comp_plan")
+              .eq("user_id", userId)
+              .maybeSingle();
+            if (planRow?.comp_plan === "real") {
+              return "This account is on the REAL Brokerage plan, so the commission split is managed in Settings → Commission & Brokerage (cap tier, pre/post-cap splits, and fees) rather than as a single preset. No changes were made.";
+            }
+            updates.split_preset = commissionSplit; changed.push(`commission split → ${commissionSplit.replace("p", "").replace("_", "/")}`);
+          }
           if (brokerageName) { updates.brokerage_name = brokerageName; changed.push(`brokerage → ${brokerageName}`); }
           if (province) { updates.province = province; changed.push(`province → ${province}`); }
           if (goalGCI !== undefined) { updates.goal_gci = goalGCI; changed.push(`GCI goal → $${goalGCI.toLocaleString()}`); }

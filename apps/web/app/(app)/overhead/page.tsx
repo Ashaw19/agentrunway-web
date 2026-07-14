@@ -149,6 +149,8 @@ export default async function OverheadPage() {
     : 0;
 
   const scenarioSeed: ScenarioSeedData = {
+    // Full plan slice (REAL waterfall support); null settings → legacy defaults.
+    comp: rawSettings ?? null,
     province: rawSettings?.province ?? "ontario",
     goalGCI: rawSettings?.goal_gci ?? 0,
     ytdGCI,

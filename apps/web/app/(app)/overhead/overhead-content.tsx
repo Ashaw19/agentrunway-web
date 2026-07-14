@@ -40,8 +40,7 @@ import { CANONICAL_TAX_DISCLAIMER_SHORT } from "@/lib/flight-crew/constants";
 import {
   computeGCI,
   computeWeightedGCI,
-  computeTxFees,
-  computeAgentGross,
+
   PROVINCE_LABELS,
   type Transaction,
   type PipelineDeal,
@@ -49,6 +48,7 @@ import {
   type ExpenseCategoryWithItems,
   type HistoryItem,
 } from "@/lib/types/database";
+import { computePlanGross } from "@/lib/engines/real-compensation-engine";
 import {
   seasonalFractionElapsed,
   projectedYearEndGCI,
@@ -633,34 +633,29 @@ export function OverheadContent({
   const expRemainingMonths = Math.max(0, 12 - (now.getMonth() + 1));
   const annualExpenses = expensesYTD + monthlyRecurring * expRemainingMonths;
 
-  // ── Agent net (after split/fees) ───────────────────────────────────────
-  const ytdAgentGrossCalc = settings
-    ? computeAgentGross(
-        ytdGCI,
-        settings.split_preset,
-        settings.post_cap_threshold_gci,
-        settings.post_cap_agent_pct,
-        settings.post_cap_brokerage_pct,
-      )
+  // ── Agent net (after split/fees) — plan-aware (REAL waterfall or legacy) ──
+  const ytdPlan = settings
+    ? computePlanGross(settings, ytdGCI, {
+        deals: transactions.map((tx) => ({ date: tx.date, gci: computeGCI(tx) })),
+        windowStart: `${now.getFullYear()}-01-01`,
+        windowEnd: `${now.getFullYear() + 1}-01-01`,
+        asOf: now.toISOString().slice(0, 10),
+      })
     : null;
-  const ytdAgentGross = ytdAgentGrossCalc?.agentGross ?? ytdGCI;
-  const ytdTxFees = settings ? computeTxFees(ytdGCI, settings.tx_fee_rate_pct, settings.tx_fee_annual_cap) : 0;
+  const ytdAgentGross = ytdPlan?.shareBeforePlanFees ?? ytdGCI;
+  const ytdTxFees = ytdPlan?.planFees ?? 0;
   const ytdBrokerageFeesTotal = settings ? settings.monthly_brokerage_fee * monthsElapsed : 0;
   const ytdNetBeforeTax = Math.max(0, ytdAgentGross - ytdTxFees - ytdBrokerageFeesTotal);
 
-  // ── Tax estimate ───────────────────────────────────────────────────────
+  // ── Tax estimate — plan-aware projection (mirrors effective-cash) ───────
   const projectedNet = (() => {
     if (!settings) return projectedGCI;
-    const { agentGross } = computeAgentGross(
-      projectedGCI,
-      settings.split_preset,
-      settings.post_cap_threshold_gci,
-      settings.post_cap_agent_pct,
-      settings.post_cap_brokerage_pct,
-    );
-    const txFees = computeTxFees(projectedGCI, settings.tx_fee_rate_pct, settings.tx_fee_annual_cap);
+    const { grossAfterPlan } = computePlanGross(settings, projectedGCI, {
+      dealCount: projectedDealCount,
+      asOf: now.toISOString().slice(0, 10),
+    });
     const brokerageFeeAnnual = settings.monthly_brokerage_fee * 12;
-    return agentGross - txFees - brokerageFeeAnnual;
+    return grossAfterPlan - brokerageFeeAnnual;
   })();
 
   const netForTax = Math.max(0, projectedNet - annualExpenses);
