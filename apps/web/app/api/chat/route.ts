@@ -616,6 +616,7 @@ export async function POST(req: NextRequest) {
         // Plan-aware (REAL waterfall or legacy split) — must stay in lockstep
         // with dashboard-content.tsx's cash-position block (the 53/61 pair).
         const { grossAfterPlan: cpGrossAfterPlan } = computePlanGross(settings, ytdGCI, {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           deals: ytdTx.map((tx: any) => ({ date: tx.date, gci: computeGCI(tx) })),
           windowStart: `${now.getFullYear()}-01-01`,
           windowEnd: `${now.getFullYear() + 1}-01-01`,
