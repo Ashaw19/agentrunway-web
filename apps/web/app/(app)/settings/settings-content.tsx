@@ -1615,7 +1615,9 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
         <CardHeader>
           <CardTitle>Brokerage Fees</CardTitle>
           <CardDescription>
-            Recurring and per-deal fees charged by your brokerage.
+            {compPlan === "real"
+              ? "Fees outside your REAL commission structure — desk/tech costs and HST handling."
+              : "Recurring and per-deal fees charged by your brokerage."}
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4">
@@ -1632,31 +1634,48 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
                 Desk / tech fee per month.
               </p>
             </div>
-            <div className="grid gap-1.5">
-              <Label>Transaction Fee Rate (%)</Label>
-              <Input
-                type="number"
-                step="0.1"
-                placeholder="0"
-                value={txFeeRate}
-                onChange={(e) => setTxFeeRate(e.target.value)}
-              />
-              <p className="text-xs text-muted-foreground">
-                Fee charged per closed deal.
-              </p>
-            </div>
-            <div className="grid gap-1.5">
-              <Label>Annual Fee Cap ($)</Label>
-              <Input
-                type="number"
-                placeholder="0"
-                value={txFeeCap}
-                onChange={(e) => setTxFeeCap(e.target.value)}
-              />
-              <p className="text-xs text-muted-foreground">
-                Enter 0 for no annual cap.
-              </p>
-            </div>
+            {/* Transaction Fee Rate / Annual Fee Cap only apply to the legacy
+                simple_split model — computePlanGross's REAL branch never
+                reads tx_fee_rate_pct / tx_fee_annual_cap (REAL's per-deal
+                drag is CBR + post-cap + sign-up, configured in Commission
+                Structure above). Showing editable-but-ignored inputs here
+                was misleading — hide them under the REAL plan instead. */}
+            {compPlan === "real" ? (
+              <div className="grid gap-1.5 sm:col-span-2">
+                <p className="text-xs text-muted-foreground sm:pt-6">
+                  Your REAL per-deal fees (CBR, post-cap fee, sign-up) are configured in
+                  Commission Structure above, not here.
+                </p>
+              </div>
+            ) : (
+              <>
+                <div className="grid gap-1.5">
+                  <Label>Transaction Fee Rate (%)</Label>
+                  <Input
+                    type="number"
+                    step="0.1"
+                    placeholder="0"
+                    value={txFeeRate}
+                    onChange={(e) => setTxFeeRate(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Fee charged per closed deal.
+                  </p>
+                </div>
+                <div className="grid gap-1.5">
+                  <Label>Annual Fee Cap ($)</Label>
+                  <Input
+                    type="number"
+                    placeholder="0"
+                    value={txFeeCap}
+                    onChange={(e) => setTxFeeCap(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Enter 0 for no annual cap.
+                  </p>
+                </div>
+              </>
+            )}
           </div>
 
           {/* HST Withholding toggle */}
