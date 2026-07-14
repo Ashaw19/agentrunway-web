@@ -105,6 +105,9 @@ import {
 import { ShowingsSection } from "./showings-section";
 import { fmtCurrency, fmtCompact } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
+import { toNameSearch } from "@/lib/crm/client-identity";
+import { clusterDuplicateClients } from "@/lib/crm/duplicate-detection";
+import { DuplicateReviewDialog } from "./duplicate-review-dialog";
 import type {
   Client,
   ClientRecord,
@@ -696,19 +699,19 @@ function sortTableGroups(
  *   3. NFD decompose → strip combining diacritics (é → e, ô → o, etc.)
  *   4. Normalize apostrophe variants (curly ' and ʼ) to straight '
  *
- * This ensures "Hébert", "Hebert", and "HÉBERT" all map to the same key, and
- * "O'Brien" (curly apostrophe) matches "O'Brien" (straight apostrophe).
+ * This ensures "Hébert", "Hebert", and "HÉBERT" all map to the same key.
  * Critical for the francophone Canadian market where accented surnames are common.
+ *
+ * Moved to lib/crm/client-identity.ts (2026-07) so the new duplicate-merge
+ * tool uses byte-identical normalization -- imported below, not redefined.
+ * NOTE (found during that move): despite this comment's original claim, the
+ * regex here never actually folded the curly right-single-quote (U+2019) --
+ * only the rarer U+02BC modifier-letter-apostrophe. Preserved exactly as-is
+ * (not "fixed") because existing clients.name_search values in the DB were
+ * computed with this exact behavior; widening it would need a backfill of
+ * every existing row, which is a separate, deliberate change -- flagged as
+ * a follow-up, not bundled into this PR.
  */
-function toNameSearch(name: string): string {
-  return name
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, " ") // collapse internal whitespace so "John  Smith" == "John Smith"
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "") // strip combining diacritical marks
-    .replace(/[''ʼ]/g, "'");          // normalize apostrophe variants
-}
 
 // ── CSV Parsing ───────────────────────────────────────────────────────────────
 
@@ -1471,6 +1474,49 @@ export function ClientsContent({
     [localClients],
   );
   const archivedCount = archivedClientIds.size;
+
+  // Duplicate-client clusters — active (non-archived) clients only; an
+  // already-archived client (incl. one already merged away) shouldn't be
+  // suggested as a merge candidate. See lib/crm/duplicate-detection.ts.
+  const duplicateClusters = useMemo(
+    () =>
+      clusterDuplicateClients(
+        localClients
+          .filter((c) => !c.archived_at)
+          .map((c) => ({ id: c.id, name: c.name, email: c.email, phone: c.phone, created_at: c.created_at })),
+      ),
+    [localClients],
+  );
+  const [duplicatesOpen, setDuplicatesOpen] = useState(false);
+
+  async function handleMergeClients(primaryId: string, duplicateIds: string[]): Promise<string | null> {
+    const { data, error } = await supabase.rpc("fn_merge_clients", {
+      p_primary_id: primaryId,
+      p_duplicate_ids: duplicateIds,
+    });
+    if (error) {
+      toast.error("Failed to merge clients — please try again.");
+      return error.message;
+    }
+    // Refresh from the DB rather than patch local state by hand — a merge
+    // touches enrichment fields on the primary and archives the duplicates,
+    // and this keeps every downstream view (grouped list, KPIs) consistent
+    // without re-deriving the merge's exact field-fill logic client-side.
+    const { data: refreshed, error: refreshError } = await supabase
+      .from("clients")
+      .select("*")
+      .eq("user_id", userId!);
+    if (!refreshError && refreshed) {
+      setLocalClients(refreshed as Client[]);
+    }
+    const movedCount = (data as { records_moved?: number } | null)?.records_moved ?? 0;
+    toast.success(
+      duplicateIds.length === 1
+        ? `Merged 1 client (${movedCount} linked record${movedCount === 1 ? "" : "s"} moved).`
+        : `Merged ${duplicateIds.length} clients (${movedCount} linked record${movedCount === 1 ? "" : "s"} moved).`,
+    );
+    return null;
+  }
 
   // Client lookup map — O(1) access by ID, used by filters and detail views
   const clientById = useMemo(
@@ -3483,6 +3529,17 @@ export function ClientsContent({
             <Upload className="h-3.5 w-3.5" />
             Import CSV
           </Button>
+          {duplicateClusters.length > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setDuplicatesOpen(true)}
+              className="gap-1.5 bg-white border-amber-300 text-amber-700 hover:text-amber-900 hover:border-amber-400"
+            >
+              <Layers className="h-3.5 w-3.5" />
+              {duplicateClusters.length} Possible Duplicate{duplicateClusters.length === 1 ? "" : "s"}
+            </Button>
+          )}
         </div>
       </div>
 
@@ -7049,6 +7106,21 @@ export function ClientsContent({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ══ Duplicate Review Dialog ══ */}
+      <DuplicateReviewDialog
+        open={duplicatesOpen}
+        onOpenChange={setDuplicatesOpen}
+        clusters={duplicateClusters}
+        clients={localClients.map((c) => ({
+          id: c.id,
+          name: c.name,
+          email: c.email,
+          phone: c.phone,
+          created_at: c.created_at,
+        }))}
+        onMerge={handleMergeClients}
+      />
     </div>
   );
 }
