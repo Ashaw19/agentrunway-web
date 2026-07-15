@@ -105,6 +105,76 @@ export function planDealClients(rawDealNames: string[], nameLimit: number): Deal
   };
 }
 
+/**
+ * Layers a persisted household-primary override on top of a freshly-computed
+ * plan. Pure — the DB lookup that produces `primaryKeyOverride` happens in
+ * the caller (resolveDealClientIds); this only merges the result.
+ *
+ * `primaryKeyOverride` maps a party's toNameSearch key to the household's
+ * designated primary's toNameSearch key (both directions populated by the
+ * caller, so looking up either person in a pair finds the same target).
+ *
+ * Only applies to deals naming 2+ people. A solo deal must never be
+ * redirected onto someone's linked spouse just because a household link
+ * exists — the override exists to pick consistently among parties actually
+ * named together on THIS deal, not to merge independent activity.
+ */
+export function applyPrimaryOverrides(
+  plan: DealClientPlan,
+  primaryKeyOverride: Map<string, string>,
+): DealClientPlan {
+  const primaryByRawName = new Map<string, string>();
+  const coPartiesByRawName = new Map<string, string[]>();
+
+  for (const [rawName, defaultPrimary] of plan.primaryByRawName) {
+    const coParties = plan.coPartiesByRawName.get(rawName) ?? [];
+    const allNamesForDeal = [defaultPrimary, ...coParties];
+
+    let finalPrimary = defaultPrimary;
+    if (allNamesForDeal.length > 1) {
+      const nameByKey = new Map(allNamesForDeal.map((n) => [toNameSearch(n), n]));
+      for (const name of allNamesForDeal) {
+        const targetKey = primaryKeyOverride.get(toNameSearch(name));
+        const targetName = targetKey ? nameByKey.get(targetKey) : undefined;
+        if (targetName) {
+          finalPrimary = targetName;
+          break;
+        }
+      }
+    }
+
+    const finalCoParties = allNamesForDeal.filter((n) => n !== finalPrimary);
+    primaryByRawName.set(rawName, finalPrimary);
+    if (finalCoParties.length > 0) coPartiesByRawName.set(rawName, finalCoParties);
+  }
+
+  return { allParties: plan.allParties, primaryByRawName, coPartiesByRawName };
+}
+
+/**
+ * Derives the client_record_co_parties rows to insert. Split out as a pure
+ * function (rather than living inside a DB call) because the caller can only
+ * know each deal's real client_records.id AFTER its own upsert — this
+ * function's only job is the row-shape derivation, fully testable without a
+ * database. `recordIdByExtId`/`coPartyIdsByExtId` are both keyed by the same
+ * import_external_id each caller already computes per deal.
+ */
+export function buildCoPartyRows(
+  userId: string,
+  recordIdByExtId: Map<string, string>,
+  coPartyIdsByExtId: Map<string, string[]>,
+): { user_id: string; client_record_id: string; co_client_id: string }[] {
+  const rows: { user_id: string; client_record_id: string; co_client_id: string }[] = [];
+  for (const [extId, recordId] of recordIdByExtId) {
+    const coIds = coPartyIdsByExtId.get(extId);
+    if (!coIds) continue;
+    for (const coId of coIds) {
+      rows.push({ user_id: userId, client_record_id: recordId, co_client_id: coId });
+    }
+  }
+  return rows;
+}
+
 /** The browser Supabase client, exactly as both importers construct it. Derived
  *  from the factory rather than hand-written structurally, so it can't drift
  *  out of sync with the real client's signature. */
