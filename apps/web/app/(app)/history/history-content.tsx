@@ -4,7 +4,7 @@ import { useState, useRef, useMemo, Fragment } from "react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { FIELD_LIMITS } from "@agent-runway/core/validation/input-guards";
-import { resolveDealClientIds } from "@/lib/crm/resolve-deal-clients";
+import { resolveDealClientIds, writeCoPartyRecords } from "@/lib/crm/resolve-deal-clients";
 import {
   Card,
   CardContent,
@@ -876,7 +876,7 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
         return ((sideSelected === 1 ? deal.party_b : deal.party_a) ?? "").trim();
       });
 
-      const primaryIdByDealName = await resolveDealClientIds(
+      const { primaryIdByRawName, coPartyIdsByRawName } = await resolveDealClientIds(
         supabase,
         user.id,
         dealNames.filter(Boolean),
@@ -907,7 +907,7 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
             user_id: user.id,
             // The report's own wording, kept as-is; client_id attributes it.
             name: raw.slice(0, FIELD_LIMITS.clientName),
-            client_id: primaryIdByDealName.get(raw) ?? null,
+            client_id: primaryIdByRawName.get(raw) ?? null,
             side: deal.side ?? null,
             source: deal.source ?? null,
             address: deal.address || null,
@@ -940,16 +940,24 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
       );
 
       if (crToUpsert.length > 0) {
-        const { error: crErr } = await supabase.from("client_records").upsert(
-          dedupeByImportExternalId(crToUpsert),
-          { onConflict: "user_id,import_external_id" },
-        );
+        const { data: upsertedRecords, error: crErr } = await supabase.from("client_records")
+          .upsert(dedupeByImportExternalId(crToUpsert), { onConflict: "user_id,import_external_id" })
+          .select("id, import_external_id");
         if (crErr) {
           console.error("[import] client_records upsert failed:", crErr);
           toast.error("Failed to save client records. Please try again.");
           setImportStatus("preview");
           return;
         }
+        const recordIdByExtId = new Map(
+          (upsertedRecords ?? []).map((r) => [r.import_external_id as string, r.id as string]),
+        );
+        const coPartyIdsByExtId = new Map<string, string[]>();
+        for (const insert of crToUpsert) {
+          const coIds = coPartyIdsByRawName.get(insert.name);
+          if (coIds && coIds.length > 0) coPartyIdsByExtId.set(insert.import_external_id, coIds);
+        }
+        await writeCoPartyRecords(supabase, user.id, recordIdByExtId, coPartyIdsByExtId);
       }
 
       // ── Write imported transactions (for tax engine, reporting, dashboard) ──
@@ -1151,12 +1159,13 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
       );
       // Same shared resolution as every other import path — joint names split,
       // matched against existing contacts, one attribution per deal.
-      const yearPrimaryIdByDealName = await resolveDealClientIds(
-        supabase,
-        user.id,
-        agentClientNames.filter(Boolean),
-        FIELD_LIMITS.clientName,
-      );
+      const { primaryIdByRawName: yearPrimaryIdByRawName, coPartyIdsByRawName: yearCoPartyIdsByRawName } =
+        await resolveDealClientIds(
+          supabase,
+          user.id,
+          agentClientNames.filter(Boolean),
+          FIELD_LIMITS.clientName,
+        );
 
       const clientInserts = yearData.deals
         .map((d, i) => {
@@ -1173,7 +1182,7 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
           return {
             user_id: user.id,
             name: clientName,
-            client_id: yearPrimaryIdByDealName.get(clientName) ?? null,
+            client_id: yearPrimaryIdByRawName.get(clientName) ?? null,
             side: d.side ?? null,
             source: d.source ?? null,
             address: d.address || null,
@@ -1200,11 +1209,19 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
           (r) => !editedCrIds.has(r.import_external_id),
         );
         if (crToUpsert.length > 0) {
-          const { error: crErr } = await supabase.from("client_records").upsert(
-            dedupeByImportExternalId(crToUpsert),
-            { onConflict: "user_id,import_external_id" },
-          );
+          const { data: upsertedRecords, error: crErr } = await supabase.from("client_records")
+            .upsert(dedupeByImportExternalId(crToUpsert), { onConflict: "user_id,import_external_id" })
+            .select("id, import_external_id");
           if (crErr) throw crErr;
+          const recordIdByExtId = new Map(
+            (upsertedRecords ?? []).map((r) => [r.import_external_id as string, r.id as string]),
+          );
+          const coPartyIdsByExtId = new Map<string, string[]>();
+          for (const insert of crToUpsert) {
+            const coIds = yearCoPartyIdsByRawName.get(insert.name);
+            if (coIds && coIds.length > 0) coPartyIdsByExtId.set(insert.import_external_id, coIds);
+          }
+          await writeCoPartyRecords(supabase, user.id, recordIdByExtId, coPartyIdsByExtId);
         }
         totalClients += clientInserts.length;
       }
