@@ -1158,6 +1158,17 @@ export interface ClientRelationship {
   client_id_a: string;
   client_id_b: string;
   relationship_type: RelationshipType;
+  primary_client_id: string | null;
+  created_at: string;
+}
+
+// Per-deal fact: this client_records row also named co_client_id, who does
+// not hold the deal's GCI attribution. Migration 00164.
+export interface ClientRecordCoParty {
+  id: string;
+  user_id: string;
+  client_record_id: string;
+  co_client_id: string;
   created_at: string;
 }
 

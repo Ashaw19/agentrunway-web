@@ -107,6 +107,7 @@ import { fmtCurrency, fmtCompact } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 import { toNameSearch } from "@/lib/crm/client-identity";
 import { clusterDuplicateClients } from "@/lib/crm/duplicate-detection";
+import { computeHouseholdActivityIds } from "@/lib/crm/resolve-deal-clients";
 import { DuplicateReviewDialog } from "./duplicate-review-dialog";
 import type {
   Client,
@@ -118,6 +119,7 @@ import type {
   UserSettings,
   ExpenseItem,
   ClientRelationship,
+  ClientRecordCoParty,
   ClientStatus,
   PhoneType,
   PreferredContact,
@@ -193,6 +195,7 @@ interface Props {
   settings: UserSettings | null;
   expenseItems: ExpenseItem[];
   relationships: ClientRelationship[];
+  coParties: ClientRecordCoParty[];
   flightPlans: FlightPlan[];
   flightPlanSteps: FlightPlanStep[];
   showings: PropertyShowing[];
@@ -212,6 +215,7 @@ type ClientGroup = {
   avgDeal: number;
   lastDeal: string | null;
   years: number[];
+  hasHouseholdActivity: boolean;
 };
 
 type SortCol = "name" | "deals" | "gci" | "avg" | "last" | "years" | "side";
@@ -518,8 +522,13 @@ const PRIORITY_STYLES: Record<TaskPriority, string> = {
 
 // ── Build client groups ───────────────────────────────────────────────────────
 
-function buildAllGroups(clients: Client[], records: ClientRecord[]): ClientGroup[] {
+function buildAllGroups(
+  clients: Client[],
+  records: ClientRecord[],
+  coParties: ClientRecordCoParty[],
+): ClientGroup[] {
   const nameToId = new Map(clients.map((c) => [c.name_search, c.id]));
+  const householdActivityIds = computeHouseholdActivityIds(coParties);
 
   const buckets = new Map<string, ClientRecord[]>();
 
@@ -538,12 +547,12 @@ function buildAllGroups(clients: Client[], records: ClientRecord[]): ClientGroup
   for (const client of clients) {
     const deals = buckets.get(client.id) ?? [];
     // Always include — clients with no records (e.g. FUB imports) must still appear
-    groups.push(makeGroup(client.id, client.name, deals));
+    groups.push(makeGroup(client.id, client.name, deals, householdActivityIds.has(client.id)));
   }
 
   for (const [key, deals] of buckets) {
     if (key.startsWith("__v__")) {
-      groups.push(makeGroup(null, deals[0].name, deals));
+      groups.push(makeGroup(null, deals[0].name, deals, false));
     }
   }
 
@@ -558,6 +567,7 @@ function makeGroup(
   clientId: string | null,
   name: string,
   deals: ClientRecord[],
+  hasHouseholdActivity: boolean,
 ): ClientGroup {
   const totalGCI =
     Math.round(deals.reduce((s, d) => s + (d.gci ?? 0), 0) * 100) / 100;
@@ -574,7 +584,7 @@ function makeGroup(
       deals.map((d) => d.year).filter((y): y is number => y !== null),
     ),
   ].sort((a, b) => b - a);
-  return { clientId, name, deals, totalGCI, dealCount, avgDeal, lastDeal, years };
+  return { clientId, name, deals, totalGCI, dealCount, avgDeal, lastDeal, years, hasHouseholdActivity };
 }
 
 function computeSourceStats(records: ClientRecord[]): SourceStat[] {
@@ -1123,6 +1133,7 @@ export function ClientsContent({
   settings,
   expenseItems,
   relationships: initialRelationships,
+  coParties: initialCoParties,
   flightPlans: initialFlightPlans,
   flightPlanSteps: initialFlightPlanSteps,
   showings: initialShowings,
@@ -1164,6 +1175,7 @@ export function ClientsContent({
   }, [initialClients.length, userId]);
   const [localRelationships, setLocalRelationships] =
     useState<ClientRelationship[]>(initialRelationships);
+  const [localCoParties] = useState<ClientRecordCoParty[]>(initialCoParties);
   const [localFlightPlans, setLocalFlightPlans] =
     useState<FlightPlan[]>(initialFlightPlans);
   const [localFlightPlanSteps, setLocalFlightPlanSteps] =
@@ -1386,8 +1398,8 @@ export function ClientsContent({
 
   // ── Core data ───────────────────────────────────────────────────────────────
   const grouped = useMemo(
-    () => buildAllGroups(localClients, localRecords),
-    [localClients, localRecords],
+    () => buildAllGroups(localClients, localRecords, localCoParties),
+    [localClients, localRecords, localCoParties],
   );
   const totalGCI = useMemo(
     () => grouped.reduce((s, g) => s + g.totalGCI, 0),
@@ -1671,6 +1683,16 @@ export function ClientsContent({
     if (!selectedClientId) return [];
     return localRecords.filter((r) => r.client_id === selectedClientId);
   }, [localRecords, selectedClientId]);
+
+  // Household deals: deals the selected client was named on as a co-party
+  // (not the deal-holder). Read-only context — never folded into totalGCI.
+  const householdDeals = useMemo(() => {
+    if (!selectedClientId) return [];
+    const recordIds = new Set(
+      localCoParties.filter((cp) => cp.co_client_id === selectedClientId).map((cp) => cp.client_record_id),
+    );
+    return localRecords.filter((r) => recordIds.has(r.id));
+  }, [localCoParties, localRecords, selectedClientId]);
 
   // Badges + reward budget for the selected client's detail panel
   const selectedClientBadges = useMemo(() => {
@@ -2484,6 +2506,30 @@ export function ClientsContent({
       } else {
         toast.error("Failed to remove relationship");
       }
+    },
+    [userId],
+  );
+
+  // Sets which side of a spouse/partner link receives future deal
+  // attribution. Never rewrites past client_records — only new imports
+  // consult this going forward (see design doc's non-goals).
+  const handleSetPrimary = useCallback(
+    async (relationshipId: string, newPrimaryClientId: string) => {
+      if (!userId) return;
+      const { error } = await supabase
+        .from("client_relationships")
+        .update({ primary_client_id: newPrimaryClientId })
+        .eq("id", relationshipId)
+        .eq("user_id", userId);
+
+      if (error) {
+        toast.error("Failed to update primary contact");
+        return;
+      }
+      setLocalRelationships((prev) =>
+        prev.map((r) => (r.id === relationshipId ? { ...r, primary_client_id: newPrimaryClientId } : r)),
+      );
+      toast.success("Primary contact updated");
     },
     [userId],
   );
@@ -3806,6 +3852,14 @@ export function ClientsContent({
                                   >
                                     {group.name.charAt(0).toUpperCase()}
                                   </div>
+                                  {group.dealCount === 0 && group.hasHouseholdActivity && (
+                                    <span
+                                      className="h-4 w-4 rounded-full bg-violet-500/15 text-violet-500 flex items-center justify-center shrink-0"
+                                      title="Linked to an active client's deal(s)"
+                                    >
+                                      <Users className="h-2.5 w-2.5" />
+                                    </span>
+                                  )}
                                   <div className="min-w-0 flex-1">
                                     <div className="flex items-center gap-1.5">
                                       <HoverCard openDelay={150} closeDelay={80}>
@@ -4881,6 +4935,23 @@ export function ClientsContent({
                           }
                         }
 
+                        // Household primary: rel.primary_client_id if set, else
+                        // whichever side already holds deal history (same rule
+                        // the 00164 backfill migration uses). The UI never
+                        // re-derives the alphabetical tie-break itself.
+                        const isHouseholdType = rel.relationship_type === "spouse" || rel.relationship_type === "partner";
+                        let showMakePrimaryFor: string | null = null;
+                        if (isHouseholdType) {
+                          const aHoldsRecords = localRecords.some((r) => r.client_id === rel.client_id_a);
+                          const bHoldsRecords = localRecords.some((r) => r.client_id === rel.client_id_b);
+                          const currentPrimaryId =
+                            rel.primary_client_id ??
+                            (aHoldsRecords ? rel.client_id_a : bHoldsRecords ? rel.client_id_b : null);
+                          if (currentPrimaryId !== null && currentPrimaryId !== other.id) {
+                            showMakePrimaryFor = other.id;
+                          }
+                        }
+
                         return (
                           <div
                             key={rel.id}
@@ -4906,9 +4977,22 @@ export function ClientsContent({
                                 </span>
                               )}
                               {!isReferral && (
-                                <span className="text-[10px] text-muted-foreground/60 leading-none">
-                                  {RELATIONSHIP_TYPE_LABELS[rel.relationship_type as RelationshipType] ?? rel.relationship_type}
-                                </span>
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-[10px] text-muted-foreground/60 leading-none">
+                                    {RELATIONSHIP_TYPE_LABELS[rel.relationship_type as RelationshipType] ?? rel.relationship_type}
+                                  </span>
+                                  {showMakePrimaryFor && (
+                                    <button
+                                      className="text-[9px] text-primary/70 hover:text-primary underline-offset-2 hover:underline leading-none"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleSetPrimary(rel.id, showMakePrimaryFor!);
+                                      }}
+                                    >
+                                      Make primary
+                                    </button>
+                                  )}
+                                </div>
                               )}
                             </div>
                             <button
@@ -5832,6 +5916,46 @@ export function ClientsContent({
                           </div>
                         ))}
                       </div>
+                  </div>
+                )}
+
+                {/* Household Activity — read-only. Deals this client was named
+                    on but doesn't hold GCI credit for; their own totalGCI
+                    stat above is unaffected. */}
+                {householdDeals.length > 0 && (
+                  <div className={CRM_SECTION_CARD}>
+                    <h3 className={CRM_SECTION_HEADER}>
+                      <div className={CRM_SECTION_ICON_CHIP}>
+                        <Users className="h-3 w-3" />
+                      </div>
+                      Household Activity
+                    </h3>
+                    <div className="space-y-1.5">
+                      {householdDeals.map((deal) => {
+                        const primary = deal.client_id ? clientById.get(deal.client_id) : null;
+                        return (
+                          <div
+                            key={deal.id}
+                            className="py-1.5 px-2 rounded-lg bg-white/50 dark:bg-slate-900/30 border border-slate-200/60 dark:border-slate-800/40 cursor-pointer hover:border-violet-300/60"
+                            onClick={() => { if (deal.client_id) openDetailPanel(deal.client_id); }}
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="min-w-0 flex-1">
+                                <p className="text-xs font-medium text-foreground truncate">
+                                  {deal.address || "No address"}
+                                </p>
+                                <p className="text-[10px] text-muted-foreground/70">
+                                  {primary ? `Counts toward ${primary.name}'s total` : "Primary contact not found"}
+                                </p>
+                              </div>
+                              <span className="text-sm font-bold tabular-nums text-muted-foreground/60 shrink-0 ml-3">
+                                {fmtCurrency(deal.gci ?? 0)}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
               </div>

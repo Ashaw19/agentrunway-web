@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { ClientsContent } from "./clients-content";
-import type { Client, ClientRecord, ContactActivity, ContactTask, UserSettings, ExpenseItem, ClientRelationship, FlightPlan, FlightPlanStep, PropertyShowing, ListingAppointment } from "@/lib/types/database";
+import type { Client, ClientRecord, ContactActivity, ContactTask, UserSettings, ExpenseItem, ClientRelationship, ClientRecordCoParty, FlightPlan, FlightPlanStep, PropertyShowing, ListingAppointment } from "@/lib/types/database";
 
 
 /**
@@ -77,6 +77,11 @@ export default async function ClientsPage() {
       .eq("user_id", user.id)
       .limit(10000),
     supabase
+      .from("client_record_co_parties")
+      .select("*")
+      .eq("user_id", user.id)
+      .limit(10000),
+    supabase
       .from("flight_plans")
       .select("*")
       .eq("user_id", user.id)
@@ -102,7 +107,7 @@ export default async function ClientsPage() {
       .limit(10000),
   ] as const;
 
-  const [clientsResult, recordsResult, activitiesResult, tasksResult, expensesResult, relationshipsResult, flightPlansResult, flightPlanStepsResult, showingsResult, listingApptsResult] = await Promise.all(queries);
+  const [clientsResult, recordsResult, activitiesResult, tasksResult, expensesResult, relationshipsResult, coPartiesResult, flightPlansResult, flightPlanStepsResult, showingsResult, listingApptsResult] = await Promise.all(queries);
 
   return (
     <ClientsContent
@@ -113,6 +118,7 @@ export default async function ClientsPage() {
       settings={settings}
       expenseItems={(expensesResult.data ?? []) as ExpenseItem[]}
       relationships={(relationshipsResult.data ?? []) as ClientRelationship[]}
+      coParties={(coPartiesResult.data ?? []) as ClientRecordCoParty[]}
       flightPlans={(flightPlansResult.data ?? []) as FlightPlan[]}
       flightPlanSteps={(flightPlanStepsResult.data ?? []) as FlightPlanStep[]}
       showings={(showingsResult.data ?? []) as PropertyShowing[]}

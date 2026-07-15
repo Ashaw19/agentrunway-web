@@ -1,13 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { planDealClients } from "../resolve-deal-clients";
+import { applyPrimaryOverrides, buildCoPartyRows, computeHouseholdActivityIds, planDealClients } from "../resolve-deal-clients";
 
 const LIMIT = 200;
 
 describe("planDealClients — attribution", () => {
-  it("attributes a couple's deal to the first-named party only", () => {
+  it("attributes a couple's deal to whichever party sorts first alphabetically", () => {
+    // Deterministic tie-break, not word order: "jane smith" < "john smith".
     const plan = planDealClients(["John & Jane Smith"], LIMIT);
-    expect(plan.primaryByRawName.get("John & Jane Smith")).toBe("John Smith");
-    expect(plan.coPartiesByRawName.get("John & Jane Smith")).toEqual(["Jane Smith"]);
+    expect(plan.primaryByRawName.get("John & Jane Smith")).toBe("Jane Smith");
+    expect(plan.coPartiesByRawName.get("John & Jane Smith")).toEqual(["John Smith"]);
   });
 
   it("creates BOTH people as contacts even though only one holds the deal", () => {
@@ -34,13 +35,28 @@ describe("planDealClients — attribution", () => {
     expect(plan.coPartiesByRawName.size).toBe(0);
   });
 
-  it("handles a three-party deal: one primary, two co-parties", () => {
+  it("handles a three-party deal: one primary, two co-parties, alphabetical", () => {
+    // "bob smith" < "jane smith" < "john smith".
     const plan = planDealClients(["John & Jane & Bob Smith"], LIMIT);
-    expect(plan.primaryByRawName.get("John & Jane & Bob Smith")).toBe("John Smith");
+    expect(plan.primaryByRawName.get("John & Jane & Bob Smith")).toBe("Bob Smith");
     expect(plan.coPartiesByRawName.get("John & Jane & Bob Smith")).toEqual([
       "Jane Smith",
-      "Bob Smith",
+      "John Smith",
     ]);
+  });
+
+  it("attributes the same couple to the same primary regardless of word order, within one batch", () => {
+    const plan = planDealClients(["John & Jane Smith", "Jane & John Smith"], LIMIT);
+    expect(plan.primaryByRawName.get("John & Jane Smith")).toBe("Jane Smith");
+    expect(plan.primaryByRawName.get("Jane & John Smith")).toBe("Jane Smith");
+  });
+
+  it("attributes the same couple to the same primary across two separate calls (no shared state)", () => {
+    const planA = planDealClients(["John & Jane Smith"], LIMIT);
+    const planB = planDealClients(["Jane & John Smith"], LIMIT);
+    expect(planA.primaryByRawName.get("John & Jane Smith")).toBe(
+      planB.primaryByRawName.get("Jane & John Smith"),
+    );
   });
 });
 
@@ -76,6 +92,20 @@ describe("planDealClients — person deduplication", () => {
     expect(plan.coPartiesByRawName.has("John & John Smith")).toBe(false);
     expect(plan.allParties).toEqual(["John Smith"]);
   });
+
+  it("omits a deal whose parties all normalize to an empty key instead of attributing it to undefined", () => {
+    // A name built only from combining marks (U+0301) normalizes to "" under
+    // toNameSearch, so it can never resolve to a contact. Pass 1 refuses to
+    // register an empty key, and "" sorts before every real key — so without
+    // an explicit filter, pass 2's lookup returns undefined and the deal gets
+    // attributed to `undefined`, which then throws in resolveDealClientIds.
+    // Omitting the deal is the documented fallback: absent from the map means
+    // the caller writes client_id = null rather than guessing.
+    const plan = planDealClients(["́ & ̃"], LIMIT);
+    expect(plan.primaryByRawName.has("́ & ̃")).toBe(false);
+    expect([...plan.primaryByRawName.values()]).not.toContain(undefined);
+    expect(plan.allParties).toEqual([]);
+  });
 });
 
 describe("planDealClients — edge inputs", () => {
@@ -99,5 +129,87 @@ describe("planDealClients — edge inputs", () => {
   it("does not collide two genuinely different people", () => {
     const plan = planDealClients(["John Smith", "Jane Doe"], LIMIT);
     expect(plan.allParties).toHaveLength(2);
+  });
+});
+
+describe("applyPrimaryOverrides", () => {
+  it("redirects a joint deal's primary to the persisted override", () => {
+    const plan = planDealClients(["John & Jane Smith"], LIMIT);
+    // Default (alphabetical) would be Jane; override says John.
+    const johnKey = "john smith";
+    const override = new Map([["jane smith", johnKey], [johnKey, johnKey]]);
+    const overridden = applyPrimaryOverrides(plan, override);
+    expect(overridden.primaryByRawName.get("John & Jane Smith")).toBe("John Smith");
+    expect(overridden.coPartiesByRawName.get("John & Jane Smith")).toEqual(["Jane Smith"]);
+  });
+
+  it("never redirects a solo deal, even if that person has a household override", () => {
+    // Jane is linked to John with John as household primary, but THIS deal
+    // only names Jane alone — it must stay attributed to Jane.
+    const plan = planDealClients(["Jane Smith"], LIMIT);
+    const override = new Map([["jane smith", "john smith"], ["john smith", "john smith"]]);
+    const overridden = applyPrimaryOverrides(plan, override);
+    expect(overridden.primaryByRawName.get("Jane Smith")).toBe("Jane Smith");
+    expect(overridden.coPartiesByRawName.has("Jane Smith")).toBe(false);
+  });
+
+  it("leaves the deterministic default in place when no override exists", () => {
+    const plan = planDealClients(["John & Jane Smith"], LIMIT);
+    const overridden = applyPrimaryOverrides(plan, new Map());
+    expect(overridden.primaryByRawName.get("John & Jane Smith")).toBe("Jane Smith");
+  });
+
+  it("only redirects when the override target is actually named on this deal", () => {
+    // An override exists for a totally unrelated pair — must not affect this deal.
+    const plan = planDealClients(["John & Jane Smith"], LIMIT);
+    const override = new Map([["bob wilson", "mary wilson"], ["mary wilson", "mary wilson"]]);
+    const overridden = applyPrimaryOverrides(plan, override);
+    expect(overridden.primaryByRawName.get("John & Jane Smith")).toBe("Jane Smith");
+  });
+});
+
+describe("buildCoPartyRows", () => {
+  it("builds one row per co-party, keyed to the deal's real client_records id", () => {
+    const recordIdByExtId = new Map([["deal-1|c:john", "record-uuid-1"]]);
+    const coPartyIdsByExtId = new Map([["deal-1|c:john", ["jane-uuid"]]]);
+    const rows = buildCoPartyRows("user-1", recordIdByExtId, coPartyIdsByExtId);
+    expect(rows).toEqual([
+      { user_id: "user-1", client_record_id: "record-uuid-1", co_client_id: "jane-uuid" },
+    ]);
+  });
+
+  it("builds multiple rows for a multi-party deal", () => {
+    const recordIdByExtId = new Map([["deal-1", "record-1"]]);
+    const coPartyIdsByExtId = new Map([["deal-1", ["co-a", "co-b"]]]);
+    const rows = buildCoPartyRows("user-1", recordIdByExtId, coPartyIdsByExtId);
+    expect(rows).toHaveLength(2);
+    expect(rows.map((r) => r.co_client_id).sort()).toEqual(["co-a", "co-b"]);
+  });
+
+  it("produces nothing for a deal with no co-parties", () => {
+    const recordIdByExtId = new Map([["deal-1", "record-1"]]);
+    const rows = buildCoPartyRows("user-1", recordIdByExtId, new Map());
+    expect(rows).toEqual([]);
+  });
+
+  it("skips a deal whose client_records id isn't known (e.g. an edited row that was skipped on re-import)", () => {
+    const recordIdByExtId = new Map<string, string>(); // deal-1 not in this map
+    const coPartyIdsByExtId = new Map([["deal-1", ["co-a"]]]);
+    const rows = buildCoPartyRows("user-1", recordIdByExtId, coPartyIdsByExtId);
+    expect(rows).toEqual([]);
+  });
+});
+
+describe("computeHouseholdActivityIds", () => {
+  it("returns the set of client ids that appear as a co-party on any deal", () => {
+    const coParties = [
+      { id: "1", user_id: "u", client_record_id: "r1", co_client_id: "jane", created_at: "" },
+      { id: "2", user_id: "u", client_record_id: "r2", co_client_id: "bob", created_at: "" },
+    ];
+    expect(computeHouseholdActivityIds(coParties)).toEqual(new Set(["jane", "bob"]));
+  });
+
+  it("returns an empty set for no co-parties", () => {
+    expect(computeHouseholdActivityIds([])).toEqual(new Set());
   });
 });
