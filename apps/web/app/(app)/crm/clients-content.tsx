@@ -1684,6 +1684,16 @@ export function ClientsContent({
     return localRecords.filter((r) => r.client_id === selectedClientId);
   }, [localRecords, selectedClientId]);
 
+  // Household deals: deals the selected client was named on as a co-party
+  // (not the deal-holder). Read-only context — never folded into totalGCI.
+  const householdDeals = useMemo(() => {
+    if (!selectedClientId) return [];
+    const recordIds = new Set(
+      localCoParties.filter((cp) => cp.co_client_id === selectedClientId).map((cp) => cp.client_record_id),
+    );
+    return localRecords.filter((r) => recordIds.has(r.id));
+  }, [localCoParties, localRecords, selectedClientId]);
+
   // Badges + reward budget for the selected client's detail panel
   const selectedClientBadges = useMemo(() => {
     if (!selectedClientId || !clientDeals.length) return [];
@@ -5852,6 +5862,46 @@ export function ClientsContent({
                           </div>
                         ))}
                       </div>
+                  </div>
+                )}
+
+                {/* Household Activity — read-only. Deals this client was named
+                    on but doesn't hold GCI credit for; their own totalGCI
+                    stat above is unaffected. */}
+                {householdDeals.length > 0 && (
+                  <div className={CRM_SECTION_CARD}>
+                    <h3 className={CRM_SECTION_HEADER}>
+                      <div className={CRM_SECTION_ICON_CHIP}>
+                        <Users className="h-3 w-3" />
+                      </div>
+                      Household Activity
+                    </h3>
+                    <div className="space-y-1.5">
+                      {householdDeals.map((deal) => {
+                        const primary = deal.client_id ? clientById.get(deal.client_id) : null;
+                        return (
+                          <div
+                            key={deal.id}
+                            className="py-1.5 px-2 rounded-lg bg-white/50 dark:bg-slate-900/30 border border-slate-200/60 dark:border-slate-800/40 cursor-pointer hover:border-violet-300/60"
+                            onClick={() => { if (deal.client_id) openDetailPanel(deal.client_id); }}
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="min-w-0 flex-1">
+                                <p className="text-xs font-medium text-foreground truncate">
+                                  {deal.address || "No address"}
+                                </p>
+                                <p className="text-[10px] text-muted-foreground/70">
+                                  {primary ? `Counts toward ${primary.name}'s total` : "Primary contact not found"}
+                                </p>
+                              </div>
+                              <span className="text-sm font-bold tabular-nums text-muted-foreground/60 shrink-0 ml-3">
+                                {fmtCurrency(deal.gci ?? 0)}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
               </div>
