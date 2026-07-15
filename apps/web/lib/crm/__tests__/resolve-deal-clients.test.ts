@@ -92,6 +92,20 @@ describe("planDealClients — person deduplication", () => {
     expect(plan.coPartiesByRawName.has("John & John Smith")).toBe(false);
     expect(plan.allParties).toEqual(["John Smith"]);
   });
+
+  it("omits a deal whose parties all normalize to an empty key instead of attributing it to undefined", () => {
+    // A name built only from combining marks (U+0301) normalizes to "" under
+    // toNameSearch, so it can never resolve to a contact. Pass 1 refuses to
+    // register an empty key, and "" sorts before every real key — so without
+    // an explicit filter, pass 2's lookup returns undefined and the deal gets
+    // attributed to `undefined`, which then throws in resolveDealClientIds.
+    // Omitting the deal is the documented fallback: absent from the map means
+    // the caller writes client_id = null rather than guessing.
+    const plan = planDealClients(["́ & ̃"], LIMIT);
+    expect(plan.primaryByRawName.has("́ & ̃")).toBe(false);
+    expect([...plan.primaryByRawName.values()]).not.toContain(undefined);
+    expect(plan.allParties).toEqual([]);
+  });
 });
 
 describe("planDealClients — edge inputs", () => {

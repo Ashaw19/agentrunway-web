@@ -91,7 +91,21 @@ export function planDealClients(rawDealNames: string[], nameLimit: number): Deal
   const coPartiesByRawName = new Map<string, string[]>();
 
   for (const entry of entries) {
-    const sortedKeys = entry.parties.map((p) => toNameSearch(p)).sort();
+    // Keep only keys pass 1 actually registered. A party whose name normalizes
+    // to an empty key (e.g. a string of bare combining marks) is deliberately
+    // not registered above — and "" sorts before every real key, so without
+    // this filter the lookup below would return undefined despite the
+    // non-null assertion, and the deal would be attributed to `undefined`.
+    const sortedKeys = entry.parties
+      .map((p) => toNameSearch(p))
+      .filter((k) => partiesByKey.has(k))
+      .sort();
+
+    // No resolvable party on this deal. Omitting it from the map is the
+    // documented fallback: the caller writes client_id = null rather than
+    // guessing at an attribution.
+    if (sortedKeys.length === 0) continue;
+
     const primaryName = partiesByKey.get(sortedKeys[0])!;
     const coPartyNames = sortedKeys.slice(1).map((k) => partiesByKey.get(k)!);
 
