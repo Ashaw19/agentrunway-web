@@ -39,6 +39,7 @@
 import { splitJointName } from "./joint-names";
 import { toNameSearch } from "./client-identity";
 import type { createClient } from "@/lib/supabase/client";
+import type { ClientRecordCoParty } from "@/lib/types/database";
 
 export interface DealClientPlan {
   /** Every distinct person named across all deals, deduped by name_search. */
@@ -336,4 +337,11 @@ export async function writeCoPartyRecords(
     .from("client_record_co_parties")
     .upsert(rows, { onConflict: "client_record_id,co_client_id", ignoreDuplicates: true });
   if (error) console.error("[import] co-party record link failed:", error);
+}
+
+/** Client ids that appear as a co-party on at least one deal — used to badge
+ *  a $0-GCI contact in the CRM list as "linked to real activity" rather than
+ *  a cold lead. */
+export function computeHouseholdActivityIds(coParties: ClientRecordCoParty[]): Set<string> {
+  return new Set(coParties.map((cp) => cp.co_client_id));
 }

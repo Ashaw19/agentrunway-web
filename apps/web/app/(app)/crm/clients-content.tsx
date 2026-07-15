@@ -107,6 +107,7 @@ import { fmtCurrency, fmtCompact } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 import { toNameSearch } from "@/lib/crm/client-identity";
 import { clusterDuplicateClients } from "@/lib/crm/duplicate-detection";
+import { computeHouseholdActivityIds } from "@/lib/crm/resolve-deal-clients";
 import { DuplicateReviewDialog } from "./duplicate-review-dialog";
 import type {
   Client,
@@ -118,6 +119,7 @@ import type {
   UserSettings,
   ExpenseItem,
   ClientRelationship,
+  ClientRecordCoParty,
   ClientStatus,
   PhoneType,
   PreferredContact,
@@ -193,6 +195,7 @@ interface Props {
   settings: UserSettings | null;
   expenseItems: ExpenseItem[];
   relationships: ClientRelationship[];
+  coParties: ClientRecordCoParty[];
   flightPlans: FlightPlan[];
   flightPlanSteps: FlightPlanStep[];
   showings: PropertyShowing[];
@@ -212,6 +215,7 @@ type ClientGroup = {
   avgDeal: number;
   lastDeal: string | null;
   years: number[];
+  hasHouseholdActivity: boolean;
 };
 
 type SortCol = "name" | "deals" | "gci" | "avg" | "last" | "years" | "side";
@@ -518,8 +522,13 @@ const PRIORITY_STYLES: Record<TaskPriority, string> = {
 
 // ── Build client groups ───────────────────────────────────────────────────────
 
-function buildAllGroups(clients: Client[], records: ClientRecord[]): ClientGroup[] {
+function buildAllGroups(
+  clients: Client[],
+  records: ClientRecord[],
+  coParties: ClientRecordCoParty[],
+): ClientGroup[] {
   const nameToId = new Map(clients.map((c) => [c.name_search, c.id]));
+  const householdActivityIds = computeHouseholdActivityIds(coParties);
 
   const buckets = new Map<string, ClientRecord[]>();
 
@@ -538,12 +547,12 @@ function buildAllGroups(clients: Client[], records: ClientRecord[]): ClientGroup
   for (const client of clients) {
     const deals = buckets.get(client.id) ?? [];
     // Always include — clients with no records (e.g. FUB imports) must still appear
-    groups.push(makeGroup(client.id, client.name, deals));
+    groups.push(makeGroup(client.id, client.name, deals, householdActivityIds.has(client.id)));
   }
 
   for (const [key, deals] of buckets) {
     if (key.startsWith("__v__")) {
-      groups.push(makeGroup(null, deals[0].name, deals));
+      groups.push(makeGroup(null, deals[0].name, deals, false));
     }
   }
 
@@ -558,6 +567,7 @@ function makeGroup(
   clientId: string | null,
   name: string,
   deals: ClientRecord[],
+  hasHouseholdActivity: boolean,
 ): ClientGroup {
   const totalGCI =
     Math.round(deals.reduce((s, d) => s + (d.gci ?? 0), 0) * 100) / 100;
@@ -574,7 +584,7 @@ function makeGroup(
       deals.map((d) => d.year).filter((y): y is number => y !== null),
     ),
   ].sort((a, b) => b - a);
-  return { clientId, name, deals, totalGCI, dealCount, avgDeal, lastDeal, years };
+  return { clientId, name, deals, totalGCI, dealCount, avgDeal, lastDeal, years, hasHouseholdActivity };
 }
 
 function computeSourceStats(records: ClientRecord[]): SourceStat[] {
@@ -1123,6 +1133,7 @@ export function ClientsContent({
   settings,
   expenseItems,
   relationships: initialRelationships,
+  coParties: initialCoParties,
   flightPlans: initialFlightPlans,
   flightPlanSteps: initialFlightPlanSteps,
   showings: initialShowings,
@@ -1164,6 +1175,7 @@ export function ClientsContent({
   }, [initialClients.length, userId]);
   const [localRelationships, setLocalRelationships] =
     useState<ClientRelationship[]>(initialRelationships);
+  const [localCoParties] = useState<ClientRecordCoParty[]>(initialCoParties);
   const [localFlightPlans, setLocalFlightPlans] =
     useState<FlightPlan[]>(initialFlightPlans);
   const [localFlightPlanSteps, setLocalFlightPlanSteps] =
@@ -1386,8 +1398,8 @@ export function ClientsContent({
 
   // ── Core data ───────────────────────────────────────────────────────────────
   const grouped = useMemo(
-    () => buildAllGroups(localClients, localRecords),
-    [localClients, localRecords],
+    () => buildAllGroups(localClients, localRecords, localCoParties),
+    [localClients, localRecords, localCoParties],
   );
   const totalGCI = useMemo(
     () => grouped.reduce((s, g) => s + g.totalGCI, 0),
@@ -3806,6 +3818,14 @@ export function ClientsContent({
                                   >
                                     {group.name.charAt(0).toUpperCase()}
                                   </div>
+                                  {group.dealCount === 0 && group.hasHouseholdActivity && (
+                                    <span
+                                      className="h-4 w-4 rounded-full bg-violet-500/15 text-violet-500 flex items-center justify-center shrink-0"
+                                      title="Linked to an active client's deal(s)"
+                                    >
+                                      <Users className="h-2.5 w-2.5" />
+                                    </span>
+                                  )}
                                   <div className="min-w-0 flex-1">
                                     <div className="flex items-center gap-1.5">
                                       <HoverCard openDelay={150} closeDelay={80}>

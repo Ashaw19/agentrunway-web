@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyPrimaryOverrides, buildCoPartyRows, planDealClients } from "../resolve-deal-clients";
+import { applyPrimaryOverrides, buildCoPartyRows, computeHouseholdActivityIds, planDealClients } from "../resolve-deal-clients";
 
 const LIMIT = 200;
 
@@ -174,5 +174,19 @@ describe("buildCoPartyRows", () => {
     const coPartyIdsByExtId = new Map([["deal-1", ["co-a"]]]);
     const rows = buildCoPartyRows("user-1", recordIdByExtId, coPartyIdsByExtId);
     expect(rows).toEqual([]);
+  });
+});
+
+describe("computeHouseholdActivityIds", () => {
+  it("returns the set of client ids that appear as a co-party on any deal", () => {
+    const coParties = [
+      { id: "1", user_id: "u", client_record_id: "r1", co_client_id: "jane", created_at: "" },
+      { id: "2", user_id: "u", client_record_id: "r2", co_client_id: "bob", created_at: "" },
+    ];
+    expect(computeHouseholdActivityIds(coParties)).toEqual(new Set(["jane", "bob"]));
+  });
+
+  it("returns an empty set for no co-parties", () => {
+    expect(computeHouseholdActivityIds([])).toEqual(new Set());
   });
 });
