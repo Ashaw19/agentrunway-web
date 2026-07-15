@@ -2510,6 +2510,30 @@ export function ClientsContent({
     [userId],
   );
 
+  // Sets which side of a spouse/partner link receives future deal
+  // attribution. Never rewrites past client_records — only new imports
+  // consult this going forward (see design doc's non-goals).
+  const handleSetPrimary = useCallback(
+    async (relationshipId: string, newPrimaryClientId: string) => {
+      if (!userId) return;
+      const { error } = await supabase
+        .from("client_relationships")
+        .update({ primary_client_id: newPrimaryClientId })
+        .eq("id", relationshipId)
+        .eq("user_id", userId);
+
+      if (error) {
+        toast.error("Failed to update primary contact");
+        return;
+      }
+      setLocalRelationships((prev) =>
+        prev.map((r) => (r.id === relationshipId ? { ...r, primary_client_id: newPrimaryClientId } : r)),
+      );
+      toast.success("Primary contact updated");
+    },
+    [userId],
+  );
+
   // ── Flight Plan CRUD ─────────────────────────────────────────────────────────
 
   const handleLoadDefaults = useCallback(async () => {
@@ -4911,6 +4935,23 @@ export function ClientsContent({
                           }
                         }
 
+                        // Household primary: rel.primary_client_id if set, else
+                        // whichever side already holds deal history (same rule
+                        // the 00164 backfill migration uses). The UI never
+                        // re-derives the alphabetical tie-break itself.
+                        const isHouseholdType = rel.relationship_type === "spouse" || rel.relationship_type === "partner";
+                        let showMakePrimaryFor: string | null = null;
+                        if (isHouseholdType) {
+                          const aHoldsRecords = localRecords.some((r) => r.client_id === rel.client_id_a);
+                          const bHoldsRecords = localRecords.some((r) => r.client_id === rel.client_id_b);
+                          const currentPrimaryId =
+                            rel.primary_client_id ??
+                            (aHoldsRecords ? rel.client_id_a : bHoldsRecords ? rel.client_id_b : null);
+                          if (currentPrimaryId !== null && currentPrimaryId !== other.id) {
+                            showMakePrimaryFor = other.id;
+                          }
+                        }
+
                         return (
                           <div
                             key={rel.id}
@@ -4936,9 +4977,22 @@ export function ClientsContent({
                                 </span>
                               )}
                               {!isReferral && (
-                                <span className="text-[10px] text-muted-foreground/60 leading-none">
-                                  {RELATIONSHIP_TYPE_LABELS[rel.relationship_type as RelationshipType] ?? rel.relationship_type}
-                                </span>
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-[10px] text-muted-foreground/60 leading-none">
+                                    {RELATIONSHIP_TYPE_LABELS[rel.relationship_type as RelationshipType] ?? rel.relationship_type}
+                                  </span>
+                                  {showMakePrimaryFor && (
+                                    <button
+                                      className="text-[9px] text-primary/70 hover:text-primary underline-offset-2 hover:underline leading-none"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleSetPrimary(rel.id, showMakePrimaryFor!);
+                                      }}
+                                    >
+                                      Make primary
+                                    </button>
+                                  )}
+                                </div>
                               )}
                             </div>
                             <button
