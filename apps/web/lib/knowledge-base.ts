@@ -37,7 +37,7 @@ Platform for Canadian real estate agents: income, expenses, pipeline, clients, t
 
 **SOCIAL STUDIO** — Instagram month-in-review carousel builder with templates and Canva export.
 
-**SETTINGS** — Province, business structure, split (70/30-100/0), brokerage fees (monthly+per-deal+cap+post-cap), cash reserve, experience years, GCI goal, vehicle %, home office method/sqft, GST/HST registration, filing frequency, brokerage withholds HST toggle, seasonality, AI Voice Guide, estimated weekly hours + vacation weeks (unlocks Time Value card on Overhead).
+**SETTINGS** — Province, business structure, compensation plan (simple_split | real — see COMMISSION STRUCTURE), split (70/30-100/0), brokerage fees (monthly+per-deal+cap+post-cap), cash reserve, experience years, GCI goal, vehicle %, home office method/sqft, GST/HST registration, filing frequency, brokerage withholds HST toggle, seasonality, AI Voice Guide, estimated weekly hours + vacation weeks (unlocks Time Value card on Overhead).
 
 **PROFILE** — Name, brokerage, avatar, 15 themes, dark mode, production stats.
 
@@ -118,7 +118,11 @@ Industry: 531210. Lines (canonical per t2125-engine.ts, mirrors CRA T4002): 8521
 
 ### COMMISSION STRUCTURE
 
-Split: agent keeps X% (70/30 to 100/0). Brokerage fees: monthly desk fee, per-deal % of GCI, annual cap, post-cap rate (often 0%). After cap reached, remaining deals use post-cap rate.
+Two compensation plans (Settings → Commission & Brokerage). The comp_plan setting selects one.
+
+**simple_split** (default) — Split: agent keeps X% (70/30 to 100/0). Brokerage fees: monthly desk fee, per-deal % of GCI, annual cap, post-cap rate (often 0%). After cap reached, remaining deals use post-cap rate.
+
+**real** (REAL Brokerage per-deal waterfall) — The split preset does NOT apply; the agent's share flips at the cap. Pre-cap REAL takes a fixed 15% of GCI and the agent keeps 85% (solo); the CAP counts REAL's 15% take, NOT GCI crossed ($15,000 solo cap ≈ $100K GCI). Cap resets on the anniversary of the join date, not Jan 1. A single deal can straddle the cap. Post-cap the agent keeps 100% (solo) and REAL charges a flat $375/deal, dropping to $175 once cumulative post-cap fees reach $9,000 (Elite). Every deal pays a $40 CBR fee; $1,200 BEOP amortizes over the first 3 deals of each anniversary year; a $249 sign-up fee hits the first deal of year 1. Cap tiers: solo_full $15,000 / team_member $7,500 / mega_team $5,000. All figures user-editable. Never quote a REAL user a single split percentage — their effective share depends on cap position.
 
 ---
 

@@ -859,7 +859,8 @@ Annual summaries by year. Import via CSV/PDF for prior years. Shows:
 | Setting | Affects | Default |
 |---------|---------|---------|
 | Province | Tax brackets, GST/HST rate, provincial rates | Required (set in onboarding) |
-| Commission Split | Agent net income, tax, waterfall | Required |
+| Compensation Plan | Which commission model runs: simple_split or real | simple_split |
+| Commission Split | Agent net income, tax, waterfall (simple_split plan only) | Required |
 | Annual GCI Goal | Pace, runway score, goal gap | $0 (not set) |
 | Cash Reserve | Survival runway | $0 |
 | Experience Years | Benchmark cohort, deviation tone | 0 |
@@ -868,18 +869,83 @@ Annual summaries by year. Import via CSV/PDF for prior years. Shows:
 | Estimated Weekly Hours | Time Value card on Overhead page | Not set (card hidden) |
 | Vacation Weeks/Year | Reduces annual hours for Time Value calc | 0 |
 
-### Commission Split Options
+### Compensation Plan (comp_plan)
+Two models. Settings → Commission & Brokerage picks one.
+
+- **simple_split** (default): one static split preset + brokerage fees. Everything below under "Commission Split Options" and "Brokerage Fee Structure" applies.
+- **real**: REAL Brokerage per-deal waterfall. The split preset is IGNORED — the agent's share flips at the cap, so a single percentage cannot describe it. See "REAL Brokerage Plan" below.
+
+If a user on comp_plan = 'real' asks "what's my split?", do not quote split_preset. Their effective share depends on where they are against the cap.
+
+### Commission Split Options (simple_split plan)
 Presets: 70/30, 75/25, 80/20, 85/15, 90/10, 95/5, 100/0
 Custom: Any percentage via custom input
 Format: p{agent}_{brokerage} (e.g., "p80_20")
 
 ### Brokerage Fee Structure
-- **Monthly fee**: Fixed amount per month
-- **Per-deal fee rate**: Percentage of GCI per transaction
-- **Annual cap**: Maximum total per-deal fees per year
-- **Post-cap rate**: Fee rate after cap is reached (often 0%)
+- **Monthly fee**: Fixed amount per month — applies under BOTH plans
+- **Per-deal fee rate** (tx_fee_rate_pct): Percentage of GCI per transaction — simple_split only
+- **Annual cap** (tx_fee_annual_cap): Maximum total per-deal fees per year — simple_split only
+- **Post-cap rate**: Fee rate after cap is reached (often 0%) — simple_split only
 
-Example: $500/month + 3% per deal, capped at $20,000/year. After cap → 0% per deal.
+Example (simple_split): $500/month + 3% per deal, capped at $20,000/year. After cap → 0% per deal.
+
+Under comp_plan = 'real', tx_fee_rate_pct and tx_fee_annual_cap are read only on the simple_split branch of computePlanGross — they are ignored, and the Settings UI hides them. REAL's per-deal drag comes entirely from the CBR / post-cap / sign-up fees below. Monthly Fee and the "brokerage withholds HST" toggle DO still apply on REAL: both are applied after plan math on every surface.
+
+### REAL Brokerage Plan (comp_plan = 'real')
+
+Canonical engine: packages/core/engines/real-compensation-engine.ts. Never quote a number for a REAL user that did not come from this engine.
+
+**The waterfall, in order:**
+1. **Pre-cap**: REAL takes a fixed 15% of GCI (company-dollar rate — an engine constant, not user-editable). Agent keeps real_pre_cap_agent_pct; any remainder is a team-leader override.
+2. **The cap counts REAL's 15% take — NOT GCI crossed.** This is the single most common misunderstanding. A $15,000 cap is reached after ~$100,000 of GCI, not $15,000.
+3. **Straddle deals**: one deal can span the cap. The GCI portion whose 15% still fits in the remaining cap room pays pre-cap terms; the rest pays post-cap.
+4. **Post-cap**: agent keeps real_post_cap_agent_pct (100% solo) and REAL charges a flat per-deal fee instead of a percentage.
+5. **Elite**: once cumulative post-cap fees reach the elite threshold, the per-deal fee drops to the elite fee.
+6. **Fees**: CBR on every deal; BEOP amortized over the first 3 deals of each anniversary year; sign-up fee on the first deal of anniversary year 1 only.
+
+**The cap year is the ANNIVERSARY year, not the calendar year** — anchored on real_join_date. No join date → falls back to the calendar year and no deal is excluded as pre-join.
+
+| Setting | Meaning | Default |
+|---------|---------|---------|
+| real_join_date | Anchors the anniversary year; deals before it stay on the legacy split | Not set |
+| real_cap_tier | solo_full / team_member / mega_team | solo_full |
+| real_cap_amount | Company dollar to REAL before the cap flips | $15,000 solo_full ($7,500 team_member, $5,000 mega_team) |
+| real_pre_cap_agent_pct | Agent share pre-cap | 0.85 solo (0.70 typical team member) |
+| real_post_cap_agent_pct | Agent share post-cap | 1.0 solo (0.80 typical team member) |
+| real_post_cap_fee | Flat per-deal fee after cap | $375 |
+| real_elite_fee | Reduced post-cap fee after elite threshold | $175 |
+| real_elite_threshold | Cumulative post-cap fees that trigger elite | $9,000 |
+| real_cbr_fee | Compliance & Broker Review, per deal | $40 |
+| real_beop_annual | Annual brokerage/E&O, amortized over first 3 deals | $1,200 |
+| real_signup_fee | One-time Year-1 fee | $249 |
+| real_cap_paid_seed | Company dollar already paid this anniversary year outside the app | 0 |
+| real_post_cap_fees_paid_seed | Post-cap fees already paid this anniversary year outside the app | 0 |
+
+All figures are a snapshot of the REAL income deck and are user-editable — if REAL revises them, the user updates Settings.
+
+**Documented assumptions (flagged in the spec, unverified with REAL):**
+- A straddle deal with any post-cap portion pays the FULL post-cap fee, not prorated. Conservative — slightly understates net.
+- The deal that crosses the elite threshold pays the full fee; the discount starts on the NEXT deal.
+- CBR is treated as per-transaction. If REAL confirms it is one-time, set real_cbr_fee to 0.
+- BEOP amortizes over the first 3 deals of the anniversary year; years with fewer than 3 deals are charged only the amortized portions.
+
+**REAL-specific problems & diagnostics:**
+
+**"I hit my cap but Agent Runway says I haven't"**
+→ The cap counts REAL's 15% company dollar, not GCI. Confirm which number they are tracking. Then check real_cap_paid_seed — a mid-year switcher whose earlier REAL deals were never entered starts from zero unless the seed is set.
+
+**"My cap reset at the wrong time"**
+→ The cap year runs on the anniversary of real_join_date, not Jan 1. If real_join_date is blank the engine falls back to the calendar year, which is the usual cause.
+
+**"My net on this deal looks too low"**
+→ Walk the fee stack: post-cap fee (or elite fee) + CBR + BEOP amortization + sign-up. A first deal of the anniversary year carries BEOP and possibly sign-up, so it nets visibly less than later deals.
+
+**"My split percentage is wrong in Settings"**
+→ On comp_plan = 'real' the split preset is not used. Point them at cap tier and the pre/post-cap percentages instead.
+
+**"Transaction Fee Rate / Annual Fee Cap disappeared from Settings"**
+→ Expected on comp_plan = 'real'. Those two fields are ignored by the REAL waterfall, so the UI hides them rather than let users edit dead values. Monthly Fee and the HST-withholding toggle remain because both still apply.
 
 ### Seasonal Weights
 - Default: uniform Q1=25%, Q2=25%, Q3=25%, Q4=25% (engine normalizes via normalizeSeasonalWeights)
