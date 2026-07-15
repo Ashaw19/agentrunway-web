@@ -180,24 +180,21 @@ export function buildCoPartyRows(
  *  out of sync with the real client's signature. */
 type SupabaseLike = ReturnType<typeof createClient>;
 
-/**
- * Upsert every person named across the given deals as a CRM contact (matching
- * existing contacts rather than duplicating them), link co-parties on the same
- * deal, and return the map the caller needs to attribute each deal.
- *
- * @returns raw deal name → primary client id. A name absent from the map means
- *          it could not be resolved; the caller should write client_id = null
- *          rather than guessing.
- */
+export interface ResolvedDealClients {
+  primaryIdByRawName: Map<string, string>;
+  /** For each raw deal name with 2+ parties, the co-parties' resolved client ids. */
+  coPartyIdsByRawName: Map<string, string[]>;
+}
+
 export async function resolveDealClientIds(
   supabase: SupabaseLike,
   userId: string,
   rawDealNames: string[],
   nameLimit: number,
-): Promise<Map<string, string>> {
+): Promise<ResolvedDealClients> {
   const plan = planDealClients(rawDealNames, nameLimit);
-  const primaryIdByRawName = new Map<string, string>();
-  if (plan.allParties.length === 0) return primaryIdByRawName;
+  const empty: ResolvedDealClients = { primaryIdByRawName: new Map(), coPartyIdsByRawName: new Map() };
+  if (plan.allParties.length === 0) return empty;
 
   // ignoreDuplicates: an existing contact (e.g. from a Follow Up Boss CSV) must
   // be matched and left exactly as-is, never overwritten by a brokerage
@@ -222,42 +219,121 @@ export async function resolveDealClientIds(
     ((clientRows ?? []) as { id: string; name_search: string }[]).map((c) => [c.name_search, c.id]),
   );
 
-  for (const [rawName, primary] of plan.primaryByRawName) {
+  // Look up any existing spouse/partner household that already has a
+  // persisted primary among this batch's people, so the same couple keeps
+  // attributing to the same person even if a report names them differently
+  // than last time. Two queries (not one .or()) to keep the filter simple.
+  const resolvedIds = [...idByKey.values()];
+  const existingRels: { client_id_a: string; client_id_b: string; primary_client_id: string | null }[] = [];
+  if (resolvedIds.length > 0) {
+    const [byA, byB] = await Promise.all([
+      supabase.from("client_relationships")
+        .select("client_id_a, client_id_b, primary_client_id")
+        .eq("user_id", userId)
+        .in("relationship_type", ["spouse", "partner"])
+        .not("primary_client_id", "is", null)
+        .in("client_id_a", resolvedIds),
+      supabase.from("client_relationships")
+        .select("client_id_a, client_id_b, primary_client_id")
+        .eq("user_id", userId)
+        .in("relationship_type", ["spouse", "partner"])
+        .not("primary_client_id", "is", null)
+        .in("client_id_b", resolvedIds),
+    ]);
+    const seenRelPairs = new Set<string>();
+    for (const row of [...(byA.data ?? []), ...(byB.data ?? [])] as typeof existingRels) {
+      const pairKey = `${row.client_id_a}|${row.client_id_b}`;
+      if (seenRelPairs.has(pairKey)) continue;
+      seenRelPairs.add(pairKey);
+      existingRels.push(row);
+    }
+  }
+
+  const keyById = new Map([...idByKey.entries()].map(([key, id]) => [id, key]));
+  const primaryKeyOverride = new Map<string, string>();
+  for (const rel of existingRels) {
+    if (!rel.primary_client_id) continue;
+    const primaryKey = keyById.get(rel.primary_client_id);
+    if (!primaryKey) continue;
+    const otherId = rel.client_id_a === rel.primary_client_id ? rel.client_id_b : rel.client_id_a;
+    const otherKey = keyById.get(otherId);
+    primaryKeyOverride.set(primaryKey, primaryKey);
+    if (otherKey) primaryKeyOverride.set(otherKey, primaryKey);
+  }
+
+  const overriddenPlan = applyPrimaryOverrides(plan, primaryKeyOverride);
+
+  const primaryIdByRawName = new Map<string, string>();
+  for (const [rawName, primary] of overriddenPlan.primaryByRawName) {
     const id = idByKey.get(toNameSearch(primary));
     if (id) primaryIdByRawName.set(rawName, id);
   }
 
-  // Link co-parties to the primary. Two people named together on one
-  // transaction are co-parties to that deal — a fact off the report, not an
-  // inferred biography — so this uses the mildest label available ("partner")
-  // and is editable/removable by the user like any manual link.
-  const links: { user_id: string; client_id_a: string; client_id_b: string; relationship_type: string }[] = [];
+  const coPartyIdsByRawName = new Map<string, string[]>();
+
+  // Link co-parties to the primary (existing behavior). Two people named
+  // together on one transaction are co-parties to that deal — a fact off the
+  // report, not an inferred biography — so this uses the mildest label
+  // available ("partner") and is editable/removable by the user like any
+  // manual link. When a NEW relationship is created here, it also seeds
+  // primary_client_id so this household's choice is persisted from first sight.
+  const links: { user_id: string; client_id_a: string; client_id_b: string; relationship_type: string; primary_client_id: string }[] = [];
   const seenPairs = new Set<string>();
 
-  for (const [rawName, coParties] of plan.coPartiesByRawName) {
+  for (const [rawName, coParties] of overriddenPlan.coPartiesByRawName) {
     const primaryId = primaryIdByRawName.get(rawName);
     if (!primaryId) continue;
+    const coIds: string[] = [];
     for (const co of coParties) {
       const coId = idByKey.get(toNameSearch(co));
       if (!coId || coId === primaryId) continue;
+      coIds.push(coId);
       // client_relationships enforces CHECK (client_id_a < client_id_b) to keep
       // A-B and B-A from both existing — order before inserting.
       const [a, b] = primaryId < coId ? [primaryId, coId] : [coId, primaryId];
       const pair = `${a}|${b}`;
       if (seenPairs.has(pair)) continue;
       seenPairs.add(pair);
-      links.push({ user_id: userId, client_id_a: a, client_id_b: b, relationship_type: "partner" });
+      links.push({ user_id: userId, client_id_a: a, client_id_b: b, relationship_type: "partner", primary_client_id: primaryId });
     }
+    if (coIds.length > 0) coPartyIdsByRawName.set(rawName, coIds);
   }
 
   if (links.length > 0) {
     // Best-effort: a failed link must never abort the import — the deal rows
     // and their attribution are the load-bearing part of this operation.
+    // ignoreDuplicates means an already-linked pair is never overwritten here:
+    // whatever primary_client_id it has, including NULL, is preserved. Only a
+    // genuinely new pair gets its primary seeded, on first sighting. A pair
+    // left at NULL keeps falling back to the alphabetical default, which is
+    // stable — so attribution stays consistent; a persisted primary only ever
+    // arrives from the migration backfill or an explicit user "Make primary".
     const { error } = await supabase
       .from("client_relationships")
       .upsert(links, { onConflict: "user_id,client_id_a,client_id_b", ignoreDuplicates: true });
     if (error) console.error("[import] co-party relationship link failed:", error);
   }
 
-  return primaryIdByRawName;
+  return { primaryIdByRawName, coPartyIdsByRawName };
+}
+
+/**
+ * Writes client_record_co_parties rows once each deal's real client_records
+ * id is known (this must run AFTER the caller's own client_records upsert —
+ * resolveDealClientIds resolves client ids BEFORE those rows exist, so it
+ * has no way to know them). All logic lives in buildCoPartyRows; this is
+ * the thin I/O wrapper.
+ */
+export async function writeCoPartyRecords(
+  supabase: SupabaseLike,
+  userId: string,
+  recordIdByExtId: Map<string, string>,
+  coPartyIdsByExtId: Map<string, string[]>,
+): Promise<void> {
+  const rows = buildCoPartyRows(userId, recordIdByExtId, coPartyIdsByExtId);
+  if (rows.length === 0) return;
+  const { error } = await supabase
+    .from("client_record_co_parties")
+    .upsert(rows, { onConflict: "client_record_id,co_client_id", ignoreDuplicates: true });
+  if (error) console.error("[import] co-party record link failed:", error);
 }
