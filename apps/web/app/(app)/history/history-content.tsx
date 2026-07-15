@@ -4,6 +4,7 @@ import { useState, useRef, useMemo, Fragment } from "react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { FIELD_LIMITS } from "@agent-runway/core/validation/input-guards";
+import { resolveDealClientIds } from "@/lib/crm/resolve-deal-clients";
 import {
   Card,
   CardContent,
@@ -107,27 +108,12 @@ function buildSeasonalProfile(items: HistoryItem[]): SeasonalProfile | null {
   return { avgGCI, avgTx, pcts, strongestQ, weakestQ, yearCount: withData.length };
 }
 
-// ── Client name splitter ──────────────────────────────────────────────────────
-// Splits combined names like "Tom & Nancy Doyle" → ["Tom Doyle", "Nancy Doyle"].
-// Corporate/estate names (Inc, Corp, Realty, Estate of, etc.) are kept as-is.
-const CORPORATE_RE = /\b(inc|corp|ltd|llc|llp|co\.|realty|properties|group|team|trust|estate\s+of)\b/i;
-
-function splitClientNames(raw: string): string[] {
-  if (CORPORATE_RE.test(raw)) return [raw.trim()];
-
-  const parts = raw.split(/\s+(?:&|and)\s+/i);
-  if (parts.length < 2) return [raw.trim()];
-
-  // Inherit last name from the final segment: "Tom & Nancy Doyle" → "Tom Doyle", "Nancy Doyle"
-  const lastName = parts[parts.length - 1].trim().split(/\s+/).pop() ?? "";
-  return parts
-    .map((p, i) => {
-      p = p.trim();
-      if (i < parts.length - 1 && !p.includes(" ")) return `${p} ${lastName}`;
-      return p;
-    })
-    .filter(Boolean);
-}
+// Joint-name splitting now lives in lib/crm/joint-names.ts (splitJointName),
+// shared with the Transactions-tab importer via resolveDealClientIds. The local
+// copy that used to live here split on "&"/"and" only, missed "+", and matched
+// org markers without a word boundary on a trailing period ("Miller & Co."
+// split into two people). It is gone rather than duplicated — two importers
+// disagreeing about who a deal belongs to is the bug class this replaces.
 
 type ImportStatus = "idle" | "rendering" | "extracting" | "preview" | "saving";
 
@@ -880,35 +866,30 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
       //     file for the same year get appended instead of wiping the first
       //     upload. Fixes Bug A (multi-file same year) + Bug B (manual edits).
 
-      // ── Upsert client identities, then attach client_id to each record ────
-      // splitClientNames() splits "Tom & Nancy Doyle" → ["Tom Doyle", "Nancy Doyle"]
-      // Corporate/estate names (Inc, Realty, Estate of…) are kept as-is.
-      const dealNames = resolvedDeals
-        .flatMap((deal, i) => {
-          const sideSelected = agentSides[i] ?? deal.agent_side;
-          const raw = ((sideSelected === 1 ? deal.party_b : deal.party_a) ?? "").trim();
-          return raw ? splitClientNames(raw) : [];
-        });
-      const uniqueNames = [...new Set(dealNames)];
+      // ── Resolve deal names to real CRM contacts, then attach client_id ────
+      // Shared with the Transactions-tab importer (resolve-deal-clients.ts):
+      // joint names split, every party matched against existing contacts by the
+      // app-wide toNameSearch key, co-parties linked, and each deal attributed
+      // to exactly ONE party.
+      const dealNames = resolvedDeals.map((deal, i) => {
+        const sideSelected = agentSides[i] ?? deal.agent_side;
+        return ((sideSelected === 1 ? deal.party_b : deal.party_a) ?? "").trim();
+      });
 
-      if (uniqueNames.length > 0) {
-        await supabase.from("clients").upsert(
-          uniqueNames.map((rawName) => {
-            const name = rawName.slice(0, FIELD_LIMITS.clientName);
-            return { user_id: user.id, name, name_search: name.toLowerCase() };
-          }),
-          { onConflict: "user_id,name_search", ignoreDuplicates: true },
-        );
-      }
-      const { data: clientRows } = uniqueNames.length > 0
-        ? await supabase.from("clients").select("id, name_search").eq("user_id", user.id)
-            .in("name_search", uniqueNames.map((n) => n.toLowerCase()))
-        : { data: [] as { id: string; name_search: string }[] };
-      const clientIdMap = new Map((clientRows ?? []).map((c) => [c.name_search, c.id]));
+      const primaryIdByDealName = await resolveDealClientIds(
+        supabase,
+        user.id,
+        dealNames.filter(Boolean),
+        FIELD_LIMITS.clientName,
+      );
 
-      // Build the (one row per split client name) payloads, tagged with the
-      // deal-level external ID + a per-client suffix so split couples get
-      // distinct but still stable IDs.
+      // ONE row per deal, not one per party. This previously emitted a row for
+      // each split party EACH CARRYING THE FULL GCI, so a $10k couple's deal
+      // counted as $20k — client_records.gci is summed per-client and in
+      // aggregate (clients-content.tsx, client-valuation engine, dashboard),
+      // and a per-party row also inflates the repeat-client-rate denominator.
+      // The deal is attributed to one party; co-parties are linked as contacts
+      // by resolveDealClientIds instead.
       const clientInserts = resolvedDeals
         .flatMap((deal, i) => {
           const sideSelected = agentSides[i] ?? deal.agent_side;
@@ -922,19 +903,22 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
             party_b: deal.party_b,
             gci:     deal.gci,
           });
-          return splitClientNames(raw).map((clientName) => ({
+          return [{
             user_id: user.id,
-            name: clientName,
-            client_id: clientIdMap.get(clientName.toLowerCase()) ?? null,
+            // The report's own wording, kept as-is; client_id attributes it.
+            name: raw.slice(0, FIELD_LIMITS.clientName),
+            client_id: primaryIdByDealName.get(raw) ?? null,
             side: deal.side ?? null,
             source: deal.source ?? null,
             address: deal.address || null,
             close_date: deal.date || null,
             year: importData.year,
             gci: clampGci(deal.gci, 0), // client_records.gci is numeric(10,2) — a >$100M parse error overflows + aborts the batch
-            // Stable key: deal fingerprint + normalized split-client name
-            import_external_id: `${dealExtId}|c:${clientName.trim().toLowerCase()}`,
-          }));
+            // Stable key: deal fingerprint + normalized client name. Retains the
+            // |c: suffix shape so re-imports of rows written before this change
+            // still match and update in place rather than duplicating.
+            import_external_id: `${dealExtId}|c:${raw.toLowerCase()}`,
+          }];
         });
 
       // Look up which of these IDs are already present AND have been
@@ -1165,21 +1149,14 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
       const agentClientNames = yearData.deals.map((d) =>
         ((d.agent_side === 1 ? d.party_b : d.party_a) ?? "").trim()
       );
-      const uniqueYearNames = [...new Set(agentClientNames.filter(Boolean))];
-      if (uniqueYearNames.length > 0) {
-        await supabase.from("clients").upsert(
-          uniqueYearNames.map((rawName) => {
-            const name = rawName.slice(0, FIELD_LIMITS.clientName);
-            return { user_id: user.id, name, name_search: name.toLowerCase() };
-          }),
-          { onConflict: "user_id,name_search", ignoreDuplicates: true },
-        );
-      }
-      const { data: yearClientRows } = uniqueYearNames.length > 0
-        ? await supabase.from("clients").select("id, name_search").eq("user_id", user.id)
-            .in("name_search", uniqueYearNames.map((n) => n.toLowerCase()))
-        : { data: [] as { id: string; name_search: string }[] };
-      const yearClientIdMap = new Map((yearClientRows ?? []).map((c) => [c.name_search, c.id]));
+      // Same shared resolution as every other import path — joint names split,
+      // matched against existing contacts, one attribution per deal.
+      const yearPrimaryIdByDealName = await resolveDealClientIds(
+        supabase,
+        user.id,
+        agentClientNames.filter(Boolean),
+        FIELD_LIMITS.clientName,
+      );
 
       const clientInserts = yearData.deals
         .map((d, i) => {
@@ -1196,7 +1173,7 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
           return {
             user_id: user.id,
             name: clientName,
-            client_id: yearClientIdMap.get(clientName.toLowerCase()) ?? null,
+            client_id: yearPrimaryIdByDealName.get(clientName) ?? null,
             side: d.side ?? null,
             source: d.source ?? null,
             address: d.address || null,
