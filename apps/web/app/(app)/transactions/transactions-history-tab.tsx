@@ -4,6 +4,7 @@ import React, { useState, useRef, useMemo, useEffect } from "react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { FIELD_LIMITS } from "@agent-runway/core/validation/input-guards";
+import { resolveDealClientIds } from "@/lib/crm/resolve-deal-clients";
 import {
   Card,
   CardContent,
@@ -774,29 +775,28 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
       //     same year appends alongside instead of wiping the first upload.
       //   Fixes Bug A (multi-file same year) + Bug B (manual edits lost).
 
-      // ── Upsert client identities, then attach client_id to each record ────
+      // ── Resolve deal names to real CRM contacts, then attach client_id ────
+      // A report names a deal's client the way the deal was written ("John &
+      // Jane Smith") while the CRM holds those people separately. resolveDeal-
+      // ClientIds splits joint names, matches each person against existing
+      // contacts via the shared toNameSearch key (so an accented or
+      // differently-spaced name matches the contact that's already there
+      // instead of duplicating them), creates only genuinely-new people, and
+      // links co-parties. It attributes each deal to ONE party — see that
+      // module for why writing a row per party would double-count GCI.
       const dealNames = importData.deals
         .map((deal, i) => {
           const sideSelected = agentSides[i] ?? deal.agent_side;
           return ((sideSelected === 1 ? deal.party_b : deal.party_a) ?? "").trim();
         })
         .filter(Boolean);
-      const uniqueNames = [...new Set(dealNames)];
 
-      if (uniqueNames.length > 0) {
-        await supabase.from("clients").upsert(
-          uniqueNames.map((rawName) => {
-            const name = rawName.slice(0, FIELD_LIMITS.clientName);
-            return { user_id: user.id, name, name_search: name.toLowerCase() };
-          }),
-          { onConflict: "user_id,name_search", ignoreDuplicates: true },
-        );
-      }
-      const { data: clientRows } = uniqueNames.length > 0
-        ? await supabase.from("clients").select("id, name_search").eq("user_id", user.id)
-            .in("name_search", uniqueNames.map((n) => n.toLowerCase()))
-        : { data: [] as { id: string; name_search: string }[] };
-      const clientIdMap = new Map((clientRows ?? []).map((c) => [c.name_search, c.id]));
+      const primaryIdByDealName = await resolveDealClientIds(
+        supabase,
+        user.id,
+        dealNames,
+        FIELD_LIMITS.clientName,
+      );
 
       const clientInserts = importData.deals
         .map((deal, i) => {
@@ -813,8 +813,10 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
           });
           return {
             user_id: user.id,
+            // Keep the report's own wording as the record's name (it documents
+            // how the deal was written); client_id is what attributes it.
             name: clientName,
-            client_id: clientIdMap.get(clientName.toLowerCase()) ?? null,
+            client_id: primaryIdByDealName.get(clientName) ?? null,
             side: deal.side ?? null,
             source: deal.source ?? null,
             address: deal.address || null,
@@ -1004,21 +1006,14 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
       const agentClientNames = yearData.deals.map((d) =>
         ((d.agent_side === 1 ? d.party_b : d.party_a) ?? "").trim()
       );
-      const uniqueYearNames = [...new Set(agentClientNames.filter(Boolean))];
-      if (uniqueYearNames.length > 0) {
-        await supabase.from("clients").upsert(
-          uniqueYearNames.map((rawName) => {
-            const name = rawName.slice(0, FIELD_LIMITS.clientName);
-            return { user_id: user.id, name, name_search: name.toLowerCase() };
-          }),
-          { onConflict: "user_id,name_search", ignoreDuplicates: true },
-        );
-      }
-      const { data: yearClientRows } = uniqueYearNames.length > 0
-        ? await supabase.from("clients").select("id, name_search").eq("user_id", user.id)
-            .in("name_search", uniqueYearNames.map((n) => n.toLowerCase()))
-        : { data: [] as { id: string; name_search: string }[] };
-      const yearClientIdMap = new Map((yearClientRows ?? []).map((c) => [c.name_search, c.id]));
+      // Same resolution as the single-year path above — joint names split,
+      // matched against existing contacts, attributed to one party per deal.
+      const yearPrimaryIdByDealName = await resolveDealClientIds(
+        supabase,
+        user.id,
+        agentClientNames.filter(Boolean),
+        FIELD_LIMITS.clientName,
+      );
 
       const clientInserts = yearData.deals
         .filter((d) => {
@@ -1038,7 +1033,7 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
           return {
             user_id: user.id,
             name: clientName,
-            client_id: yearClientIdMap.get(clientName.toLowerCase()) ?? null,
+            client_id: yearPrimaryIdByDealName.get(clientName) ?? null,
             side: d.side ?? null,
             source: d.source ?? null,
             address: d.address || null,
