@@ -27,14 +27,22 @@
 // household into two contacts that each hold a single deal, neither crossing
 // the 2-deal repeat-client threshold. Sorting ignores word order, so the same
 // set of people always yields the same primary, in this import or one years
-// later. Co-parties are still created/matched as real contacts and linked to
-// the primary via client_relationships, but they carry no duplicate deal row.
+// later. Alphabetical is only the DEFAULT: a household can persist an explicit
+// choice in client_relationships.primary_client_id (set by the user's "Make
+// primary" action, or seeded when an import first links a couple), and
+// applyPrimaryOverrides lets that supersede the default for deals naming 2+
+// people. A solo deal is never redirected onto a linked spouse.
+//
+// Co-parties are still created/matched as real contacts and linked to the
+// primary via client_relationships, but they carry no duplicate deal row.
 // This is deliberate: client_records.gci is summed both per-client and in
 // aggregate (clients-content.tsx, the client-valuation engine, the dashboard),
 // and the repeat-client rate counts distinct clients holding a closed deal
 // (memory/feedback_repeat_clients_metric.md). Writing a row per party would
 // double the GCI and inflate the repeat-rate denominator. Attributing once
-// keeps every downstream metric honest.
+// keeps every downstream metric honest — which is why a co-party's deals
+// surface as read-only "Household Activity" (client_record_co_parties) rather
+// than as rows of their own.
 
 import { splitJointName } from "./joint-names";
 import { toNameSearch } from "./client-identity";
