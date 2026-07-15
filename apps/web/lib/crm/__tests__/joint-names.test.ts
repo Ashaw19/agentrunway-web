@@ -109,10 +109,47 @@ describe("splitJointName — non-joint and edge inputs", () => {
   });
 });
 
+describe("splitJointName — the same person named twice", () => {
+  it("collapses a party repeated verbatim into one person", () => {
+    // "John & John Smith" off a sloppy brokerage report is one man, not two.
+    expect(splitJointName("John & John Smith")).toEqual(["John Smith"]);
+  });
+
+  it("collapses a party repeated in a different case, keeping the first spelling", () => {
+    expect(splitJointName("John & JOHN Smith")).toEqual(["John Smith"]);
+  });
+
+  it("collapses a party repeated with an accent variant", () => {
+    // toNameSearch strips diacritics, so these normalize to the same person.
+    expect(splitJointName("Réjean & Rejean Thériault")).toEqual(["Réjean Thériault"]);
+  });
+
+  it("collapses a duplicate that only appears after surname inheritance", () => {
+    // "John" inherits "Smith" and only then collides with the explicit
+    // "John Smith" — deduping before inheritance would miss this.
+    expect(splitJointName("John & John Smith & Jane Smith")).toEqual([
+      "John Smith",
+      "Jane Smith",
+    ]);
+  });
+
+  it("keeps genuinely different people who share a given-name prefix", () => {
+    expect(splitJointName("John & Johnny Smith")).toEqual(["John Smith", "Johnny Smith"]);
+  });
+
+  it("still splits a real couple — dedupe must not collapse two people", () => {
+    expect(splitJointName("John & Jane Smith")).toEqual(["John Smith", "Jane Smith"]);
+  });
+});
+
 describe("isJointName", () => {
   it("is true only for genuinely splittable multi-person names", () => {
     expect(isJointName("John & Jane Smith")).toBe(true);
     expect(isJointName("John Smith")).toBe(false);
     expect(isJointName("Smith & Sons Realty Ltd")).toBe(false);
+  });
+
+  it("is false when a conjunction joins one person to themselves", () => {
+    expect(isJointName("John & John Smith")).toBe(false);
   });
 });
