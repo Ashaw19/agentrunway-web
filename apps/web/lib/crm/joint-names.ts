@@ -16,6 +16,8 @@
 // toNameSearch) and attribute the deal's GCI to exactly one of them — see
 // the caller for the no-double-count rule.
 
+import { toNameSearch } from "./client-identity";
+
 /** Conjunctions that join two parties on a deal. Ordered longest-first so
  *  " and " is consumed before a bare "&" inside the same pass. */
 const CONJUNCTION = /\s*(?:&|\+|\band\b)\s*/gi;
@@ -51,10 +53,16 @@ function rawParts(name: string): string[] {
  * name — a plain individual, an organization, or anything ambiguous. Callers
  * can therefore treat the result uniformly without special-casing.
  *
+ * Parties are deduped by toNameSearch key, so a report that names the same
+ * person on both sides of the conjunction ("John & John Smith") yields one
+ * person rather than two identical strings. The first spelling encountered
+ * wins, matching the left-to-right reading order of the source name.
+ *
  * Examples:
  *   "John & Jane Smith"      → ["John Smith", "Jane Smith"]
  *   "Bob and Mary Wilson"    → ["Bob Wilson", "Mary Wilson"]
  *   "John Smith & Jane Doe"  → ["John Smith", "Jane Doe"]
+ *   "John & John Smith"      → ["John Smith"]                (one person, named twice)
  *   "Smith & Sons Realty Ltd"→ ["Smith & Sons Realty Ltd"]   (org, untouched)
  *   "John Smith"             → ["John Smith"]                (not joint)
  */
@@ -95,7 +103,22 @@ export function splitJointName(name: string): string[] {
     }
   }
 
-  return out;
+  // Collapse the same person named twice on one deal ("John & John Smith").
+  // Keyed on toNameSearch — the app-wide identity key — so a case or accent
+  // variant of one person ("John & JOHN Smith") collapses too, rather than
+  // surviving as two strings that would resolve to the same contact anyway.
+  // This runs AFTER surname inheritance because inheritance is what creates
+  // the collision: "John" only becomes "John Smith" in the loop above.
+  const deduped: string[] = [];
+  const seen = new Set<string>();
+  for (const party of out) {
+    const key = toNameSearch(party);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    deduped.push(party);
+  }
+
+  return deduped;
 }
 
 /** True when a name refers to more than one person and can be split. Useful

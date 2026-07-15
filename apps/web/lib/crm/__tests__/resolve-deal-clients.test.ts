@@ -67,6 +67,15 @@ describe("planDealClients — person deduplication", () => {
     const plan = planDealClients(["Réjean Thériault", "Rejean Theriault"], LIMIT);
     expect(plan.allParties).toHaveLength(1);
   });
+
+  it("never lists the primary as its own co-party when one deal names them twice", () => {
+    // "John & John Smith" off a sloppy report is one man. A co-party list
+    // containing the primary would describe him as his own partner.
+    const plan = planDealClients(["John & John Smith"], LIMIT);
+    expect(plan.primaryByRawName.get("John & John Smith")).toBe("John Smith");
+    expect(plan.coPartiesByRawName.has("John & John Smith")).toBe(false);
+    expect(plan.allParties).toEqual(["John Smith"]);
+  });
 });
 
 describe("planDealClients — edge inputs", () => {
