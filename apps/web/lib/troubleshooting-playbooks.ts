@@ -882,13 +882,15 @@ Presets: 70/30, 75/25, 80/20, 85/15, 90/10, 95/5, 100/0
 Custom: Any percentage via custom input
 Format: p{agent}_{brokerage} (e.g., "p80_20")
 
-### Brokerage Fee Structure (simple_split plan)
-- **Monthly fee**: Fixed amount per month
-- **Per-deal fee rate**: Percentage of GCI per transaction
-- **Annual cap**: Maximum total per-deal fees per year
-- **Post-cap rate**: Fee rate after cap is reached (often 0%)
+### Brokerage Fee Structure
+- **Monthly fee**: Fixed amount per month — applies under BOTH plans
+- **Per-deal fee rate** (tx_fee_rate_pct): Percentage of GCI per transaction — simple_split only
+- **Annual cap** (tx_fee_annual_cap): Maximum total per-deal fees per year — simple_split only
+- **Post-cap rate**: Fee rate after cap is reached (often 0%) — simple_split only
 
-Example: $500/month + 3% per deal, capped at $20,000/year. After cap → 0% per deal.
+Example (simple_split): $500/month + 3% per deal, capped at $20,000/year. After cap → 0% per deal.
+
+Under comp_plan = 'real', tx_fee_rate_pct and tx_fee_annual_cap are read only on the simple_split branch of computePlanGross — they are ignored, and the Settings UI hides them. REAL's per-deal drag comes entirely from the CBR / post-cap / sign-up fees below. Monthly Fee and the "brokerage withholds HST" toggle DO still apply on REAL: both are applied after plan math on every surface.
 
 ### REAL Brokerage Plan (comp_plan = 'real')
 
@@ -941,6 +943,9 @@ All figures are a snapshot of the REAL income deck and are user-editable — if 
 
 **"My split percentage is wrong in Settings"**
 → On comp_plan = 'real' the split preset is not used. Point them at cap tier and the pre/post-cap percentages instead.
+
+**"Transaction Fee Rate / Annual Fee Cap disappeared from Settings"**
+→ Expected on comp_plan = 'real'. Those two fields are ignored by the REAL waterfall, so the UI hides them rather than let users edit dead values. Monthly Fee and the HST-withholding toggle remain because both still apply.
 
 ### Seasonal Weights
 - Default: uniform Q1=25%, Q2=25%, Q3=25%, Q4=25% (engine normalizes via normalizeSeasonalWeights)
