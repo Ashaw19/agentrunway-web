@@ -18,8 +18,16 @@
 // shared implementation both importers now call.
 //
 // THE ATTRIBUTION RULE (why it is this way):
-// A deal produces exactly ONE client_records row, attributed to the FIRST-named
-// party. Co-parties are still created/matched as real contacts and linked to
+// A deal produces exactly ONE client_records row, attributed to whichever named
+// party's toNameSearch key sorts alphabetically first. Alphabetical rather than
+// first-named because the primary must be a function of WHO the parties are,
+// not of the word order a report happened to use: "John & Jane Smith" on one
+// report and "Jane & John Smith" on the next are the same household, and
+// first-named would attribute them to different people — fragmenting one
+// household into two contacts that each hold a single deal, neither crossing
+// the 2-deal repeat-client threshold. Sorting ignores word order, so the same
+// set of people always yields the same primary, in this import or one years
+// later. Co-parties are still created/matched as real contacts and linked to
 // the primary via client_relationships, but they carry no duplicate deal row.
 // This is deliberate: client_records.gci is summed both per-client and in
 // aggregate (clients-content.tsx, the client-valuation engine, the dashboard),
@@ -47,19 +55,23 @@ export interface DealClientPlan {
  * the DB work so the decision logic is unit-testable without a database.
  */
 export function planDealClients(rawDealNames: string[], nameLimit: number): DealClientPlan {
-  const primaryByRawName = new Map<string, string>();
-  const coPartiesByRawName = new Map<string, string[]>();
   const partiesByKey = new Map<string, string>();
+  const entries: { rawName: string; parties: string[] }[] = [];
+  const seenRawNames = new Set<string>();
 
+  // Pass 1: split each raw name into parties, record each person's
+  // canonical (first-seen) display spelling. Must complete before pass 2 so
+  // every entry can resolve every party's spelling, even one first seen in
+  // a later entry.
   for (const raw of rawDealNames) {
     const trimmed = (raw ?? "").trim();
-    if (!trimmed || primaryByRawName.has(trimmed)) continue;
+    if (!trimmed || seenRawNames.has(trimmed)) continue;
+    seenRawNames.add(trimmed);
 
     const parties = splitJointName(trimmed).map((p) => p.slice(0, nameLimit));
     if (parties.length === 0) continue;
 
-    primaryByRawName.set(trimmed, parties[0]);
-    if (parties.length > 1) coPartiesByRawName.set(trimmed, parties.slice(1));
+    entries.push({ rawName: trimmed, parties });
 
     // Dedupe people across deals by their match key, not their raw spelling, so
     // a repeat client named slightly differently on two deals is one contact.
@@ -67,6 +79,23 @@ export function planDealClients(rawDealNames: string[], nameLimit: number): Deal
       const key = toNameSearch(p);
       if (key && !partiesByKey.has(key)) partiesByKey.set(key, p);
     }
+  }
+
+  // Pass 2: primary = whichever named party's toNameSearch sorts first,
+  // computed per entry from the sorted key set. This is deterministic and
+  // order-independent — sorting already ignores word order, so the same set
+  // of people always yields the same primary whether they're named
+  // "John & Jane Smith" or "Jane & John Smith", in this batch or any other.
+  const primaryByRawName = new Map<string, string>();
+  const coPartiesByRawName = new Map<string, string[]>();
+
+  for (const entry of entries) {
+    const sortedKeys = entry.parties.map((p) => toNameSearch(p)).sort();
+    const primaryName = partiesByKey.get(sortedKeys[0])!;
+    const coPartyNames = sortedKeys.slice(1).map((k) => partiesByKey.get(k)!);
+
+    primaryByRawName.set(entry.rawName, primaryName);
+    if (coPartyNames.length > 0) coPartiesByRawName.set(entry.rawName, coPartyNames);
   }
 
   return {

@@ -4,10 +4,11 @@ import { planDealClients } from "../resolve-deal-clients";
 const LIMIT = 200;
 
 describe("planDealClients — attribution", () => {
-  it("attributes a couple's deal to the first-named party only", () => {
+  it("attributes a couple's deal to whichever party sorts first alphabetically", () => {
+    // Deterministic tie-break, not word order: "jane smith" < "john smith".
     const plan = planDealClients(["John & Jane Smith"], LIMIT);
-    expect(plan.primaryByRawName.get("John & Jane Smith")).toBe("John Smith");
-    expect(plan.coPartiesByRawName.get("John & Jane Smith")).toEqual(["Jane Smith"]);
+    expect(plan.primaryByRawName.get("John & Jane Smith")).toBe("Jane Smith");
+    expect(plan.coPartiesByRawName.get("John & Jane Smith")).toEqual(["John Smith"]);
   });
 
   it("creates BOTH people as contacts even though only one holds the deal", () => {
@@ -34,13 +35,28 @@ describe("planDealClients — attribution", () => {
     expect(plan.coPartiesByRawName.size).toBe(0);
   });
 
-  it("handles a three-party deal: one primary, two co-parties", () => {
+  it("handles a three-party deal: one primary, two co-parties, alphabetical", () => {
+    // "bob smith" < "jane smith" < "john smith".
     const plan = planDealClients(["John & Jane & Bob Smith"], LIMIT);
-    expect(plan.primaryByRawName.get("John & Jane & Bob Smith")).toBe("John Smith");
+    expect(plan.primaryByRawName.get("John & Jane & Bob Smith")).toBe("Bob Smith");
     expect(plan.coPartiesByRawName.get("John & Jane & Bob Smith")).toEqual([
       "Jane Smith",
-      "Bob Smith",
+      "John Smith",
     ]);
+  });
+
+  it("attributes the same couple to the same primary regardless of word order, within one batch", () => {
+    const plan = planDealClients(["John & Jane Smith", "Jane & John Smith"], LIMIT);
+    expect(plan.primaryByRawName.get("John & Jane Smith")).toBe("Jane Smith");
+    expect(plan.primaryByRawName.get("Jane & John Smith")).toBe("Jane Smith");
+  });
+
+  it("attributes the same couple to the same primary across two separate calls (no shared state)", () => {
+    const planA = planDealClients(["John & Jane Smith"], LIMIT);
+    const planB = planDealClients(["Jane & John Smith"], LIMIT);
+    expect(planA.primaryByRawName.get("John & Jane Smith")).toBe(
+      planB.primaryByRawName.get("Jane & John Smith"),
+    );
   });
 });
 
