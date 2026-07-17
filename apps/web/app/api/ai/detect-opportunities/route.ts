@@ -26,6 +26,7 @@ import type { OutreachQueueItem, AgentState } from "@agent-runway/core/types/dat
 import { POST_CLOSE_OPPORTUNITY_CONFIGS as POST_CLOSE_CONFIGS } from "@agent-runway/core/engines/nurture-engine";
 import type { SupabaseClient }    from "@supabase/supabase-js";
 import type { ClientMemoryFacts } from "@/lib/ai/client-memory-engine";
+import { contactableRecords }     from "@/lib/crm/contactable-records";
 import {
   type Tone,
   AGENT_RUNWAY_VOICE,
@@ -839,8 +840,12 @@ export async function detectAndDraftForUser(
   const agentStyleGuide = (settingsRes.data?.ai_voice_guide as string | null) ?? null;
 
   const clients    = clientsRes.data ?? [];
-  const records    = recordsRes.data ?? [];
   const _clientMap = new Map(clients.map((c) => [c.id, c]));
+  // Gate records against the archived-filtered client map — see
+  // lib/crm/contactable-records.ts. The detectors below iterate `records`, not
+  // `clients`, so without this an archived client (incl. 'deceased' /
+  // 'do_not_contact') keeps generating drafted outreach forever.
+  const records    = contactableRecords(recordsRes.data ?? [], _clientMap);
 
   // Memory lookup — graceful degradation if fetch failed
   const memoryMap = new Map<string, { memory_summary: string | null; structured_facts: ClientMemoryFacts }>();
@@ -2121,8 +2126,11 @@ export async function getTopOpportunities(
   ]);
 
   const clients    = clientsRes.data ?? [];
-  const records    = recordsRes.data ?? [];
   const _clientMap = new Map(clients.map((c) => [c.id, c]));
+  // Same archived gate as the write path — shared helper keeps the two in
+  // lock-step. Without it archived clients also rendered as cards titled
+  // "Unknown", since _clientMap cannot resolve them.
+  const records    = contactableRecords(recordsRes.data ?? [], _clientMap);
 
   const memoryMap = new Map<string, { memory_summary: string | null; structured_facts: ClientMemoryFacts }>();
   if (memoryRes.data) {
