@@ -111,6 +111,11 @@ async function gatherUserMetricsFromSession(
         .from("clients")
         .select("id", { count: "exact", head: true })
         .eq("user_id", userId)
+        // Archiving writes only clients.archived_at — it never changes status,
+        // so an archived boarding/in_flight client stays in this count forever
+        // unless it is excluded here. layout.tsx and api/chat already exclude
+        // it; without this the nav badge and the briefing disagree.
+        .is("archived_at", null)
         .in("status", ["boarding", "in_flight"])
         .lt("last_contact_at", fourteenDaysAgo),
 

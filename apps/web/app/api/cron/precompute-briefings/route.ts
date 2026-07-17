@@ -281,6 +281,10 @@ async function gatherUserMetrics(
       .from("clients")
       .select("id", { count: "exact", head: true })
       .eq("user_id", uid)
+      // Must match api/briefing/route.ts exactly — this cron precomputes the
+      // same number. Archiving never changes status, so archived clients stay
+      // in this count unless excluded here.
+      .is("archived_at", null)
       .in("status", ["boarding", "in_flight"])
       .lt("last_contact_at", dates.fourteenDaysAgo),
 

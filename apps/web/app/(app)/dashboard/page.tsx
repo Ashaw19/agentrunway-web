@@ -88,6 +88,9 @@ export default async function DashboardPage({
         .from("clients")
         .select("id", { count: "exact", head: true })
         .eq("user_id", user.id)
+        // Archiving writes only clients.archived_at, never status — so archived
+        // clients inflated this "active clients" count. Matches layout.tsx.
+        .is("archived_at", null)
         .in("status", ["boarding", "in_flight"]),
       supabase
         .from("contact_activities")
