@@ -1447,23 +1447,60 @@ export function computeGCI(tx: Transaction): number {
     : raw;
 }
 
+/**
+ * The only fields the pipeline GCI helpers actually read. Declared structurally
+ * (rather than taking a full `PipelineDeal`) so every surface — web, the mobile
+ * store's slimmer row shape, MCP tool payloads — can call the canonical helpers
+ * instead of re-deriving the math locally. `PipelineDeal` satisfies this, so
+ * existing callers are unaffected.
+ */
+export interface PipelineDealMetrics {
+  estimated_price: number;
+  estimated_commission_pct: number;
+  probability_override: number | null;
+  stage: string;
+}
+
 /** Compute pipeline deal probability (mirrors iOS PipelineDeal.probability) */
-export function computeProbability(deal: PipelineDeal): number {
+export function computeProbability(deal: PipelineDealMetrics): number {
   if (deal.probability_override != null) {
     return Math.max(0, Math.min(1, deal.probability_override));
   }
   // Guard against unknown stage values from DB (would otherwise return undefined → NaN in weightedGCI)
-  return PIPELINE_STAGE_DEFAULTS[deal.stage] ?? PIPELINE_STAGE_DEFAULTS.lead;
+  return PIPELINE_STAGE_DEFAULTS[deal.stage as PipelineStage] ?? PIPELINE_STAGE_DEFAULTS.lead;
 }
 
 /** Compute estimated GCI for a pipeline deal */
-export function computeEstimatedGCI(deal: PipelineDeal): number {
+export function computeEstimatedGCI(deal: PipelineDealMetrics): number {
   return (deal.estimated_price ?? 0) * (deal.estimated_commission_pct ?? 0);
 }
 
 /** Compute weighted GCI for a pipeline deal */
-export function computeWeightedGCI(deal: PipelineDeal): number {
+export function computeWeightedGCI(deal: PipelineDealMetrics): number {
   return computeEstimatedGCI(deal) * computeProbability(deal);
+}
+
+/**
+ * Terminal pipeline stages. A "closed" deal has already been written to
+ * `transactions` (the pipeline_deals row is kept for history, not cleared), so
+ * counting it as pipeline double-counts money already in GCI YTD. A "lost" deal
+ * is dead. Neither belongs in an "active pipeline" aggregate.
+ */
+export const TERMINAL_PIPELINE_STAGES: readonly PipelineStage[] = ["closed", "lost"];
+
+/** True when a deal is still live — i.e. belongs in active-pipeline aggregates. */
+export function isActivePipelineDeal<T extends { stage: string }>(deal: T): boolean {
+  return !TERMINAL_PIPELINE_STAGES.includes(deal.stage as PipelineStage);
+}
+
+/**
+ * Canonical active-pipeline filter. Every surface that aggregates pipeline
+ * (weighted GCI, deal counts, by-stage breakdowns) MUST route through this so
+ * the filter cannot drift per-surface — that drift is exactly what let closed
+ * deals leak into forecast/chat/MCP totals at 100% probability.
+ */
+export function activePipelineDeals<T extends { stage: string }>(deals: readonly T[]): T[] {
+  return deals.filter(isActivePipelineDeal);
 }
 
 /** Get agent percentage from split preset */

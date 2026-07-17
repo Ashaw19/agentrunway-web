@@ -37,6 +37,11 @@ export interface PipelineDeal {
   address: string | null;
   estimated_price: number;
   estimated_commission_pct: number;
+  // NOTE: canonical PipelineStage also has "lost" (migration 00154); this union
+  // predates it, and mobile's stage label/colour maps do too. Widening it here
+  // cascades into those maps, so it is tracked as separate mobile-lane work.
+  // The runtime is unaffected for forecasting: activePipelineDeals() filters on
+  // the raw string, so a 'lost' row is still excluded from mobile aggregates.
   stage: "lead" | "showing" | "offer" | "conditional" | "firm" | "closed";
   probability_override: number | null;
   expected_close_date: string | null;

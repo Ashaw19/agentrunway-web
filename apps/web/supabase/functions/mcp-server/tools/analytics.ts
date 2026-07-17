@@ -20,10 +20,17 @@ import {
 } from "../lib/projection-engine.ts";
 import { CANONICAL_TAX_DISCLAIMER } from "../lib/constants.ts";
 
-// Canonical stage probabilities — mirrors packages/core/types/database.ts PIPELINE_STAGE_DEFAULTS
+// Canonical stage probabilities — mirrors packages/core/types/database.ts
+// PIPELINE_STAGE_DEFAULTS. `lost: 0.0` was added there by migration 00154 and
+// must stay in sync here: without it, a lost deal misses this map, falls to the
+// unknown-stage fallback, and gets forecast as a live deal.
 const PIPELINE_STAGE_DEFAULTS: Record<string, number> = {
-  lead: 0.1, showing: 0.25, offer: 0.5, conditional: 0.75, firm: 0.9, closed: 1.0,
+  lead: 0.1, showing: 0.25, offer: 0.5, conditional: 0.75, firm: 0.9, closed: 1.0, lost: 0.0,
 };
+
+// Terminal stages are excluded from every fetch below; a deal in one of them is
+// either already a transaction ('closed') or dead ('lost').
+const TERMINAL_STAGES = "(closed,lost)";
 
 // ── Shared dashboard-parity fetch + seasonal weights ─────────────────────────
 //
@@ -98,7 +105,7 @@ export function getAnalyticsTools(supabase: SupabaseClient, userId: string): Mcp
             .from("pipeline_deals")
             .select("estimated_price, estimated_commission_pct, stage, probability_override")
             .eq("user_id", userId)
-            .neq("stage", "closed"),
+            .not("stage", "in", TERMINAL_STAGES),
           supabase
             .from("expense_items")
             .select("ytd_amount")
@@ -135,7 +142,7 @@ export function getAnalyticsTools(supabase: SupabaseClient, userId: string): Mcp
         const pipelineWeighted = deals.reduce((sum, deal) => {
           const prob = deal.probability_override ??
             PIPELINE_STAGE_DEFAULTS[deal.stage as keyof typeof PIPELINE_STAGE_DEFAULTS] ??
-            0.5;
+            PIPELINE_STAGE_DEFAULTS.lead;
           const estGCI = (deal.estimated_price ?? 0) * (deal.estimated_commission_pct ?? 0.025);
           return sum + estGCI * prob;
         }, 0);
@@ -279,7 +286,7 @@ export function getAnalyticsTools(supabase: SupabaseClient, userId: string): Mcp
             .from("pipeline_deals")
             .select("estimated_price, estimated_commission_pct, stage, probability_override, expected_close_date")
             .eq("user_id", userId)
-            .neq("stage", "closed"),
+            .not("stage", "in", TERMINAL_STAGES),
           supabase
             .from("listing_appointments")
             .select("estimated_list_price, estimated_commission_pct, status")
@@ -312,7 +319,7 @@ export function getAnalyticsTools(supabase: SupabaseClient, userId: string): Mcp
         const pipelineWeighted = deals.reduce((sum, deal) => {
           const prob = deal.probability_override ??
             PIPELINE_STAGE_DEFAULTS[deal.stage as keyof typeof PIPELINE_STAGE_DEFAULTS] ??
-            0.5;
+            PIPELINE_STAGE_DEFAULTS.lead;
           const estGCI = (deal.estimated_price ?? 0) * (deal.estimated_commission_pct ?? 0.025);
           return sum + estGCI * prob;
         }, 0);
@@ -422,7 +429,7 @@ export function getAnalyticsTools(supabase: SupabaseClient, userId: string): Mcp
             .from("pipeline_deals")
             .select("estimated_price, estimated_commission_pct, stage, probability_override")
             .eq("user_id", userId)
-            .neq("stage", "closed"),
+            .not("stage", "in", TERMINAL_STAGES),
           supabase
             .from("listing_appointments")
             .select("estimated_list_price, estimated_commission_pct, status")
@@ -459,7 +466,7 @@ export function getAnalyticsTools(supabase: SupabaseClient, userId: string): Mcp
         const pipelineWeighted = deals.reduce((sum, deal) => {
           const prob = deal.probability_override ??
             PIPELINE_STAGE_DEFAULTS[deal.stage as keyof typeof PIPELINE_STAGE_DEFAULTS] ??
-            0.5;
+            PIPELINE_STAGE_DEFAULTS.lead;
           const estGCI = (deal.estimated_price ?? 0) * (deal.estimated_commission_pct ?? 0.025);
           return sum + estGCI * prob;
         }, 0);

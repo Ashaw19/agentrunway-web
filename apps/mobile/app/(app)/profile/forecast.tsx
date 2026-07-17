@@ -17,7 +17,7 @@ import {
   Zap,
 } from "lucide-react-native";
 import { useDataStore } from "@/stores/data-store";
-import { PIPELINE_STAGE_DEFAULTS } from "@agent-runway/core/types/database";
+import { activePipelineDeals, computeWeightedGCI } from "@agent-runway/core/types/database";
 import { useT } from "@/lib/useT";
 import {
   useColors,
@@ -57,12 +57,14 @@ export default function ForecastScreen() {
     const projectedGci = ytdGci / fractionElapsed;
     const projectedDeals = ytdDeals / fractionElapsed;
 
-    // Pipeline contribution (weighted)
-    const pipelineWeighted = store.pipeline.reduce((sum, d) => {
-      const prob = d.probability_override ??
-        (PIPELINE_STAGE_DEFAULTS[d.stage as keyof typeof PIPELINE_STAGE_DEFAULTS] ?? 0.5);
-      return sum + d.estimated_price * d.estimated_commission_pct * prob;
-    }, 0);
+    // Pipeline contribution (weighted) — canonical helper + canonical active
+    // filter, so mobile matches the dashboard. Terminal stages must be excluded:
+    // a 'closed' deal is already counted in ytdGci below, so including it here
+    // would double-count it in conservativeGci.
+    const pipelineWeighted = activePipelineDeals(store.pipeline).reduce(
+      (sum, d) => sum + computeWeightedGCI(d),
+      0,
+    );
 
     // Conservative projection: current + weighted pipeline
     const conservativeGci = ytdGci + pipelineWeighted;

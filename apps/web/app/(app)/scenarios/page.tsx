@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { ScenariosContent } from "./scenarios-content";
 import type { Transaction, PipelineDeal, SplitPreset, RecurringExpense } from "@/lib/types/database";
 import { totalRecurringMonthly, totalRecurringYTD } from "@agent-runway/core/engines/recurring-expense-engine";
-import { computeGCI, computeWeightedGCI } from "@/lib/types/database";
+import { computeGCI, computeWeightedGCI, activePipelineDeals } from "@/lib/types/database";
 import { projectedYearEndGCI, projectedYearEndTransactions, seasonalFractionElapsed } from "@/lib/engines/projection-engine";
 import { computeEffectiveCashForSurvival } from "@/lib/engines/effective-cash";
 
@@ -117,7 +117,7 @@ export default async function ScenariosPage() {
     const pipelineDeals = (pipelineResult.data ?? []) as PipelineDeal[];
 
     const ytdGCI = transactions.reduce((sum, tx) => sum + computeGCI(tx), 0);
-    const pipelineWeightedGCI = pipelineDeals.reduce(
+    const pipelineWeightedGCI = activePipelineDeals(pipelineDeals).reduce(
       (sum, d) => sum + computeWeightedGCI(d),
       0,
     );

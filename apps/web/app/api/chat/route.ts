@@ -18,7 +18,7 @@ import {
 } from "@/lib/flags";
 import { AGENT_RUNWAY_VOICE } from "@/lib/outreach-prompts";
 import { requirePro } from "@/lib/require-pro";
-import { computeGCI, computeWeightedGCI } from "@/lib/types/database";
+import { computeGCI, computeWeightedGCI, activePipelineDeals } from "@/lib/types/database";
 import { computePlanGross, describeSplit } from "@/lib/engines/real-compensation-engine";
 import { fmtCurrency } from "@/lib/formatters";
 import {
@@ -326,7 +326,7 @@ export async function POST(req: NextRequest) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const ytdGCI = ytdTx.reduce((sum: number, tx: any) => sum + computeGCI(tx), 0);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const pipelineWeighted = (pipeline ?? []).reduce((sum: number, d: any) => sum + computeWeightedGCI(d), 0);
+      const pipelineWeighted = activePipelineDeals(pipeline ?? []).reduce((sum: number, d: any) => sum + computeWeightedGCI(d), 0);
       // Listing-appointment weighted GCI — canonical helper (projection-engine).
       // The dashboard projection feeds `pipelineWeighted + listingWeightedGCI`
       // into projectedYearEndGCI; the chat route omitted listings before

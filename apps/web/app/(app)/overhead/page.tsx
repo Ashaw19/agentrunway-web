@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { OverheadContent } from "./overhead-content";
 import type { HistoryItem, Transaction, PipelineDeal, SplitPreset, RecurringExpense } from "@/lib/types/database";
 import { totalRecurringMonthly, totalRecurringYTD } from "@agent-runway/core/engines/recurring-expense-engine";
-import { computeGCI, computeWeightedGCI } from "@/lib/types/database";
+import { computeGCI, computeWeightedGCI, activePipelineDeals } from "@/lib/types/database";
 import { projectedYearEndGCI, projectedYearEndTransactions, seasonalFractionElapsed } from "@/lib/engines/projection-engine";
 import { computeEffectiveCashForSurvival } from "@/lib/engines/effective-cash";
 import type { ScenarioSeedData } from "@/app/(app)/scenarios/page";
@@ -118,7 +118,7 @@ export default async function OverheadPage() {
 
   // ── Build scenario seed from the same data ──
   const ytdGCI = transactions.reduce((sum, tx) => sum + computeGCI(tx), 0);
-  const pipelineWeightedGCI = pipelineDeals.reduce((sum, d) => sum + computeWeightedGCI(d), 0);
+  const pipelineWeightedGCI = activePipelineDeals(pipelineDeals).reduce((sum, d) => sum + computeWeightedGCI(d), 0);
   const legacyMonthlyRecurring = expenseItems.reduce((sum, i) => sum + Number(i.monthly_recurring ?? 0), 0);
   const monthlyRecurring = legacyMonthlyRecurring + recurringExpMonthly;
   const now = new Date();

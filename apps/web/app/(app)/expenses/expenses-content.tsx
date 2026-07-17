@@ -79,7 +79,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import type { PlaidItem, PlaidTransaction, MileageLog, RecurringExpense, PipelineDeal, HistoryItem } from "@/lib/types/database";
-import { computeWeightedGCI } from "@/lib/types/database";
+import { computeWeightedGCI, activePipelineDeals } from "@/lib/types/database";
 import { seasonalFractionElapsed, projectedYearEndGCI, projectedYearEndTransactions } from "@/lib/engines/projection-engine";
 import { computeEffectiveCashForSurvival, computePipelineMonthlyIncome } from "@/lib/engines/effective-cash";
 import { ExpensesMileageTab }     from "./expenses-mileage-tab";
@@ -902,7 +902,7 @@ export function ExpensesContent({
     return [0.25, 0.25, 0.25, 0.25];
   })();
   const expensesFraction = seasonalFractionElapsed(expensesSeasonalWeights);
-  const expensesPipelineWeighted = pipelineDeals.reduce((sum, d) => sum + computeWeightedGCI(d), 0);
+  const expensesPipelineWeighted = activePipelineDeals(pipelineDeals).reduce((sum, d) => sum + computeWeightedGCI(d), 0);
   const expensesProjectedGCI = projectedYearEndGCI(
     ytdGCI, expensesPipelineWeighted, expensesFraction, settings?.goal_gci ?? 0,
   );

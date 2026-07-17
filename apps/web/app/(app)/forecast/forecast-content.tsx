@@ -18,6 +18,7 @@ import { CANONICAL_TAX_DISCLAIMER_SHORT } from "@/lib/flight-crew/constants";
 import {
   computeGCI,
   computeWeightedGCI,
+  activePipelineDeals,
   getAgentPct,
   PROVINCE_LABELS,
   type Transaction,
@@ -121,7 +122,10 @@ export function ForecastContent({
   const ytdDealCount = ytdTx.length;
 
   // ── Pipeline weighted ─────────────────────────────────────────────────
-  const pipelineWeighted = pipelineDeals.reduce(
+  // Terminal stages excluded via the canonical filter — a "closed" deal is
+  // already counted in ytdGCI as a transaction, so including it here would
+  // double-count it inside projectedYearEndGCI below.
+  const pipelineWeighted = activePipelineDeals(pipelineDeals).reduce(
     (sum, d) => sum + computeWeightedGCI(d),
     0,
   );

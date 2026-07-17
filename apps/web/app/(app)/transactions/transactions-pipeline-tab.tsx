@@ -40,6 +40,7 @@ import { KpiStrip, CockpitStat, SEMANTIC } from "@/components/cockpit-ui";
 import {
   computeEstimatedGCI,
   computeWeightedGCI,
+  activePipelineDeals,
   computeProbability,
   PIPELINE_STAGE_DEFAULTS,
   type PipelineDeal,
@@ -124,14 +125,15 @@ type CloseForm = {
 
 export function TransactionsPipelineTab({ pipelineDeals, settings, closedTransactions = [] }: Props) {
   const supabase = useMemo(() => createClient(), []);
-  // Exclude terminal "lost" deals. A buyer prospect marked lost via the
-  // Opportunities flow keeps its pipeline_deals row at stage='lost'; it must
-  // not render among active deals (it would show a blank stage chip and
-  // inflate the active-deal count). The edit form never produces a 'lost'
+  // Exclude BOTH terminal stages via the canonical filter. A buyer prospect
+  // marked lost keeps its row at stage='lost'; a closed deal keeps its row at
+  // stage='closed' (handleClose below writes the transaction and updates the
+  // stage — it never deletes the row). Neither may render among active deals:
+  // 'lost' would show a blank stage chip, and 'closed' would re-appear on
+  // refresh after handleClose optimistically removed it, and double-count in
+  // totalWeighted at 100% probability. The edit form never produces either
   // stage, so filtering the incoming prop is sufficient.
-  const [deals, setDeals] = useState(() =>
-    pipelineDeals.filter((d) => d.stage !== "lost"),
-  );
+  const [deals, setDeals] = useState(() => activePipelineDeals(pipelineDeals));
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm());
