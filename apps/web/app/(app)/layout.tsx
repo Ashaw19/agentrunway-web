@@ -10,7 +10,7 @@ import { AiChatProvider } from "@/lib/ai-chat-context";
 import { Toaster } from "sonner";
 import { createClient } from "@/lib/supabase/server";
 import { ORG_PUBLIC_COLUMNS } from "@/lib/org-context";
-import { computeGCI, computeWeightedGCI } from "@/lib/types/database";
+import { computeGCI, computeWeightedGCI, activePipelineDeals } from "@/lib/types/database";
 import { fmtCurrency } from "@/lib/formatters";
 import type { OrgContext, Organization, OrganizationMember } from "@/lib/types/organizations";
 import { PolicyUpdateBanner } from "@/components/policy-update-banner";
@@ -208,7 +208,7 @@ export default async function AppLayout({
         );
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const ytdGCI = ytdTx.reduce((sum: number, tx: any) => sum + computeGCI(tx), 0);
-        const pipelineWeighted = (pipeline ?? []).reduce(
+        const pipelineWeighted = activePipelineDeals(pipeline ?? []).reduce(
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           (sum: number, d: any) => sum + computeWeightedGCI(d),
           0,

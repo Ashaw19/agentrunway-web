@@ -10,7 +10,7 @@
  */
 
 import { createClient } from "@/lib/supabase/server";
-import { computeGCI, computeWeightedGCI } from "@/lib/types/database";
+import { computeGCI, computeWeightedGCI, activePipelineDeals } from "@/lib/types/database";
 import { fmtCurrency } from "@/lib/formatters";
 import {
   seasonalFractionElapsed,
@@ -214,7 +214,7 @@ export async function buildDiagnostics(
     (sum, tx) => sum + computeGCI(tx as Parameters<typeof computeGCI>[0]),
     0,
   );
-  const pipelineWeighted = pipelineDeals.reduce(
+  const pipelineWeighted = activePipelineDeals(pipelineDeals).reduce(
     (sum, d) => sum + computeWeightedGCI(d as Parameters<typeof computeWeightedGCI>[0]),
     0,
   );

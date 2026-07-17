@@ -108,6 +108,7 @@ import { computePlanGross } from "@/lib/engines/real-compensation-engine";
 import {
   computeGCI,
   computeWeightedGCI,
+  activePipelineDeals,
   PROVINCE_LABELS,
   type Transaction,
   type PipelineDeal,
@@ -528,14 +529,12 @@ export function DashboardContent({
   // the Opportunities flow — fn_mark_opportunity_lost sets stage='lost' and
   // keeps the row) are dead. Counting either would overstate active deals and
   // surface a phantom "lost" bucket in pipeline-by-stage.
-  const activePipelineDeals = pipelineDeals.filter(
-    (d) => d.stage !== "closed" && d.stage !== "lost",
-  );
-  const pipelineWeightedGCI = activePipelineDeals.reduce(
+  const livePipelineDeals = activePipelineDeals(pipelineDeals);
+  const pipelineWeightedGCI = livePipelineDeals.reduce(
     (sum, d) => sum + computeWeightedGCI(d),
     0,
   );
-  const pipelineCount = activePipelineDeals.length;
+  const pipelineCount = livePipelineDeals.length;
 
   // ── Listing appointment weighted GCI ─────────────────────────────────
   // Canonical helper (projection-engine) — single source for the listing
@@ -731,7 +730,7 @@ export function DashboardContent({
     hasData &&
     historyItems.length === 0 &&
     transactions.length < 3 &&
-    activePipelineDeals.length === 0;
+    livePipelineDeals.length === 0;
 
   // ── Runway Score trend (month-over-month) ─────────────────────────────
   const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
@@ -1168,7 +1167,7 @@ export function DashboardContent({
   const dualGCI = dualDeals.reduce((s, tx) => s + computeGCI(tx), 0);
 
   // ── Pipeline by stage ────────────────────────────────────────────────
-  const pipelineByStage = activePipelineDeals.reduce<Record<string, number>>((acc, deal) => {
+  const pipelineByStage = livePipelineDeals.reduce<Record<string, number>>((acc, deal) => {
     const stage = (deal.stage ?? "lead") as string;
     acc[stage] = (acc[stage] ?? 0) + 1;
     return acc;

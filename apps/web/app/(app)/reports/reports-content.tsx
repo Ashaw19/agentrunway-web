@@ -55,6 +55,7 @@ import {
 import {
   computeGCI,
   computeWeightedGCI,
+  activePipelineDeals,
   getAgentPct,
   PROVINCE_LABELS,
   type Transaction,
@@ -262,7 +263,7 @@ export function ReportsContent({
   const sellerDeals = ytdTx.filter((tx) => tx.side === "seller" || tx.side === "both").length;
 
   // ── Pipeline ──────────────────────────────────────────────────────────────────
-  const pipelineWeighted = pipelineDeals.reduce((sum, d) => sum + computeWeightedGCI(d), 0);
+  const pipelineWeighted = activePipelineDeals(pipelineDeals).reduce((sum, d) => sum + computeWeightedGCI(d), 0);
 
   // Listing appointments weighted by status probability — canonical helper
   // (projection-engine), shared with dashboard, forecast, chat, and MCP.

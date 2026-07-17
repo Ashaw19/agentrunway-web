@@ -40,6 +40,7 @@ import { CANONICAL_TAX_DISCLAIMER_SHORT } from "@/lib/flight-crew/constants";
 import {
   computeGCI,
   computeWeightedGCI,
+  activePipelineDeals,
 
   PROVINCE_LABELS,
   type Transaction,
@@ -584,11 +585,12 @@ export function OverheadContent({
   const ytdDealCount = transactions.length;
 
   // ── Pipeline ───────────────────────────────────────────────────────────
-  const pipelineWeightedGCI = pipelineDeals.reduce(
+  const livePipelineDeals = activePipelineDeals(pipelineDeals);
+  const pipelineWeightedGCI = livePipelineDeals.reduce(
     (sum, d) => sum + computeWeightedGCI(d),
     0,
   );
-  const pipelineCount = pipelineDeals.length;
+  const pipelineCount = livePipelineDeals.length;
 
   // ── Seasonality ────────────────────────────────────────────────────────
   const agentSeasonalWeights = (() => {

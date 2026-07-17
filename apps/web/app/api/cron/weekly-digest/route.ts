@@ -15,6 +15,7 @@ import { weeklyDigestEmail, type WeeklyDigestData } from "@/lib/emails/weekly-di
 import {
   computeGCI,
   computeWeightedGCI,
+  activePipelineDeals,
   type Transaction,
   type PipelineDeal,
   type UserSettings,
@@ -190,7 +191,7 @@ export async function GET(req: NextRequest) {
         .eq("user_id", user.user_id)
         .limit(1000);
 
-      const pipeline = (pipelineRows ?? []) as PipelineDeal[];
+      const pipeline = activePipelineDeals((pipelineRows ?? []) as PipelineDeal[]);
       const pipelineWeightedGCI = pipeline.reduce(
         (sum, d) => sum + computeWeightedGCI(d),
         0

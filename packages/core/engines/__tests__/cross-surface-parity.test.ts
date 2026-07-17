@@ -45,7 +45,7 @@ import { compute as computeRunwayScore } from "../runway-score-engine";
 import { compare as benchmarkCompare } from "../benchmark-engine";
 import { computeHSTCollected } from "../hst-engine";
 import { gstHstRate } from "../canadian-tax-engine";
-import { computeGCI, computeWeightedGCI, type Transaction } from "../../types/database";
+import { computeGCI, computeWeightedGCI, activePipelineDeals, type Transaction } from "../../types/database";
 import { createTestSettings } from "./test-data";
 
 // Pinned mid-year so seasonal fraction + remaining-months math is stable and
@@ -92,11 +92,18 @@ const CLOSED_TX: Transaction[] = [
   { id: "t3", date: "2026-06-01", sale_price: 610_000, commission_pct: 0.025, gci_override: null, team_split_pct: null, status: "closed" } as unknown as Transaction,
 ];
 
-// Active deal-stage pipeline (a couple of buyers)
+// Deal-stage pipeline (a couple of buyers) as it actually comes back from the
+// DB: `pipeline_deals` retains terminal rows forever — a closed deal keeps its
+// row at stage='closed' (t3 below is that deal's transaction), and a lost buyer
+// prospect keeps its row at stage='lost'. Surfaces must run the canonical
+// active filter over this; PIPELINE_ACTIVE is what any aggregate should see.
 const PIPELINE = [
   { estimated_price: 450_000, estimated_commission_pct: 0.025, probability_override: null, stage: "offer" },
   { estimated_price: 380_000, estimated_commission_pct: 0.025, probability_override: null, stage: "conditional" },
+  { estimated_price: 610_000, estimated_commission_pct: 0.025, probability_override: null, stage: "closed" },
+  { estimated_price: 300_000, estimated_commission_pct: 0.025, probability_override: 0.25, stage: "lost" },
 ];
+const PIPELINE_ACTIVE = activePipelineDeals(PIPELINE);
 
 // HEAVY listing book — this is the differentiator.
 const LISTINGS = [
@@ -115,7 +122,7 @@ const MONTHLY_RECURRING = 1_200;
 
 function deriveInputs() {
   const ytdGCI = CLOSED_TX.reduce((sum, tx) => sum + computeGCI(tx), 0);
-  const pipelineWeighted = PIPELINE.reduce(
+  const pipelineWeighted = PIPELINE_ACTIVE.reduce(
     (sum, d) => sum + computeWeightedGCI(d as Parameters<typeof computeWeightedGCI>[0]),
     0,
   );
@@ -129,7 +136,7 @@ function deriveInputs() {
 
   // Projection input = pipeline + listing weighted (the bug fix).
   const projGCI = projectedYearEndGCI(ytdGCI, pipelineWeighted + listingWeighted, fraction, SETTINGS.goal_gci);
-  const projDeals = projectedYearEndTransactions(CLOSED_TX.length, PIPELINE.length, fraction);
+  const projDeals = projectedYearEndTransactions(CLOSED_TX.length, PIPELINE_ACTIVE.length, fraction);
 
   const { cashPosition } = computeEffectiveCashForSurvival({
     settings: SETTINGS,

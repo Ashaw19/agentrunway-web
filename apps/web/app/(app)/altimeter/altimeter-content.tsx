@@ -51,6 +51,7 @@ const MonthlyChart = dynamic(() => import("@/components/monthly-chart").then(m =
 import {
   computeGCI,
   computeWeightedGCI,
+  activePipelineDeals,
   type Transaction,
   type PipelineDeal,
   type UserSettings,
@@ -365,11 +366,12 @@ export function AltimeterContent({
   const ytdDealCount = transactions.length;
 
   // ── Pipeline ───────────────────────────────────────────────────────────
-  const pipelineWeightedGCI = pipelineDeals.reduce(
+  const livePipelineDeals = activePipelineDeals(pipelineDeals);
+  const pipelineWeightedGCI = livePipelineDeals.reduce(
     (sum, d) => sum + computeWeightedGCI(d),
     0,
   );
-  const pipelineCount = pipelineDeals.length;
+  const pipelineCount = livePipelineDeals.length;
 
   // ── Seasonality ────────────────────────────────────────────────────────
   const agentSeasonalWeights = (() => {

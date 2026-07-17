@@ -18,6 +18,7 @@ import {
   computeProbability,
   computeEstimatedGCI,
   computeWeightedGCI,
+  activePipelineDeals,
   PIPELINE_STAGE_DEFAULTS,
 } from "../types/database";
 
@@ -210,9 +211,7 @@ export function computePipelineForecast(
   // marked-lost buyer prospect retains its probability_override — add a
   // non-zero weightedGCI to the headline forecast (PIPELINE_STAGE_DEFAULTS.lost
   // never applies when an override is present).
-  const activeDeals = input.pipelineDeals.filter(
-    (d) => d.stage !== "closed" && d.stage !== "lost",
-  );
+  const activeDeals = activePipelineDeals(input.pipelineDeals);
   for (const deal of activeDeals) {
     const prob = computeProbability(deal);
     const gci = computeEstimatedGCI(deal);

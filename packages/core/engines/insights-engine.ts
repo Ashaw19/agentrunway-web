@@ -5,6 +5,7 @@ import { fmtCurrency } from "../formatters";
 import {
   computeGCI,
   computeWeightedGCI,
+  activePipelineDeals,
   type Transaction,
   type PipelineDeal,
   type HistoryItem,
@@ -68,6 +69,13 @@ function nextId(): string {
 export function generateInsights(input: InsightsInput, limit: number = 5): Insight[] {
   _insightCounter = 0; // Reset per call — prevents unbounded growth & SSR hydration mismatches
   const insights: Insight[] = [];
+
+  // Callers pass the raw `pipeline_deals` rows, which retain terminal stages
+  // ('closed' rows survive the close, 'lost' rows survive fn_mark_opportunity_lost).
+  // Filter once here so the engine defends itself rather than trusting every
+  // caller to remember — a closed deal weights at 1.0 and would otherwise be
+  // double-counted against ytdGCI in the projection milestone below.
+  const activeDeals = activePipelineDeals(input.pipelineDeals);
 
   const currentYear = new Date().getFullYear();
   const closedTx = input.transactions.filter(
@@ -157,8 +165,8 @@ export function generateInsights(input: InsightsInput, limit: number = 5): Insig
   }
 
   // ── Pipeline Insights ──
-  if (input.pipelineDeals.length > 0) {
-    const firmDeals = input.pipelineDeals.filter(
+  if (activeDeals.length > 0) {
+    const firmDeals = activeDeals.filter(
       (d) => d.stage === "firm" || d.stage === "conditional",
     );
     if (firmDeals.length > 0) {
@@ -174,7 +182,7 @@ export function generateInsights(input: InsightsInput, limit: number = 5): Insig
       });
     }
 
-    const pipelineWeighted = input.pipelineDeals.reduce(
+    const pipelineWeighted = activeDeals.reduce(
       (sum, d) => sum + computeWeightedGCI(d),
       0,
     );
@@ -182,7 +190,7 @@ export function generateInsights(input: InsightsInput, limit: number = 5): Insig
       insights.push({
         id: nextId(), type: "info", icon: "layers",
         title: "Pipeline Value",
-        message: `${fmtCurrency(pipelineWeighted)} in weighted pipeline GCI across ${input.pipelineDeals.length} deal${input.pipelineDeals.length === 1 ? "" : "s"}.`,
+        message: `${fmtCurrency(pipelineWeighted)} in weighted pipeline GCI across ${activeDeals.length} deal${activeDeals.length === 1 ? "" : "s"}.`,
         priority: 45,
       });
     }
@@ -262,7 +270,7 @@ export function generateInsights(input: InsightsInput, limit: number = 5): Insig
 
   // ── Projection Milestone ──
   if (ytdGCI > 0) {
-    const pipelineWeightedForProj = input.pipelineDeals.reduce(
+    const pipelineWeightedForProj = activeDeals.reduce(
       (sum, d) => sum + computeWeightedGCI(d), 0,
     );
     const projected = projectedYearEndGCI(ytdGCI, pipelineWeightedForProj, fraction);
