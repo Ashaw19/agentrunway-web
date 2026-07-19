@@ -283,7 +283,7 @@ export async function GET(req: NextRequest) {
       // YTD expenses for health report: receipt total + recurring estimate
       const { data: expenseCatRows } = await admin
         .from("expense_categories")
-        .select("name, expense_items(ytd_amount, monthly_recurring)")
+        .select("title, expense_items(ytd_amount, monthly_recurring)")
         .eq("user_id", user.user_id);
 
       const monthlyRecurring = (expenseCatRows ?? []).reduce(

@@ -10,19 +10,37 @@ export default async function GuidePage() {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const { data: settings } = await supabase
+  // `business_structure` was queried here but has never existed — 00023
+  // implemented it as `is_incorporated` + `corp_type`. PostgREST rejected the
+  // whole select with 42703, `settings` came back null, and computeIsPro then
+  // saw null and treated EVERY user as non-Pro on this page.
+  const { data: settings, error: settingsError } = await supabase
     .from("user_settings")
-    .select("subscription_tier, subscription_status, province, split_preset, business_structure")
+    .select(
+      "subscription_tier, subscription_status, province, split_preset, is_incorporated, corp_type",
+    )
     .eq("user_id", user.id)
     .maybeSingle();
 
+  if (settingsError) {
+    console.error("[guide] Failed to load user_settings:", settingsError);
+  }
+
   const isPro = await computeIsPro(supabase, user.id, settings);
+
+  // Derive the structure label key the guide/PDF expect (sole_prop | prec | corp)
+  // from the columns that actually exist. corp_type is 'prec' | 'general'.
+  const businessStructure = !settings?.is_incorporated
+    ? "sole_prop"
+    : settings.corp_type === "prec"
+      ? "prec"
+      : "corp";
 
   return (
     <GuideContent
       isPro={isPro}
       province={settings?.province ?? "ontario"}
-      businessStructure={settings?.business_structure ?? "sole_prop"}
+      businessStructure={businessStructure}
       splitPreset={settings?.split_preset ?? "p80_20"}
     />
   );

@@ -12,14 +12,14 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { generateMorningBriefing, type BriefingData } from "@/lib/ai/precompute";
+import { createClient } from "@supabase/supabase-js";
+import { generateMorningBriefing } from "@/lib/ai/precompute";
 import {
-  computeGCI,
-  computeWeightedGCI,
-  type PipelineDeal,
-} from "@/lib/types/database";
-import { seasonalFractionElapsed } from "@/lib/engines/projection-engine";
+  BRIEFING_USER_COLUMNS,
+  briefingDateRanges,
+  gatherBriefingMetrics,
+  type AnySupabaseClient,
+} from "@/lib/ai/briefing-metrics";
 import {
   calculateEngagementScore,
   toEngagementActivities,
@@ -50,7 +50,7 @@ export async function GET(req: NextRequest) {
   // ── Fetch eligible users (active professional+ tier OR beta org members) ──
   const { data: tierUsers, error: tierError } = await supabase
     .from("user_settings")
-    .select("user_id, display_name, goal_gci, subscription_tier, use_national_seasonality, national_quarter_pcts")
+    .select(BRIEFING_USER_COLUMNS)
     .in("subscription_tier", ["professional", "team"])
     .limit(500);
 
@@ -86,7 +86,7 @@ export async function GET(req: NextRequest) {
   if (missingBetaIds.length > 0) {
     const { data: extraUsers } = await supabase
       .from("user_settings")
-      .select("user_id, display_name, goal_gci, subscription_tier, use_national_seasonality, national_quarter_pcts")
+      .select(BRIEFING_USER_COLUMNS)
       .in("user_id", missingBetaIds)
       .limit(500);
     betaUsers = extraUsers ?? [];
@@ -99,10 +99,7 @@ export async function GET(req: NextRequest) {
   }
 
   const now = new Date();
-  const todayStr = now.toISOString().slice(0, 10);
-  const yearStart = `${now.getFullYear()}-01-01`;
-  const fourteenDaysAgo = new Date(Date.now() - 14 * 86_400_000).toISOString().slice(0, 10);
-  const fourteenDaysAhead = new Date(Date.now() + 14 * 86_400_000).toISOString().slice(0, 10);
+  const dates = briefingDateRanges(now);
   const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
 
   let processed = 0;
@@ -120,12 +117,7 @@ export async function GET(req: NextRequest) {
           // reads today's values, not yesterday's.
           await updateEngagementScores(supabase, user.user_id, now);
 
-          const data = await gatherUserMetrics(supabase, user, {
-            todayStr,
-            yearStart,
-            fourteenDaysAgo,
-            fourteenDaysAhead,
-          });
+          const data = await gatherBriefingMetrics(supabase, user, dates);
 
           const briefing = await generateMorningBriefing(data, user.user_id);
 
@@ -239,165 +231,4 @@ async function updateEngagementScores(
       }
     }
   }
-}
-
-// ── Metric Gathering ──────────────────────────────────────────────────────────
-
-interface DateRanges {
-  todayStr: string;
-  yearStart: string;
-  fourteenDaysAgo: string;
-  fourteenDaysAhead: string;
-}
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type AnySupabaseClient = SupabaseClient<any, any, any>;
-
-async function gatherUserMetrics(
-  supabase: AnySupabaseClient,
-  user: {
-    user_id: string;
-    display_name: string | null;
-    goal_gci: number | null;
-    subscription_tier: string;
-    use_national_seasonality: boolean | null;
-    national_quarter_pcts: number[] | null;
-  },
-  dates: DateRanges,
-): Promise<BriefingData> {
-  const uid = user.user_id;
-
-  // Run all queries in parallel
-  const [
-    overdueResult,
-    pipelineResult,
-    transactionsResult,
-    upcomingClosesResult,
-    hotContactsResult,
-    historyResult,
-  ] = await Promise.all([
-    // Overdue follow-ups: clients with active status not contacted in 14+ days
-    supabase
-      .from("clients")
-      .select("id", { count: "exact", head: true })
-      .eq("user_id", uid)
-      // Must match api/briefing/route.ts exactly — this cron precomputes the
-      // same number. Archiving never changes status, so archived clients stay
-      // in this count unless excluded here.
-      .is("archived_at", null)
-      .in("status", ["boarding", "in_flight"])
-      .lt("last_contact_at", dates.fourteenDaysAgo),
-
-    // Pipeline deals (select columns needed for computeWeightedGCI)
-    supabase
-      .from("pipeline_deals")
-      .select("estimated_price, estimated_commission_pct, probability_override, stage")
-      .eq("user_id", uid)
-      .in("stage", ["lead", "showing", "offer", "conditional", "firm"]),
-
-    // YTD closed transactions for GCI (select columns needed for computeGCI)
-    supabase
-      .from("transactions")
-      .select("sale_price, commission_pct, team_split_pct, gci_override")
-      .eq("user_id", uid)
-      .eq("status", "closed")
-      .gte("date", dates.yearStart),
-
-    // Upcoming closes (pipeline deals closing within 14 days)
-    supabase
-      .from("pipeline_deals")
-      .select("address, expected_close_date")
-      .eq("user_id", uid)
-      .eq("stage", "firm")
-      .gte("expected_close_date", dates.todayStr)
-      .lte("expected_close_date", dates.fourteenDaysAhead)
-      .order("expected_close_date", { ascending: true })
-      .limit(5),
-
-    // Hot contacts (highest engagement score)
-    supabase
-      .from("clients")
-      .select("name, engagement_score")
-      .eq("user_id", uid)
-      .gt("engagement_score", 0)
-      .order("engagement_score", { ascending: false })
-      .limit(5),
-
-    // Annual history for agent-specific seasonal weights
-    supabase
-      .from("history_items")
-      .select("year, quarter_gci")
-      .eq("user_id", uid),
-  ]);
-
-  // ── Compute agent-specific seasonal weights (same logic as dashboard) ──
-  const agentSeasonalWeights = (() => {
-    const withData = (historyResult.data ?? []).filter(
-      (h: Record<string, unknown>) =>
-        (h.quarter_gci as number[] | null)?.some((v: number) => (v ?? 0) > 0),
-    );
-    if (withData.length < 2) return null;
-    const avgQ = [0, 1, 2, 3].map((q) =>
-      withData.reduce(
-        (sum: number, h: Record<string, unknown>) =>
-          sum + (((h.quarter_gci as number[])?.[q]) ?? 0),
-        0,
-      ) / withData.length,
-    );
-    const total = avgQ.reduce((a, b) => a + b, 0);
-    return total > 0 ? avgQ.map((v) => v / total) : null;
-  })();
-
-  const seasonalWeights =
-    agentSeasonalWeights ??
-    (user.use_national_seasonality
-      ? (user.national_quarter_pcts ?? [0.25, 0.25, 0.25, 0.25])
-      : [0.25, 0.25, 0.25, 0.25]);
-
-  // Compute derived values
-  const pipelineDeals = (pipelineResult.data ?? []) as PipelineDeal[];
-  const pipelineValue = pipelineDeals.reduce(
-    (sum, d) => sum + computeWeightedGCI(d),
-    0,
-  );
-
-  const ytdGci = (transactionsResult.data ?? []).reduce(
-    (sum, t) => sum + computeGCI(t as Parameters<typeof computeGCI>[0]),
-    0,
-  );
-
-  const goalGci = Number(user.goal_gci ?? 0);
-  const fraction = seasonalFractionElapsed(seasonalWeights);
-  const expectedPace = goalGci > 0 ? fraction * goalGci : 0;
-  const pacePercent = expectedPace > 0 ? Math.round((ytdGci / expectedPace) * 100) : 0;
-
-  // Build anomalies from data
-  const anomalies: string[] = [];
-  const overdueCount = overdueResult.count ?? 0;
-  if (overdueCount > 5) {
-    anomalies.push(`${overdueCount} clients haven't been contacted in 14+ days`);
-  }
-  if (pacePercent > 0 && pacePercent < 80) {
-    anomalies.push(`GCI pace is ${pacePercent}% — falling behind annual goal`);
-  }
-
-  return {
-    userName: user.display_name || "there",
-    todayDate: dates.todayStr,
-    overdueFollowUps: overdueCount,
-    pipelineDeals: pipelineDeals.length,
-    pipelineValue,
-    goalGci,
-    ytdGci,
-    pacePercent,
-    upcomingCloses: (upcomingClosesResult.data ?? []).map((d) => ({
-      address: d.address ?? "TBD",
-      date: d.expected_close_date ?? "",
-    })),
-    recentAnomalies: anomalies,
-    hotContacts: (hotContactsResult.data ?? []).map((c) => ({
-      name: c.name ?? "Unknown",
-      score: Number(c.engagement_score ?? 0),
-    })),
-  };
 }

@@ -129,7 +129,7 @@ export function ExpensesBankImportsTab({
           expense_date: tx.transaction_date,
           category_key: catKey,
           total_amount: tx.amount,
-          vendor_name:  tx.merchant_name ?? tx.description,
+          vendor:       tx.merchant_name ?? tx.description,
           notes:        "Imported from bank sync",
         });
         if (insertErr) throw insertErr;
@@ -185,7 +185,7 @@ export function ExpensesBankImportsTab({
         expense_date: tx.transaction_date,
         category_key: catKey,
         total_amount: tx.amount,
-        vendor_name:  tx.merchant_name ?? tx.description,
+        vendor:       tx.merchant_name ?? tx.description,
         notes:        "Imported from bank sync",
       });
       if (insertErr) { failed++; continue; }
