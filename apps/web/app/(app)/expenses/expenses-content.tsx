@@ -902,12 +902,16 @@ export function ExpensesContent({
     return [0.25, 0.25, 0.25, 0.25];
   })();
   const expensesFraction = seasonalFractionElapsed(expensesSeasonalWeights);
-  const expensesPipelineWeighted = activePipelineDeals(pipelineDeals).reduce((sum, d) => sum + computeWeightedGCI(d), 0);
+  // Hoisted so the weighted-GCI reduce and the deal COUNT are derived from
+  // the SAME filtered array. #258 filtered the money and left the count raw,
+  // which fed terminal deals into projectedYearEndTransactions at +0.3 each.
+  const liveExpensesPipelineDeals = activePipelineDeals(pipelineDeals);
+  const expensesPipelineWeighted = liveExpensesPipelineDeals.reduce((sum, d) => sum + computeWeightedGCI(d), 0);
   const expensesProjectedGCI = projectedYearEndGCI(
     ytdGCI, expensesPipelineWeighted, expensesFraction, settings?.goal_gci ?? 0,
   );
   const expensesProjectedDeals = projectedYearEndTransactions(
-    transactions.length, pipelineDeals.length, expensesFraction,
+    transactions.length, liveExpensesPipelineDeals.length, expensesFraction,
   );
   const survival = settings
     ? survivalResult(

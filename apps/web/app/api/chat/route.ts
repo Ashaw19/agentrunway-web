@@ -326,7 +326,9 @@ export async function POST(req: NextRequest) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const ytdGCI = ytdTx.reduce((sum: number, tx: any) => sum + computeGCI(tx), 0);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const pipelineWeighted = activePipelineDeals(pipeline ?? []).reduce((sum: number, d: any) => sum + computeWeightedGCI(d), 0);
+      const livePipeline = activePipelineDeals(pipeline ?? []);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const pipelineWeighted = livePipeline.reduce((sum: number, d: any) => sum + computeWeightedGCI(d), 0);
       // Listing-appointment weighted GCI — canonical helper (projection-engine).
       // The dashboard projection feeds `pipelineWeighted + listingWeightedGCI`
       // into projectedYearEndGCI; the chat route omitted listings before
@@ -387,7 +389,7 @@ export async function POST(req: NextRequest) {
         `YTD GCI: ${fmtCurrency(ytdGCI)}`,
         `Closed Deals YTD: ${ytdTx.length}`,
         ytdTx.length > 0 ? `Average Deal GCI: ${fmtCurrency(ytdGCI / ytdTx.length)}` : null,
-        `Pipeline (Probability-Weighted GCI, deal-stage only): ${fmtCurrency(pipelineWeighted)} across ${pipeline?.length ?? 0} active deals`,
+        `Pipeline (Probability-Weighted GCI, deal-stage only): ${fmtCurrency(pipelineWeighted)} across ${livePipeline.length} active deals`,
         `Note: Pipeline figure above includes deal-stage pipeline only. Listing appointments and early-stage buyers are tracked separately on the Pipeline page.`,
         `Province: ${settings.province}`,
         `Commission Split: ${splitLabel}`,
@@ -526,7 +528,9 @@ export async function POST(req: NextRequest) {
 
         // Shared computations
         const avgDealGCI = ytdTx.length > 0 ? ytdGCI / ytdTx.length : 0;
-        const pipelineCount = pipeline?.length ?? 0;
+        // ACTIVE deals only — this feeds projectedYearEndTransactions and the
+        // "active deals" copy Captain speaks aloud.
+        const pipelineCount = livePipeline.length;
         const remaining = daysRemaining();
         const _elapsedDays = dayOfYear();
 

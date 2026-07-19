@@ -125,7 +125,11 @@ export function ForecastContent({
   // Terminal stages excluded via the canonical filter — a "closed" deal is
   // already counted in ytdGCI as a transaction, so including it here would
   // double-count it inside projectedYearEndGCI below.
-  const pipelineWeighted = activePipelineDeals(pipelineDeals).reduce(
+  // Hoisted so the weighted-GCI reduce and the deal COUNT are derived from
+  // the SAME filtered array. #258 filtered the money and left the count raw,
+  // which fed terminal deals into projectedYearEndTransactions at +0.3 each.
+  const livePipelineDeals = activePipelineDeals(pipelineDeals);
+  const pipelineWeighted = livePipelineDeals.reduce(
     (sum, d) => sum + computeWeightedGCI(d),
     0,
   );
@@ -161,7 +165,7 @@ export function ForecastContent({
   const rawProjectedGCI = projectedYearEndGCI(ytdGCI, totalPipelineWeighted, fraction, settings.goal_gci);
   const scenarioMultiplier = scenario === "conservative" ? 0.85 : scenario === "optimistic" ? 1.15 : 1.0;
   const projectedGCI = rawProjectedGCI * scenarioMultiplier;
-  const projectedDeals = projectedYearEndTransactions(ytdDealCount, pipelineDeals.length, fraction);
+  const projectedDeals = projectedYearEndTransactions(ytdDealCount, livePipelineDeals.length, fraction);
 
   // ── Financial waterfall ───────────────────────────────────────────────
   // Plan-aware waterfall (REAL analytic or legacy split) — mirrors
@@ -462,7 +466,7 @@ export function ForecastContent({
           value={String(projectedDeals)}
           color="#F8FAFC"
           icon={<BarChart3 className="h-3.5 w-3.5" />}
-          sub={`${ytdDealCount} closed + ${pipelineDeals.length} pipeline`}
+          sub={`${ytdDealCount} closed + ${livePipelineDeals.length} pipeline`}
         />
         <CockpitStat
           label="After-Tax Net"

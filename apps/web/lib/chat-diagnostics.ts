@@ -210,14 +210,18 @@ export async function buildDiagnostics(
   const closedTx = (allTransactions ?? []).filter(
     (tx) => tx.status === "closed" && tx.date?.startsWith(String(currentYear)),
   ) as Transaction[];
-  const pipelineDeals = (pipeline ?? []) as PipelineDeal[];
+  // Filtered at the source: every consumer of ctx.pipelineDeals wants ACTIVE
+  // deals — the weighted reduce, the projected deal counts (4 sites), the
+  // by-stage breakdown, and "Total Pipeline Deals". #258 filtered only the
+  // money, so the AI was handed a closed:N bucket at 1.0 probability.
+  const pipelineDeals = activePipelineDeals((pipeline ?? []) as PipelineDeal[]);
   const expenses = (expenseCategories ?? []) as ExpenseCategory[];
 
   const ytdGCI = closedTx.reduce(
     (sum, tx) => sum + computeGCI(tx as Parameters<typeof computeGCI>[0]),
     0,
   );
-  const pipelineWeighted = activePipelineDeals(pipelineDeals).reduce(
+  const pipelineWeighted = pipelineDeals.reduce(
     (sum, d) => sum + computeWeightedGCI(d as Parameters<typeof computeWeightedGCI>[0]),
     0,
   );

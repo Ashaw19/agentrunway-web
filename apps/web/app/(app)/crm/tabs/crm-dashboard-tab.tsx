@@ -72,6 +72,7 @@ import {
   ACTIVITY_TYPE_ICONS,
   CLIENT_STATUS_LABELS,
   CLIENT_STATUS_COLORS,
+  ACTIVE_PIPELINE_STAGES,
 } from "@/lib/types/database";
 import {
   computeCrmDashboard,
@@ -309,7 +310,7 @@ export function CrmDashboardTab({
           supabase
             .from("pipeline_deals")
             .select("*")
-            .in("stage", ["lead", "showing", "offer", "conditional", "firm"])
+            .in("stage", ACTIVE_PIPELINE_STAGES as unknown as string[])
             .limit(500),
         ]);
         if (cancelled) return;
