@@ -263,7 +263,11 @@ export function ReportsContent({
   const sellerDeals = ytdTx.filter((tx) => tx.side === "seller" || tx.side === "both").length;
 
   // ── Pipeline ──────────────────────────────────────────────────────────────────
-  const pipelineWeighted = activePipelineDeals(pipelineDeals).reduce((sum, d) => sum + computeWeightedGCI(d), 0);
+  // Hoisted so the weighted-GCI reduce, the projected deal count, the exported
+  // pipelineCount, and the "N active deals" caption all derive from the SAME
+  // filtered array. #258 filtered the money and left all three counts raw.
+  const livePipelineDeals = activePipelineDeals(pipelineDeals);
+  const pipelineWeighted = livePipelineDeals.reduce((sum, d) => sum + computeWeightedGCI(d), 0);
 
   // Listing appointments weighted by status probability — canonical helper
   // (projection-engine), shared with dashboard, forecast, chat, and MCP.
@@ -293,7 +297,7 @@ export function ReportsContent({
   const fraction = seasonalFractionElapsed(seasonalWeights);
   const goalGCI = settings.goal_gci ?? 0;
   const projectedGCI = projectedYearEndGCI(ytdGCI, totalPipelineWeighted, fraction, goalGCI);
-  const projectedDeals = projectedYearEndTransactions(ytdTx.length, pipelineDeals.length, fraction);
+  const projectedDeals = projectedYearEndTransactions(ytdTx.length, livePipelineDeals.length, fraction);
   const gciProgress = goalGCI > 0 ? Math.min((ytdGCI / goalGCI) * 100, 100) : 0;
   const pacePercent = goalGCI > 0 ? paceVsGoalPercent(goalGCI, ytdGCI, fraction) : 0;
   const paceStatus: "ahead" | "behind" | "no-goal" = goalGCI <= 0 ? "no-goal" : pacePercent >= 0 ? "ahead" : "behind";
@@ -558,7 +562,7 @@ export function ReportsContent({
         sellerDeals,
         avgDealSize,
         pipelineWeighted,
-        pipelineCount: pipelineDeals.length,
+        pipelineCount: livePipelineDeals.length,
 
         // Goals + projections
         goalGCI,
@@ -858,7 +862,7 @@ export function ReportsContent({
           value={fmtCurrency(pipelineWeighted)}
           color={SEMANTIC.onTrack}
           icon={<Layers className="h-3.5 w-3.5" />}
-          sub={`${pipelineDeals.length} active deals`}
+          sub={`${livePipelineDeals.length} active deals`}
         />
         <CockpitStat
           label="Projected Year-End"

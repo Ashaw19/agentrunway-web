@@ -1736,7 +1736,7 @@ export function ClientsContent({
       .select("id, address, side, stage, estimated_price, estimated_commission_pct")
       .eq("user_id", userId)
       .eq("client_id", selectedClientId)
-      .neq("stage", "closed")
+      .not("stage", "in", "(closed,lost)")
       .order("created_at", { ascending: false })
       .limit(20)
       .then(({ data }) => setLinkedPipelineDeals(data ?? []));
@@ -3129,7 +3129,7 @@ export function ClientsContent({
           .from("pipeline_deals")
           .select("client_name, stage")
           .eq("user_id", user.id)
-          .neq("stage", "closed"),
+          .not("stage", "in", "(closed,lost)"),
       ]);
       for (const t of (txRes.data ?? []) as { client_name: string | null }[]) {
         if (t.client_name) closedDealNameSet.add(t.client_name.trim().toLowerCase());

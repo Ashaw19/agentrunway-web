@@ -152,7 +152,7 @@ export function getCrmTools(supabase: SupabaseClient, userId: string): McpTool[]
             .select("address, stage, estimated_price, estimated_commission_pct, expected_close_date")
             .eq("client_id", cid)
             .eq("user_id", userId)
-            .neq("stage", "closed"),
+            .not("stage", "in", "(closed,lost)"),
         ]);
 
         const activities = (activitiesRes.data ?? []).map((a) => ({

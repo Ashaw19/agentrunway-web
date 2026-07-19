@@ -117,7 +117,11 @@ export default async function ScenariosPage() {
     const pipelineDeals = (pipelineResult.data ?? []) as PipelineDeal[];
 
     const ytdGCI = transactions.reduce((sum, tx) => sum + computeGCI(tx), 0);
-    const pipelineWeightedGCI = activePipelineDeals(pipelineDeals).reduce(
+    // Hoisted so the weighted-GCI reduce and the deal COUNT are derived from
+  // the SAME filtered array. #258 filtered the money and left the count raw,
+  // which fed terminal deals into projectedYearEndTransactions at +0.3 each.
+    const livePipelineDeals = activePipelineDeals(pipelineDeals);
+    const pipelineWeightedGCI = livePipelineDeals.reduce(
       (sum, d) => sum + computeWeightedGCI(d),
       0,
     );
@@ -148,7 +152,7 @@ export default async function ScenariosPage() {
     // to match dashboard + chat. The scenarios slider lets the user adjust
     // this lever — but the starting point has to agree with the dashboard.
     // See memory/feedback_data_consistency_protocol.md.
-    const projectedDealCount = projectedYearEndTransactions(transactions.length, pipelineDeals.length, fraction);
+    const projectedDealCount = projectedYearEndTransactions(transactions.length, livePipelineDeals.length, fraction);
     const scenarioBaselineCash = settingsRow
       ? computeEffectiveCashForSurvival({
           settings: settingsRow,

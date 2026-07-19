@@ -56,6 +56,7 @@ import { z } from "zod";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { OutreachOpportunityType, NewsletterTemplateType } from "@agent-runway/core/types/database";
 import { FIELD_LIMITS } from "@agent-runway/core/validation/input-guards";
+import { ACTIVE_PIPELINE_STAGES } from "@agent-runway/core/types/database";
 import {
   draftOutreachForClient as draftOutreachForClientService,
   draftListingDescription as draftListingDescriptionService,
@@ -2907,12 +2908,14 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
               return `You have **${count ?? 0} archived clients** in the Hangar.`;
             }
             case "pipeline_count": {
-              const { count, error } = await supabase.from("pipeline_deals").select("id", { count: "exact", head: true }).eq("user_id", userId);
+              // ACTIVE only — this said "active pipeline deals" while counting
+              // every deal ever, including closed and lost (#258).
+              const { count, error } = await supabase.from("pipeline_deals").select("id", { count: "exact", head: true }).eq("user_id", userId).in("stage", ACTIVE_PIPELINE_STAGES as unknown as string[]);
               if (error) return `Query failed: ${error.message}`;
               return `You have **${count ?? 0} active pipeline deals**.`;
             }
             case "pipeline_value": {
-              const { data, error } = await supabase.from("pipeline_deals").select("estimated_price").eq("user_id", userId);
+              const { data, error } = await supabase.from("pipeline_deals").select("estimated_price").eq("user_id", userId).in("stage", ACTIVE_PIPELINE_STAGES as unknown as string[]);
               if (error) return `Query failed: ${error.message}`;
               const total = (data ?? []).reduce((s: number, d: { estimated_price: number }) => s + Number(d.estimated_price || 0), 0);
               return `Your pipeline total is **$${total.toLocaleString()}** across ${data?.length ?? 0} deals.`;
