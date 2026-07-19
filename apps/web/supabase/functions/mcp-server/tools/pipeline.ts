@@ -4,6 +4,13 @@ import { PIPELINE_STAGE_DEFAULTS } from "../../_shared/core/types/database.ts";
 
 const STAGE_DEFAULTS: Record<string, number> = PIPELINE_STAGE_DEFAULTS;
 
+// Matches analytics.ts. `.neq("stage","closed")` used to be the filter here,
+// which let `lost` deals through — and a lost deal RETAINS its
+// probability_override, so a prospect abandoned at 75% kept contributing 75%
+// weighted GCI to the Connector's forecast. #258 fixed analytics.ts and
+// missed its sibling.
+const TERMINAL_STAGES = "(closed,lost)";
+
 export function getPipelineTools(supabase: SupabaseClient, userId: string): McpTool[] {
   return [
     // ── get_pipeline ────────────────────────────────────────────────────
@@ -35,7 +42,7 @@ export function getPipelineTools(supabase: SupabaseClient, userId: string): McpT
           .from("pipeline_deals")
           .select("id, address, estimated_price, estimated_commission_pct, stage, side, probability_override, expected_close_date, client_name, notes, created_at")
           .eq("user_id", userId)
-          .neq("stage", "closed")
+          .not("stage", "in", TERMINAL_STAGES)
           .order("stage", { ascending: false }); // firm first
 
         if (stage) query = query.eq("stage", stage);
@@ -44,7 +51,7 @@ export function getPipelineTools(supabase: SupabaseClient, userId: string): McpT
         if (error) throw error;
 
         const deals = (data ?? []).map((d) => {
-          const prob = d.probability_override ?? STAGE_DEFAULTS[d.stage] ?? 0.5;
+          const prob = d.probability_override ?? STAGE_DEFAULTS[d.stage] ?? STAGE_DEFAULTS.lead;
           const estGCI = (d.estimated_price ?? 0) * (d.estimated_commission_pct ?? 0.025);
           return {
             id: d.id,
@@ -96,7 +103,7 @@ export function getPipelineTools(supabase: SupabaseClient, userId: string): McpT
             .from("pipeline_deals")
             .select("estimated_price, estimated_commission_pct, stage, probability_override")
             .eq("user_id", userId)
-            .neq("stage", "closed"),
+            .not("stage", "in", TERMINAL_STAGES),
           supabase
             .from("user_settings")
             .select("goal_gci")
@@ -114,12 +121,12 @@ export function getPipelineTools(supabase: SupabaseClient, userId: string): McpT
           const stageDeals = deals.filter((d) => d.stage === stage);
           const estimated = stageDeals.reduce((s, d) => s + (d.estimated_price ?? 0) * (d.estimated_commission_pct ?? 0.025), 0);
           const weighted = stageDeals.reduce((s, d) => {
-            const prob = d.probability_override ?? STAGE_DEFAULTS[stage] ?? 0.5;
+            const prob = d.probability_override ?? STAGE_DEFAULTS[stage] ?? STAGE_DEFAULTS.lead;
             return s + (d.estimated_price ?? 0) * (d.estimated_commission_pct ?? 0.025) * prob;
           }, 0);
           return {
             stage,
-            default_probability_pct: Math.round((STAGE_DEFAULTS[stage] ?? 0.5) * 100),
+            default_probability_pct: Math.round((STAGE_DEFAULTS[stage] ?? STAGE_DEFAULTS.lead) * 100),
             deal_count: stageDeals.length,
             estimated_gci: Math.round(estimated),
             weighted_gci: Math.round(weighted),

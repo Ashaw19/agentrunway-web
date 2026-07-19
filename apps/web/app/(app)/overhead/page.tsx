@@ -118,7 +118,11 @@ export default async function OverheadPage() {
 
   // ── Build scenario seed from the same data ──
   const ytdGCI = transactions.reduce((sum, tx) => sum + computeGCI(tx), 0);
-  const pipelineWeightedGCI = activePipelineDeals(pipelineDeals).reduce((sum, d) => sum + computeWeightedGCI(d), 0);
+  // Hoisted so the weighted-GCI reduce and the deal COUNT are derived from
+  // the SAME filtered array. #258 filtered the money and left the count raw,
+  // which fed terminal deals into projectedYearEndTransactions at +0.3 each.
+  const livePipelineDeals = activePipelineDeals(pipelineDeals);
+  const pipelineWeightedGCI = livePipelineDeals.reduce((sum, d) => sum + computeWeightedGCI(d), 0);
   const legacyMonthlyRecurring = expenseItems.reduce((sum, i) => sum + Number(i.monthly_recurring ?? 0), 0);
   const monthlyRecurring = legacyMonthlyRecurring + recurringExpMonthly;
   const now = new Date();
@@ -134,7 +138,7 @@ export default async function OverheadPage() {
   // cash_reserve) so the "current" scenario matches dashboard + chat. See
   // memory/feedback_data_consistency_protocol.md.
   const overheadProjectedDealCount = projectedYearEndTransactions(
-    transactions.length, pipelineDeals.length, fraction,
+    transactions.length, livePipelineDeals.length, fraction,
   );
   const overheadBaselineCash = rawSettings
     ? computeEffectiveCashForSurvival({
