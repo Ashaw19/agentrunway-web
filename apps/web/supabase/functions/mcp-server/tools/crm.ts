@@ -137,12 +137,15 @@ export function getCrmTools(supabase: SupabaseClient, userId: string): McpTool[]
 
         // Fetch activities + pipeline in parallel
         const [activitiesRes, pipelineRes] = await Promise.all([
+          // Table is `contact_activities` — `crm_activities` has never
+          // existed, so this query 42703'd and the `?? []` below reported
+          // ZERO activity history for every client to the Connector.
           supabase
-            .from("crm_activities")
-            .select("type, note, created_at")
+            .from("contact_activities")
+            .select("type, description, activity_date")
             .eq("client_id", cid)
             .eq("user_id", userId)
-            .order("created_at", { ascending: false })
+            .order("activity_date", { ascending: false })
             .limit(10),
           supabase
             .from("pipeline_deals")
@@ -154,8 +157,8 @@ export function getCrmTools(supabase: SupabaseClient, userId: string): McpTool[]
 
         const activities = (activitiesRes.data ?? []).map((a) => ({
           type: a.type,
-          note: a.note,
-          date: (a.created_at as string)?.split("T")[0],
+          note: a.description,
+          date: (a.activity_date as string)?.split("T")[0],
         }));
 
         const pipelineDeals = (pipelineRes.data ?? []).map((d) => ({

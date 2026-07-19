@@ -1488,6 +1488,16 @@ export function computeWeightedGCI(deal: PipelineDealMetrics): number {
  */
 export const TERMINAL_PIPELINE_STAGES: readonly PipelineStage[] = ["closed", "lost"];
 
+/**
+ * The complement of TERMINAL_PIPELINE_STAGES, for surfaces that must filter
+ * server-side (a PostgREST `.in("stage", …)`) rather than in JS. Derived, not
+ * hand-listed, so adding a stage to PipelineStage can never leave a hardcoded
+ * `.in()` list silently stale — the drift #258 was written to stop.
+ */
+export const ACTIVE_PIPELINE_STAGES: readonly PipelineStage[] = (
+  Object.keys(PIPELINE_STAGE_DEFAULTS) as PipelineStage[]
+).filter((s) => !TERMINAL_PIPELINE_STAGES.includes(s));
+
 /** True when a deal is still live — i.e. belongs in active-pipeline aggregates. */
 export function isActivePipelineDeal<T extends { stage: string }>(deal: T): boolean {
   return !TERMINAL_PIPELINE_STAGES.includes(deal.stage as PipelineStage);

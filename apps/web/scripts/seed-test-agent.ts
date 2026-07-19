@@ -294,7 +294,7 @@ async function seed() {
   const { data: cats, error: catErr } = await supabase
     .from("expense_categories")
     .insert(catRows)
-    .select("id, name");
+    .select("id, title");
   if (catErr) throw new Error(`expense_categories: ${catErr.message}`);
   console.log(`   ✓ ${cats!.length} categories`);
 

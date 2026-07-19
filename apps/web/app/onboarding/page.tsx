@@ -286,7 +286,14 @@ export default function OnboardingPage() {
           num_employees: hasEmployees ? parseInt(numEmployees) || 1 : 0,
           filing_frequency: filingFrequency,
           brokerage_withholds_hst: brokerageWithholdsHst,
-          preferred_language: language,
+          // NOTE: `preferred_language` is deliberately NOT written here.
+          // The column does not exist on user_settings (verified against prod
+          // information_schema), so including it made PostgREST reject the
+          // whole UPDATE with 42703 — the error check below then aborted the
+          // save and NO user could finish onboarding. Locale is persisted to
+          // the NEXT_LOCALE cookie just below, which is what next-intl reads.
+          // If server-side language persistence is wanted, that needs a
+          // migration adding the column first.
         })
         .eq("user_id", user.id);
 

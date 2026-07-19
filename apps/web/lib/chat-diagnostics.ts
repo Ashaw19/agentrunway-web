@@ -87,7 +87,10 @@ interface PipelineDeal {
 }
 
 interface ExpenseCategory {
-  name: string;
+  // Column is `title` — this shadow interface said `name`, which is why the
+  // query asked for a column that does not exist and every category label
+  // came back undefined.
+  title: string;
   expense_items?: {
     ytd_amount?: number | string;
     monthly_recurring?: number | string;
@@ -171,7 +174,7 @@ export async function buildDiagnostics(
       .eq("user_id", userId),
     supabase
       .from("expense_categories")
-      .select("name, expense_items(ytd_amount, monthly_recurring)")
+      .select("title, expense_items(ytd_amount, monthly_recurring)")
       .eq("user_id", userId),
     supabase
       .from("clients")
@@ -510,7 +513,7 @@ function diagExpenses(ctx: DiagContext): string {
     const ytd = (cat.expense_items ?? []).reduce((s, i) => s + Number(i.ytd_amount ?? 0), 0);
     const recurring = (cat.expense_items ?? []).reduce((s, i) => s + Number(i.monthly_recurring ?? 0), 0);
     if (ytd > 0 || recurring > 0) {
-      categoryTotals.push({ name: cat.name, ytd, recurring });
+      categoryTotals.push({ name: cat.title, ytd, recurring });
     }
   }
 

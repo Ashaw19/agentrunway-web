@@ -11,7 +11,12 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
-import { generateMorningBriefing, type BriefingData } from "@/lib/ai/precompute";
+import { generateMorningBriefing } from "@/lib/ai/precompute";
+import {
+  briefingDateRanges,
+  fetchBriefingUser,
+  gatherBriefingMetrics,
+} from "@/lib/ai/briefing-metrics";
 import { requirePro } from "@/lib/require-pro";
 
 export const maxDuration = 30;
@@ -50,7 +55,15 @@ export async function GET() {
 
   // ── Generate on-demand (stale or missing) ───────────────────────────────
   try {
-    const data = await gatherUserMetricsFromSession(supabase, user.id);
+    // Shared with the nightly cron — see lib/ai/briefing-metrics.ts. This path
+    // previously had its own copy that queried five nonexistent columns and
+    // silently produced an all-zero briefing.
+    const briefingUser = await fetchBriefingUser(supabase, user.id);
+    const data = await gatherBriefingMetrics(
+      supabase,
+      briefingUser,
+      briefingDateRanges(),
+    );
     const briefing = await generateMorningBriefing(data, user.id);
 
     // Cache using service role (RLS only allows SELECT for users)
@@ -85,110 +98,4 @@ export async function GET() {
       { status: 500 },
     );
   }
-}
-
-// ── Metric Gathering (session-scoped, respects RLS) ───────────────────────────
-
-async function gatherUserMetricsFromSession(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  userId: string,
-): Promise<BriefingData> {
-  const now = new Date();
-  const todayStr = now.toISOString().slice(0, 10);
-  const yearStart = `${now.getFullYear()}-01-01`;
-  const fourteenDaysAgo = new Date(Date.now() - 14 * 86_400_000).toISOString().slice(0, 10);
-  const fourteenDaysAhead = new Date(Date.now() + 14 * 86_400_000).toISOString().slice(0, 10);
-
-  const [settingsResult, overdueResult, pipelineResult, transactionsResult, upcomingClosesResult, hotContactsResult] =
-    await Promise.all([
-      supabase
-        .from("user_settings")
-        .select("display_name, gci_goal")
-        .eq("user_id", userId)
-        .single(),
-
-      supabase
-        .from("clients")
-        .select("id", { count: "exact", head: true })
-        .eq("user_id", userId)
-        // Archiving writes only clients.archived_at — it never changes status,
-        // so an archived boarding/in_flight client stays in this count forever
-        // unless it is excluded here. layout.tsx and api/chat already exclude
-        // it; without this the nav badge and the briefing disagree.
-        .is("archived_at", null)
-        .in("status", ["boarding", "in_flight"])
-        .lt("last_contact_at", fourteenDaysAgo),
-
-      supabase
-        .from("pipeline_deals")
-        .select("projected_gci, status")
-        .eq("user_id", userId)
-        .in("status", ["prospect", "pre_listing", "listed", "under_contract"]),
-
-      supabase
-        .from("transactions")
-        .select("gci")
-        .eq("user_id", userId)
-        .eq("status", "closed")
-        .gte("date", yearStart),
-
-      supabase
-        .from("pipeline_deals")
-        .select("address, projected_close_date")
-        .eq("user_id", userId)
-        .eq("status", "under_contract")
-        .gte("projected_close_date", todayStr)
-        .lte("projected_close_date", fourteenDaysAhead)
-        .order("projected_close_date", { ascending: true })
-        .limit(5),
-
-      supabase
-        .from("clients")
-        .select("name, engagement_score")
-        .eq("user_id", userId)
-        .gt("engagement_score", 0)
-        .order("engagement_score", { ascending: false })
-        .limit(5),
-    ]);
-
-  const settings = settingsResult.data;
-  const pipelineDeals = pipelineResult.data ?? [];
-  const pipelineValue = pipelineDeals.reduce((sum, d) => sum + Number(d.projected_gci ?? 0), 0);
-  const ytdGci = (transactionsResult.data ?? []).reduce((sum, t) => sum + Number(t.gci ?? 0), 0);
-  const goalGci = Number(settings?.gci_goal ?? 0);
-
-  const dayOfYear = Math.ceil(
-    (Date.now() - new Date(`${now.getFullYear()}-01-01`).getTime()) / 86_400_000,
-  );
-  const expectedPace = goalGci > 0 ? (dayOfYear / 365) * goalGci : 0;
-  const pacePercent = expectedPace > 0 ? Math.round((ytdGci / expectedPace) * 100) : 0;
-
-  const overdueCount = overdueResult.count ?? 0;
-  const anomalies: string[] = [];
-  if (overdueCount > 5) {
-    anomalies.push(`${overdueCount} clients haven't been contacted in 14+ days`);
-  }
-  if (pacePercent > 0 && pacePercent < 80) {
-    anomalies.push(`GCI pace is ${pacePercent}% — falling behind annual goal`);
-  }
-
-  return {
-    userName: settings?.display_name || "there",
-    todayDate: todayStr,
-    overdueFollowUps: overdueCount,
-    pipelineDeals: pipelineDeals.length,
-    pipelineValue,
-    goalGci,
-    ytdGci,
-    pacePercent,
-    upcomingCloses: (upcomingClosesResult.data ?? []).map((d) => ({
-      address: d.address ?? "TBD",
-      date: d.projected_close_date ?? "",
-    })),
-    recentAnomalies: anomalies,
-    hotContacts: (hotContactsResult.data ?? []).map((c) => ({
-      name: c.name ?? "Unknown",
-      score: Number(c.engagement_score ?? 0),
-    })),
-  };
 }
