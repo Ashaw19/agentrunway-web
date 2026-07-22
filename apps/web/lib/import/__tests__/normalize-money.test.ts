@@ -93,3 +93,50 @@ describe("parseMoneyLoose — garbage / edge inputs degrade to NaN (never throw)
     expect(() => parseMoneyLoose("12.34.56.78")).not.toThrow();
   });
 });
+
+describe("parseMoneyLoose — comma-as-decimal (fr-CA), the docstring's long-promised coverage", () => {
+  // The docstring claimed comma-decimal support for months; no test asserted it,
+  // and the blanket comma-strip silently 100x-inflated every fr-CA decimal
+  // ("9 750,50 $" parsed as 975050). These lock the locale-aware behaviour.
+  it("treats a lone comma with 2 trailing digits as a decimal", () => {
+    expect(parseMoneyLoose("9,50")).toBeCloseTo(9.5);
+  });
+
+  it("treats a lone comma with 1 trailing digit as a decimal", () => {
+    expect(parseMoneyLoose("12,5")).toBeCloseTo(12.5);
+  });
+
+  it("parses space thousands + comma decimal + trailing $ (the core fr-CA form)", () => {
+    expect(parseMoneyLoose("9 750,50 $")).toBeCloseTo(9750.5);
+    expect(parseMoneyLoose("325 000,00 $")).toBeCloseTo(325000);
+  });
+
+  it("parses grouped thousands + comma decimal", () => {
+    expect(parseMoneyLoose("1 234 567,89")).toBeCloseTo(1234567.89);
+  });
+
+  it("parses European dot-thousands + comma-decimal", () => {
+    expect(parseMoneyLoose("1.234,56")).toBeCloseTo(1234.56);
+    expect(parseMoneyLoose("1.234.567,89")).toBeCloseTo(1234567.89);
+  });
+});
+
+describe("parseMoneyLoose — disambiguation must NOT regress en-CA/US", () => {
+  it("keeps a single comma + exactly 3 trailing digits as thousands", () => {
+    expect(parseMoneyLoose("1,234")).toBe(1234);
+    expect(parseMoneyLoose("12,345")).toBe(12345);
+  });
+
+  it("keeps multi-comma groupings as thousands", () => {
+    expect(parseMoneyLoose("1,234,567")).toBe(1234567);
+    expect(parseMoneyLoose("1,234,567.89")).toBeCloseTo(1234567.89);
+  });
+
+  it("keeps dot as decimal even with 3 trailing digits (unchanged)", () => {
+    expect(parseMoneyLoose("1.234")).toBeCloseTo(1.234);
+  });
+
+  it("uses the last separator as the decimal when both appear", () => {
+    expect(parseMoneyLoose("$1,234.56")).toBeCloseTo(1234.56);
+  });
+});

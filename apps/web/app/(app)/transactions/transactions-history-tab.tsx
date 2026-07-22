@@ -44,6 +44,7 @@ import { computeGCI, type HistoryItem, type Transaction, type UserSettings } fro
 import { cn } from "@/lib/utils";
 import type { ImportResult } from "@/app/api/import-history/route";
 import { computeImportExternalId, dedupeByImportExternalId } from "@/lib/import/external-id";
+import { parseMoneyLoose } from "@/lib/import/normalizers/normalize-money";
 import { clampSalePrice, clampCommissionPct, clampGci } from "@/lib/import/clamp-db-range";
 import { readImportError, categorizeClientError, ImportRequestError } from "@/lib/import/client-error";
 import dynamic from "next/dynamic";
@@ -2224,23 +2225,10 @@ function parseTrackerDate(raw: string, year: number): string | null {
  * Returns `NaN` for blank or unparseable input so callers can `if (!Number.isFinite(x))` skip it.
  */
 function parseTrackerMoney(raw: string): number {
-  if (!raw) return NaN;
-  let s = String(raw).trim();
-  if (!s) return NaN;
-  // Accounting negative: "(1,234)" or "(1234.56)"
-  let sign = 1;
-  if (/^\(.*\)$/.test(s)) {
-    sign = -1;
-    s = s.slice(1, -1).trim();
-  }
-  // Drop currency prefixes (CA$, US$, USD, CAD, $, €, £) and thousands separators
-  s = s.replace(/(?:^|\s)(ca\$|us\$|cad|usd)\s*/gi, "")
-       .replace(/[$£€]/g, "")
-       .replace(/[,\s\u00A0]/g, "");
-  if (!s || s === "-" || s === ".") return NaN;
-  const n = parseFloat(s);
-  if (!Number.isFinite(n)) return NaN;
-  return sign * n;
+  // Delegates to the canonical loose-money parser so tracker import shares
+  // one locale-aware source of truth — including fr-CA comma decimals
+  // ("9 750,50 $" -> 9750.50) that a blanket comma-strip would 100x-inflate.
+  return parseMoneyLoose(raw);
 }
 
 /** Parse all deal rows from a tracker sheet.
