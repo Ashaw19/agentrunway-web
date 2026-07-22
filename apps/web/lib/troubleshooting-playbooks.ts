@@ -241,6 +241,10 @@ Example: $500K home × 2.5% commission × 75% (Conditional) = $9,375 weighted GC
 
 **Probability Override**: Users can override the default probability on any deal. If set, the override replaces the stage probability in all calculations.
 
+### Terminal Stages (closed / lost)
+
+Two stages are terminal: **closed** and **lost** (TERMINAL_PIPELINE_STAGES in database.ts). Terminal rows are NOT deleted — a converted deal keeps its row at stage='closed', and a prospect marked lost keeps its row at stage='lost' — but every active-pipeline aggregate excludes them via the canonical activePipelineDeals() filter: weighted GCI totals, deal counts, and by-stage breakdowns all count active deals only. A probability_override on a terminal row does not resurrect it; the filter runs on stage alone.
+
 ### Pipeline Impact on Other Metrics
 
 1. **Runway Score**: Pipeline Score = 30% weight. Weighted GCI vs remaining goal gap.
@@ -253,7 +257,7 @@ Example: $500K home × 2.5% commission × 75% (Conditional) = $9,375 weighted GC
 When a deal closes: Pipeline deal → Closed transaction
 - User clicks "Convert to Closed" on a pipeline deal
 - This creates a new closed transaction with the pipeline data pre-filled
-- The pipeline deal is removed
+- The pipeline row is kept at stage='closed' (terminal) — it disappears from the Pipeline tab and from all active-pipeline totals, but the row itself is not deleted
 - ALL downstream metrics recalculate: GCI, pace, tax, score, etc.
 
 ### Listing & Buyer Sub-Stages (pipeline-forecast-engine.ts)
@@ -306,6 +310,7 @@ Conversion rate = count at stage N ÷ count at stage N−1. Null for the first s
 2. Check estimated prices — if $0, weighted = $0
 3. Check commission % — may be blank or incorrect
 4. Multiple deals at same stage → adds up (sometimes surprises users)
+5. Closed/lost rows are excluded from all pipeline totals and counts (2026-07 fix) — if a total or deal count dropped without any deal edits, terminal rows that previously inflated it are the likely cause; the current number is correct
 
 **"I converted a deal but my GCI didn't change"**
 1. Check if the converted deal has the correct sale price and commission
@@ -322,6 +327,7 @@ Conversion rate = count at stage N ÷ count at stage N−1. Null for the first s
 **Edge Cases:**
 - Pipeline deal with $0 estimated price: Contributes $0 to weighted GCI
 - Fallen deal: Status "fallen" — excluded from all active calculations
+- Lost pipeline deal: stage "lost" (terminal) — row survives but is excluded from every pipeline aggregate, even with a probability_override set
 - Both-sides deal in pipeline: Ensure commission% reflects total (e.g., 5% for both sides, not 2.5%)
 `,
 
