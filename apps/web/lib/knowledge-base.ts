@@ -17,7 +17,7 @@ Platform for Canadian real estate agents: income, expenses, pipeline, clients, t
 
 **DASHBOARD** — Runway Score (0-100, A+ to F), KPI cards, monthly income chart, P10-P90 bands, industry-cohort benchmark, tax estimate, smart alerts, AI insights, survival runway. Views: Essentials/Standard/Full. Scenarios: Conservative(-15%)/Base/Optimistic(+15%). Smart alerts use IQR anomaly detection on personal baselines.
 
-**TRANSACTIONS** — Deals (closed: date, address, client, price, commission%, GCI, side, split), Pipeline (Lead 10%/Showing 25%/Offer 50%/Conditional 75%/Firm 90%, weighted GCI, convert-to-closed), History (annual summaries, CSV/PDF import with duplicate detection).
+**TRANSACTIONS** — Deals (closed: date, address, client, price, commission%, GCI, side, split), Pipeline (Lead 10%/Showing 25%/Offer 50%/Conditional 75%/Firm 90%, weighted GCI, convert-to-closed; closed/lost are terminal stages — rows survive but are excluded from all pipeline totals and counts), History (annual summaries, CSV/PDF import with duplicate detection).
 
 **CRM** — Clients (name, email, phone, city/province, birthday, lead source, tags, budget, timeframe, property interest, tone pref, notes, relationships, activity log, status Boarding/Scheduled/In-Flight/Cruising, tier Platinum/Gold/Silver/Bronze). CRM Dashboard (engagement analytics). Insights (stale leads, referrals). Flight Plans (automated follow-up sequences). Property Showings (buyer: address, date, rating 1-10). Listing Appointments (seller: address, date, outcome). Contact Tasks (title, due date, priority, completion). Tags (custom labels). Hangar (archived clients, restorable).
 
@@ -59,7 +59,7 @@ Platform for Canadian real estate agents: income, expenses, pipeline, clients, t
 
 **GCI** = Sale Price x Commission %. Override takes precedence.
 **Agent Net** = GCI x Agent Split %.
-**Weighted GCI** = Pipeline GCI x stage probability (or override).
+**Weighted GCI** = Pipeline GCI x stage probability (or override). Active deals only — closed/lost rows never contribute, even with an override.
 **Expense Ratio** = Expenses / GCI. <25% excellent, 25-35% healthy, 35-50% attention, >50% concerning. (Bands match health-report.ts + insights-engine.ts; advisor-engine flags an action card at >30% with a 25-30% reference benchmark.)
 **Survival Runway** = Cash Reserve / Net Monthly Burn. <2mo critical, 2-4 warning, 4-6 healthy, 6+ strong. Cap 24mo. $0 reserve + $0 burn = "Not Configured" (sentinel -1). $0 reserve + positive burn = 0mo (critical).
 **Pace** = ((Actual YTD GCI - Expected) / Expected) x 100. Expected = Goal x Seasonal Fraction.
