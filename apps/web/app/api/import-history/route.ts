@@ -13,6 +13,7 @@ import { normalizeDateFormats } from "@/lib/import/normalizers/normalize-dates";
 import { planTextBatches } from "@/lib/import/chunking/plan-text-batches";
 import { planVisionBatches } from "@/lib/import/chunking/plan-vision-batches";
 import { runBatchedExtraction } from "@/lib/import/chunking/run-batched-extraction";
+import { parseMoneyLoose } from "@/lib/import/normalizers/normalize-money";
 
 // ── Exported types shared with the client component ──────────────────────────
 //
@@ -314,19 +315,15 @@ function computeAggregates(
       sale_price?: number | string | null;
     };
 
-    // Parse numeric fields safely — strip currency symbols/commas the LLM may include.
-    // Also handles accounting-format negatives: (1,500.00) → -1500.
+    // Parse numeric fields safely via the canonical loose-money parser — it
+    // strips currency symbols/spaces, handles accounting-format negatives
+    // ((1,500.00) → -1500), AND disambiguates fr-CA comma decimals
+    // ("9 750,50 $" → 9750.50) that a blanket comma-strip would 100×-inflate.
+    // parseMoneyLoose returns NaN (never ±Infinity) on failure; coerce to null.
     const toNum = (v: unknown): number | null => {
       if (v == null) return null;
-      let s = String(v).replace(/[$,\s]/g, "");
-      const isAccounting = s.startsWith("(") && s.endsWith(")");
-      if (isAccounting) s = s.slice(1, -1);
-      const n = Number(s);
-      // Reject NaN AND ±Infinity ("1e400", "Infinity") — isNaN(Infinity) is false,
-      // so a bare isNaN guard lets Infinity through into numeric DB columns. Match
-      // the Number.isFinite guard used in parseMoneyLoose / parseDollar / parsePercent.
-      if (!Number.isFinite(n)) return null;
-      return isAccounting ? -n : n;
+      const n = parseMoneyLoose(String(v));
+      return Number.isFinite(n) ? n : null;
     };
     const salePrice        = toNum(d.sale_price);
     let   gci              = toNum(d.gci) ?? 0;
