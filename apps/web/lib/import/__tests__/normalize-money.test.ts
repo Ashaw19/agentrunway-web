@@ -9,7 +9,7 @@
  *     return a poisoned value the DB clamp can't catch).
  */
 import { describe, expect, it } from "vitest";
-import { parseMoneyLoose } from "../normalizers/normalize-money";
+import { parseMoneyLoose, parseMoneyStrict } from "../normalizers/normalize-money";
 
 describe("parseMoneyLoose — standard formats", () => {
   it("parses a plain dollar-and-comma value", () => {
@@ -138,5 +138,85 @@ describe("parseMoneyLoose — disambiguation must NOT regress en-CA/US", () => {
 
   it("uses the last separator as the decimal when both appear", () => {
     expect(parseMoneyLoose("$1,234.56")).toBeCloseTo(1234.56);
+  });
+});
+
+describe("parseMoneyLoose — F1: trailing/leading annotation must NOT flip thousands 1000x down", () => {
+  // Regression F1 (PR #264 / da8e9ab): stripping ALL whitespace before
+  // disambiguation glued annotation text onto the digits — "1,234 approx"
+  // became "1,234approx", whose ",234approx" tail (length 9 ≠ 3) was read as a
+  // decimal group -> 1.234. Every assertion below returned the 1000x-too-small
+  // value under the pre-fix code (1.234 / 1.5 / 2 instead of 1234 / 1500 / 2000).
+  it("strips a trailing dotless word annotation", () => {
+    expect(parseMoneyLoose("1,234 approx")).toBe(1234);
+    expect(parseMoneyLoose("1,500 est")).toBe(1500);
+    expect(parseMoneyLoose("2,000 net")).toBe(2000);
+  });
+
+  it("strips a trailing dotless currency-code annotation glued to digits", () => {
+    // "1,234CAD" — the CAD prefix-regex only fires with a leading boundary, so
+    // the trailing CAD survives to the core-extraction peel. Pre-fix -> 1.234.
+    expect(parseMoneyLoose("1,234CAD")).toBe(1234);
+  });
+
+  it("strips a leading word annotation", () => {
+    expect(parseMoneyLoose("approx 1,234")).toBe(1234);
+  });
+
+  it("keeps fr-CA space+comma decimals intact through the annotation peel", () => {
+    expect(parseMoneyLoose("9 750,50 $")).toBeCloseTo(9750.5);
+    expect(parseMoneyLoose("1 234,56 CAD")).toBeCloseTo(1234.56);
+    expect(parseMoneyLoose("(9 750,50 $)")).toBeCloseTo(-9750.5);
+  });
+
+  it("uses residual-space evidence: space grouping proves the comma is decimal", () => {
+    // "1 234,567" — space groups thousands, so the lone comma with 3 trailing
+    // digits is the DECIMAL, not another thousands group. Without the evidence
+    // this would read as 1234567.
+    expect(parseMoneyLoose("1 234,567")).toBeCloseTo(1234.567);
+  });
+});
+
+describe("parseMoneyStrict — F2: AI path rejects numeric-prefix garbage (unit suffixes / annotations)", () => {
+  // Regression F2 (PR #264): delegating the AI route's toNum to parseMoneyLoose
+  // inherited parseFloat prefix semantics, so "1.5M" -> 1.5 and "300k" -> 300
+  // flowed into sale_price/gci at default "high" confidence. The old Number()-
+  // based toNum returned null (surfaced as "missing" in review). Strict restores
+  // whole-string validation: any non-currency alphabetic residue -> NaN.
+  it("rejects magnitude unit suffixes", () => {
+    expect(parseMoneyStrict("1.5M")).toBeNaN();
+    expect(parseMoneyStrict("300k")).toBeNaN();
+    expect(parseMoneyStrict("$1.2M")).toBeNaN();
+    expect(parseMoneyStrict("2.4m")).toBeNaN();
+  });
+
+  it("rejects free-text annotations that the loose path would salvage", () => {
+    expect(parseMoneyStrict("1,500 est")).toBeNaN();
+    expect(parseMoneyStrict("1,234 approx")).toBeNaN();
+    expect(parseMoneyStrict("2,000 net")).toBeNaN();
+    expect(parseMoneyStrict("1,234CAD approx")).toBeNaN();
+  });
+
+  it("accepts clean values, currency symbols, and recognized currency codes", () => {
+    expect(parseMoneyStrict("$450,000")).toBe(450000);
+    expect(parseMoneyStrict("450000")).toBe(450000);
+    expect(parseMoneyStrict("ca$1,234")).toBe(1234);
+    expect(parseMoneyStrict("9 750,50 $")).toBeCloseTo(9750.5);
+    expect(parseMoneyStrict("1 234,56 CAD")).toBeCloseTo(1234.56);
+    expect(parseMoneyStrict("CAD 1,234")).toBe(1234);
+    expect(parseMoneyStrict("(1,234)")).toBe(-1234);
+  });
+
+  it("returns NaN for null / undefined / empty / non-numeric", () => {
+    expect(parseMoneyStrict(null)).toBeNaN();
+    expect(parseMoneyStrict(undefined)).toBeNaN();
+    expect(parseMoneyStrict("")).toBeNaN();
+    expect(parseMoneyStrict("N/A")).toBeNaN();
+    expect(parseMoneyStrict("pending")).toBeNaN();
+  });
+
+  it("F1/F2 interplay: the SAME annotation string is salvaged loose, rejected strict", () => {
+    expect(parseMoneyLoose("1,234 approx")).toBe(1234);
+    expect(parseMoneyStrict("1,234 approx")).toBeNaN();
   });
 });

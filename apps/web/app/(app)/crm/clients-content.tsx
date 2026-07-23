@@ -2440,14 +2440,23 @@ export function ClientsContent({
         }
         const fullName = `${firstName} ${lastName}`;
 
+        // ── Validate before writing — same guard every other client-write path applies ──
+        const clientValidation = validateClient({ name: fullName });
+        if (!clientValidation.valid) {
+          clientValidation.errors.forEach((msg) => toast.error(msg));
+          return;
+        }
+
+        const trimmedName = fullName.slice(0, FIELD_LIMITS.clientName);
+
         // Copy shared details from the source client
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const record: Record<string, any> = {
           user_id: userId,
-          name: fullName,
-          name_search: toNameSearch(fullName),
-          first_name: firstName,
-          last_name: lastName,
+          name: trimmedName,
+          name_search: toNameSearch(trimmedName),
+          first_name: firstName.slice(0, FIELD_LIMITS.clientName),
+          last_name: lastName.slice(0, FIELD_LIMITS.clientName),
           status: source.status,
           // Copy address
           street_address: source.street_address,
