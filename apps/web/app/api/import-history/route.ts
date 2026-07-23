@@ -13,7 +13,7 @@ import { normalizeDateFormats } from "@/lib/import/normalizers/normalize-dates";
 import { planTextBatches } from "@/lib/import/chunking/plan-text-batches";
 import { planVisionBatches } from "@/lib/import/chunking/plan-vision-batches";
 import { runBatchedExtraction } from "@/lib/import/chunking/run-batched-extraction";
-import { parseMoneyLoose } from "@/lib/import/normalizers/normalize-money";
+import { parseMoneyStrict } from "@/lib/import/normalizers/normalize-money";
 
 // ── Exported types shared with the client component ──────────────────────────
 //
@@ -315,14 +315,21 @@ function computeAggregates(
       sale_price?: number | string | null;
     };
 
-    // Parse numeric fields safely via the canonical loose-money parser — it
-    // strips currency symbols/spaces, handles accounting-format negatives
-    // ((1,500.00) → -1500), AND disambiguates fr-CA comma decimals
-    // ("9 750,50 $" → 9750.50) that a blanket comma-strip would 100×-inflate.
-    // parseMoneyLoose returns NaN (never ±Infinity) on failure; coerce to null.
+    // Parse numeric fields via the STRICT money parser — this is AI/vision
+    // extraction output, where "$1.2M" / "300k" / "1,500 est" appear routinely.
+    // parseMoneyStrict rejects any non-currency alphabetic residue (unit
+    // suffixes, annotation words) to NaN so the value surfaces as low/"missing"
+    // confidence in the review UI instead of silently becoming 1.2 / 300 in
+    // sale_price / gci (the F2 regression from delegating to the loose parser's
+    // parseFloat prefix semantics). It still strips currency symbols/spaces,
+    // handles accounting negatives ((1,500.00) → -1500), and disambiguates
+    // fr-CA comma decimals ("9 750,50 $" → 9750.50, "1 234,56 CAD" → 1234.56).
+    // Returns NaN (never ±Infinity) on failure; coerce to null. Tracker/CSV
+    // paths intentionally keep the LOOSE parser (annotation salvage is correct
+    // there); only this AI path is strict.
     const toNum = (v: unknown): number | null => {
       if (v == null) return null;
-      const n = parseMoneyLoose(String(v));
+      const n = parseMoneyStrict(String(v));
       return Number.isFinite(n) ? n : null;
     };
     const salePrice        = toNum(d.sale_price);
