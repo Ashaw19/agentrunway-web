@@ -925,12 +925,21 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
       // Look up which of these IDs are already present AND have been
       // manually edited — those we skip entirely.
       const crExtIds = clientInserts.map((r) => r.import_external_id);
-      const { data: crExisting } = crExtIds.length > 0
+      const { data: crExisting, error: crExistingErr } = crExtIds.length > 0
         ? await supabase.from("client_records")
             .select("import_external_id, edited_at")
             .eq("user_id", user.id)
             .in("import_external_id", crExtIds)
-        : { data: [] as { import_external_id: string | null; edited_at: string | null }[] };
+        : { data: [] as { import_external_id: string | null; edited_at: string | null }[], error: null };
+      if (crExistingErr) {
+        // Fail CLOSED: if we can't see which rows were hand-edited, upserting
+        // anyway would overwrite the user's corrections — the exact loss the
+        // edited_at skip exists to prevent.
+        console.error("[import] edited-row lookup (client_records) failed:", crExistingErr);
+        toast.error("Failed to check existing client records. Import cancelled — please try again.");
+        setImportStatus("preview");
+        return;
+      }
       const editedCrIds = new Set(
         (crExisting ?? [])
           .filter((r) => r.edited_at !== null)
@@ -1002,10 +1011,17 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
       if (txInserts.length > 0) {
         // Check which IDs are already present AND edited → skip those.
         const txExtIds = txInserts.map((t) => t.import_external_id);
-        const { data: txExisting } = await supabase.from("transactions")
+        const { data: txExisting, error: txExistingErr } = await supabase.from("transactions")
           .select("import_external_id, edited_at")
           .eq("user_id", user.id)
           .in("import_external_id", txExtIds);
+        if (txExistingErr) {
+          // Fail CLOSED — see the client_records lookup above.
+          console.error("[import] edited-row lookup (transactions) failed:", txExistingErr);
+          toast.error("Failed to check existing transactions. Import cancelled — please try again.");
+          setImportStatus("preview");
+          return;
+        }
         const editedTxIds = new Set(
           (txExisting ?? [])
             .filter((r) => r.edited_at !== null)
@@ -1197,10 +1213,13 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
 
       if (clientInserts.length > 0) {
         const crExtIds = clientInserts.map((r) => r.import_external_id);
-        const { data: crExisting } = await supabase.from("client_records")
+        const { data: crExisting, error: crExistingErr } = await supabase.from("client_records")
           .select("import_external_id, edited_at")
           .eq("user_id", user.id)
           .in("import_external_id", crExtIds);
+        // Fail CLOSED: an empty edited-row set from a failed lookup would let the
+        // upsert below overwrite the user's manual corrections.
+        if (crExistingErr) throw crExistingErr;
         const editedCrIds = new Set(
           (crExisting ?? [])
             .filter((r) => r.edited_at !== null)
@@ -1265,10 +1284,12 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
 
         if (txInserts.length > 0) {
           const txExtIds = txInserts.map((t) => t.import_external_id);
-          const { data: txExisting } = await supabase.from("transactions")
+          const { data: txExisting, error: txExistingErr } = await supabase.from("transactions")
             .select("import_external_id, edited_at")
             .eq("user_id", user.id)
             .in("import_external_id", txExtIds);
+          // Fail CLOSED — see the client_records lookup above.
+          if (txExistingErr) throw txExistingErr;
           const editedTxIds = new Set(
             (txExisting ?? [])
               .filter((r) => r.edited_at !== null)
