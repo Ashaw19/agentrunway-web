@@ -33,6 +33,25 @@ export function parseMoneyLoose(raw: string | null | undefined): number {
     s = s.slice(1, -1).trim();
   }
 
+  // Reject cells holding TWO OR MORE distinct numeric groups separated by a
+  // "hard" character — a letter, currency symbol, dash, "@", "#" — anything
+  // that is NOT a digit, grouping separator (comma/dot), or whitespace. These
+  // are ambiguous annotated cells like "Unit 5 - $325,000", "Lot 12 $500,000",
+  // "MLS 40312345 $325,000", "2 @ $450,000", or a "$300,000-$350,000" range:
+  // the intended amount cannot be recovered, so fail safe to NaN (surfaces as
+  // "missing" in the review UI) rather than silently lifting a digit out of the
+  // annotation. This MUST run BEFORE the currency strip below, because the "$"
+  // between "Lot 12" and "500,000" is exactly the boundary proving two numbers.
+  //
+  // Without this guard, the F1 core-token extraction (#265) grabs the FIRST
+  // digit run and greedily spans whitespace-grouped digits, so "Unit 5 -
+  // $325,000" -> 5 and "Lot 12 $500,000" -> 12500 — a silent wrong value where
+  // the pre-#265 parser returned NaN. Legitimate leading/trailing text
+  // annotations ("approx 1,234", "1,234 approx", "1,234CAD") have no SECOND
+  // digit group, and pure space-grouped thousands ("325 000", "9 750,50 $")
+  // are separated only by whitespace, so neither trips this.
+  if (/\d[^\d]*[^\d.,\s][^\d]*\d/.test(s)) return NaN;
+
   // Drop currency prefixes (CA$, US$, USD, CAD, and the $/euro/pound symbols)
   // plus any trailing currency suffix (fr-CA writes "9 750,50 $").
   s = s
