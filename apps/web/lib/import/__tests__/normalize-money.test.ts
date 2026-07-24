@@ -177,6 +177,43 @@ describe("parseMoneyLoose — F1: trailing/leading annotation must NOT flip thou
   });
 });
 
+describe("parseMoneyLoose — F3: leading-digit / multi-number annotation cells fail safe to NaN", () => {
+  // Regression F3 (PR #265 / 993fa88): the F1 core-token extraction grabs the
+  // FIRST digit run and greedily spans whitespace-grouped digits. A money cell
+  // whose annotation carries its OWN digits (unit / lot / MLS / deal numbers, a
+  // "@" quantity, a price range) therefore returned a digit lifted from the
+  // annotation — "Unit 5 - $325,000" -> 5, "Lot 12 $500,000" -> 12500 — a silent
+  // wrong value where the pre-#265 parser returned NaN ("missing" in review).
+  // These lock the fail-safe: two numeric groups split by a hard char -> NaN.
+  it("rejects a leading unit/lot number before the price", () => {
+    expect(parseMoneyLoose("Unit 5 - $325,000")).toBeNaN();
+    expect(parseMoneyLoose("Lot 12 $500,000")).toBeNaN();
+    expect(parseMoneyLoose("Deal 3: $325,000")).toBeNaN();
+  });
+
+  it("rejects an MLS/reference number glued ahead of the price", () => {
+    expect(parseMoneyLoose("MLS 40312345 $325,000")).toBeNaN();
+    expect(parseMoneyLoose("#2 $1,200,000")).toBeNaN();
+  });
+
+  it("rejects a quantity-@-price cell", () => {
+    expect(parseMoneyLoose("2 @ $450,000")).toBeNaN();
+  });
+
+  it("rejects a two-ended price range as ambiguous", () => {
+    expect(parseMoneyLoose("$300,000-$350,000")).toBeNaN();
+  });
+
+  it("still salvages legitimate single-number annotation cells (no regression)", () => {
+    expect(parseMoneyLoose("1,234 approx")).toBe(1234);
+    expect(parseMoneyLoose("approx 1,234")).toBe(1234);
+    expect(parseMoneyLoose("1,234CAD")).toBe(1234);
+    expect(parseMoneyLoose("325 000")).toBe(325000);
+    expect(parseMoneyLoose("9 750,50 $")).toBeCloseTo(9750.5);
+    expect(parseMoneyLoose("1 234 567")).toBe(1234567);
+  });
+});
+
 describe("parseMoneyStrict — F2: AI path rejects numeric-prefix garbage (unit suffixes / annotations)", () => {
   // Regression F2 (PR #264): delegating the AI route's toNum to parseMoneyLoose
   // inherited parseFloat prefix semantics, so "1.5M" -> 1.5 and "300k" -> 300
