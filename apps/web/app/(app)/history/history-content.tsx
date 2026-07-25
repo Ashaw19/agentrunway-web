@@ -48,7 +48,7 @@ import { applyValidation } from "@/lib/import/validation/validate-transactions";
 import { computeImportExternalId, dedupeByImportExternalId } from "@/lib/import/external-id";
 import { parseMoneyLoose } from "@/lib/import/normalizers/normalize-money";
 import { clampSalePrice, clampCommissionPct, clampGci } from "@/lib/import/clamp-db-range";
-import { readImportError, categorizeClientError, ImportRequestError } from "@/lib/import/client-error";
+import { readImportError, categorizeClientError, ImportRequestError, type ImportErrorInfo } from "@/lib/import/client-error";
 import dynamic from "next/dynamic";
 import type { YoYDataPoint } from "@/components/year-over-year-chart";
 
@@ -635,6 +635,15 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
 
           const results: ImportResult[] = [];
           const detectedSplitMap: Record<number, number> = {};
+          // A year-sheet that is not tracker-shaped falls back to the AI route,
+          // where a 504 is the EXPECTED failure mode on big sheets (#245/#246).
+          // Those failures must NOT vanish: silently shipping a 3-year preview
+          // for a 5-year workbook hands the user a "complete" history that is
+          // missing two years, which then poisons YoY, seasonality (needs 2+
+          // years) and every downstream projection. Collect them and surface
+          // them after the loop, mirroring the save-stage `failedYears` idiom.
+          const failedSheets: string[] = [];
+          let lastFailure: ImportErrorInfo | null = null;
           for (let si = 0; si < yearSheets.length; si++) {
             setBatchProgress({ current: si + 1, total: yearSheets.length });
             const sheetName = yearSheets[si];
@@ -662,16 +671,43 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
             } else {
               // Fallback: send to Groq with year hint from sheet name
               const csv = XLSX.utils.sheet_to_csv(ws);
-              const res = await fetch("/api/import-history", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ textContent: csv, yearHint: sheetYear }),
-              });
-              if (res.ok) {
+              try {
+                const res = await fetch("/api/import-history", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ textContent: csv, yearHint: sheetYear }),
+                });
+                if (!res.ok) {
+                  lastFailure = await readImportError(res);
+                  failedSheets.push(sheetName);
+                  continue;
+                }
                 const yr = await res.json() as ImportResult;
                 if (yr.annual_tx > 0) results.push(yr);
+              } catch (sheetErr) {
+                // A network throw on ONE sheet must not abort the whole
+                // workbook — record it and keep the years that did extract.
+                console.error("[import] batch sheet failed:", sheetName, sheetErr);
+                failedSheets.push(sheetName);
               }
             }
+          }
+
+          if (results.length === 0) {
+            // Never drop the user on an empty preview screen with no
+            // explanation — route into the existing catch so they get the
+            // curated message (504 -> "split it by year") and telemetry fires.
+            throw new ImportRequestError(lastFailure ?? {
+              message: "We couldn't read any of the year sheets in this workbook. Try importing one year at a time.",
+              category: "extraction_failed",
+              status: 0,
+            });
+          }
+          if (failedSheets.length > 0) {
+            toast.warning(
+              `${results.length} year${results.length === 1 ? "" : "s"} extracted, but ${failedSheets.join(", ")} couldn't be read. ${lastFailure?.message ?? "Import these, then retry the missing sheets on their own."}`,
+              { duration: 10000 },
+            );
           }
 
           const sortedResults = results.sort((a, b) => b.year - a.year);
