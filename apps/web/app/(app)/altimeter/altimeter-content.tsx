@@ -181,7 +181,10 @@ function computePersonalRecords(
 
   const monthlyGCI: Record<number, number> = {};
   for (const tx of transactions) {
-    const m = new Date(tx.date).getMonth();
+    // Local-noon anchor: `tx.date` is date-only, so a bare `new Date()` lands on
+    // UTC midnight = the previous day locally, filing every 1st-of-month deal
+    // under the wrong month. `actualByMonth` below already slices the string.
+    const m = new Date(tx.date + "T12:00:00").getMonth();
     monthlyGCI[m] = (monthlyGCI[m] ?? 0) + computeGCI(tx);
   }
   const bestMonthEntries = Object.entries(monthlyGCI).sort((a, b) => Number(b[1]) - Number(a[1]));

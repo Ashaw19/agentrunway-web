@@ -148,7 +148,10 @@ export function SocialContent({ settings, transactions, connections }: Props) {
 
   // Filter closed transactions for the selected month
   const monthTx = transactions.filter((tx) => {
-    const d = new Date(tx.date);
+    // Local-noon anchor — `tx.date` is date-only, and a bare `new Date()` puts a
+    // deal closed on the 1st into the PREVIOUS month's post (and a Jan 1 close
+    // into last year's), which is publicly visible once the post goes out.
+    const d = new Date(tx.date + "T12:00:00");
     return (d.getMonth() + 1) === selectedMonth && d.getFullYear() === selectedYear;
   });
 

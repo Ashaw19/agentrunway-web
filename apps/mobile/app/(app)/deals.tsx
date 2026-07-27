@@ -649,7 +649,8 @@ function PipelineCard({ deal, onPress }: { deal: PipelineDeal; onPress: () => vo
               {deal.expected_close_date && (
                 <Text style={{ ...Type.caption, color: c.textDim }}>
                   {t("pipeline.close")}{" "}
-                  {new Date(deal.expected_close_date).toLocaleDateString(
+                  {/* date-only column — anchor at local noon or it renders the previous day */}
+                  {new Date(deal.expected_close_date + "T12:00:00").toLocaleDateString(
                     "en-CA",
                     { month: "short", day: "numeric" }
                   )}
@@ -791,7 +792,8 @@ function TransactionCard({ tx, onPress }: { tx: Transaction; onPress: () => void
                 {t("transaction.commissionPct", { pct: (tx.commission_pct * 100).toFixed(1) })}
               </Text>
               <Text style={{ ...Type.caption, color: c.textDim }}>
-                {new Date(tx.date).toLocaleDateString("en-CA", {
+                {/* date-only column — anchor at local noon or it renders the previous day */}
+                {new Date(tx.date + "T12:00:00").toLocaleDateString("en-CA", {
                   month: "short",
                   day: "numeric",
                 })}
@@ -1139,7 +1141,8 @@ function DealDetailSheet({
           {deal.expected_close_date && (
             <InfoRow
               label={t("detail.expectedClose")}
-              value={new Date(deal.expected_close_date).toLocaleDateString(
+              // date-only column — anchor at local noon or it renders the previous day
+              value={new Date(deal.expected_close_date + "T12:00:00").toLocaleDateString(
                 "en-CA",
                 {
                   year: "numeric",
@@ -1239,7 +1242,8 @@ function TransactionDetailSheet({
         </View>
         <InfoRow
           label={t("transaction.date")}
-          value={new Date(tx.date).toLocaleDateString("en-CA", {
+          // date-only column — anchor at local noon or it renders the previous day
+          value={new Date(tx.date + "T12:00:00").toLocaleDateString("en-CA", {
             year: "numeric",
             month: "short",
             day: "numeric",

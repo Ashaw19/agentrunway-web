@@ -115,8 +115,12 @@ export function ForecastContent({
   const currentYear = new Date().getFullYear();
 
   // ── YTD from transactions ─────────────────────────────────────────────
+  // `transactions.date` is a Postgres `date` (date-only). `new Date("2026-01-01")`
+  // parses as UTC midnight, which is the PREVIOUS day in every Canadian zone —
+  // so a Jan 1 close reads as last year and drops out of YTD. Anchor at local
+  // noon, the idiom the dashboard uses (dashboard-content.tsx:243/935/3026/3063).
   const ytdTx = transactions.filter(
-    (tx) => new Date(tx.date).getFullYear() === currentYear,
+    (tx) => new Date(tx.date + "T12:00:00").getFullYear() === currentYear,
   );
   const ytdGCI = ytdTx.reduce((sum, tx) => sum + computeGCI(tx), 0);
   const ytdDealCount = ytdTx.length;

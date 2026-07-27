@@ -19,7 +19,10 @@ export default function sitemap(): MetadataRoute.Sitemap {
   // Dynamically include all blog posts
   const blogEntries: MetadataRoute.Sitemap = getAllPosts().map((post) => ({
     url:             `${BASE_URL}/blog/${post.slug}`,
-    lastModified:    new Date(post.date),
+    // `post.date` is a date-only frontmatter string — anchor at local noon so
+    // lastModified doesn't report the previous day (same rule as the DB `date`
+    // columns; see lib/__tests__/date-only-anchor.test.ts).
+    lastModified:    new Date(post.date + "T12:00:00"),
     changeFrequency: "monthly" as const,
     priority:        0.7,
   }));
