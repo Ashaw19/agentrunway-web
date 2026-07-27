@@ -215,7 +215,10 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
   // Group transactions by year for auto-derived stats
   const txByYear = transactions.reduce<Record<number, Transaction[]>>(
     (acc, tx) => {
-      const y = new Date(tx.date).getFullYear();
+      // Local-noon anchor — `tx.date` is date-only, so a bare `new Date()` files
+      // every Jan 1 close under the previous year, skewing the auto-derived
+      // per-year stats and the seasonal profile built from them.
+      const y = new Date(tx.date + "T12:00:00").getFullYear();
       (acc[y] ??= []).push(tx);
       return acc;
     },

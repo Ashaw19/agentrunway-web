@@ -993,7 +993,10 @@ export async function POST(req: NextRequest) {
           if (qFraction > 0.30 && ytdTx.length > 0) {
             // This is a heavy quarter — agent earning disproportionately
             const qDeals = ytdTx.filter((tx: { date: string }) => {
-              const m = new Date(tx.date).getMonth();
+              // Local-noon anchor — `tx.date` is date-only, so a bare `new Date()`
+              // pushes every Jan 1 / Apr 1 / Jul 1 / Oct 1 close into the previous
+              // quarter and under-counts the quarter this nudge is reasoning about.
+              const m = new Date(tx.date + "T12:00:00").getMonth();
               return Math.floor(m / 3) + 1 === currentQ;
             }).length;
             if (qDeals >= 2) {

@@ -80,7 +80,12 @@ function getGreetingKey(): string {
 }
 
 function isOverdue(dateStr: string): boolean {
-  return new Date(dateStr) < new Date(new Date().toDateString());
+  // `contact_tasks.due_date` is date-only. Parsed bare it becomes UTC midnight —
+  // which is the previous day locally in every Canadian zone — so a task due
+  // TODAY compared against local midnight reads as overdue. Anchor at local noon.
+  // Web decides this by string compare against today's ISO date
+  // (dashboard-content.tsx:1936, crm-dashboard-tab.tsx:985); same semantics.
+  return new Date(dateStr + "T12:00:00") < new Date(new Date().toDateString());
 }
 
 function formatLastSyncedKey(ts: number): { key: string; count?: number } {
@@ -731,7 +736,11 @@ export default function DashboardScreen() {
     const months = new Array(monthCount).fill(0);
     for (const t of transactions) {
       if (t.status !== "closed") continue;
-      const d = new Date(t.date);
+      // Local-noon anchor — `transactions.date` is date-only; a bare `new Date()`
+      // resolves to UTC midnight = the previous day in every Canadian zone, so a
+      // Jan 1 close falls out of the year and every 1st-of-month deal lands in the
+      // wrong bucket. Web anchors the same way (dashboard-content.tsx:243).
+      const d = new Date(t.date + "T12:00:00");
       if (d.getFullYear() === year) {
         const gci = t.gci_override ?? (t.sale_price * t.commission_pct * (t.team_split_pct ?? 1));
         months[d.getMonth()] += gci;
@@ -748,7 +757,7 @@ export default function DashboardScreen() {
     const months = new Array(monthCount).fill(0);
     for (const t of transactions) {
       if (t.status !== "closed") continue;
-      const d = new Date(t.date);
+      const d = new Date(t.date + "T12:00:00"); // date-only column — see gciSparkData
       if (d.getFullYear() === year) months[d.getMonth()]++;
     }
     return months;
@@ -1146,7 +1155,7 @@ export default function DashboardScreen() {
                 {nextTask.due_date && (
                   <Text style={{ ...Type.caption, color: isOverdue(nextTask.due_date) ? c.danger : c.textDim, marginTop: 2 }}>
                     {isOverdue(nextTask.due_date) ? t("nextUp.overdue") + " \u00B7 " : ""}
-                    {new Date(nextTask.due_date).toLocaleDateString("en-CA", { weekday: "short", month: "short", day: "numeric" })}
+                    {new Date(nextTask.due_date + "T12:00:00").toLocaleDateString("en-CA", { weekday: "short", month: "short", day: "numeric" })}
                   </Text>
                 )}
               </View>

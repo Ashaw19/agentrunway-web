@@ -67,9 +67,11 @@ export default async function FounderCompPage() {
   const loanRows     = (loanRes.data     ?? []) as TxRow[];
   const dividendRows = (dividendRes.data ?? []) as TxRow[];
 
-  // YTD salary: sum of 6010 rows in the current calendar year
+  // YTD salary: sum of 6010 rows in the current calendar year.
+  // Local-noon anchor — `corp_transactions.date` is date-only, so a bare
+  // `new Date()` reads a Jan 1 entry as last year and drops it from YTD.
   const ytdSalary = salaryRows
-    .filter((r) => new Date(r.date).getFullYear() === currentYear)
+    .filter((r) => new Date(r.date + "T12:00:00").getFullYear() === currentYear)
     .reduce((s, r) => s + Number(r.amount_total), 0);
 
   // Shareholder loan balance: sum of all signed 3010 amounts

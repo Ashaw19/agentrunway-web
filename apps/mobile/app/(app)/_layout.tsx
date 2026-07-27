@@ -30,7 +30,10 @@ export default function AppLayout() {
 
   const overdueCount = useMemo(() => {
     const today = new Date(new Date().toDateString());
-    return tasks.filter(t => t.due_date && new Date(t.due_date) < today && !t.completed_at).length;
+    // Local-noon anchor — `due_date` is date-only; parsed bare it lands on the
+    // previous day locally, so every task due TODAY inflated this badge.
+    // Mirrors isOverdue() in (app)/index.tsx.
+    return tasks.filter(t => t.due_date && new Date(t.due_date + "T12:00:00") < today && !t.completed_at).length;
   }, [tasks]);
 
   const pendingCount = useMemo(() => {
