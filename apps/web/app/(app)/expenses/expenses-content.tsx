@@ -19,6 +19,7 @@ import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { ChevronDown, ChevronRight, Plus, Check, X, Trash2, Info, ExternalLink, ChevronsUpDown, Camera, Receipt, ArrowRight, Download, FileText, RefreshCw, AlertTriangle, Clock, Lightbulb } from "lucide-react";
 import { fmtCurrency, fmtPct } from "@/lib/formatters";
+import { aggregateReceiptTotals } from "@/lib/expenses/receipt-totals";
 import { KpiCard } from "@/components/kpi-card";
 import {
   computeGCI,
@@ -112,6 +113,8 @@ interface Props {
   initialReceipts?: ReceiptExpense[];
   /** Current-year receipt totals keyed by expense_items.key — computed server-side */
   receiptTotalsByKey: Record<string, number>;
+  /** Current-year receipts with a NULL category_key — excluded from the per-key map. */
+  uncategorizedReceiptYTD?: number;
   /** Prior year history for YoY comparison (up to 4 years) */
   priorYearHistory?: PriorYearRow[];
   currentYear?: number;
@@ -153,7 +156,7 @@ const CAT_LABEL: Record<string, string> = Object.fromEntries(
 
 export function ExpensesContent({
   initialCategories, settings, transactions, initialReceipts = [],
-  receiptTotalsByKey, priorYearHistory = [], currentYear,
+  receiptTotalsByKey, uncategorizedReceiptYTD = 0, priorYearHistory = [], currentYear,
   mileageLogs = [], plaidItems = [], plaidTransactions = [],
   plaidExpenseItems = [], plaidExpenseCategories = [], plaidConfigured = false,
   isPro: isProProp = false,
@@ -174,6 +177,10 @@ export function ExpensesContent({
 
   // ── Receipt YTD totals (keyed by expense_items.key, refreshed after each save) ──
   const [receiptTotals, setReceiptTotals] = useState<Record<string, number>>(receiptTotalsByKey);
+  // Receipts saved with no category have no expense item to attach to, so they
+  // never appear in `receiptTotals`. Tracked separately so YTD totals still
+  // agree with the dashboard, which sums every receipt regardless of category.
+  const [uncategorizedTotal, setUncategorizedTotal] = useState<number>(uncategorizedReceiptYTD);
 
   // ── Vehicle business use % (editable, persisted to user_settings) ────────
   const [vehiclePct, setVehiclePct] = useState<number>(
@@ -693,19 +700,16 @@ export function ExpensesContent({
       .eq("user_id", authUser.id)
       .gte("expense_date", `${year}-01-01`);
     if (totalsData) {
-      const newTotals: Record<string, number> = {};
-      for (const r of totalsData) {
-        if (r.category_key && r.total_amount != null) {
-          newTotals[r.category_key] = Math.round(((newTotals[r.category_key] ?? 0) + Number(r.total_amount)) * 100) / 100;
-        }
-      }
-      setReceiptTotals(newTotals);
+      const { byKey, uncategorized } = aggregateReceiptTotals(totalsData);
+      setReceiptTotals(byKey);
+      setUncategorizedTotal(uncategorized);
     }
   };
 
   // Auto-expand all categories on first visit (no receipts yet and no monthly recurring)
   const isFirstVisit =
     Object.keys(receiptTotalsByKey).length === 0 &&
+    uncategorizedReceiptYTD === 0 &&
     initialCategories.every(
       (cat) => cat.items.every((i) => Number(i.monthly_recurring) === 0),
     );
@@ -821,8 +825,11 @@ export function ExpensesContent({
   }
 
   // ── Totals ────────────────────────────────────────────────────────────
-  // ytdTotal is now computed from receipt_expenses (not the manual ytd_amount field)
-  const ytdTotal = Object.values(receiptTotals).reduce((sum, v) => sum + v, 0);
+  // ytdTotal is now computed from receipt_expenses (not the manual ytd_amount field).
+  // Includes receipts with no category — they have no expense item to attach to
+  // but are still real spend, and the dashboard counts them.
+  const ytdTotal =
+    Object.values(receiptTotals).reduce((sum, v) => sum + v, 0) + uncategorizedTotal;
   const monthlyTotal = categories.reduce(
     (sum, cat) => sum + cat.items.reduce((s, item) => s + Number(item.monthly_recurring), 0) + recurringMonthlyForCat(cat.key),
     0,
@@ -845,10 +852,13 @@ export function ExpensesContent({
   };
 
   const recurringYTDTotal = recurringExpenses.reduce((s, re) => re.is_active ? s + reYTDAmount(re) : s, 0);
+  // `effectiveYTD` is per expense item, so uncategorized receipts are invisible
+  // to it — add them back or the headline "YTD Expenses" KPI and the expense
+  // ratio both come in under the dashboard's.
   const effectiveTotal = categories.reduce(
     (sum, cat) => sum + cat.items.reduce((s, item) => s + effectiveYTD(item), 0),
     0,
-  ) + recurringYTDTotal;
+  ) + recurringYTDTotal + uncategorizedTotal;
 
   // ── YTD GCI for expense ratio ─────────────────────────────────────────
   const ytdGCI = transactions.reduce((sum, tx) => sum + computeGCI(tx), 0);
@@ -1090,12 +1100,9 @@ export function ExpensesContent({
       .gte("expense_date", `${year}-01-01`);
     if (error) { console.error("[expenses] receipt totals refresh failed:", error); return; }
     if (!data) return;
-    const newTotals: Record<string, number> = {};
-    for (const row of data) {
-      if (row.category_key && row.total_amount != null)
-        newTotals[row.category_key] = Math.round(((newTotals[row.category_key] ?? 0) + Number(row.total_amount)) * 100) / 100;
-    }
-    setReceiptTotals(newTotals);
+    const { byKey, uncategorized } = aggregateReceiptTotals(data);
+    setReceiptTotals(byKey);
+    setUncategorizedTotal(uncategorized);
   }
 
   function handleReceiptUpdated(updated: ReceiptExpense) {

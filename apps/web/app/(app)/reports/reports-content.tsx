@@ -114,6 +114,8 @@ interface Props {
   isPro?: boolean;
   historyItems?: HistoryItem[];
   receiptTotalsByKey?: Record<string, number>;
+  /** Current-year receipts with a NULL category_key — excluded from the per-key map. */
+  uncategorizedReceiptYTD?: number;
   /** T2125 tab data */
   ccaAssets?: CcaAsset[];
   expenseAmounts?: Record<string, number>;
@@ -229,6 +231,7 @@ export function ReportsContent({
   isPro: isPro = false,
   historyItems = [],
   receiptTotalsByKey = {},
+  uncategorizedReceiptYTD = 0,
   ccaAssets = [],
   expenseAmounts = {},
   mileageLogs = [],
@@ -325,7 +328,11 @@ export function ReportsContent({
 
   // ── Expenses ──────────────────────────────────────────────────────────────────
   // Includes both legacy expense_items.monthly_recurring AND new recurring_expenses table
-  const receiptTotal = Object.values(receiptTotalsByKey).reduce((s, v) => s + v, 0);
+  // Per-key totals + the uncategorized remainder. Summing only the per-key map
+  // would silently drop every receipt saved without a category and understate
+  // expensesYTD against the dashboard.
+  const receiptTotal =
+    Object.values(receiptTotalsByKey).reduce((s, v) => s + v, 0) + uncategorizedReceiptYTD;
   const legacyMonthlyRecurring = expenseCategories.reduce(
     (sum, cat) => sum + cat.items.reduce((s, i) => s + Number(i.monthly_recurring), 0),
     0,
