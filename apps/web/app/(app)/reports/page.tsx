@@ -4,6 +4,7 @@ import { ReportsContent } from "./reports-content";
 import type { CcaAsset, RecurringExpense, ListingAppointment } from "@/lib/types/database";
 import { totalRecurringMonthly, totalRecurringYTD } from "@agent-runway/core/engines/recurring-expense-engine";
 import { computeIsPro } from "@/lib/compute-is-pro";
+import { aggregateReceiptTotals } from "@/lib/expenses/receipt-totals";
 
 
 export default async function ReportsPage() {
@@ -102,14 +103,11 @@ export default async function ReportsPage() {
     items: (expItemResult.data ?? []).filter((i) => i.category_id === cat.id),
   }));
 
-  // Aggregate receipt totals per sub-category key for the current year
-  const receiptTotalsByKey: Record<string, number> = {};
-  for (const r of receiptTotalsResult.data ?? []) {
-    if (r.category_key && r.total_amount != null) {
-      receiptTotalsByKey[r.category_key] =
-        (receiptTotalsByKey[r.category_key] ?? 0) + Number(r.total_amount);
-    }
-  }
+  // Per-key map drives the T2125 line allocation and MUST stay per-key.
+  // The uncategorized remainder is carried separately so the YTD expense total
+  // still agrees with the dashboard. See lib/expenses/receipt-totals.ts.
+  const { byKey: receiptTotalsByKey, uncategorized: uncategorizedReceiptYTD } =
+    aggregateReceiptTotals(receiptTotalsResult.data);
 
   // Build expenseAmounts for T2125 tab: receipts YTD + recurring for completed months only.
   // T2125 is a tax form — only include expenses actually incurred (not projected future months).
@@ -149,6 +147,7 @@ export default async function ReportsPage() {
       isPro={isPro}
       historyItems={historyResult.data ?? []}
       receiptTotalsByKey={receiptTotalsByKey}
+      uncategorizedReceiptYTD={uncategorizedReceiptYTD}
       ccaAssets={(ccaAssetsResult.data ?? []) as CcaAsset[]}
       expenseAmounts={expenseAmounts}
       mileageLogs={(mileageResult.data ?? []).map((r) => ({

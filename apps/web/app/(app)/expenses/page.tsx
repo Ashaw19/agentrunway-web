@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { ExpensesContent } from "./expenses-content";
 import { computeIsPro } from "@/lib/compute-is-pro";
+import { aggregateReceiptTotals } from "@/lib/expenses/receipt-totals";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { PlaidItem, PlaidTransaction, PipelineDeal, HistoryItem, RecurringExpense } from "@/lib/types/database";
 
@@ -280,14 +281,11 @@ export default async function ExpensesPage() {
       .limit(10000),
   ]);
 
-  // Aggregate receipt totals per sub-category key for the current year
-  const receiptTotalsByKey: Record<string, number> = {};
-  for (const r of receiptTotalsResult.data ?? []) {
-    if (r.category_key && r.total_amount != null) {
-      receiptTotalsByKey[r.category_key] =
-        (receiptTotalsByKey[r.category_key] ?? 0) + Number(r.total_amount);
-    }
-  }
+  // Per-key map drives the per-expense-item rows; the uncategorized remainder is
+  // carried separately so YTD totals agree with the dashboard, which sums every
+  // receipt regardless of category. See lib/expenses/receipt-totals.ts.
+  const { byKey: receiptTotalsByKey, uncategorized: uncategorizedReceiptYTD } =
+    aggregateReceiptTotals(receiptTotalsResult.data);
 
   let cats = categoriesResult.data ?? [];
   let items = itemsResult.data ?? [];
@@ -336,6 +334,7 @@ export default async function ExpensesPage() {
       transactions={txResult.data ?? []}
       initialReceipts={receiptsResult.data ?? []}
       receiptTotalsByKey={receiptTotalsByKey}
+      uncategorizedReceiptYTD={uncategorizedReceiptYTD}
       priorYearHistory={historyResult.data ?? []}
       currentYear={year}
       mileageLogs={mileageResult.data ?? []}
