@@ -450,8 +450,12 @@ const TOPIC_RULES: TopicRule[] = [
   },
   {
     topic: "import",
-    primary: ["import", "csv", "spreadsheet", "upload", "pdf import"],
-    secondary: ["column", "mapping", "history", "year", "bulk"],
+    // NOTE: bare "excel" is deliberately NOT a primary keyword — primary matching
+    // is substring-based (`lower.includes`) and worth 3 points, which alone clears
+    // the classification threshold, so "excel" would fire on "excellent". The
+    // "excel file"/"excel sheet"/"excel import" phrases cover the real intent.
+    primary: ["import", "csv", "spreadsheet", "upload", "pdf import", "xlsx", "workbook"],
+    secondary: ["column", "mapping", "history", "year", "bulk", "sheet"],
     phrases: [
       "import transactions",
       "import history",
@@ -463,6 +467,11 @@ const TOPIC_RULES: TopicRule[] = [
       "column mapping",
       "annual history",
       "import from",
+      "excel import",
+      "excel file",
+      "excel sheet",
+      "rows were skipped",
+      "rows skipped",
     ],
   },
   {
