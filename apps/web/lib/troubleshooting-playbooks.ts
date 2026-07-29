@@ -1218,6 +1218,48 @@ System uses heuristic column classification:
 Imports into the History tab with: Year, Annual GCI, Deal Count, Q1–Q4 breakdown
 Used for: Year-over-year comparison, seasonal profile, trend detection
 
+### Multi-Year Workbooks (sheet-by-sheet)
+An Excel workbook with one sheet per year is imported one sheet at a time.
+Tracker-shaped sheets parse in the browser; every other sheet is sent to the
+server for extraction, where a very large sheet can time out.
+- If SOME sheets fail, the years that did extract still reach the preview and a
+  warning names the sheets that could not be read.
+- If EVERY sheet fails, an error is shown (not an empty preview). On a timeout
+  the guidance is to split the workbook and import one year at a time.
+- A failed sheet never silently disappears. If a user reports "only 3 of my 5
+  years imported," ask whether they saw a warning naming the missing sheets —
+  the missing years failed extraction, they were not merged or deduped away.
+Why it matters: a silently missing year skews year-over-year comparison and the
+seasonal profile (which needs 2+ years of history).
+
+### Number Parsing (from normalize-money.ts)
+Two parsers share one numeric interpretation:
+- **Loose** (CSV / spreadsheet / tracker columns) — salvages a number out of
+  annotated cells.
+- **Strict** (AI extraction from PDFs and images) — must be a clean number or it
+  is rejected to low/"missing" confidence in the review UI.
+
+Formats handled by both: \`$1,234.56\`, \`CAD 1,234\`, \`ca$1,234\`,
+\`(1,234)\` → -1234 (accounting negative), \`325 000\` → 325000 (space thousands),
+\`9 750,50 $\` → 9750.50 (fr-CA space thousands + comma decimal), \`9,50\` → 9.50
+(fr-CA comma decimal), \`1.234,56\` → 1234.56 (European dot thousands).
+Loose only: \`1,234 approx\` and \`approx 1,234\` → 1234 (annotation stripped).
+Strict rejects: \`1.5M\`, \`300k\`, \`1,500 est\` → treated as missing, never as
+1.5 / 300 / 1500.
+
+**Comma disambiguation:** a single comma followed by exactly 3 digits is
+thousands grouping (\`1,234\` → 1234); 1, 2, or 4+ trailing digits is a decimal
+(\`9,50\` → 9.50). If the cell also uses space grouping, the comma is the decimal
+(\`1 234,567\` → 1234.567). When both a comma and a dot appear, the LAST one is
+the decimal.
+
+**Ambiguous cells are rejected, not guessed.** A cell holding two or more
+numeric groups separated by a letter, currency symbol, dash, "@", or "#" cannot
+be resolved and comes through as missing: \`Unit 5 - $325,000\`,
+\`Lot 12 $500,000\`, \`MLS 40312345 $325,000\`, \`2 @ $450,000\`,
+\`$300,000-$350,000\` (a range). This is deliberate — guessing would pull the
+wrong digits (a unit number, an MLS number) into sale price.
+
 ### Common Problems & Diagnostics
 
 **"Import failed"**
@@ -1229,6 +1271,19 @@ Used for: Year-over-year comparison, seasonal profile, trend detection
 
 **"Some rows were skipped"**
 → Rows skip when required fields are missing (typically date and sale price or GCI). Check the error summary for specific row numbers.
+→ A field also counts as missing when its value could not be parsed. The most
+common cause is a price or GCI cell that holds more than just the amount
+("Unit 5 - $325,000", "$300,000-$350,000", "2 @ $450,000") — see Number Parsing
+above. Fix: put only the amount in that cell and re-import, or fill the value in
+manually at the mapping/preview step.
+
+**"A price or GCI came through blank"**
+1. Check the source cell — if it contains a unit/lot/MLS number or a price range
+   alongside the amount, it is rejected on purpose rather than guessed.
+2. For PDF or image extraction, check for shorthand: "1.5M", "300k", and
+   "1,500 est" are rejected by the strict parser and surface as low confidence.
+3. Correct the value in the review UI before confirming — nothing is written
+   until confirmation.
 
 **"Columns weren't detected correctly"**
 → The mapping preview step lets you manually reassign columns. If headers are non-standard, manual mapping may be needed.
