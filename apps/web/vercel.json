@@ -3,6 +3,9 @@
   "buildCommand": "pnpm build",
   "framework": "nextjs",
   "ignoreCommand": "bash scripts/vercel-ignore.sh",
+  "github": {
+    "silent": true
+  },
   "crons": [
     {
       "path": "/api/cron/outreach-detector",
