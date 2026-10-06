@@ -62,16 +62,27 @@ done
 
 run_psql -f /checks/ci-bootstrap.sql
 
+# Each file runs as one transaction (-1), like Supabase's apply_migration in
+# prod, so a failing file leaves nothing half-applied. Keep going after a
+# failure so one run reports every broken migration, then stop before the
+# function check (its results would be noise on a partial schema).
 applied=0
+failed=()
 while IFS= read -r file; do
-  if ! output=$(run_psql -f "/migrations/$file" 2>&1); then
-    echo "$output"
-    echo "::error file=apps/web/supabase/migrations/$file::Migration failed to apply on a fresh database"
-    exit 1
+  if output=$(run_psql -1 -f "/migrations/$file" 2>&1); then
+    applied=$((applied + 1))
+  else
+    failed+=("$file")
+    echo "── $file failed:"
+    echo "$output" | grep -E "ERROR|LINE|DETAIL|HINT" | head -8
+    echo "::error file=apps/web/supabase/migrations/$file::$(echo "$output" | grep -m1 -oE 'ERROR: .*' || echo 'Migration failed to apply on a fresh database')"
   fi
-  applied=$((applied + 1))
 done < <(cd "$MIGRATIONS_DIR" && LC_ALL=C ls -1 -- *.sql)
-echo "Applied $applied migrations."
+echo "Applied $applied migrations; ${#failed[@]} failed."
+if [ "${#failed[@]}" -gt 0 ]; then
+  printf '  %s\n' "${failed[@]}"
+  exit 1
+fi
 
 if ! output=$(run_psql -f /checks/plpgsql-check.sql 2>&1); then
   echo "$output"
