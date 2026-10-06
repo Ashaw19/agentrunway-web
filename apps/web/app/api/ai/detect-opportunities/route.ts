@@ -27,6 +27,9 @@ import { POST_CLOSE_OPPORTUNITY_CONFIGS as POST_CLOSE_CONFIGS } from "@agent-run
 import type { SupabaseClient }    from "@supabase/supabase-js";
 import type { ClientMemoryFacts } from "@/lib/ai/client-memory-engine";
 import { contactableRecords }     from "@/lib/crm/contactable-records";
+import { lastClosedDealByClient, outreachChannel } from "@/lib/crm/outreach-consent";
+import { recentlyContactedClientIds, outreachSuppressionCutoff } from "@/lib/crm/recently-contacted";
+import { selectTopCandidates, clientLifetimeGci } from "@/lib/crm/top-opportunity-selection";
 import {
   type Tone,
   AGENT_RUNWAY_VOICE,
@@ -805,12 +808,21 @@ async function draftItem(
 
 // ── Core detection + drafting logic (exported for cron wrapper) ───────────────
 
+/** One opportunity the agent clicked "Draft" on in Flight Control. */
+export interface OpportunityPin {
+  client_id:        string;
+  opportunity_type: string;
+  trigger_date:     string;
+}
+
 export async function detectAndDraftForUser(
   userId:   string,
   supabase: SupabaseClient,
-): Promise<{ detected: number; drafted: number }> {
+  opts:     { pin?: OpportunityPin } = {},
+): Promise<{ detected: number; drafted: number; pinned: boolean }> {
+  const { pin } = opts;
   // ── Fetch data ─────────────────────────────────────────────────────────────
-  const [settingsRes, clientsRes, recordsRes, memoryRes] = await Promise.all([
+  const [settingsRes, clientsRes, recordsRes, memoryRes, sentRes] = await Promise.all([
     supabase
       .from("user_settings")
       .select("display_name, email_signature, ai_voice_guide")
@@ -823,7 +835,9 @@ export async function detectAndDraftForUser(
       .is("archived_at", null),
     supabase
       .from("client_records")
-      .select("id, client_id, address, close_date, gci, side, property_use")
+      // condition_status: the multi-deal loop's collapsed filter and the CASL
+      // gate both read it — without it in the select both were no-ops here.
+      .select("id, client_id, address, close_date, gci, side, property_use, condition_status")
       .eq("user_id", userId)
       .not("close_date", "is", null)
       .not("client_id", "is", null),
@@ -833,6 +847,13 @@ export async function detectAndDraftForUser(
       .select("client_id, memory_summary, structured_facts, stale")
       .eq("user_id", userId)
       .eq("stale", false),
+    // Flight Control sends inside the suppression window — see lib/crm/recently-contacted.ts
+    supabase
+      .from("outreach_queue")
+      .select("client_id, sent_at")
+      .eq("user_id", userId)
+      .eq("status", "sent")
+      .gte("sent_at", outreachSuppressionCutoff().toISOString()),
   ]);
 
   const agentFirst      = extractFirstName(settingsRes.data?.display_name ?? null, "");
@@ -858,16 +879,10 @@ export async function detectAndDraftForUser(
     }
   }
 
-  // Suppression: clients contacted within 14 days should not receive non-birthday outreach
+  // Suppression: clients contacted within 14 days (CRM activity or a Flight
+  // Control send) should not receive non-birthday outreach.
   // Birthday messages are always appropriate regardless of recent contact
-  const SUPPRESSION_DAYS = 14;
-  const suppressionCutoff = new Date();
-  suppressionCutoff.setDate(suppressionCutoff.getDate() - SUPPRESSION_DAYS);
-  const recentlyContactedIds = new Set(
-    clients
-      .filter((c) => c.last_contact_at && new Date(c.last_contact_at) > suppressionCutoff)
-      .map((c) => c.id),
-  );
+  const recentlyContactedIds = recentlyContactedClientIds(clients, sentRes.data ?? []);
 
   const inserts: object[] = [];
   const idleCutoff = monthsAgoDate(IDLE_MONTHS);
@@ -1215,6 +1230,31 @@ export async function detectAndDraftForUser(
     }
   }
 
+  // ── CASL gate: no email drafts once implied consent has lapsed ────────────
+  // A past client whose last deal closed two or more years before the send
+  // date shows in Scan as a call card and is never drafted as an email. Same
+  // helper as getTopOpportunities — see lib/crm/outreach-consent.ts.
+  const lastCloseByClient = lastClosedDealByClient(records);
+  const emailable = inserts.filter((ins) => {
+    const i = ins as { client_id: string; trigger_date: string };
+    return outreachChannel(lastCloseByClient.get(i.client_id), i.trigger_date) === "email";
+  });
+  if (emailable.length < inserts.length) {
+    console.log(`[detect-opportunities] CASL gate: ${inserts.length - emailable.length} opportunities left as call-only (implied consent lapsed)`);
+  }
+  inserts.length = 0;
+  inserts.push(...emailable);
+
+  // The opportunity the agent clicked "Draft" on. It was shown to them in
+  // Scan, so it skips the automated-drafting score bar and per-client cap.
+  const isPinned = (ins: object): boolean => {
+    if (!pin) return false;
+    const i = ins as { client_id: string; opportunity_type: string; trigger_date: string };
+    return i.client_id === pin.client_id
+      && i.opportunity_type === pin.opportunity_type
+      && i.trigger_date === pin.trigger_date;
+  };
+
   // ── Enrich all candidates with memory context + score ────────────────────
   for (const insert of inserts) {
     const ins = insert as { client_id: string; opportunity_type: string; context: Record<string, unknown> };
@@ -1252,7 +1292,7 @@ export async function detectAndDraftForUser(
   const preFilterCount = inserts.length;
   const filtered = inserts.filter((ins) => {
     const score = (ins as { context: { outreach_score?: number } }).context.outreach_score ?? 0;
-    return score >= MIN_SEND_WORTHY_SCORE;
+    return score >= MIN_SEND_WORTHY_SCORE || isPinned(ins);
   });
 
   // ── Per-client cap: max N opportunities per client per scan ───────────────
@@ -1261,7 +1301,7 @@ export async function detectAndDraftForUser(
   for (const ins of filtered) {
     const clientId = (ins as { client_id: string }).client_id;
     const count = clientCounts.get(clientId) ?? 0;
-    if (count < MAX_PER_CLIENT_PER_SCAN) {
+    if (count < MAX_PER_CLIENT_PER_SCAN || isPinned(ins)) {
       capped.push(ins);
       clientCounts.set(clientId, count + 1);
     }
@@ -1342,13 +1382,30 @@ export async function detectAndDraftForUser(
 
   const detected = undraftedCount ?? 0;
 
+  // ── The pinned opportunity: did it land in the queue? ─────────────────────
+  // Not detected here (a read-only type, a CASL call card) or already sent →
+  // pinned=false, and the UI says so instead of claiming a draft is coming.
+  let pinnedRow: { id: string; status: string; ai_subject: string | null } | null = null;
+  if (pin && inserts.some(isPinned)) {
+    const { data } = await supabase
+      .from("outreach_queue")
+      .select("id, status, ai_subject")
+      .eq("user_id", userId)
+      .eq("client_id", pin.client_id)
+      .eq("opportunity_type", pin.opportunity_type)
+      .eq("trigger_date", pin.trigger_date)
+      .maybeSingle();
+    pinnedRow = data;
+  }
+  const pinned = !!pinnedRow && (pinnedRow.status === "draft" || pinnedRow.status === "ready");
+
   // ── AI drafting ────────────────────────────────────────────────────────────
   const aiKey = process.env.ANTHROPIC_API_KEY || process.env.GROQ_API_KEY;
   if (!aiKey) {
-    return { detected, drafted: 0 };
+    return { detected, drafted: 0, pinned };
   }
 
-  const { data: undrafted } = await supabase
+  const { data: oldestUndrafted } = await supabase
     .from("outreach_queue")
     .select("*, clients(name, city, province_region, communication_tone, tags, notes)")
     .eq("user_id", userId)
@@ -1356,8 +1413,21 @@ export async function detectAndDraftForUser(
     .is("ai_subject", null)
     .order("created_at", { ascending: true })
     .limit(MAX_DRAFTS_PER_RUN);
+  const undrafted = oldestUndrafted ?? [];
 
-  if (!undrafted?.length) return { detected, drafted: 0 };
+  // Draft the clicked one in this run even when older undrafted rows fill the batch.
+  const pinnedId = pinnedRow?.status === "draft" && !pinnedRow.ai_subject ? pinnedRow.id : null;
+  if (pinnedId && !undrafted.some((u) => u.id === pinnedId)) {
+    const { data: pinnedItem } = await supabase
+      .from("outreach_queue")
+      .select("*, clients(name, city, province_region, communication_tone, tags, notes)")
+      .eq("id", pinnedId)
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (pinnedItem) undrafted.unshift(pinnedItem);
+  }
+
+  if (!undrafted.length) return { detected, drafted: 0, pinned };
 
   // Draft all items in parallel — each draftItem has its own timeout + error handling,
   // so one slow/failed item never blocks the others.
@@ -1385,7 +1455,7 @@ export async function detectAndDraftForUser(
     console.warn(`[flight-control] Drafting complete: ${drafted} succeeded, ${failed} failed out of ${undrafted.length}`);
   }
 
-  return { detected, drafted };
+  return { detected, drafted, pinned };
 }
 
 // ── Top Opportunities Engine ─────────────────────────────────────────────────
@@ -1393,8 +1463,6 @@ export async function detectAndDraftForUser(
 // Returns the top N highest-value opportunities as structured insight cards.
 
 import type { TopOpportunity } from "@agent-runway/core/types/database";
-
-const MAX_TOP_OPPORTUNITIES = 5;
 
 /** Map opportunity type to a practical, short suggested approach. */
 function suggestAngle(
@@ -2107,7 +2175,7 @@ export async function getTopOpportunities(
   supabase: SupabaseClient,
 ): Promise<TopOpportunity[]> {
   // ── Fetch data (same as detectAndDraftForUser) ─────────────────────────────
-  const [clientsRes, recordsRes, memoryRes] = await Promise.all([
+  const [clientsRes, recordsRes, memoryRes, sentRes] = await Promise.all([
     supabase
       .from("clients")
       .select("id, name, city, province_region, birthdate, communication_tone, first_contacted_at, last_contact_at, tags, notes, status, scheduled_for, scheduled_phrase")
@@ -2123,7 +2191,17 @@ export async function getTopOpportunities(
       .select("client_id, memory_summary, structured_facts, stale")
       .eq("user_id", userId)
       .eq("stale", false),
+    supabase
+      .from("outreach_queue")
+      .select("client_id, sent_at")
+      .eq("user_id", userId)
+      .eq("status", "sent")
+      .gte("sent_at", outreachSuppressionCutoff().toISOString()),
   ]);
+
+  // A failed clients fetch would otherwise read as "no clients" and render
+  // "All caught up". Surface it as an error instead.
+  if (clientsRes.error) throw new Error(`clients fetch failed: ${clientsRes.error.message}`);
 
   const clients    = clientsRes.data ?? [];
   const _clientMap = new Map(clients.map((c) => [c.id, c]));
@@ -2142,15 +2220,8 @@ export async function getTopOpportunities(
     }
   }
 
-  // Suppression
-  const SUPPRESSION_DAYS = 14;
-  const suppressionCutoff = new Date();
-  suppressionCutoff.setDate(suppressionCutoff.getDate() - SUPPRESSION_DAYS);
-  const recentlyContactedIds = new Set(
-    clients
-      .filter((c) => c.last_contact_at && new Date(c.last_contact_at) > suppressionCutoff)
-      .map((c) => c.id),
-  );
+  // Suppression — CRM activity or a Flight Control send in the last 14 days
+  const recentlyContactedIds = recentlyContactedClientIds(clients, sentRes.data ?? []);
 
   const inserts: object[] = [];
   const idleCutoff = monthsAgoDate(IDLE_MONTHS);
@@ -2381,31 +2452,14 @@ export async function getTopOpportunities(
     ins.context = { ...ins.context, outreach_score: score };
   }
 
-  // Sort by score, filter by threshold, cap per client
-  inserts.sort((a, b) => {
-    const sa = ((a as { context: { outreach_score?: number } }).context.outreach_score ?? 0);
-    const sb = ((b as { context: { outreach_score?: number } }).context.outreach_score ?? 0);
-    return sb - sa;
-  });
-
-  // Higher threshold for top opportunities — only genuinely valuable ones
-  const TOP_OPPORTUNITY_THRESHOLD = 55;
-  const clientCounts = new Map<string, number>();
-  const topCandidates: object[] = [];
-
-  for (const ins of inserts) {
-    const typed = ins as { client_id: string; opportunity_type: string; trigger_date: string; client_record_id?: string; context: Record<string, unknown> };
-    const score = typed.context.outreach_score as number ?? 0;
-    if (score < TOP_OPPORTUNITY_THRESHOLD) continue;
-
-    const clientId = typed.client_id;
-    const count = clientCounts.get(clientId) ?? 0;
-    if (count >= 1) continue; // strict: 1 opportunity per client for top list
-
-    clientCounts.set(clientId, count + 1);
-    topCandidates.push(ins);
-    if (topCandidates.length >= MAX_TOP_OPPORTUNITIES) break;
-  }
+  // Strong signals first, then backfill (idle past clients, milestones) —
+  // one card per client, lifetime GCI breaks ties. See
+  // lib/crm/top-opportunity-selection.ts for why a hard 55 cutoff starved Scan.
+  const topCandidates = selectTopCandidates(
+    inserts as { client_id: string; opportunity_type: string; trigger_date: string; context: Record<string, unknown> }[],
+    clientLifetimeGci(records),
+  );
+  const lastCloseByClient = lastClosedDealByClient(records);
 
   // ── Compute portfolio-level stats for financial impact reasoning ──────────
   const allGcis = records
@@ -2467,6 +2521,7 @@ export async function getTopOpportunities(
       why_now:          buildWhyNow(typed.opportunity_type, typed.context, typed.trigger_date),
       suggested_angle:  suggestAngle(typed.opportunity_type, facts, typed.context),
       context_level:    contextLevel,
+      contact_channel:  outreachChannel(lastCloseByClient.get(typed.client_id), typed.trigger_date),
       client_record_id: typed.client_record_id ?? null,
       context:          typed.context,
       financial_impact: buildFinancialImpact(
@@ -2879,9 +2934,25 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // Optional { pin } body: the card the agent clicked "Draft" on.
+  let pin: OpportunityPin | undefined;
+  try {
+    const body = await req.json() as { pin?: Partial<OpportunityPin> } | null;
+    const p = body?.pin;
+    if (
+      typeof p?.client_id === "string" && typeof p.opportunity_type === "string" &&
+      typeof p.trigger_date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(p.trigger_date)
+    ) {
+      pin = { client_id: p.client_id, opportunity_type: p.opportunity_type, trigger_date: p.trigger_date };
+    }
+  } catch {
+    // No body (cron-style scan) — nothing pinned.
+  }
+
   try {
     let detected = 0;
     let drafted  = 0;
+    let pinned: boolean | null = null;
 
     if (draftOnly) {
       // Skip detection — only draft pending items for this user
@@ -2909,7 +2980,9 @@ export async function POST(req: NextRequest) {
         }
       }
     } else {
-      ({ detected, drafted } = await detectAndDraftForUser(userId, supabase));
+      const result = await detectAndDraftForUser(userId, supabase, { pin });
+      ({ detected, drafted } = result);
+      if (pin) pinned = result.pinned;
     }
 
     // Return full pending queue so the UI can refresh in one round-trip
@@ -2921,7 +2994,7 @@ export async function POST(req: NextRequest) {
       .order("trigger_date", { ascending: true });
 
     return NextResponse.json(
-      { detected, drafted, queue: queue ?? [] },
+      { detected, drafted, pinned, queue: queue ?? [] },
       { headers: rateLimitHeaders(rl) },
     );
   } catch (err) {

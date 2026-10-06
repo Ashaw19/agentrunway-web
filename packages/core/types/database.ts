@@ -741,6 +741,8 @@ export interface TopOpportunity {
   why_now:           string;           // timing justification
   suggested_angle:   string;           // practical approach recommendation
   context_level:     "sensitive" | "sparse" | "rich";
+  /** "call" when CASL implied consent from the client's last deal has lapsed — no email draft. */
+  contact_channel:   "email" | "call";
   client_record_id:  string | null;
   context:           Record<string, unknown>; // pass-through for optional drafting
   financial_impact:  string;                  // 1-2 sentence business impact explanation
