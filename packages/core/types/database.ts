@@ -1515,6 +1515,20 @@ export function activePipelineDeals<T extends { stage: string }>(deals: readonly
   return deals.filter(isActivePipelineDeal);
 }
 
+/**
+ * Drop collapsed client_records deals. A collapsed deal never closed (nobody
+ * moved in, nothing sold), yet it can still carry a close_date: the date it
+ * was due to close. So `close_date` alone does not mean "closed". Anything
+ * that reads a closing (anniversaries, mortgage renewal, home-value
+ * milestones, "past client", closed counts) filters through this first.
+ * The fetch must select `condition_status`, or this is a no-op.
+ */
+export function excludeCollapsedDeals<T extends { condition_status?: string | null }>(
+  deals: readonly T[],
+): T[] {
+  return deals.filter((d) => d.condition_status !== "collapsed");
+}
+
 /** Get agent percentage from split preset */
 export function getAgentPct(preset: SplitPreset): number {
   return SPLIT_PRESET_AGENT_PCT[preset];

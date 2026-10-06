@@ -310,6 +310,12 @@ const TOPIC_RULES: TopicRule[] = [
       "mortgage renewal alert",
       "renewal window",
       "renewal due",
+      // Briefing: CRM tab "Today's briefing", dashboard "Daily Briefing",
+      // mobile "Today's Focus"
+      "briefing",
+      "today's focus",
+      "closing anniversary",
+      "home anniversary",
     ],
   },
   {
