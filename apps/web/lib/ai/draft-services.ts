@@ -39,7 +39,10 @@ import {
   buildPastClientCheckInPrompt,
   buildTimeframeApproachingPrompt,
   buildPropertyValueMilestonePrompt,
+  buildReferralAskPrompt,
+  buildReviewRequestPrompt,
 } from "@/lib/outreach-prompts";
+import { POST_CLOSE_OPPORTUNITY_CONFIGS } from "@agent-runway/core/engines/nurture-engine";
 import {
   buildBocRateChangeNewsletterPrompt,
   buildCustomNewsletterPrompt,
@@ -67,6 +70,8 @@ export const DRAFTABLE_OUTREACH_TYPES: OutreachOpportunityType[] = [
   "past_client_check_in",
   "timeframe_approaching",
   "property_value_milestone",
+  "review_request",
+  "referral_ask",
 ];
 
 /**
@@ -108,10 +113,20 @@ function addYears(isoDate: string, years: number): Date {
   return d;
 }
 
+function addDays(isoDate: string, days: number): Date {
+  const d = new Date(isoDate + "T12:00:00");
+  d.setDate(d.getDate() + days);
+  return d;
+}
+
 function daysUntil(target: Date): number {
   const today = new Date();
   today.setHours(12, 0, 0, 0);
   return (target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24);
+}
+
+function daysSince(isoDate: string): number {
+  return Math.round(-daysUntil(addDays(isoDate.slice(0, 10), 0)));
 }
 
 function nextBirthdayDate(birthdate: string): Date {
@@ -524,6 +539,35 @@ export async function draftOutreachForClient(input: {
       break;
     }
 
+    case "review_request":
+    case "referral_ask": {
+      // Written around the most recent deal that has actually closed: a
+      // collapsed deal or one still waiting on its close date doesn't count.
+      const todayIso = localISODate(new Date());
+      const closed = records.find(
+        (r) => r.condition_status !== "collapsed" && String(r.close_date).slice(0, 10) <= todayIso,
+      );
+      const cadence = POST_CLOSE_OPPORTUNITY_CONFIGS.find((c) => c.type === opType);
+      if (!closed?.close_date || !cadence) {
+        return { status: "queued", queueItemId: "", reason: "No closed deal on record for this client", clientName: clientDisplayName };
+      }
+      // Flight Control drafts these at close + 21 / 45 days (nurture-engine).
+      // While that draft could still exist, use its trigger date so a click
+      // finds it instead of making a twin. For an older deal, the first of the
+      // month: at most one per month, like a past-client check-in.
+      const cadenceDate = addDays(closed.close_date, cadence.days);
+      triggerDate = daysUntil(cadenceDate) >= -cadence.lookback ? toISODate(cadenceDate) : firstOfMonth();
+      context = {
+        address: closed.address,
+        close_date: closed.close_date,
+        gci: closed.gci,
+        days_after_close: cadence.days,
+        side: closed.side ?? null,
+        property_use: closed.property_use ?? null,
+      };
+      break;
+    }
+
     default:
       return { status: "queued", queueItemId: "", reason: "Unsupported opportunity type", clientName: clientDisplayName };
   }
@@ -653,6 +697,20 @@ export async function draftOutreachForClient(input: {
           agentFirst, clientDisplayName,
           Number(context.milestone_year ?? 1),
           address, province, tone, side,
+        );
+        break;
+      case "review_request":
+        prompt = buildReviewRequestPrompt(
+          agentFirst, clientDisplayName,
+          (context.address as string | null) ?? client.city ?? null,
+          tone, side, daysSince(String(context.close_date)),
+        );
+        break;
+      case "referral_ask":
+        prompt = buildReferralAskPrompt(
+          agentFirst, clientDisplayName,
+          (context.address as string | null) ?? client.city ?? null,
+          tone, side, daysSince(String(context.close_date)),
         );
         break;
       default:

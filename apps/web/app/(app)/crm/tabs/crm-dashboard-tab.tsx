@@ -65,7 +65,6 @@ import type {
   ContactTask,
   ActivityType,
   TaskPriority,
-  OutreachOpportunityType,
 } from "@/lib/types/database";
 import {
   ACTIVITY_TYPE_LABELS,
@@ -90,22 +89,8 @@ import {
   type TodayDealInput,
 } from "@/lib/engines/today-actions-engine";
 import type { PipelineDeal } from "@/lib/types/database";
-
-// ── Draft button eligibility ─────────────────────────────────────────────────
-// Maps BriefingItem types → OutreachOpportunityType for the Draft endpoint.
-// Only types where a personalised email genuinely adds value are included.
-
-const BRIEFING_TO_OUTREACH_TYPE: Partial<Record<BriefingItem["type"], OutreachOpportunityType>> = {
-  relationship_decay:       "idle_client",
-  birthday_today:           "birthday",
-  birthday_soon:            "birthday",
-  closing_anniversary:      "closing_anniversary",
-  mortgage_renewal_due:     "mortgage_renewal_due",
-  mortgage_renewal_window:  "mortgage_renewal_window",
-  past_client_check_in:     "past_client_check_in",
-  timeframe_approaching:    "timeframe_approaching",
-  property_value_milestone: "property_value_milestone",
-};
+// Draft button eligibility: which briefing rows can draft, and as what type.
+import { BRIEFING_TO_OUTREACH_TYPE } from "@/lib/crm/outreach-draft-actions";
 
 // ── Props ───────────────────────────────────────────────────────────────────
 

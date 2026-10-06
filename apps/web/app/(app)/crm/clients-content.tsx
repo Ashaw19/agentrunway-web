@@ -108,6 +108,7 @@ import { cn } from "@/lib/utils";
 import { toNameSearch } from "@/lib/crm/client-identity";
 import { clusterDuplicateClients } from "@/lib/crm/duplicate-detection";
 import { computeHouseholdActivityIds } from "@/lib/crm/resolve-deal-clients";
+import { CLIENT_PANEL_DRAFT_TYPES } from "@/lib/crm/outreach-draft-actions";
 import { DuplicateReviewDialog } from "./duplicate-review-dialog";
 import type {
   Client,
@@ -5050,14 +5051,19 @@ export function ClientsContent({
                             headers: { "Content-Type": "application/json" },
                             body: JSON.stringify({
                               client_id: selectedClient.id,
-                              opportunity_type: "referral_ask",
+                              opportunity_type: CLIENT_PANEL_DRAFT_TYPES.referral,
                             }),
                           });
                           if (res.ok) {
                             toast.success("Referral ask drafted — check Flight Control");
                           } else {
                             const err = await res.json().catch(() => ({}));
-                            toast.error(err.error || "Failed to draft referral ask");
+                            if (err.status === "call_only") {
+                              // CASL: implied consent from their last purchase has lapsed.
+                              toast.info("Call instead of email", { description: err.error, duration: 10000 });
+                            } else {
+                              toast.error(err.error || "Failed to draft referral ask");
+                            }
                           }
                         } catch {
                           toast.error("Failed to draft referral ask");
@@ -5080,7 +5086,7 @@ export function ClientsContent({
                             headers: { "Content-Type": "application/json" },
                             body: JSON.stringify({
                               client_id: selectedClient.id,
-                              opportunity_type: "past_client_check_in",
+                              opportunity_type: CLIENT_PANEL_DRAFT_TYPES.checkIn,
                             }),
                           });
                           if (res.ok) {
@@ -5115,14 +5121,19 @@ export function ClientsContent({
                             headers: { "Content-Type": "application/json" },
                             body: JSON.stringify({
                               client_id: selectedClient.id,
-                              opportunity_type: "review_request",
+                              opportunity_type: CLIENT_PANEL_DRAFT_TYPES.review,
                             }),
                           });
                           if (res.ok) {
                             toast.success("Review request drafted — check Flight Control");
                           } else {
                             const err = await res.json().catch(() => ({}));
-                            toast.error(err.error || "Failed to draft review request");
+                            if (err.status === "call_only") {
+                              // CASL: implied consent from their last purchase has lapsed.
+                              toast.info("Call instead of email", { description: err.error, duration: 10000 });
+                            } else {
+                              toast.error(err.error || "Failed to draft review request");
+                            }
                           }
                         } catch {
                           toast.error("Failed to draft review request");
@@ -5145,7 +5156,7 @@ export function ClientsContent({
                             headers: { "Content-Type": "application/json" },
                             body: JSON.stringify({
                               client_id: selectedClient.id,
-                              opportunity_type: "closing_anniversary",
+                              opportunity_type: CLIENT_PANEL_DRAFT_TYPES.anniversary,
                             }),
                           });
                           if (res.ok) {

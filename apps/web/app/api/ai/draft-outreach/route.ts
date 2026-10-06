@@ -1,8 +1,9 @@
 /**
  * POST /api/ai/draft-outreach
  *
- * On-demand, single-client outreach drafting triggered from the CRM briefing
- * OR from the Flight Crew Dispatcher tool `draftOutreachForClient`.
+ * On-demand, single-client outreach drafting triggered from the CRM briefing,
+ * the CRM client panel's AI Actions, OR the Flight Crew Dispatcher tool
+ * `draftOutreachForClient`.
  *
  * Accepts a { client_id, opportunity_type } pair, computes the appropriate
  * trigger_date and context, upserts an outreach_queue row, then immediately
@@ -18,10 +19,12 @@
  *
  * Rate-limited to 20 calls/hour per user (endpoint key: "draft_outreach").
  *
- * Only the 7 briefing types that have genuine email value are accepted:
- *   birthday, closing_anniversary, mortgage_renewal_due,
- *   mortgage_renewal_window, past_client_check_in,
- *   timeframe_approaching, property_value_milestone
+ * Only DRAFTABLE_OUTREACH_TYPES are accepted: the 7 briefing types that have
+ * genuine email value (birthday, closing_anniversary, mortgage_renewal_due,
+ * mortgage_renewal_window, past_client_check_in, timeframe_approaching,
+ * property_value_milestone) plus the CRM client panel's review_request and
+ * referral_ask. Every CRM caller's type is pinned against this list in
+ * lib/crm/__tests__/outreach-draft-actions.test.ts.
  *
  * Core drafting logic lives in @/lib/ai/draft-services. The Flight Crew
  * `draftOutreachForClient` tool calls the same service helper.

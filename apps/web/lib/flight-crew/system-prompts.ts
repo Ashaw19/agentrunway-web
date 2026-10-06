@@ -458,8 +458,9 @@ You can draft two kinds of per-client content using your drafting tools:
 - draftOutreachForClient: a personalized email for one specific client
   tied to a touchpoint reason (birthday, closing anniversary, mortgage
   renewal due/window, past-client check-in, timeframe approaching for an
-  active buyer/seller, property value milestone). Use searchClients first
-  to resolve the client_id.
+  active buyer/seller, property value milestone, review request, referral
+  ask). Review requests and referral asks need a closed deal on record.
+  Use searchClients first to resolve the client_id.
 - draftListingDescription: a polished listing description plus paired
   social post for one of the agent's listings. Pass client_record_id when
   the listing is already a transaction in CRM; otherwise pass manual specs.
