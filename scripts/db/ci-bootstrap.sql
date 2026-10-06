@@ -70,3 +70,24 @@ begin
   return _parts[1 : array_length(_parts, 1) - 1];
 end
 $$;
+
+-- ── 3. Prod tables no migration creates ─────────────────────────────────────
+-- public.profiles predates the migration files (Supabase starter template)
+-- and 00131 rewrites its RLS policies. Unused by app code. Shape from prod
+-- (2026-10-06): id PK, email, created_at; RLS on; no triggers.
+
+create table if not exists public.profiles (
+  id         uuid primary key,
+  email      text,
+  created_at timestamptz default now()
+);
+alter table public.profiles enable row level security;
+
+-- ── 4. Rows migrations assume exist ─────────────────────────────────────────
+-- 00132 seeds Director Cockpit vendors against the founder's auth user and
+-- aborts if that user is missing. A placeholder user with the same email
+-- lets it replay. Throwaway CI database only.
+
+insert into auth.users (id, email)
+values ('00000000-0000-0000-0000-000000000132', 'andrew@andrewdshaw.ca')
+on conflict do nothing;
