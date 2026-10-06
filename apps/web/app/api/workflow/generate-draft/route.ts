@@ -16,6 +16,8 @@
  *
  * CASL posture: drafts are text the agent reviews and copies into their own
  * email client. There is NO email-sending mechanism here. NO auto-send.
+ * A past client whose last deal closed 2+ years ago gets no draft: 422
+ * { status: "call_only", error } (lib/crm/outreach-consent.ts).
  *
  * Rate limit: 20 generations per hour per user.
  */
@@ -82,6 +84,15 @@ export async function POST(req: NextRequest) {
     clientId: client_id,
     template: template as WorkflowTemplate,
   });
+
+  if (result.status === "call_only") {
+    // CASL: implied consent from the client's last purchase has lapsed.
+    // Nothing was written; `error` carries the plain-language reason.
+    return NextResponse.json(
+      { status: "call_only", error: result.reason },
+      { status: 422, headers: rateLimitHeaders(rl) },
+    );
+  }
 
   if (result.status === "error") {
     const isAuthIssue = result.reason === "Client not found or access denied";

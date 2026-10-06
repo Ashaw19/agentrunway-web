@@ -563,6 +563,8 @@ interface FlightControlContentProps {
   initialSignature:    string;
   initialVoiceGuide:   string;
   initialNewsletters:  NewsletterQueue[];
+  /** Past clients whose CASL implied consent from a purchase has lapsed. */
+  lapsedPastClientNames: string[];
 }
 
 export function FlightControlContent({
@@ -571,6 +573,7 @@ export function FlightControlContent({
   initialSignature,
   initialVoiceGuide,
   initialNewsletters,
+  lapsedPastClientNames,
 }: FlightControlContentProps) {
   const { askQuestion } = useAiChat();
   const [activeTab, setActiveTab] = useState<Tab>("opportunities");
@@ -936,6 +939,7 @@ export function FlightControlContent({
             <NewsletterSection
               initialNewsletters={initialNewsletters}
               signature={signature}
+              lapsedPastClientNames={lapsedPastClientNames}
             />
           ) : !loaded ? (
             <div className="flex flex-col items-center justify-center py-20 gap-3">

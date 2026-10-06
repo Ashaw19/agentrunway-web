@@ -5084,7 +5084,12 @@ export function ClientsContent({
                             toast.success("Check-in drafted — check Flight Control");
                           } else {
                             const err = await res.json().catch(() => ({}));
-                            toast.error(err.error || "Failed to draft check-in");
+                            if (err.status === "call_only") {
+                              // CASL: implied consent from their last purchase has lapsed.
+                              toast.info("Call instead of email", { description: err.error, duration: 10000 });
+                            } else {
+                              toast.error(err.error || "Failed to draft check-in");
+                            }
                           }
                         } catch {
                           toast.error("Failed to draft check-in");
@@ -5144,7 +5149,12 @@ export function ClientsContent({
                             toast.success("Anniversary message drafted — check Flight Control");
                           } else {
                             const err = await res.json().catch(() => ({}));
-                            toast.error(err.error || "Failed to draft message");
+                            if (err.status === "call_only") {
+                              // CASL: implied consent from their last purchase has lapsed.
+                              toast.info("Call instead of email", { description: err.error, duration: 10000 });
+                            } else {
+                              toast.error(err.error || "Failed to draft message");
+                            }
                           }
                         } catch {
                           toast.error("Failed to draft message");

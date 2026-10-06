@@ -13,6 +13,8 @@
  *   "created"  — new item drafted and ready (201)
  *   "existing" — this opportunity was already drafted/sent; link returned (200)
  *   "queued"   — item created but Claude unavailable / errored; cron retries (202)
+ *   "call_only" — past client whose last deal closed 2+ years before the send
+ *                 date (CASL implied consent lapsed); nothing written (422)
  *
  * Rate-limited to 20 calls/hour per user (endpoint key: "draft_outreach").
  *
@@ -85,6 +87,16 @@ export async function POST(req: NextRequest) {
 
   // Map service result → HTTP response shape (preserved for backwards compat
   // with the CRM briefing UI).
+  if (result.status === "call_only") {
+    // CASL: implied consent from the client's last purchase has lapsed.
+    // Nothing was written. `error` carries the plain-language reason so
+    // callers that only read `error` still show it.
+    return NextResponse.json(
+      { status: "call_only", error: result.reason },
+      { status: 422, headers: rateLimitHeaders(rl) },
+    );
+  }
+
   if (result.status === "existing") {
     return NextResponse.json(
       { queue_item_id: result.queueItemId, status: "existing" },

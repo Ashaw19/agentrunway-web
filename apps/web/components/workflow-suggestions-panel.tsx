@@ -159,7 +159,12 @@ export function WorkflowSuggestionsPanel({
 
       if (!res.ok) {
         const payload = await res.json().catch(() => ({}));
-        toast.error(payload.error || "Couldn't generate draft. Try again in a moment.");
+        if (payload.status === "call_only") {
+          // CASL: implied consent from their last purchase has lapsed.
+          toast.info("Call instead of email", { description: payload.error, duration: 10000 });
+        } else {
+          toast.error(payload.error || "Couldn't generate draft. Try again in a moment.");
+        }
         setDrafts((prev) => ({
           ...prev,
           [template.id]: { templateId: template.id, loading: false, draft: null, copied: false },

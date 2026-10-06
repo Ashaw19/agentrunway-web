@@ -44,3 +44,18 @@ describe("classifyTopic — REAL keywords do not hijack other topics", () => {
     });
   }
 });
+
+describe("classifyTopic — CASL drafting questions reach the Flight Control playbook", () => {
+  const cases = [
+    "why does it say call instead of email for my past client",
+    "what is casl implied consent",
+    "can I still email a client who bought 3 years ago? express consent?",
+    "who are the past clients listed under newsletter recipients",
+  ];
+
+  for (const message of cases) {
+    it(`routes to flight-control: "${message}"`, () => {
+      expect(classifyTopic(message)).toBe("flight-control");
+    });
+  }
+});

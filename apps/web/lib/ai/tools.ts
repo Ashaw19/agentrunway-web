@@ -3429,6 +3429,10 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
           if (result.status === "existing") {
             return `An outreach draft for ${who} on this same opportunity already exists. Open **Flight Control → Outreach Queue** to review or send it.`;
           }
+          if (result.status === "call_only") {
+            // CASL: relay as-is. Do not write the email in chat instead.
+            return `No email drafted. ${result.reason}`;
+          }
           // queued — either AI unavailable or a validation problem (no birthdate, no close date, etc.)
           if (result.reason && !result.queueItemId) {
             return `Couldn't draft outreach for ${who}: ${result.reason}.`;

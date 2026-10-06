@@ -745,7 +745,7 @@ Flight Control uses a 3-tier system to suggest when to send outreach:
 If a user asks "when should I send?" → Tuesday–Thursday mornings are industry-optimal for real estate outreach.
 
 ### Newsletter Section
-Flight Control also includes a newsletter builder for mass updates (market reports, seasonal messages).
+Flight Control also includes a newsletter builder for mass updates (market reports, seasonal messages). Agent Runway doesn't pick the recipients: the agent pastes their own list into their email tool. The Recipients note on each newsletter lists past clients whose last deal closed more than 2 years ago, because CASL implied consent from a purchase no longer covers them.
 
 ### Common Problems & Diagnostics
 
@@ -778,6 +778,12 @@ Flight Control also includes a newsletter builder for mass updates (market repor
 
 **"Why does a card say Call instead of Draft Message?"**
 → The client's last deal closed more than 2 years before the message would go out. Under CASL, implied consent to email from a purchase lasts 2 years, so Flight Control suggests a call and never drafts an email for that client. Agent Runway does not record express email consent, so these cards stay call-only. This is general information about the rule, not legal advice.
+
+**"It said 'Call instead of email'" / "Flight Crew won't draft an email for this client" / "A Flight Plan template won't draft"**
+→ Same rule as the Call cards in Scan, applied to every AI email drafter: the CRM briefing's Draft button, the client panel's Check In and Anniversary Note buttons, Flight Crew chat, and Flight Plan templates. The client's most recent closed deal (collapsed deals don't count) is 2+ years old by the time the message would go out, so no email is drafted and nothing is saved. A newer closed deal on their record restarts the 2 years. Clients with no closed deal on record aren't affected. Agent Runway doesn't record express email consent. A call is the way to reconnect, and Flight Crew can help with talking points. Do not write the email for the user in chat instead. This is general information about the rule, not legal advice.
+
+**"Who do I send the newsletter to?" / "Why are some past clients listed under Recipients?"**
+→ Agent Runway doesn't build or send to a recipient list. The agent pastes their own list into their email tool's To or BCC field. The Recipients note lists past clients whose last deal closed more than 2 years ago: under CASL, implied consent from a purchase lasts 2 years, so it no longer covers them. Agent Runway doesn't record express consent, so it can't tell who else has given it. This is general information about the rule, not legal advice.
 
 **"I clicked Draft Message and it said Flight Control can't draft this one"**
 → Some cards (condition dates, scheduled-date reminders) have no automated email template, and a card can change between scanning and clicking. Reach out directly and log it in the CRM.

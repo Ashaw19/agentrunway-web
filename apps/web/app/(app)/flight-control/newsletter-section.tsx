@@ -183,7 +183,7 @@ function DraftNewsletterDrawer({
               New Client Newsletter
             </SheetTitle>
             <p className="text-xs text-muted-foreground mt-1">
-              AI drafts a broadcast email for your entire client list.
+              AI drafts a broadcast email for your client list.
             </p>
           </div>
           <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-border/60 to-transparent" />
@@ -338,11 +338,13 @@ function NewsletterReviewDrawer({
   onClose,
   onSent,
   signature,
+  lapsedPastClientNames,
 }: {
   item:      NewsletterQueue | null;
   onClose:   () => void;
   onSent:    (id: string) => void;
   signature: string;
+  lapsedPastClientNames: string[];
 }) {
   const [editSubject, setEditSubject] = useState("");
   const [editBody,    setEditBody]    = useState("");
@@ -488,8 +490,28 @@ function NewsletterReviewDrawer({
               </p>
             </div>
             <p className="text-[11px] text-muted-foreground">
-              All active clients — paste into your email tool&apos;s recipient field or BCC list.
+              Paste your recipient list into your email tool&apos;s To or BCC field.
             </p>
+            {lapsedPastClientNames.length > 0 && (
+              <div className="rounded-md border border-amber-500/30 bg-amber-500/5 px-2.5 py-2 space-y-1">
+                <p className="text-[11px] text-amber-700 dark:text-amber-400">
+                  {lapsedPastClientNames.length === 1
+                    ? "1 past client had their last deal close"
+                    : `${lapsedPastClientNames.length} past clients had their last deal close`}{" "}
+                  more than 2 years ago. Under CASL, implied consent to email from a
+                  purchase lasts 2 years, so it no longer covers them. Agent Runway
+                  doesn&apos;t record express consent.
+                </p>
+                <details className="text-[11px] text-muted-foreground">
+                  <summary className="cursor-pointer select-none">
+                    {lapsedPastClientNames.length === 1 ? "Show name" : "Show names"}
+                  </summary>
+                  <p className="mt-1 max-h-24 overflow-y-auto">
+                    {lapsedPastClientNames.join(", ")}
+                  </p>
+                </details>
+              </div>
+            )}
             {signature && (
               <p className="text-[11px] text-muted-foreground/70 whitespace-pre-line line-clamp-2 mt-1 border-t border-border/30 pt-1.5">
                 {signature}
@@ -518,9 +540,9 @@ function NewsletterReviewDrawer({
               onClick={() => {
                 const subject = encodeURIComponent(editSubject);
                 const body    = encodeURIComponent(editBody.slice(0, 1800));
-                // Newsletter is sent to your full client list — open the
-                // user's default email client with subject/body pre-filled.
-                // The recipient (BCC list) must be added manually.
+                // Open the user's default email client with subject/body
+                // pre-filled. The agent adds recipients (BCC) themselves;
+                // the Recipients note above flags CASL-lapsed past clients.
                 window.open(`mailto:?subject=${subject}&body=${body}`, "_blank");
                 markAsSent();
               }}
@@ -689,9 +711,12 @@ function NewsletterEmptyState({ onNew }: { onNew: () => void }) {
 export function NewsletterSection({
   initialNewsletters,
   signature,
+  lapsedPastClientNames,
 }: {
   initialNewsletters: NewsletterQueue[];
   signature:          string;
+  /** Past clients whose CASL implied consent from a purchase has lapsed. */
+  lapsedPastClientNames: string[];
 }) {
   const [newsletters,  setNewsletters]  = useState<NewsletterQueue[]>(initialNewsletters);
   const [draftOpen,    setDraftOpen]    = useState(false);
@@ -778,6 +803,7 @@ export function NewsletterSection({
         onClose={() => setReviewItem(null)}
         onSent={handleSent}
         signature={signature}
+        lapsedPastClientNames={lapsedPastClientNames}
       />
     </>
   );
