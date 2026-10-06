@@ -650,6 +650,9 @@ Each contact has a decayed engagement score based on recent activity history.
 4. Cruising clients are NOT stale — they're past clients with light-touch expected
 5. A logged activity (call, email, text, etc.) resets the timer
 
+**"The briefing shows an anniversary, a mortgage renewal or 'past client' for a deal that fell through"** / **"Why is a renewal or anniversary reminder missing?"**
+→ The briefing ("Today's briefing" on the CRM tab, "Daily Briefing" on the dashboard, "Today's Focus" in the mobile app) reads closings from each client's Deal History. A deal set to Collapsed never closed, so it gives no closing anniversary, home anniversary or mortgage renewal reminder. A Cruising client whose only deal collapsed shows as a long-term contact, not a past client. If the client also has an older deal that did close, that one still counts: renewal reminders follow the most recent deal that closed, and a newer collapsed deal doesn't hide it. If a reminder is missing for a deal that did close, open the client's Deal History and check the deal has a close date and its condition status (next to the condition date) isn't Collapsed. The Closed column under Lead sources on the Insights tab counts the same way.
+
 **"Save button isn't working"**
 → The Save button commits first name, last name, and notes. Other fields (email, phone, etc.) may save differently. Ensure required fields aren't empty.
 

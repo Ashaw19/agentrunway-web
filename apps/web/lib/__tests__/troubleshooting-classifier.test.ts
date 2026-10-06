@@ -78,3 +78,21 @@ describe("classifyTopic — CRM on-demand draft buttons reach the Flight Control
     expect(classifyTopic("how do I log a referral fee I paid")).toBe("referrals");
   });
 });
+
+describe("classifyTopic — CRM briefing questions reach the CRM playbook", () => {
+  const cases = [
+    "why does my briefing show a closing anniversary for a deal that collapsed",
+    "today's focus says mortgage renewal for a deal that fell through",
+    "why is there no home anniversary in the briefing for this deal",
+  ];
+
+  for (const message of cases) {
+    it(`routes to crm: "${message}"`, () => {
+      expect(classifyTopic(message)).toBe("crm");
+    });
+  }
+
+  it("a Draft button question on the briefing still reaches Flight Control", () => {
+    expect(classifyTopic("why is there no draft button on the briefing row")).toBe("flight-control");
+  });
+});
