@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { lastClosedDealByClient, outreachChannel } from "../outreach-consent";
+import {
+  emailConsentLapsedReason,
+  lapsedPastClients,
+  lastClosedDealByClient,
+  outreachChannel,
+} from "../outreach-consent";
 
 /**
  * CASL gate for Flight Control email drafts.
@@ -78,5 +83,60 @@ describe("outreachChannel", () => {
     // Regression guard for the #268 class: a date-only string parsed as UTC
     // midnight lands on the previous local day west of Greenwich.
     expect(outreachChannel("2024-10-07", "2026-10-06", TODAY)).toBe("email");
+  });
+});
+
+describe("emailConsentLapsedReason", () => {
+  const reason = emailConsentLapsedReason("Sam Lee", "2023-05-01");
+
+  it("names the client and when their last deal closed", () => {
+    expect(reason).toContain("Sam Lee");
+    expect(reason).toContain("May 2023");
+  });
+
+  it("states the CASL two-year rule and offers a call", () => {
+    expect(reason).toMatch(/CASL/);
+    expect(reason).toMatch(/2 years/);
+    expect(reason).toMatch(/call|phone/i);
+  });
+
+  it("says the app has no record of express consent", () => {
+    expect(reason).toMatch(/express/i);
+  });
+
+  it("states the rule without prescriptive or legal-advice wording", () => {
+    expect(reason).not.toMatch(/\b(should|must|recommend|need to)\b/i);
+    expect(reason).not.toContain("—");
+  });
+
+  it("does not shift the month for a first-of-month close date", () => {
+    // #268 class: "2023-05-01" parsed as UTC midnight is April 30 west of Greenwich.
+    expect(emailConsentLapsedReason("Sam", "2023-05-01")).not.toContain("April");
+  });
+});
+
+describe("lapsedPastClients", () => {
+  it("lists past clients whose most recent closed deal is two or more years old", () => {
+    const ids = lapsedPastClients([
+      { client_id: "old",    close_date: "2021-04-01", condition_status: "firmed" },
+      { client_id: "recent", close_date: "2025-08-15", condition_status: "firmed" },
+      { client_id: "repeat", close_date: "2019-06-01", condition_status: "firmed" },
+      { client_id: "repeat", close_date: "2025-01-10", condition_status: null },
+    ], TODAY);
+    expect(ids).toEqual(["old"]);
+  });
+
+  it("ignores collapsed deals when finding the most recent purchase", () => {
+    const ids = lapsedPastClients([
+      { client_id: "a", close_date: "2022-02-01", condition_status: "firmed" },
+      { client_id: "a", close_date: "2026-05-01", condition_status: "collapsed" },
+      { client_id: "b", close_date: "2026-05-01", condition_status: "collapsed" },
+    ], TODAY);
+    expect(ids).toEqual(["a"]);
+  });
+
+  it("treats the exact two-year mark as lapsed", () => {
+    expect(lapsedPastClients([{ client_id: "a", close_date: "2024-10-06" }], TODAY)).toEqual(["a"]);
+    expect(lapsedPastClients([{ client_id: "a", close_date: "2024-10-07" }], TODAY)).toEqual([]);
   });
 });

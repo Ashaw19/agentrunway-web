@@ -44,6 +44,12 @@ import {
   buildBocRateChangeNewsletterPrompt,
   buildCustomNewsletterPrompt,
 } from "@/lib/newsletter-prompts";
+import {
+  emailConsentLapsedReason,
+  lastClosedDealByClient,
+  localISODate,
+  outreachChannel,
+} from "@/lib/crm/outreach-consent";
 import type {
   OutreachOpportunityType,
   NewsletterTemplateType,
@@ -63,7 +69,12 @@ export const DRAFTABLE_OUTREACH_TYPES: OutreachOpportunityType[] = [
   "property_value_milestone",
 ];
 
-export type DraftOutreachStatus = "created" | "existing" | "queued";
+/**
+ * "call_only": a past client whose purchase-based implied consent (CASL, 2
+ * years) has lapsed by the send date. Nothing is written; `reason` says why
+ * and suggests a call. Same rule as Flight Control Scan.
+ */
+export type DraftOutreachStatus = "created" | "existing" | "queued" | "call_only";
 
 export interface DraftOutreachResult {
   status: DraftOutreachStatus;
@@ -324,7 +335,9 @@ export async function draftOutreachForClient(input: {
       .single(),
     supabase
       .from("client_records")
-      .select("id, client_id, address, close_date, gci, side, property_use")
+      // condition_status: the CASL gate skips collapsed deals. Without it in
+      // the select a collapsed deal would count as a purchase.
+      .select("id, client_id, address, close_date, gci, side, property_use, condition_status")
       .eq("client_id", clientId)
       .eq("user_id", userId)
       .not("close_date", "is", null)
@@ -513,6 +526,20 @@ export async function draftOutreachForClient(input: {
 
     default:
       return { status: "queued", queueItemId: "", reason: "Unsupported opportunity type", clientName: clientDisplayName };
+  }
+
+  // ── CASL: no email draft once purchase-based implied consent has lapsed ──
+  // Same rule and helper as Flight Control Scan (lib/crm/outreach-consent.ts).
+  // Checked before the existing-draft lookup so a lapsed client is never
+  // pointed at an old draft either.
+  const lastClose = lastClosedDealByClient(records).get(clientId);
+  if (lastClose && outreachChannel(lastClose, triggerDate) === "call") {
+    return {
+      status: "call_only",
+      queueItemId: "",
+      reason: emailConsentLapsedReason(clientDisplayName, lastClose),
+      clientName: clientDisplayName,
+    };
   }
 
   // ── Check for an existing queue item ─────────────────────────────────────
@@ -1155,7 +1182,8 @@ export interface DraftWorkflowMessageInput {
 }
 
 export interface DraftWorkflowMessageResult {
-  status: "created" | "error";
+  /** "call_only": CASL implied consent has lapsed. See DraftOutreachStatus. */
+  status: "created" | "error" | "call_only";
   draftId?: string;
   subject?: string;
   body?: string;
@@ -1207,12 +1235,32 @@ export async function draftWorkflowMessage(
   const clientDisplayName = trimmedName || composedName || "this client";
   const clientFirstName = client.first_name?.trim() || clientDisplayName.split(/\s+/)[0] || "there";
 
-  // ── Load agent settings for signature + voice guide ─────────────────────
-  const { data: settings } = await supabase
-    .from("user_settings")
-    .select("display_name, email_signature, ai_voice_guide")
-    .eq("user_id", userId)
-    .single();
+  // ── Load agent settings + the client's closed deals in parallel ─────────
+  const [{ data: settings }, recordsRes] = await Promise.all([
+    supabase
+      .from("user_settings")
+      .select("display_name, email_signature, ai_voice_guide")
+      .eq("user_id", userId)
+      .single(),
+    supabase
+      .from("client_records")
+      .select("client_id, close_date, condition_status")
+      .eq("client_id", clientId)
+      .eq("user_id", userId)
+      .not("close_date", "is", null),
+  ]);
+
+  // ── CASL: no email draft once purchase-based implied consent has lapsed ──
+  // A workflow draft goes out today. Same rule and helper as Flight Control
+  // Scan (lib/crm/outreach-consent.ts).
+  const lastClose = lastClosedDealByClient(recordsRes.data ?? []).get(clientId);
+  if (lastClose && outreachChannel(lastClose, localISODate(new Date())) === "call") {
+    return {
+      status: "call_only",
+      reason: emailConsentLapsedReason(clientDisplayName, lastClose),
+      clientName: clientDisplayName,
+    };
+  }
 
   const agentFirst = extractFirstName(settings?.display_name ?? null);
   const emailSignature = (settings?.email_signature as string) ?? "";

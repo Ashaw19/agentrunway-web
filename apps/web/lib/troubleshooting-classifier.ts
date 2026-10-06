@@ -341,6 +341,12 @@ const TOPIC_RULES: TopicRule[] = [
       "mortgage renewal alert",
       "renewal window",
       "renewal due",
+      // CASL 2-year gate on every AI email drafter (call-only past clients)
+      "casl",
+      "implied consent",
+      "express consent",
+      "call instead",
+      "newsletter recipient",
     ],
   },
   {

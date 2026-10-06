@@ -259,6 +259,12 @@ export function CrmDashboardTab({
       });
       const data = await res.json() as { status?: string; error?: string };
 
+      if (data.status === "call_only") {
+        // CASL: implied consent from their last purchase has lapsed.
+        toast.info("Call instead of email", { description: data.error, duration: 10000 });
+        return;
+      }
+
       if (!res.ok) {
         toast.error(data.error ?? "Drafting failed — try again");
         return;

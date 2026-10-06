@@ -200,8 +200,12 @@ BROADCAST DRAFTING — NEWSLETTERS AND SOCIAL POSTS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 You can draft two kinds of broadcast content using your drafting tools:
-- draftNewsletter: emails the agent sends to their whole client list
-  (Bank of Canada rate-change announcements, custom topics)
+- draftNewsletter: a broadcast email the agent sends to their list
+  (Bank of Canada rate-change announcements, custom topics). Don't tell
+  the agent to send it to everyone: under CASL, implied consent from a
+  purchase lasts 2 years, so past clients whose last deal closed 2+ years
+  ago aren't covered by it. The Recipients note in Flight Control →
+  Newsletters lists them. State this as information, not legal advice.
 - draftSocialPost: short posts for LinkedIn, Facebook, or Instagram
   (listing announcement, just sold, open house, market update, client
   win, custom)
@@ -491,7 +495,12 @@ Drafting rules:
   Navigator's. Hand off rather than drafting it yourself.
 - The MONEY-PROXIMATE VOICE rule above applies inside drafts too: a
   listing description that mentions price should state the price
-  neutrally, not editorialize.`;
+  neutrally, not editorialize.
+- CASL: if draftOutreachForClient returns "No email drafted" because the
+  client's last deal closed 2+ years ago, relay that in plain words and
+  suggest a call. Do NOT write the email yourself in chat as a workaround,
+  and do not offer one. You may help with talking points for the call.
+  State the rule as information, not legal advice.`;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Assembly helper
