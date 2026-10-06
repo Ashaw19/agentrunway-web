@@ -12,7 +12,9 @@
  * A past client whose most recent closed, non-collapsed deal is two or more
  * years old by the send date gets an honest refusal and a call suggestion.
  * Nothing is written and no AI call is made. Clients with no closed deal are
- * not gated (the app has no view of their consent basis).
+ * not gated (the app has no view of their consent basis). A co-buyer named on
+ * a deal (client_record_co_parties) counts as having closed it, even though
+ * the deal row is held by the other party.
  *
  * The fake Supabase client below returns only the columns each query
  * selects, so a drafter that forgets to select `condition_status` cannot see
@@ -169,6 +171,70 @@ describe("draftOutreachForClient — CASL gate", () => {
     });
 
     expect(result.status).toBe("created");
+  });
+});
+
+// ── Co-buyers ────────────────────────────────────────────────────────────────
+// A couple's deal is one client_records row held by one spouse (#257). The
+// client being drafted for is the other spouse, linked as a co-party.
+
+function spouseDeal(close_date: string, condition_status: string | null = "firmed"): Row {
+  return {
+    id: "rec-spouse", user_id: USER, client_id: "spouse-1",
+    address: "12 Elm St", close_date, gci: 9000, side: "buyer",
+    property_use: "primary", condition_status,
+  };
+}
+
+const coBuyerLink: Row = { id: "cp-1", user_id: USER, client_record_id: "rec-spouse", co_client_id: CLIENT };
+
+describe("CASL gate — co-buyers", () => {
+  it("refuses outreach to a co-buyer whose shared deal closed more than two years ago", async () => {
+    const { client, writes } = fakeSupabase(tables([spouseDeal("2023-05-01")], {
+      client_record_co_parties: [coBuyerLink],
+    }));
+    const result = await draftOutreachForClient({
+      supabase: client, userId: USER, clientId: CLIENT, opportunityType: "birthday",
+    });
+
+    expect(result.status).toBe("call_only");
+    expect(result.reason).toContain("May 2023");
+    expect(writes).toEqual([]);
+    expect(mockGenerate).not.toHaveBeenCalled();
+  });
+
+  it("refuses a Flight Plan draft to a lapsed co-buyer", async () => {
+    const { client, writes } = fakeSupabase(tables([spouseDeal("2023-05-01")], {
+      client_record_co_parties: [coBuyerLink],
+    }));
+    const result = await draftWorkflowMessage({ supabase: client, userId: USER, clientId: CLIENT, template });
+
+    expect(result.status).toBe("call_only");
+    expect(writes).toEqual([]);
+  });
+
+  it("does not credit a collapsed shared deal to the co-buyer", async () => {
+    const { client } = fakeSupabase(tables([spouseDeal("2023-05-01", "collapsed")], {
+      client_record_co_parties: [coBuyerLink],
+    }));
+    const result = await draftOutreachForClient({
+      supabase: client, userId: USER, clientId: CLIENT, opportunityType: "birthday",
+    });
+
+    expect(result.status).toBe("created");
+  });
+
+  it("drafts for a co-buyer inside the two-year window", async () => {
+    const { client } = fakeSupabase(tables([spouseDeal("2025-06-01")], {
+      client_record_co_parties: [coBuyerLink],
+    }));
+    const outreach = await draftOutreachForClient({
+      supabase: client, userId: USER, clientId: CLIENT, opportunityType: "birthday",
+    });
+    const workflow = await draftWorkflowMessage({ supabase: client, userId: USER, clientId: CLIENT, template });
+
+    expect(outreach.status).toBe("created");
+    expect(workflow.status).toBe("created");
   });
 });
 
