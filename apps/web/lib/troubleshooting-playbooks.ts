@@ -769,6 +769,18 @@ Flight Control also includes a newsletter builder for mass updates (market repor
 1. No trigger events detected (no birthdays, no stale leads, no recent closes)
 2. All active clients were contacted recently (suppression active)
 3. Cron may not have run yet today — check timing
+
+**"Scan only shows a few opportunities" / "Why won't other contacts pop up?"**
+1. Scan Now shows up to 5 cards, one per client. Dated signals come first (birthdays, closing anniversaries, post-close follow-ups, condition dates). Idle past clients (no deal in 18+ months) and repeat-client milestones fill the remaining slots.
+2. A contact with no closed deal, no birthdate and no first-contact date gives Flight Control nothing to work from. Adding birthdates or linking their deals brings them in.
+3. Anyone contacted in the last 14 days (a logged CRM activity, or a draft marked sent in Flight Control) is held back, so working through the list rotates new people in.
+4. Memory-powered cards need a current memory profile: CRM, open the client, "What Agent Runway remembers", Build profile / Refresh. Editing the client marks the profile outdated until it is refreshed.
+
+**"Why does a card say Call instead of Draft Message?"**
+→ The client's last deal closed more than 2 years before the message would go out. Under CASL, implied consent to email from a purchase lasts 2 years, so Flight Control suggests a call and never drafts an email for that client. Agent Runway does not record express email consent, so these cards stay call-only. This is general information about the rule, not legal advice.
+
+**"I clicked Draft Message and it said Flight Control can't draft this one"**
+→ Some cards (condition dates, scheduled-date reminders) have no automated email template, and a card can change between scanning and clicking. Reach out directly and log it in the CRM.
 `,
 
   // ═══════════════════════════════════════════════════════════════════════════

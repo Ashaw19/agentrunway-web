@@ -24,7 +24,7 @@ import {
   Handshake, Heart, Repeat2,
   Flower2, Leaf, PartyPopper, Receipt,
   RefreshCw, Timer, Lightbulb, ArrowRight,
-  AlertTriangle, Brain, Zap,
+  AlertTriangle, Brain, Zap, Phone,
 } from "lucide-react";
 import type { OutreachQueueItem, OutreachOpportunityType, TopOpportunity, NewsletterQueue } from "@/lib/types/database";
 import { useAiChat } from "@/lib/ai-chat-context";
@@ -122,6 +122,8 @@ function OpportunityCard({
 
   const hasDraft = draftedMessage && draftedMessage.ai_subject;
   const isPrimary = opportunity.is_primary;
+  // CASL: implied consent from the client's last deal has lapsed — no email.
+  const isCallOnly = opportunity.contact_channel === "call";
 
   return (
     <div className={cn(
@@ -209,6 +211,16 @@ function OpportunityCard({
         </p>
       </div>
 
+      {/* Call-only — CASL implied consent for email has lapsed */}
+      {isCallOnly && (
+        <div className="flex items-start gap-2 pl-0.5">
+          <Phone className="h-3.5 w-3.5 mt-0.5 shrink-0 text-muted-foreground" />
+          <p className="text-[12px] text-muted-foreground leading-relaxed">
+            Call, don&apos;t email. Their last deal closed over 2 years ago, so CASL implied consent for email has lapsed.
+          </p>
+        </div>
+      )}
+
       {/* Risk if ignored — primary only */}
       {isPrimary && opportunity.risk_if_ignored && (
         <div className="flex items-start gap-2 pl-0.5">
@@ -254,7 +266,12 @@ function OpportunityCard({
             <Sparkles className="h-3.5 w-3.5" />
             Ask AI
           </Button>
-          {hasDraft && !drafting ? (
+          {isCallOnly ? (
+            <span className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md text-xs font-semibold ring-1 ring-border bg-muted/40 text-foreground/80">
+              <Phone className="h-3.5 w-3.5" />
+              Call
+            </span>
+          ) : hasDraft && !drafting ? (
             <Button
               size="sm"
               className={cn(
@@ -563,6 +580,8 @@ export function FlightControlContent({
   const [dismissedIds,  setDismissedIds]  = useState<Set<string>>(new Set());
   const [scanning,      setScanning]      = useState(false);
   const [loaded,        setLoaded]        = useState(false);
+  // Last scan failed (rate limit / server error). Never show "All caught up" for a failed scan.
+  const [scanError,     setScanError]     = useState<string | null>(null);
 
   // Drafted messages (from outreach_queue)
   const [queue,         setQueue]         = useState<QueueItemWithClient[]>(initialQueue);
@@ -593,12 +612,20 @@ export function FlightControlContent({
     setScanning(true);
     try {
       const res = await fetch("/api/ai/top-opportunities");
-      const data = await res.json();
-      if (res.ok && data.opportunities) {
+      const data = await res.json().catch(() => null);
+      if (res.ok && data?.opportunities) {
         setOpportunities(data.opportunities);
         setDismissedIds(new Set());
+        setScanError(null);
+      } else {
+        const msg = res.status === 429
+          ? "Scan limit reached for this hour. Try again in a few minutes."
+          : "Couldn't scan your clients. Try again.";
+        setScanError(msg);
+        toast.error(msg);
       }
     } catch {
+      setScanError("Couldn't scan your clients. Try again.");
       toast.error("Couldn't load opportunities");
     } finally {
       setScanning(false);
@@ -664,8 +691,20 @@ export function FlightControlContent({
   const handleDraftMessage = useCallback(async (opp: TopOpportunity) => {
     setDraftingFor(opp.client_id);
     try {
-      // First, persist the opportunity to outreach_queue via the scan endpoint
-      const scanRes = await fetch("/api/ai/detect-opportunities", { method: "POST" });
+      // First, persist the opportunity to outreach_queue via the scan endpoint.
+      // The pin makes sure THIS card is queued and drafted, even when its
+      // score is below the bar for automated nightly drafting.
+      const scanRes = await fetch("/api/ai/detect-opportunities", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          pin: {
+            client_id:        opp.client_id,
+            opportunity_type: opp.opportunity_type,
+            trigger_date:     opp.trigger_date,
+          },
+        }),
+      });
       const scanData = await scanRes.json();
       if (!scanRes.ok) {
         toast.error(scanData?.error ?? "Couldn't scan opportunities — try again");
@@ -673,6 +712,10 @@ export function FlightControlContent({
       }
       if (scanData.queue) {
         setQueue(scanData.queue as QueueItemWithClient[]);
+      }
+      if (scanData.pinned === false) {
+        toast.info("Flight Control can't draft this one automatically. Reach out directly, then log it in the CRM.");
+        return;
       }
 
       // Then draft any pending items
@@ -775,7 +818,7 @@ export function FlightControlContent({
                   <span className="text-muted-foreground">sent this month</span>
                 </span>
               )}
-              {loaded && visibleOpps.length === 0 && !scanning && (
+              {loaded && visibleOpps.length === 0 && !scanning && !scanError && (
                 <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-muted/50 text-xs text-muted-foreground">
                   <CheckCircle2 className="h-3 w-3" />
                   All caught up
@@ -900,7 +943,7 @@ export function FlightControlContent({
               <p className="text-sm text-muted-foreground">Analyzing your clients...</p>
             </div>
           ) : visibleOpps.length === 0 ? (
-            <EmptyState onScan={loadOpportunities} scanning={scanning} />
+            <EmptyState onScan={loadOpportunities} scanning={scanning} error={scanError} />
           ) : (
             <div className="space-y-4">
               <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5 mb-1">
@@ -948,28 +991,40 @@ export function FlightControlContent({
 function EmptyState({
   onScan,
   scanning,
+  error,
 }: {
   onScan:  () => void;
   scanning: boolean;
+  error:   string | null;
 }) {
   return (
     <div className="flex flex-col items-center justify-center py-20 text-center max-w-md mx-auto gap-5">
-      <div className="relative">
-        <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-400/20 to-emerald-600/10 ring-1 ring-emerald-500/30 shadow-lg shadow-emerald-500/10">
-          <CheckCircle2 className="h-8 w-8 text-emerald-400" />
+      {error ? (
+        <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-500/10 ring-1 ring-amber-500/30">
+          <AlertTriangle className="h-8 w-8 text-amber-400" />
         </span>
-        <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 shadow-sm">
-          <Sparkles className="h-3 w-3 text-white" />
-        </span>
-      </div>
+      ) : (
+        <div className="relative">
+          <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-400/20 to-emerald-600/10 ring-1 ring-emerald-500/30 shadow-lg shadow-emerald-500/10">
+            <CheckCircle2 className="h-8 w-8 text-emerald-400" />
+          </span>
+          <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 shadow-sm">
+            <Sparkles className="h-3 w-3 text-white" />
+          </span>
+        </div>
+      )}
       <div className="space-y-2">
         <h2 className="text-lg font-bold text-foreground">
-          All caught up
+          {error ? "Scan didn't finish" : "All caught up"}
         </h2>
         <p className="text-sm text-muted-foreground leading-relaxed">
-          No high-value opportunities right now. Flight Control scans your CRM for
-          clients who need attention — closing anniversaries, overdue check-ins,
-          timing signals, and relationship milestones.
+          {error ?? (
+            <>
+              No high-value opportunities right now. Flight Control scans your CRM for
+              clients who need attention — closing anniversaries, overdue check-ins,
+              timing signals, and relationship milestones.
+            </>
+          )}
         </p>
       </div>
       <Button
