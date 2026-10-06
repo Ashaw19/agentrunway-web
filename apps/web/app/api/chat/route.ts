@@ -21,6 +21,7 @@ import { requirePro } from "@/lib/require-pro";
 import { computeGCI, computeWeightedGCI, activePipelineDeals } from "@/lib/types/database";
 import { computePlanGross, describeSplit } from "@/lib/engines/real-compensation-engine";
 import { fmtCurrency } from "@/lib/formatters";
+import { describeIncomeGoals, incomeGoalCurrentYear } from "@/lib/income-goals";
 import {
   seasonalFractionElapsed,
   paceVsGoalPercent,
@@ -293,6 +294,7 @@ export async function POST(req: NextRequest) {
         supabase.from("t2125_cca_assets").select("description, cca_class, original_cost, opening_ucc").eq("user_id", user.id),                            // 14: CCA assets
         supabase.from("listing_appointments").select("id, property_address, status, appointment_date, client_id, estimated_list_price, estimated_commission_pct").eq("user_id", user.id).in("status", ["scheduled", "active"]).order("appointment_date", { ascending: true }).limit(10000), // 15: active listing appointments — feeds BOTH the display context (top rows) AND listing-weighted GCI for the projection (must match dashboard: no row cap, same status filter). limit 10000 mirrors dashboard/page.tsx.
         supabase.from("property_showings").select("id, property_address, showing_date, client_id, client_rating").eq("user_id", user.id).gte("showing_date", new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]).order("showing_date", { ascending: false }).limit(10), // 16: recent property showings
+        supabase.from("income_goals").select("year, goal_gci").eq("user_id", user.id),                                                     // 17: income goal per calendar year (00169)
       ]);
     // Safely extract results — individual query failures won't kill the entire chat
     const val = <T,>(r: PromiseSettledResult<T>, fallback: T): T =>
@@ -316,6 +318,7 @@ export async function POST(req: NextRequest) {
     const { data: ccaRows } = val(settled[14], emptyResult);
     const { data: listingApptRows } = val(settled[15], emptyResult);
     const { data: showingRows } = val(settled[16], emptyResult);
+    const { data: incomeGoalRows } = val(settled[17], emptyResult);
     const recurringExps = (recurringExpRows ?? []) as RecurringExpense[];
     const recurringExpMonthly = totalRecurringMonthly(recurringExps);
     const recurringExpYTDTotal = totalRecurringYTD(recurringExps);
@@ -396,7 +399,9 @@ export async function POST(req: NextRequest) {
         settings.monthly_brokerage_fee > 0 ? `Monthly Brokerage Fee: ${fmtCurrency(settings.monthly_brokerage_fee)}` : null,
         settings.tx_fee_rate_pct > 0 ? `Transaction Fee Rate: ${(settings.tx_fee_rate_pct * 100).toFixed(1)}%${settings.tx_fee_annual_cap > 0 ? ` (cap: ${fmtCurrency(settings.tx_fee_annual_cap)}/yr)` : ""}` : null,
         `Cash Reserve: ${fmtCurrency(settings.cash_reserve ?? 0)}`,
-        settings.goal_gci > 0 ? `Annual GCI Goal: ${fmtCurrency(settings.goal_gci)}` : "Annual GCI Goal: Not set",
+        settings.goal_gci > 0 ? `Annual GCI Goal (${incomeGoalCurrentYear()}): ${fmtCurrency(settings.goal_gci)}` : `Annual GCI Goal (${incomeGoalCurrentYear()}): Not set`,
+        // Goals are per calendar year (Settings → Annual Goal); future years included.
+        describeIncomeGoals(incomeGoalRows ?? [], incomeGoalCurrentYear()),
         settings.experience_years != null ? `Years of Experience: ${settings.experience_years}` : null,
         expensesYTD > 0 ? `YTD Business Expenses: ${fmtCurrency(expensesYTD)}` : null,
         monthlyRecurring > 0 ? `Monthly Recurring Expenses: ${fmtCurrency(monthlyRecurring)}` : null,

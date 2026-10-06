@@ -57,6 +57,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { OutreachOpportunityType, NewsletterTemplateType } from "@agent-runway/core/types/database";
 import { FIELD_LIMITS } from "@agent-runway/core/validation/input-guards";
 import { ACTIVE_PIPELINE_STAGES } from "@agent-runway/core/types/database";
+import { incomeGoalCurrentYear, saveIncomeGoal } from "@/lib/income-goals";
 import {
   draftOutreachForClient as draftOutreachForClientService,
   draftListingDescription as draftListingDescriptionService,
@@ -751,20 +752,25 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
 
     // ── UPDATE GCI GOAL ───────────────────────────────────────────────────────
     updateGCIGoal: tool({
-      description: "Update the agent's annual GCI goal. Use this when the agent explicitly tells you they are revising their income goal for the year.",
+      description: "Set the agent's GCI (income) goal for a calendar year. Goals are per year: pass `year` when the agent names one (\"next year\", \"2027\"); omit it for this year. A goal of 0 means no goal that year (e.g. \"this year is a write-off\"). Use only when the agent explicitly sets or revises a goal.",
       inputSchema: z.object({
-        goalGCI: z.number().positive().describe("New annual GCI goal in dollars"),
+        goalGCI: z.number().min(0).describe("GCI goal in dollars for that year; 0 = no goal that year"),
+        year: z.number().int().optional().describe("Calendar year the goal applies to; omit for this year"),
       }),
-      execute: async ({ goalGCI }) => {
+      execute: async ({ goalGCI, year }) => {
         try {
-          const { error } = await supabase
-            .from("user_settings")
-            .update({ goal_gci: goalGCI, updated_at: new Date().toISOString() })
-            .eq("user_id", userId);
+          const thisYear = incomeGoalCurrentYear();
+          const target = year ?? thisYear;
+          if (target < thisYear || target > thisYear + 5) {
+            return `Goals can be set for ${thisYear} through ${thisYear + 5}.`;
+          }
+          const { ok } = await saveIncomeGoal(supabase, userId, target, goalGCI);
+          if (!ok) return "Failed to update the GCI goal. Please try again.";
 
-          if (error) return `Failed to update GCI goal: ${error.message}`;
-
-          return `✓ Annual GCI goal updated to $${goalGCI.toLocaleString()}. Your projections and pace metrics will reflect this immediately.`;
+          const amount = goalGCI > 0 ? `$${goalGCI.toLocaleString("en-CA")}` : "no goal";
+          return target === thisYear
+            ? `✓ ${target} GCI goal set to ${amount}. Pace and projection metrics reflect it now.`
+            : `✓ ${target} GCI goal set to ${amount}. It takes over on January 1, ${target}; this year's pace metrics are unchanged.`;
         } catch {
           return "Failed to update GCI goal. Please try again.";
         }
@@ -1249,7 +1255,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
         commissionSplit: z.enum(["p70_30", "p75_25", "p80_20", "p85_15", "p90_10", "p95_5", "p100_0"]).optional().describe("Commission split preset (e.g. p80_20 = 80% agent / 20% brokerage)"),
         brokerageName: z.string().optional().describe("Brokerage/office name"),
         province: z.enum(["AB", "BC", "MB", "NB", "NL", "NS", "NT", "NU", "ON", "PE", "QC", "SK", "YT"]).optional().describe("Agent's province code"),
-        goalGCI: z.number().positive().optional().describe("Annual GCI goal in dollars"),
+        goalGCI: z.number().positive().optional().describe("This calendar year's GCI goal in dollars. For a different year, use updateGCIGoal with `year`."),
         goalTransactions: z.number().positive().optional().describe("Annual transaction count goal"),
         cashReserve: z.number().min(0).optional().describe("Manual cash reserve amount in dollars"),
         monthlyBrokerageFee: z.number().min(0).optional().describe("Monthly desk/brokerage fee in dollars"),
