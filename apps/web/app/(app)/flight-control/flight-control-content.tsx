@@ -29,6 +29,7 @@ import {
 import type { OutreachQueueItem, OutreachOpportunityType, TopOpportunity, NewsletterQueue, ActivityType, ClientStatus } from "@/lib/types/database";
 import { ACTIVITY_TYPE_LABELS, ACTIVITY_TYPE_ICONS, CLIENT_STATUS_LABELS } from "@/lib/types/database";
 import { logClientContact } from "@/lib/crm/log-contact";
+import { dismissOpportunity, undismissOpportunity } from "@/lib/crm/dismissed-opportunities";
 import { markMemoryStaleClient } from "@/lib/ai/mark-memory-stale";
 import { useAiChat } from "@/lib/ai-chat-context";
 import { getOptimalSendTime, segmentForOutreachType } from "@/lib/engines/send-time-engine";
@@ -771,9 +772,40 @@ export function FlightControlContent({
   }, []);
 
   // ── Dismiss opportunity ──────────────────────────────────────────────────
-  const handleDismiss = useCallback((opp: TopOpportunity) => {
-    setDismissedIds((prev) => new Set([...prev, `${opp.client_id}:${opp.opportunity_type}`]));
-  }, []);
+  // Persisted per occurrence (flight_control_dismissals), so a refresh, another
+  // device or tonight's drafter won't bring it back. Hidden immediately; a
+  // quiet re-scan backfills the slot.
+  const handleDismiss = useCallback(async (opp: TopOpportunity) => {
+    const localKey = `${opp.client_id}:${opp.opportunity_type}`;
+    setDismissedIds((prev) => new Set([...prev, localKey]));
+
+    const saved = await dismissOpportunity(createClient(), opp);
+    if (!saved.ok) {
+      toast.error("Couldn't save that dismissal. It may come back after a refresh.");
+      return;
+    }
+    void loadOpportunities({ refill: true });
+
+    toast(`Dismissed ${opp.client_name}.`, {
+      description: "Hidden until there's a new reason to reach out.",
+      action: {
+        label: "Undo",
+        onClick: async () => {
+          const undone = await undismissOpportunity(createClient(), opp);
+          if (!undone.ok) {
+            toast.error("Couldn't undo. Try again.");
+            return;
+          }
+          setDismissedIds((prev) => {
+            const next = new Set(prev);
+            next.delete(localKey);
+            return next;
+          });
+          void loadOpportunities({ refill: true });
+        },
+      },
+    });
+  }, [loadOpportunities]);
 
   // ── Log contact: reached them another way, take them off the list ────────
   // The activity moves last_contact_at, so Scan holds them back for 14 days.

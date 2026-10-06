@@ -760,7 +760,10 @@ Flight Control also includes a newsletter builder for mass updates (market repor
 → Check AI Voice Guide in Settings. If empty, the AI uses generic tone. Write a detailed guide for better results.
 
 **"Client keeps getting messages"**
-→ Check suppression: If an outreach is dismissed (not sent), it may regenerate next cycle. Sending or permanently dismissing prevents regeneration.
+→ Check suppression: a client contacted in the last 14 days (logged activity, "Log contact", or a draft marked sent) is held back. Dismissing a card stops that reminder from coming back or being drafted. A later reminder (next month's check-in, next year's anniversary) can still appear.
+
+**"I dismissed someone and they came back"**
+→ Dismiss is saved (since 2026-10-06) and survives refreshes and other devices. It covers that one reminder: an idle check-in is dismissed until next month's, an anniversary until next year's. Use "Log contact" if you've actually reached them. The toast after dismissing has an Undo button.
 
 **"How do I write a good AI Voice Guide?"**
 → Include: preferred length, opening style, closing style, phrases to use, phrases to avoid, formality level, whether to reference market data. More detail = better drafts.

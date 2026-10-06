@@ -30,6 +30,7 @@ import { contactableRecords }     from "@/lib/crm/contactable-records";
 import { lastClosedDealByClient, outreachChannel, withCoBuyerDeals } from "@/lib/crm/outreach-consent";
 import { recentlyContactedClientIds, outreachSuppressionCutoff } from "@/lib/crm/recently-contacted";
 import { selectTopCandidates, clientLifetimeGci } from "@/lib/crm/top-opportunity-selection";
+import { withoutDismissed } from "@/lib/crm/dismissed-opportunities";
 import {
   type Tone,
   AGENT_RUNWAY_VOICE,
@@ -822,7 +823,7 @@ export async function detectAndDraftForUser(
 ): Promise<{ detected: number; drafted: number; pinned: boolean }> {
   const { pin } = opts;
   // ── Fetch data ─────────────────────────────────────────────────────────────
-  const [settingsRes, clientsRes, recordsRes, memoryRes, sentRes, coPartiesRes] = await Promise.all([
+  const [settingsRes, clientsRes, recordsRes, memoryRes, sentRes, coPartiesRes, dismissedRes] = await Promise.all([
     supabase
       .from("user_settings")
       .select("display_name, email_signature, ai_voice_guide")
@@ -859,6 +860,11 @@ export async function detectAndDraftForUser(
     supabase
       .from("client_record_co_parties")
       .select("client_record_id, co_client_id")
+      .eq("user_id", userId),
+    // Occurrences the agent dismissed in Flight Control — lib/crm/dismissed-opportunities.ts
+    supabase
+      .from("flight_control_dismissals")
+      .select("client_id, opportunity_type, trigger_date")
       .eq("user_id", userId),
   ]);
 
@@ -1235,6 +1241,14 @@ export async function detectAndDraftForUser(
       });
     }
   }
+
+  // ── Dismissed in Flight Control: never draft them ─────────────────────────
+  const notDismissed = withoutDismissed(
+    inserts as { client_id: string; opportunity_type: string; trigger_date: string }[],
+    dismissedRes.data ?? [],
+  );
+  inserts.length = 0;
+  inserts.push(...notDismissed);
 
   // ── CASL gate: no email drafts once implied consent has lapsed ────────────
   // A past client whose last deal closed two or more years before the send
@@ -2186,7 +2200,7 @@ export async function getTopOpportunities(
   supabase: SupabaseClient,
 ): Promise<TopOpportunity[]> {
   // ── Fetch data (same as detectAndDraftForUser) ─────────────────────────────
-  const [clientsRes, recordsRes, memoryRes, sentRes, coPartiesRes] = await Promise.all([
+  const [clientsRes, recordsRes, memoryRes, sentRes, coPartiesRes, dismissedRes] = await Promise.all([
     supabase
       .from("clients")
       .select("id, name, city, province_region, birthdate, communication_tone, first_contacted_at, last_contact_at, tags, notes, status, scheduled_for, scheduled_phrase")
@@ -2213,6 +2227,11 @@ export async function getTopOpportunities(
     supabase
       .from("client_record_co_parties")
       .select("client_record_id, co_client_id")
+      .eq("user_id", userId),
+    // Occurrences the agent dismissed in Flight Control — lib/crm/dismissed-opportunities.ts
+    supabase
+      .from("flight_control_dismissals")
+      .select("client_id, opportunity_type, trigger_date")
       .eq("user_id", userId),
   ]);
 
@@ -2472,8 +2491,12 @@ export async function getTopOpportunities(
   // Strong signals first, then backfill (idle past clients, milestones) —
   // one card per client, lifetime GCI breaks ties. See
   // lib/crm/top-opportunity-selection.ts for why a hard 55 cutoff starved Scan.
+  // Dismissed occurrences drop out first, so their slots backfill.
   const topCandidates = selectTopCandidates(
-    inserts as { client_id: string; opportunity_type: string; trigger_date: string; context: Record<string, unknown> }[],
+    withoutDismissed(
+      inserts as { client_id: string; opportunity_type: string; trigger_date: string; context: Record<string, unknown> }[],
+      dismissedRes.data ?? [],
+    ),
     clientLifetimeGci(records),
   );
   // CASL channel: same inputs as the write path (unfiltered deals + co-buyers).
