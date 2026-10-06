@@ -26,7 +26,10 @@ import {
   RefreshCw, Timer, Lightbulb, ArrowRight,
   AlertTriangle, Brain, Zap, Phone,
 } from "lucide-react";
-import type { OutreachQueueItem, OutreachOpportunityType, TopOpportunity, NewsletterQueue } from "@/lib/types/database";
+import type { OutreachQueueItem, OutreachOpportunityType, TopOpportunity, NewsletterQueue, ActivityType, ClientStatus } from "@/lib/types/database";
+import { ACTIVITY_TYPE_LABELS, ACTIVITY_TYPE_ICONS, CLIENT_STATUS_LABELS } from "@/lib/types/database";
+import { logClientContact } from "@/lib/crm/log-contact";
+import { markMemoryStaleClient } from "@/lib/ai/mark-memory-stale";
 import { useAiChat } from "@/lib/ai-chat-context";
 import { getOptimalSendTime, segmentForOutreachType } from "@/lib/engines/send-time-engine";
 import { NewsletterSection } from "./newsletter-section";
@@ -98,10 +101,17 @@ type QueueItemWithClient = OutreachQueueItem & {
 
 // ── Opportunity Card ────────────────────────────────────────────────────────
 
+/** Ways the agent may have reached a client outside Flight Control. */
+const LOG_CONTACT_TYPES: ActivityType[] = ["call", "text", "email", "meeting"];
+
+/** Scan shows these regardless of the 14-day contact hold (getTopOpportunities). */
+const IGNORES_CONTACT_HOLD = new Set<string>(["birthday", "condition_firming"]);
+
 function OpportunityCard({
   opportunity,
   onDraftMessage,
   onDismiss,
+  onLogContact,
   draftedMessage,
   onReviewDraft,
   drafting,
@@ -110,6 +120,7 @@ function OpportunityCard({
   opportunity:    TopOpportunity;
   onDraftMessage: (opp: TopOpportunity) => void;
   onDismiss:      (opp: TopOpportunity) => void;
+  onLogContact:   (opp: TopOpportunity, type: ActivityType, note: string) => Promise<boolean>;
   draftedMessage: QueueItemWithClient | null;
   onReviewDraft:  (item: QueueItemWithClient) => void;
   drafting:       boolean;
@@ -119,6 +130,22 @@ function OpportunityCard({
   const scoreColors = getScoreColor(opportunity.score);
   const contextBadge = getContextBadge(opportunity.context_level);
   const [expanded, setExpanded] = useState(false);
+
+  // Log contact form
+  const [logOpen,   setLogOpen]   = useState(false);
+  const [logType,   setLogType]   = useState<ActivityType>("call");
+  const [logNote,   setLogNote]   = useState("");
+  const [logSaving, setLogSaving] = useState(false);
+
+  async function saveLogContact() {
+    setLogSaving(true);
+    const ok = await onLogContact(opportunity, logType, logNote);
+    setLogSaving(false);
+    if (ok) {
+      setLogOpen(false);
+      setLogNote("");
+    }
+  }
 
   const hasDraft = draftedMessage && draftedMessage.ai_subject;
   const isPrimary = opportunity.is_primary;
@@ -247,15 +274,27 @@ function OpportunityCard({
       )}
 
       {/* Actions */}
-      <div className="flex items-center justify-between gap-2 pt-1">
-        <Button
-          variant="ghost"
-          size="sm"
-          className="text-muted-foreground hover:text-foreground h-7 text-xs"
-          onClick={() => onDismiss(opportunity)}
-        >
-          Dismiss
-        </Button>
+      <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+        <div className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-muted-foreground hover:text-foreground h-7 text-xs"
+            onClick={() => onDismiss(opportunity)}
+          >
+            Dismiss
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className={cn("h-7 text-xs gap-1.5 text-muted-foreground hover:text-foreground", logOpen && "text-foreground")}
+            onClick={() => setLogOpen((v) => !v)}
+            aria-expanded={logOpen}
+          >
+            <CheckCircle2 className="h-3.5 w-3.5" />
+            Log contact
+          </Button>
+        </div>
         <div className="flex items-center gap-2">
           <Button
             size="sm"
@@ -300,6 +339,53 @@ function OpportunityCard({
           )}
         </div>
       </div>
+
+      {/* Log contact — reached them another way; takes them off the list */}
+      {logOpen && (
+        <div className="rounded-lg border border-border/60 bg-muted/30 p-3 space-y-2.5">
+          <p className="text-[12px] text-muted-foreground">
+            How did you reach {opportunity.client_name}?{" "}
+            {IGNORES_CONTACT_HOLD.has(opportunity.opportunity_type)
+              ? "This logs it in the CRM and clears the card."
+              : "This logs it in the CRM and takes them off Flight Control for 14 days."}
+          </p>
+          <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Contact type">
+            {LOG_CONTACT_TYPES.map((t) => (
+              <button
+                key={t}
+                type="button"
+                role="radio"
+                aria-checked={logType === t}
+                onClick={() => setLogType(t)}
+                className={cn(
+                  "inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs ring-1 transition-colors",
+                  logType === t
+                    ? "bg-background ring-foreground/30 text-foreground font-semibold"
+                    : "ring-border text-muted-foreground hover:text-foreground",
+                )}
+              >
+                <span aria-hidden>{ACTIVITY_TYPE_ICONS[t]}</span>
+                {ACTIVITY_TYPE_LABELS[t]}
+              </button>
+            ))}
+          </div>
+          <Textarea
+            value={logNote}
+            onChange={(e) => setLogNote(e.target.value)}
+            rows={2}
+            placeholder="What happened? (optional)"
+            className="text-sm resize-none"
+          />
+          <div className="flex gap-2">
+            <Button size="sm" className="h-7 text-xs" disabled={logSaving} onClick={saveLogContact}>
+              {logSaving ? <><Loader2 className="h-3 w-3 animate-spin" /> Saving…</> : "Save"}
+            </Button>
+            <Button size="sm" variant="ghost" className="h-7 text-xs" disabled={logSaving} onClick={() => setLogOpen(false)}>
+              Cancel
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -611,16 +697,19 @@ export function FlightControlContent({
   }, []);
 
   // ── Load top opportunities on mount ──────────────────────────────────────
-  const loadOpportunities = useCallback(async () => {
+  // `refill`: a quiet re-scan after logging a contact, so the next person
+  // rotates in. Keeps this session's dismissals and never surfaces an error —
+  // the contact itself was already saved.
+  const loadOpportunities = useCallback(async (opts: { refill?: boolean } = {}) => {
     setScanning(true);
     try {
       const res = await fetch("/api/ai/top-opportunities");
       const data = await res.json().catch(() => null);
       if (res.ok && data?.opportunities) {
         setOpportunities(data.opportunities);
-        setDismissedIds(new Set());
+        if (!opts.refill) setDismissedIds(new Set());
         setScanError(null);
-      } else {
+      } else if (!opts.refill) {
         const msg = res.status === 429
           ? "Scan limit reached for this hour. Try again in a few minutes."
           : "Couldn't scan your clients. Try again.";
@@ -628,8 +717,10 @@ export function FlightControlContent({
         toast.error(msg);
       }
     } catch {
-      setScanError("Couldn't scan your clients. Try again.");
-      toast.error("Couldn't load opportunities");
+      if (!opts.refill) {
+        setScanError("Couldn't scan your clients. Try again.");
+        toast.error("Couldn't load opportunities");
+      }
     } finally {
       setScanning(false);
       setLoaded(true);
@@ -683,6 +774,35 @@ export function FlightControlContent({
   const handleDismiss = useCallback((opp: TopOpportunity) => {
     setDismissedIds((prev) => new Set([...prev, `${opp.client_id}:${opp.opportunity_type}`]));
   }, []);
+
+  // ── Log contact: reached them another way, take them off the list ────────
+  // The activity moves last_contact_at, so Scan holds them back for 14 days.
+  const handleLogContact = useCallback(async (
+    opp: TopOpportunity,
+    type: ActivityType,
+    note: string,
+  ): Promise<boolean> => {
+    const res = await logClientContact(createClient(), {
+      clientId:    opp.client_id,
+      type,
+      description: note.trim() || `${ACTIVITY_TYPE_LABELS[type]} (logged from Flight Control)`,
+    });
+    if (!res.ok) {
+      toast.error("Couldn't log the contact. Try again.");
+      return false;
+    }
+    setDismissedIds((prev) => new Set([...prev, `${opp.client_id}:${opp.opportunity_type}`]));
+    markMemoryStaleClient(opp.client_id);
+    const promoted = res.newStatus && res.newStatus !== res.priorStatus;
+    const held = !IGNORES_CONTACT_HOLD.has(opp.opportunity_type);
+    toast.success(held
+      ? `Logged. ${opp.client_name} is off your list for 14 days.`
+      : `Logged in ${opp.client_name}'s CRM history.`, promoted ? {
+      description: `Moved to ${CLIENT_STATUS_LABELS[res.newStatus as ClientStatus] ?? res.newStatus} because a real touchpoint was logged.`,
+    } : undefined);
+    void loadOpportunities({ refill: true });
+    return true;
+  }, [loadOpportunities]);
 
   // ── Ask AI about an opportunity ──────────────────────────────────────────
   const handleAskAI = useCallback((opp: TopOpportunity) => {
@@ -792,7 +912,7 @@ export function FlightControlContent({
                 </p>
               </div>
               <Button
-                onClick={loadOpportunities}
+                onClick={() => loadOpportunities()}
                 disabled={scanning}
                 size="sm"
                 className="gap-2 shrink-0"
@@ -947,7 +1067,7 @@ export function FlightControlContent({
               <p className="text-sm text-muted-foreground">Analyzing your clients...</p>
             </div>
           ) : visibleOpps.length === 0 ? (
-            <EmptyState onScan={loadOpportunities} scanning={scanning} error={scanError} />
+            <EmptyState onScan={() => loadOpportunities()} scanning={scanning} error={scanError} />
           ) : (
             <div className="space-y-4">
               <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5 mb-1">
@@ -966,6 +1086,7 @@ export function FlightControlContent({
                       opportunity={opp}
                       onDraftMessage={handleDraftMessage}
                       onDismiss={handleDismiss}
+                      onLogContact={handleLogContact}
                       draftedMessage={getDraftForOpp(opp)}
                       onReviewDraft={setReviewItem}
                       drafting={draftingFor === opp.client_id}
