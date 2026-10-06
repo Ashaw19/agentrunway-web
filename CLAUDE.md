@@ -236,6 +236,13 @@ this table in the same PR as any canonical-location change.
 As of commit `0640239`, CI runs `pnpm turbo test` and typecheck across all
 workspaces on every push.
 
+- **`db-functions` job (since 2026-10-06):** replays every migration into a
+  throwaway Supabase Postgres and runs `plpgsql_check` over all public
+  plpgsql functions. A function that references a missing column or table
+  fails CI instead of failing in prod at run time (00112 broke every
+  activity insert for six months). Run it locally with
+  `bash scripts/db/check-functions.sh` (needs Docker). A new migration must
+  apply cleanly on a fresh database.
 - **Green tests are a precondition for pushing to `main`.** If tests are red
   locally, fix before pushing — do not push and "trigger CI to see."
 - **Vercel auto-deploys on push to `main`.** Every push to `main` is a
