@@ -78,3 +78,16 @@ describe("classifyTopic — CRM on-demand draft buttons reach the Flight Control
     expect(classifyTopic("how do I log a referral fee I paid")).toBe("referrals");
   });
 });
+
+describe("classifyTopic — collapsed-deal outreach questions reach the Flight Control playbook", () => {
+  const cases = [
+    "why is there no anniversary note for a client whose deal collapsed",
+    "the deal collapsed, why did the review request and follow-ups stop",
+  ];
+
+  for (const message of cases) {
+    it(`routes to flight-control: "${message}"`, () => {
+      expect(classifyTopic(message)).toBe("flight-control");
+    });
+  }
+});
