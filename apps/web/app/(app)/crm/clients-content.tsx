@@ -1830,6 +1830,9 @@ export function ClientsContent({
           }
         }
       } else if (error) {
+        // Log the cause: from 2026-04-12 to 2026-10-06 every insert failed on a
+        // trigger bug (00112 → fixed in 00166) and this toast was the only trace.
+        console.error("[crm] contact_activities insert failed:", error.code ?? "", error.message);
         toast.error("Failed to log activity");
       }
     },

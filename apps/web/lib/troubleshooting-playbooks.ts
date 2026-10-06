@@ -773,7 +773,13 @@ Flight Control also includes a newsletter builder for mass updates (market repor
 **"Scan only shows a few opportunities" / "Why won't other contacts pop up?"**
 1. Scan Now shows up to 5 cards, one per client. Dated signals come first (birthdays, closing anniversaries, post-close follow-ups, condition dates). Idle past clients (no deal in 18+ months) and repeat-client milestones fill the remaining slots.
 2. A contact with no closed deal, no birthdate and no first-contact date gives Flight Control nothing to work from. Adding birthdates or linking their deals brings them in.
-3. Anyone contacted in the last 14 days (a logged CRM activity, or a draft marked sent in Flight Control) is held back, so working through the list rotates new people in.
+3. Anyone contacted in the last 14 days (a logged CRM activity, a "Log contact" from a Flight Control card, or a draft marked sent) is held back, so working through the list rotates new people in. Birthday and condition-date cards show regardless.
+
+**"I already called/texted them — how do I get them off Flight Control?"**
+→ Click "Log contact" on their card, pick Call / Text / Email / Meeting, add an optional note, Save. It logs the activity in the CRM, removes the card, brings in the next person, and holds that client back from Scan for 14 days. If the client was Cruising or Scheduled, logging a real touchpoint moves them to Boarding.
+
+**"Log Activity says Failed to log activity"**
+→ From 2026-04-12 to 2026-10-06 every activity save failed because of a database bug, fixed 2026-10-06. If it still fails, the browser console shows the cause, logged under "[crm] contact_activities insert failed".
 4. Memory-powered cards need a current memory profile: CRM, open the client, "What Agent Runway remembers", Build profile / Refresh. Editing the client marks the profile outdated until it is refreshed.
 
 **"Why does a card say Call instead of Draft Message?"**
