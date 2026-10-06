@@ -347,6 +347,14 @@ const TOPIC_RULES: TopicRule[] = [
       "express consent",
       "call instead",
       "newsletter recipient",
+      // CRM on-demand draft buttons (client panel AI Actions, briefing Draft)
+      "ask for referral",
+      "referral ask",
+      "request review",
+      "review request",
+      "no closed deal",
+      "going quiet",
+      "draft button",
     ],
   },
   {

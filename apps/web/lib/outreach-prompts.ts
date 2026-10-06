@@ -139,6 +139,24 @@ function wasSeller(side?: "buyer" | "seller" | "both" | null): boolean {
   return side === "seller";
 }
 
+// ── Time-since-closing helper ─────────────────────────────────────────────────
+
+/**
+ * Plain-language gap since closing ("about 2 weeks", "about 19 months").
+ * The on-demand review/referral drafters pass the real gap; Flight Control's
+ * cadence drafts don't, and keep their fixed "about 3 weeks" / "about 6 weeks".
+ */
+export function timeSinceClosingLabel(days: number): string {
+  if (days < 7) return "a few days";
+  if (days < 60) {
+    const weeks = Math.round(days / 7);
+    return weeks === 1 ? "about a week" : `about ${weeks} weeks`;
+  }
+  const months = Math.round(days / 30.44);
+  if (months < 24) return `about ${months} months`;
+  return `about ${Math.round(days / 365.25)} years`;
+}
+
 // ── Property use helper ───────────────────────────────────────────────────────
 
 type PropertyUse = "primary_residence" | "investment" | "commercial" | "pre_construction" | null | undefined;
@@ -533,15 +551,19 @@ export function buildReviewRequestPrompt(
   address:    string | null,
   tone:       Tone = "friendly",
   side?:      "buyer" | "seller" | "both" | null,
+  daysSinceClose?: number | null,
 ): string {
   const prop = address ?? (wasSeller(side) ? "your recent sale" : "your recent purchase");
   const transactionLabel = wasSeller(side) ? "sale" : "purchase";
+  const timing = daysSinceClose == null
+    ? "It's been about 3 weeks since closing — experience is still fresh"
+    : `It's been ${timeSinceClosingLabel(daysSinceClose)} since closing${daysSinceClose <= 45 ? " — experience is still fresh" : ""}`;
   return `You are ghostwriting an honest, non-pushy review request from a Canadian real estate agent named ${agentFirst} to their recent client ${clientName}.
 
 Context:
 - Property: ${prop}
 - Transaction type: ${transactionLabel}
-- It's been about 3 weeks since closing — experience is still fresh
+- ${timing}
 
 RESEARCH CONTEXT:
 - Reciprocity principle: this email asks for something. It MUST give first. Open with genuine warmth and value (hope things are going well, a useful tip, something real) before any ask.
@@ -571,12 +593,14 @@ export function buildReferralAskPrompt(
   address:    string | null,
   tone:       Tone = "friendly",
   side?:      "buyer" | "seller" | "both" | null,
+  daysSinceClose?: number | null,
 ): string {
   const prop = address ?? (wasSeller(side) ? "since the sale" : "your new home");
+  const since = daysSinceClose == null ? null : timeSinceClosingLabel(daysSinceClose);
   const settledLine = wasSeller(side)
-    ? "Client sold their property 6 weeks ago — the dust has settled"
+    ? `Client sold their property ${since ? `${since} ago` : "6 weeks ago"} — the dust has settled`
     : "Client has had time to settle in — the chaos is over";
-  return `You are ghostwriting a natural referral ask from a Canadian real estate agent named ${agentFirst} to their client ${clientName}, about 6 weeks after closing.
+  return `You are ghostwriting a natural referral ask from a Canadian real estate agent named ${agentFirst} to their client ${clientName}, ${since ?? "about 6 weeks"} after closing.
 
 Context:
 - Property: ${prop}
