@@ -59,3 +59,22 @@ describe("classifyTopic — CASL drafting questions reach the Flight Control pla
     });
   }
 });
+
+describe("classifyTopic — CRM on-demand draft buttons reach the Flight Control playbook", () => {
+  const cases = [
+    "the ask for referral button says no closed deal on record",
+    "request review button gave me an error",
+    "how do I send a review request to a past client",
+    "why is there no draft button on a going quiet client",
+  ];
+
+  for (const message of cases) {
+    it(`routes to flight-control: "${message}"`, () => {
+      expect(classifyTopic(message)).toBe("flight-control");
+    });
+  }
+
+  it("still routes referral-fee questions to referrals", () => {
+    expect(classifyTopic("how do I log a referral fee I paid")).toBe("referrals");
+  });
+});

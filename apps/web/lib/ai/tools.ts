@@ -3399,7 +3399,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
 
     // ── DRAFT OUTREACH FOR CLIENT (Dispatcher) ───────────────────────────────
     draftOutreachForClient: tool({
-      description: "Draft a personalized outreach message for a specific client based on their situation and the touchpoint type. Use searchClients first to resolve the client_id. The message is written to Flight Control as a DRAFT — it is NEVER sent automatically; the agent reviews and sends it. Choose the opportunity_type that matches the touchpoint reason (birthday, closing anniversary, mortgage renewal due/window, past-client check-in, timeframe approaching for active buyer/seller, property value milestone).",
+      description: "Draft a personalized outreach message for a specific client based on their situation and the touchpoint type. Use searchClients first to resolve the client_id. The message is written to Flight Control as a DRAFT — it is NEVER sent automatically; the agent reviews and sends it. Choose the opportunity_type that matches the touchpoint reason (birthday, closing anniversary, mortgage renewal due/window, past-client check-in, timeframe approaching for active buyer/seller, property value milestone, review request or referral ask after a closed deal).",
       inputSchema: z.object({
         client_id: z.string().uuid().describe("The client UUID — get this from searchClients first"),
         opportunity_type: z.enum([
@@ -3410,6 +3410,8 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
           "past_client_check_in",
           "timeframe_approaching",
           "property_value_milestone",
+          "review_request",
+          "referral_ask",
         ]).describe("Which kind of touchpoint to draft"),
       }),
       execute: async ({ client_id, opportunity_type }) => {
