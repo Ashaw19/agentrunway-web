@@ -27,7 +27,7 @@ import { POST_CLOSE_OPPORTUNITY_CONFIGS as POST_CLOSE_CONFIGS } from "@agent-run
 import type { SupabaseClient }    from "@supabase/supabase-js";
 import type { ClientMemoryFacts } from "@/lib/ai/client-memory-engine";
 import { contactableRecords }     from "@/lib/crm/contactable-records";
-import { lastClosedDealByClient, outreachChannel } from "@/lib/crm/outreach-consent";
+import { lastClosedDealByClient, outreachChannel, withCoBuyerDeals } from "@/lib/crm/outreach-consent";
 import { recentlyContactedClientIds, outreachSuppressionCutoff } from "@/lib/crm/recently-contacted";
 import { selectTopCandidates, clientLifetimeGci } from "@/lib/crm/top-opportunity-selection";
 import {
@@ -822,7 +822,7 @@ export async function detectAndDraftForUser(
 ): Promise<{ detected: number; drafted: number; pinned: boolean }> {
   const { pin } = opts;
   // ── Fetch data ─────────────────────────────────────────────────────────────
-  const [settingsRes, clientsRes, recordsRes, memoryRes, sentRes] = await Promise.all([
+  const [settingsRes, clientsRes, recordsRes, memoryRes, sentRes, coPartiesRes] = await Promise.all([
     supabase
       .from("user_settings")
       .select("display_name, email_signature, ai_voice_guide")
@@ -854,6 +854,12 @@ export async function detectAndDraftForUser(
       .eq("user_id", userId)
       .eq("status", "sent")
       .gte("sent_at", outreachSuppressionCutoff().toISOString()),
+    // Co-buyers on a couple's deal (#257): the CASL gate credits them the
+    // deal the other spouse holds. See withCoBuyerDeals.
+    supabase
+      .from("client_record_co_parties")
+      .select("client_record_id, co_client_id")
+      .eq("user_id", userId),
   ]);
 
   const agentFirst      = extractFirstName(settingsRes.data?.display_name ?? null, "");
@@ -1234,7 +1240,12 @@ export async function detectAndDraftForUser(
   // A past client whose last deal closed two or more years before the send
   // date shows in Scan as a call card and is never drafted as an email. Same
   // helper as getTopOpportunities — see lib/crm/outreach-consent.ts.
-  const lastCloseByClient = lastClosedDealByClient(records);
+  // Built from the unfiltered deal rows plus co-buyers: a co-buyer's shared
+  // deal still counts when the spouse holding it is archived.
+  if (coPartiesRes.error) console.error("[detect-opportunities] co-party fetch failed:", coPartiesRes.error.message);
+  const lastCloseByClient = lastClosedDealByClient(
+    withCoBuyerDeals(recordsRes.data ?? [], coPartiesRes.data ?? []),
+  );
   const emailable = inserts.filter((ins) => {
     const i = ins as { client_id: string; trigger_date: string };
     return outreachChannel(lastCloseByClient.get(i.client_id), i.trigger_date) === "email";
@@ -2175,7 +2186,7 @@ export async function getTopOpportunities(
   supabase: SupabaseClient,
 ): Promise<TopOpportunity[]> {
   // ── Fetch data (same as detectAndDraftForUser) ─────────────────────────────
-  const [clientsRes, recordsRes, memoryRes, sentRes] = await Promise.all([
+  const [clientsRes, recordsRes, memoryRes, sentRes, coPartiesRes] = await Promise.all([
     supabase
       .from("clients")
       .select("id, name, city, province_region, birthdate, communication_tone, first_contacted_at, last_contact_at, tags, notes, status, scheduled_for, scheduled_phrase")
@@ -2197,6 +2208,12 @@ export async function getTopOpportunities(
       .eq("user_id", userId)
       .eq("status", "sent")
       .gte("sent_at", outreachSuppressionCutoff().toISOString()),
+    // Co-buyers on a couple's deal (#257): the CASL gate credits them the
+    // deal the other spouse holds. See withCoBuyerDeals.
+    supabase
+      .from("client_record_co_parties")
+      .select("client_record_id, co_client_id")
+      .eq("user_id", userId),
   ]);
 
   // A failed clients fetch would otherwise read as "no clients" and render
@@ -2459,7 +2476,11 @@ export async function getTopOpportunities(
     inserts as { client_id: string; opportunity_type: string; trigger_date: string; context: Record<string, unknown> }[],
     clientLifetimeGci(records),
   );
-  const lastCloseByClient = lastClosedDealByClient(records);
+  // CASL channel: same inputs as the write path (unfiltered deals + co-buyers).
+  if (coPartiesRes.error) console.error("[detect-opportunities] co-party fetch failed:", coPartiesRes.error.message);
+  const lastCloseByClient = lastClosedDealByClient(
+    withCoBuyerDeals(recordsRes.data ?? [], coPartiesRes.data ?? []),
+  );
 
   // ── Compute portfolio-level stats for financial impact reasoning ──────────
   const allGcis = records

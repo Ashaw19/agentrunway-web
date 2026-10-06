@@ -4,6 +4,7 @@ import {
   lapsedPastClients,
   lastClosedDealByClient,
   outreachChannel,
+  withCoBuyerDeals,
 } from "../outreach-consent";
 
 /**
@@ -138,5 +139,52 @@ describe("lapsedPastClients", () => {
   it("treats the exact two-year mark as lapsed", () => {
     expect(lapsedPastClients([{ client_id: "a", close_date: "2024-10-06" }], TODAY)).toEqual(["a"]);
     expect(lapsedPastClients([{ client_id: "a", close_date: "2024-10-07" }], TODAY)).toEqual([]);
+  });
+});
+
+describe("withCoBuyerDeals", () => {
+  // A couple's deal is one client_records row held by one spouse (#257).
+  // The other spouse is linked through client_record_co_parties.
+  const deals = [
+    { id: "r1", client_id: "pat", close_date: "2021-04-01", condition_status: "firmed" },
+  ];
+
+  it("credits a co-buyer with the deal they were named on", () => {
+    const map = lastClosedDealByClient(
+      withCoBuyerDeals(deals, [{ client_record_id: "r1", co_client_id: "jo" }]),
+    );
+    expect(map.get("jo")).toBe("2021-04-01");
+    expect(map.get("pat")).toBe("2021-04-01");
+  });
+
+  it("puts a lapsed co-buyer on the lapsed list", () => {
+    const ids = lapsedPastClients(
+      withCoBuyerDeals(deals, [{ client_record_id: "r1", co_client_id: "jo" }]),
+      TODAY,
+    );
+    expect(ids).toEqual(["jo", "pat"]);
+  });
+
+  it("keeps a co-buyer's own newer deal as their most recent", () => {
+    const map = lastClosedDealByClient(withCoBuyerDeals(
+      [...deals, { id: "r2", client_id: "jo", close_date: "2025-09-01", condition_status: "firmed" }],
+      [{ client_record_id: "r1", co_client_id: "jo" }],
+    ));
+    expect(map.get("jo")).toBe("2025-09-01");
+  });
+
+  it("does not credit a collapsed deal to the co-buyer", () => {
+    const map = lastClosedDealByClient(withCoBuyerDeals(
+      [{ id: "r1", client_id: "pat", close_date: "2021-04-01", condition_status: "collapsed" }],
+      [{ client_record_id: "r1", co_client_id: "jo" }],
+    ));
+    expect(map.has("jo")).toBe(false);
+  });
+
+  it("ignores co-party links to deals that aren't in the list", () => {
+    const map = lastClosedDealByClient(
+      withCoBuyerDeals(deals, [{ client_record_id: "missing", co_client_id: "jo" }]),
+    );
+    expect(map.has("jo")).toBe(false);
   });
 });

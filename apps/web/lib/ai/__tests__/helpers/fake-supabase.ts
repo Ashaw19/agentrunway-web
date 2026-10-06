@@ -47,6 +47,7 @@ export function fakeSupabase(tables: Record<string, Row[]>) {
         return builder;
       },
       eq(k: string, v: unknown) { rows = rows.filter((r) => r[k] === v); return builder; },
+      in(k: string, vs: readonly unknown[]) { rows = rows.filter((r) => vs.includes(r[k])); return builder; },
       is(k: string, v: unknown) { rows = rows.filter((r) => (r[k] ?? null) === v); return builder; },
       not(k: string, _op: string, v: unknown) { rows = rows.filter((r) => (r[k] ?? null) !== v); return builder; },
       order(k: string, opts?: { ascending?: boolean }) {
@@ -66,7 +67,7 @@ export function fakeSupabase(tables: Record<string, Row[]>) {
   }
 
   // A test double for the external client, not fixture data: the service only
-  // touches from/select/eq/is/not/order/insert/upsert/update/single/maybeSingle.
+  // touches from/select/eq/in/is/not/order/insert/upsert/update/single/maybeSingle.
   const client = { from } as unknown as SupabaseClient;
   return { client, writes };
 }
