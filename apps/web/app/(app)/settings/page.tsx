@@ -30,7 +30,7 @@ export default async function SettingsPage() {
   // (memory/project_google_integrations.md). Loading the row would waste a
   // round-trip and serialise OAuth scope flags into the client bundle on
   // every Settings load.
-  const [{ data: settingsRaw }, { data: plaidItems }, { data: emailConnections }] = await Promise.all([
+  const [{ data: settingsRaw }, { data: plaidItems }, { data: emailConnections }, { data: incomeGoals }] = await Promise.all([
     supabase
       .from("user_settings")
       .select("*")
@@ -47,6 +47,12 @@ export default async function SettingsPage() {
       .select("id, provider, email_address, display_name, connection_name, smtp_host, smtp_port, calendar_sync_enabled, connected_at")
       .eq("user_id", user.id)
       .order("connected_at", { ascending: false }),
+    // Income goal per calendar year (00169) — the Annual Goal card's year picker.
+    supabase
+      .from("income_goals")
+      .select("year, goal_gci")
+      .eq("user_id", user.id)
+      .order("year", { ascending: true }),
   ]);
 
   if (!settingsRaw) redirect("/dashboard");
@@ -62,6 +68,7 @@ export default async function SettingsPage() {
         plaidConfigured={plaidConfigured}
         googleConnection={null}
         emailConnections={emailConnections ?? []}
+        incomeGoals={incomeGoals ?? []}
         isPro={isPro}
       />
       {isPro ? (

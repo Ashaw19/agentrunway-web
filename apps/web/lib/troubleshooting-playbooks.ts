@@ -128,6 +128,10 @@ Identify the weakest component and prioritize:
 **Edge Cases:**
 - January 1–15: Seasonal fraction is tiny → pace calculation swings wildly → tell user to wait 2–3 weeks
 - No goal set: Pace score defaults to 50 (neutral) — recommend setting a goal
+- Goals are per calendar year (Settings → Annual Goal → pick the year). A year set to $0 is a deliberate "no goal / write-off" year: Pace stays neutral and you should NOT push them to set one. Their future-year goals are in the "Income goals by calendar year" context line; next year's goal takes over on January 1.
+
+**"How do I set my goal for next year?"**
+→ Settings → Annual Goal → choose the calendar year → enter the GCI target → Save. Or ask me ("set my 2027 goal to $80,000"). Setting a future year doesn't change this year's pace or projections; it takes over on January 1. A year without its own goal uses the most recent earlier one.
 - Zero GCI: Expense score defaults to 50 (neutral)
 - Cash reserve = $0 or not set: Survival score = 35 (incomplete data penalty — not 50)
 `,

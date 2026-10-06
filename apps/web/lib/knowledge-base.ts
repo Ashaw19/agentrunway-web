@@ -37,7 +37,7 @@ Platform for Canadian real estate agents: income, expenses, pipeline, clients, t
 
 **SOCIAL STUDIO** — Instagram month-in-review carousel builder with templates and Canva export.
 
-**SETTINGS** — Province, business structure, compensation plan (simple_split | real — see COMMISSION STRUCTURE), split (70/30-100/0), brokerage fees (monthly+per-deal+cap+post-cap), cash reserve, experience years, GCI goal, vehicle %, home office method/sqft, GST/HST registration, filing frequency, brokerage withholds HST toggle, seasonality, AI Voice Guide, estimated weekly hours + vacation weeks (unlocks Time Value card on Overhead).
+**SETTINGS** — Province, business structure, compensation plan (simple_split | real — see COMMISSION STRUCTURE), split (70/30-100/0), brokerage fees (monthly+per-deal+cap+post-cap), cash reserve, experience years, GCI goal per calendar year (pick the year; this year's goal drives pace/projections, next year's takes over Jan 1, $0 = no goal that year, a year without its own goal carries the latest earlier one forward), vehicle %, home office method/sqft, GST/HST registration, filing frequency, brokerage withholds HST toggle, seasonality, AI Voice Guide, estimated weekly hours + vacation weeks (unlocks Time Value card on Overhead).
 
 **PROFILE** — Name, brokerage, avatar, 15 themes, dark mode, production stats.
 
@@ -62,7 +62,7 @@ Platform for Canadian real estate agents: income, expenses, pipeline, clients, t
 **Weighted GCI** = Pipeline GCI x stage probability (or override). Active deals only — closed/lost rows never contribute, even with an override.
 **Expense Ratio** = Expenses / GCI. <25% excellent, 25-35% healthy, 35-50% attention, >50% concerning. (Bands match health-report.ts + insights-engine.ts; advisor-engine flags an action card at >30% with a 25-30% reference benchmark.)
 **Survival Runway** = Cash Reserve / Net Monthly Burn. <2mo critical, 2-4 warning, 4-6 healthy, 6+ strong. Cap 24mo. $0 reserve + $0 burn = "Not Configured" (sentinel -1). $0 reserve + positive burn = 0mo (critical).
-**Pace** = ((Actual YTD GCI - Expected) / Expected) x 100. Expected = Goal x Seasonal Fraction.
+**Pace** = ((Actual YTD GCI - Expected) / Expected) x 100. Expected = Goal x Seasonal Fraction (Goal = this calendar year's goal).
 **Seasonal Fraction** = Accounts for uneven quarterly income. Default = uniform Q1:25% Q2:25% Q3:25% Q4:25% (DB stores [25,25,25,25], normalized to fractions). Cascade: agent-derived from history_items.quarter_gci (need 2+ years) → settings.national_quarter_pcts → uniform. Day-level interpolation within quarters.
 **Projected Year-End GCI** = (Closed YTD / Seasonal Fraction) + (Pipeline Weighted x 50%). Jan-Feb dampening blends toward goal.
 **Runway Score** (v1.2) = Pace(35%) + Pipeline(30%) + Expense(15%) + Survival(15%) + Benchmark(5%). Grades: A+(92+) A(85-91) B(75-84) C(62-74) D(50-61) F(0-49). Missing data penalizes (35 not 50).
