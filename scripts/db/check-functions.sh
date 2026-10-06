@@ -13,7 +13,8 @@
 #
 # What it does:
 #   1. Starts supabase/postgres (same major/minor as prod) in Docker.
-#   2. Enables the extensions prod enabled from the dashboard (ci-bootstrap-extensions.sql).
+#   2. ci-bootstrap.sql: extensions prod enabled from the dashboard, plus the
+#      storage tables the Storage API service creates in real Supabase.
 #   3. Applies apps/web/supabase/migrations/*.sql in filename order; any failure fails the run.
 #   4. Runs plpgsql-check.sql; any error-level finding fails the run.
 #
@@ -59,7 +60,7 @@ for i in $(seq 1 90); do
   sleep 2
 done
 
-run_psql -f /checks/ci-bootstrap-extensions.sql
+run_psql -f /checks/ci-bootstrap.sql
 
 applied=0
 while IFS= read -r file; do
