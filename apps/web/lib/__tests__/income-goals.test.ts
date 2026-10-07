@@ -2,10 +2,11 @@ import { describe, it, expect, vi } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   incomeGoalCurrentYear,
-  goalInEffect,
+  goalForYear,
   goalYearOptions,
   describeIncomeGoals,
   saveIncomeGoal,
+  shouldPromptNextYearGoal,
 } from "../income-goals";
 
 /**
@@ -14,8 +15,9 @@ import {
  *
  * income_goals (00169) holds one goal per year; user_settings.goal_gci stays
  * "this year's goal" and the DB keeps it in sync. These helpers must agree
- * with the SQL: income_goal_for_year() = latest row at or before the year
- * (an explicit 0 is a real answer), else 0; "this year" is Atlantic time.
+ * with the SQL: income_goal_for_year() = that year's own row, else 0 (no
+ * carry-forward since 00170: Andrew, 2026-10-07, "We need to have separate
+ * years and separate goals"); "this year" is Atlantic time.
  */
 
 const rows = [
@@ -32,23 +34,24 @@ describe("incomeGoalCurrentYear", () => {
   });
 });
 
-describe("goalInEffect (mirrors SQL income_goal_for_year)", () => {
+describe("goalForYear (mirrors SQL income_goal_for_year)", () => {
   it("returns that year's goal — an explicit 0 means a write-off year", () => {
-    expect(goalInEffect(rows, 2026)).toBe(0);
-    expect(goalInEffect(rows, 2027)).toBe(80000);
+    expect(goalForYear(rows, 2026)).toBe(0);
+    expect(goalForYear(rows, 2027)).toBe(80000);
   });
 
-  it("carries the latest earlier goal forward into years without one", () => {
-    expect(goalInEffect(rows, 2028)).toBe(80000);
+  it("never carries an earlier year's goal forward (the reported problem)", () => {
+    expect(goalForYear(rows, 2028)).toBe(0);
+    expect(goalForYear([{ year: 2026, goal_gci: 10000 }], 2027)).toBe(0);
   });
 
-  it("is 0 before any goal exists", () => {
-    expect(goalInEffect(rows, 2025)).toBe(0);
-    expect(goalInEffect([], 2026)).toBe(0);
+  it("is 0 when the year has no goal", () => {
+    expect(goalForYear(rows, 2025)).toBe(0);
+    expect(goalForYear([], 2026)).toBe(0);
   });
 
   it("accepts numeric strings from PostgREST", () => {
-    expect(goalInEffect([{ year: 2027, goal_gci: "80000.00" }], 2027)).toBe(80000);
+    expect(goalForYear([{ year: 2027, goal_gci: "80000.00" }], 2027)).toBe(80000);
   });
 });
 
@@ -73,9 +76,9 @@ describe("describeIncomeGoals (AI context)", () => {
     );
   });
 
-  it("notes when the current year has no row and a past goal carries forward", () => {
+  it("says the current year has no goal instead of borrowing an earlier one", () => {
     expect(describeIncomeGoals([{ year: 2025, goal_gci: 120000 }, { year: 2027, goal_gci: 90000 }], 2026)).toBe(
-      "Income goals by calendar year: 2026: $120,000 (carried forward from 2025); 2027: $90,000",
+      "Income goals by calendar year: 2026: no goal set; 2027: $90,000",
     );
   });
 
@@ -120,5 +123,26 @@ describe("saveIncomeGoal", () => {
     const { supabase } = fake({ message: "denied" });
     expect(await saveIncomeGoal(supabase, "u1", 2027, 80000)).toEqual({ ok: false });
     spy.mockRestore();
+  });
+});
+
+describe("shouldPromptNextYearGoal (dashboard Q4 nudge)", () => {
+  // Local-noon dates in Atlantic time are safe for month checks.
+  const sep30 = new Date("2026-09-30T16:00:00Z");
+  const oct1 = new Date("2026-10-01T16:00:00Z");
+  const dec31 = new Date("2026-12-31T16:00:00Z");
+
+  it("prompts from October 1 when next year has no goal", () => {
+    expect(shouldPromptNextYearGoal([{ year: 2026, goal_gci: 10000 }], oct1)).toBe(true);
+    expect(shouldPromptNextYearGoal([], dec31)).toBe(true);
+  });
+
+  it("stays quiet before October", () => {
+    expect(shouldPromptNextYearGoal([], sep30)).toBe(false);
+  });
+
+  it("stays quiet once next year has a goal — even a deliberate $0", () => {
+    expect(shouldPromptNextYearGoal([{ year: 2027, goal_gci: 80000 }], oct1)).toBe(false);
+    expect(shouldPromptNextYearGoal([{ year: 2027, goal_gci: 0 }], oct1)).toBe(false);
   });
 });

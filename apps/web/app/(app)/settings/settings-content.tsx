@@ -70,7 +70,6 @@ import { cn } from "@/lib/utils";
 import {
   type IncomeGoalRow,
   incomeGoalCurrentYear,
-  goalInEffect,
   goalYearOptions,
   saveIncomeGoal,
 } from "@/lib/income-goals";
@@ -1863,18 +1862,14 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
                 type="number"
                 min={0}
                 inputMode="numeric"
-                placeholder={
-                  goalRowFor(goalYear) || goalInEffect(incomeGoals, goalYear) === 0
-                    ? "e.g. 100000"
-                    : `${goalInEffect(incomeGoals, goalYear).toLocaleString("en-CA")} (carried forward)`
-                }
+                placeholder={goalRowFor(goalYear) ? "e.g. 100000" : "No goal set (e.g. 100000)"}
                 value={goalGCI}
                 onChange={(e) => setGoalGCI(e.target.value)}
               />
             </div>
           </div>
           <p className="text-xs text-muted-foreground">
-            Set a year to 0 for no goal that year. A year without its own goal uses the most recent earlier one.
+            Each year&apos;s goal is separate. A year you haven&apos;t set has no goal; set 0 to mark a year as no goal on purpose.
           </p>
           {incomeGoals.some((r) => r.year >= goalCurrentYear) && (
             <ul className="grid gap-1 text-sm">
