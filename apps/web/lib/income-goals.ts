@@ -7,10 +7,10 @@
  * 'sync-income-goals'). Writers set a year's goal here; nothing in the app
  * writes goal_gci for a future year.
  *
- * goalInEffect mirrors SQL income_goal_for_year(): that year's row (an
- * explicit 0 = no goal, e.g. a write-off year), else the latest earlier
- * year's goal carries forward, else 0. "This year" is Atlantic time to match
- * income_goal_current_year().
+ * goalForYear mirrors SQL income_goal_for_year(): that year's own row (an
+ * explicit 0 = no goal, e.g. a write-off year), else 0. Years are separate:
+ * an earlier year's goal never carries forward (00170; Andrew, 2026-10-07).
+ * "This year" is Atlantic time to match income_goal_current_year().
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -27,17 +27,25 @@ export function incomeGoalCurrentYear(now: Date = new Date()): number {
   return Number(new Intl.DateTimeFormat("en-CA", { timeZone: INCOME_GOAL_TIMEZONE, year: "numeric" }).format(now));
 }
 
-function latestAtOrBefore(rows: readonly IncomeGoalRow[], year: number): IncomeGoalRow | undefined {
-  let best: IncomeGoalRow | undefined;
-  for (const r of rows) {
-    if (r.year <= year && (!best || r.year > best.year)) best = r;
-  }
-  return best;
+/** That year's goal, or 0 when the year has none. */
+export function goalForYear(rows: readonly IncomeGoalRow[], year: number): number {
+  const row = rows.find((r) => r.year === year);
+  return row ? Number(row.goal_gci) || 0 : 0;
 }
 
-export function goalInEffect(rows: readonly IncomeGoalRow[], year: number): number {
-  const row = latestAtOrBefore(rows, year);
-  return row ? Number(row.goal_gci) || 0 : 0;
+export function hasGoalRow(rows: readonly IncomeGoalRow[], year: number): boolean {
+  return rows.some((r) => r.year === year);
+}
+
+/**
+ * Dashboard nudge from October 1 (Atlantic) until next year has a goal row.
+ * With no carry-forward, a year nobody set starts at "no goal" on Jan 1.
+ * A deliberate $0 for next year counts as answered.
+ */
+export function shouldPromptNextYearGoal(rows: readonly IncomeGoalRow[], now: Date = new Date()): boolean {
+  const month = Number(new Intl.DateTimeFormat("en-CA", { timeZone: INCOME_GOAL_TIMEZONE, month: "numeric" }).format(now));
+  if (month < 10) return false;
+  return !hasGoalRow(rows, incomeGoalCurrentYear(now) + 1);
 }
 
 /** Years the settings picker offers: this year, the next two, plus any later year already set. */
@@ -53,12 +61,11 @@ export function describeIncomeGoals(rows: readonly IncomeGoalRow[], currentYear:
   const parts: string[] = [];
 
   const own = rows.find((r) => r.year === currentYear);
-  const carried = own ? undefined : latestAtOrBefore(rows, currentYear);
   if (own) {
     const g = Number(own.goal_gci) || 0;
     parts.push(`${currentYear}: ${g > 0 ? fmtCurrency(g) : "no goal (set to $0)"}`);
-  } else if (carried && Number(carried.goal_gci) > 0) {
-    parts.push(`${currentYear}: ${fmtCurrency(Number(carried.goal_gci))} (carried forward from ${carried.year})`);
+  } else {
+    parts.push(`${currentYear}: no goal set`);
   }
 
   for (const r of [...rows].filter((r) => r.year > currentYear).sort((a, b) => a.year - b.year)) {

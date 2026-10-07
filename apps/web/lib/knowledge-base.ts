@@ -37,7 +37,7 @@ Platform for Canadian real estate agents: income, expenses, pipeline, clients, t
 
 **SOCIAL STUDIO** — Instagram month-in-review carousel builder with templates and Canva export.
 
-**SETTINGS** — Province, business structure, compensation plan (simple_split | real — see COMMISSION STRUCTURE), split (70/30-100/0), brokerage fees (monthly+per-deal+cap+post-cap), cash reserve, experience years, GCI goal per calendar year (pick the year; this year's goal drives pace/projections, next year's takes over Jan 1, $0 = no goal that year, a year without its own goal carries the latest earlier one forward), vehicle %, home office method/sqft, GST/HST registration, filing frequency, brokerage withholds HST toggle, seasonality, AI Voice Guide, estimated weekly hours + vacation weeks (unlocks Time Value card on Overhead).
+**SETTINGS** — Province, business structure, compensation plan (simple_split | real — see COMMISSION STRUCTURE), split (70/30-100/0), brokerage fees (monthly+per-deal+cap+post-cap), cash reserve, experience years, GCI goal per calendar year (pick the year; this year's goal drives pace/projections, next year's takes over Jan 1, $0 = no goal that year; years are separate, a year nobody set has no goal and nothing carries forward; the dashboard has a This year | Next year switch, and the next-year view is a planning view), vehicle %, home office method/sqft, GST/HST registration, filing frequency, brokerage withholds HST toggle, seasonality, AI Voice Guide, estimated weekly hours + vacation weeks (unlocks Time Value card on Overhead).
 
 **PROFILE** — Name, brokerage, avatar, 15 themes, dark mode, production stats.
 
