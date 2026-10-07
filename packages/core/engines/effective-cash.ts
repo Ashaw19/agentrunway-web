@@ -96,9 +96,10 @@ export interface EffectiveCashResult {
  * Accepts the narrow slice so both `computeEffectiveCashForSurvival` (which
  * has the full EffectiveCashInputs["settings"] type, a strict superset) and
  * `computeProjectedNetForTax` (which only needs the split/fee/brokerage
- * fields) can call it.
+ * fields) can call it. Exported for year-plan-engine (dashboard next-year
+ * view), so a planned year runs the identical split/fee chain.
  */
-function projectedAgentNet(
+export function projectedAgentNet(
   projectedGCI: number,
   settings: Pick<UserSettings, PlanSettingsKeys | "monthly_brokerage_fee">,
   projectedDealCount?: number,

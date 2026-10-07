@@ -139,6 +139,15 @@ import { survivalResult, riskColorBand, type SurvivalResult, type RiskColorBand 
 import { computeCashPosition, type CashPositionResult } from "@/lib/engines/cash-position-engine";
 import { compute as computeRunwayScore, SCORE_VERSION, bandColorHexForScore, type BusinessHealthReport, type RunwayScoreResult, type ScoreComponent } from "@/lib/engines/runway-score-engine";
 import { RunwayGauge } from "./runway-gauge";
+import { DashboardYearSwitch, NextYearGoalPrompt, NextYearPlan, type DashboardYearView } from "./next-year-plan";
+import {
+  type IncomeGoalRow,
+  incomeGoalCurrentYear,
+  goalForYear,
+  hasGoalRow,
+  saveIncomeGoal,
+  shouldPromptNextYearGoal,
+} from "@/lib/income-goals";
 import { generateInsights, type Insight } from "@/lib/engines/insights-engine";
 import { buildHealthReport } from "@/lib/engines/health-report";
 import {
@@ -217,6 +226,8 @@ interface Props {
   recurringExpYTD?: number;
   /** ISO timestamp the server loaded this data — drives the freshness line. */
   dataAsOf?: string;
+  /** income_goals rows (00169/00170): one goal per calendar year. */
+  incomeGoals?: IncomeGoalRow[];
 }
 
 function getTimeGreeting(): { greeting: string; emoji: string } {
@@ -321,9 +332,30 @@ export function DashboardContent({
   recurringExpMonthly = 0,
   recurringExpYTD = 0,
   dataAsOf,
+  incomeGoals: initialIncomeGoals = [],
 }: Props) {
   const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
+
+  // ── Year switch (this year | next year plan) ─────────────────────────
+  // Opens on this year every time; next year is a planning view built by
+  // next-year-plan.tsx from core/engines/year-plan-engine.
+  const goalCurrentYear = incomeGoalCurrentYear();
+  const [viewYear, setViewYear] = useState<DashboardYearView>("current");
+  const [incomeGoals, setIncomeGoals] = useState<IncomeGoalRow[]>(initialIncomeGoals);
+
+  async function saveNextYearGoal(amount: number): Promise<boolean> {
+    if (!settings?.user_id) return false;
+    const year = goalCurrentYear + 1;
+    const { ok } = await saveIncomeGoal(supabase, settings.user_id, year, amount);
+    if (!ok) {
+      toast.error("Couldn't save the goal. Try again.");
+      return false;
+    }
+    setIncomeGoals((prev) => [...prev.filter((r) => r.year !== year), { year, goal_gci: amount }]);
+    toast.success(amount > 0 ? `${year} goal set to ${fmtCurrency(amount)}` : `${year} set to no goal`);
+    return true;
+  }
 
   // Re-sync server data when the user returns to the tab — no polling cost, so a
   // deal logged on mobile or in another tab reflects here on focus instead of
@@ -2465,6 +2497,30 @@ export function DashboardContent({
 
   return (
     <div className="space-y-6">
+      {settings && (
+        <DashboardYearSwitch view={viewYear} onChange={setViewYear} currentYear={goalCurrentYear} />
+      )}
+
+      {viewYear === "next" && settings ? (
+        <NextYearPlan
+          year={goalCurrentYear + 1}
+          currentYear={goalCurrentYear}
+          goal={hasGoalRow(incomeGoals, goalCurrentYear + 1) ? goalForYear(incomeGoals, goalCurrentYear + 1) : null}
+          onSaveGoal={saveNextYearGoal}
+          pipelineDeals={pipelineDeals}
+          historyItems={historyItems}
+          ytdGCI={ytdGCI}
+          ytdDealCount={ytdDealCount}
+          seasonalWeights={seasonalWeights}
+          seasonalSource={seasonalSource}
+          settings={settings}
+          monthlyRecurring={monthlyRecurring}
+        />
+      ) : (
+      <>
+      {settings && shouldPromptNextYearGoal(incomeGoals) && (
+        <NextYearGoalPrompt year={goalCurrentYear + 1} onOpen={() => setViewYear("next")} />
+      )}
       {/* Annual Review Modal */}
       {showAnnualReview && (
         <AnnualReview
@@ -2990,6 +3046,9 @@ export function DashboardContent({
           .filter((t) => t.status === "closed")
           .map((t) => ({ sale_price: t.sale_price, commission_pct: t.commission_pct, date: t.date }))}
       />
+
+      </>
+      )}
 
       {/* AI Profile floating prompt */}
       {settings?.user_id && (

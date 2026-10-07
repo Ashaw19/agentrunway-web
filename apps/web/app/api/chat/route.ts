@@ -21,7 +21,8 @@ import { requirePro } from "@/lib/require-pro";
 import { computeGCI, computeWeightedGCI, activePipelineDeals } from "@/lib/types/database";
 import { computePlanGross, describeSplit } from "@/lib/engines/real-compensation-engine";
 import { fmtCurrency } from "@/lib/formatters";
-import { describeIncomeGoals, incomeGoalCurrentYear } from "@/lib/income-goals";
+import { describeIncomeGoals, incomeGoalCurrentYear, goalForYear, hasGoalRow } from "@/lib/income-goals";
+import { pipelineLinedUpForYear } from "@agent-runway/core/engines/year-plan-engine";
 import {
   seasonalFractionElapsed,
   paceVsGoalPercent,
@@ -278,7 +279,7 @@ export async function POST(req: NextRequest) {
     const settled = await Promise.allSettled([
         supabase.from("user_settings").select("*").eq("user_id", user.id).maybeSingle(),                                                                  // 0
         supabase.from("transactions").select("date, sale_price, commission_pct, team_split_pct, gci_override").eq("user_id", user.id).eq("status", "closed"), // 1
-        supabase.from("pipeline_deals").select("estimated_price, estimated_commission_pct, probability_override, stage").eq("user_id", user.id),       // 2
+        supabase.from("pipeline_deals").select("estimated_price, estimated_commission_pct, probability_override, stage, expected_close_date").eq("user_id", user.id), // 2
         supabase.from("expense_categories").select("key, expense_items(key, ytd_amount, monthly_recurring)").eq("user_id", user.id),                   // 3
         supabase.from("clients").select("id", { count: "exact", head: true }).eq("user_id", user.id).is("archived_at", null).in("status", ["boarding", "in_flight"]).lt("last_contact_at", new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()), // 4
         supabase.from("clients").select("id", { count: "exact", head: true }).eq("user_id", user.id).is("archived_at", null).in("status", ["boarding", "in_flight"]).lt("last_contact_at", new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString()), // 5
@@ -402,6 +403,13 @@ export async function POST(req: NextRequest) {
         settings.goal_gci > 0 ? `Annual GCI Goal (${incomeGoalCurrentYear()}): ${fmtCurrency(settings.goal_gci)}` : `Annual GCI Goal (${incomeGoalCurrentYear()}): Not set`,
         // Goals are per calendar year (Settings → Annual Goal); future years included.
         describeIncomeGoals(incomeGoalRows ?? [], incomeGoalCurrentYear()),
+        // Dashboard "next year plan" view (year-plan-engine): what's already lined up.
+        (() => {
+          const ny = incomeGoalCurrentYear() + 1;
+          const lined = pipelineLinedUpForYear(pipeline ?? [], ny);
+          const goal = hasGoalRow(incomeGoalRows ?? [], ny) ? goalForYear(incomeGoalRows ?? [], ny) : null;
+          return `Next-year plan (${ny}): goal ${goal == null ? "not set" : goal > 0 ? fmtCurrency(goal) : "none ($0)"}; ${fmtCurrency(lined.weightedGCI)} probability-weighted GCI already lined up from ${lined.dealCount} active deal(s) expected to close in ${ny}${lined.undatedCount > 0 ? ` (${lined.undatedCount} active deal(s) have no expected close date)` : ""}`;
+        })(),
         settings.experience_years != null ? `Years of Experience: ${settings.experience_years}` : null,
         expensesYTD > 0 ? `YTD Business Expenses: ${fmtCurrency(expensesYTD)}` : null,
         monthlyRecurring > 0 ? `Monthly Recurring Expenses: ${fmtCurrency(monthlyRecurring)}` : null,
