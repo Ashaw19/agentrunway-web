@@ -561,6 +561,11 @@ function QuickCaptureSheet({
             meeting: t("quickCapture.activityTypes.meeting"),
             note: t("quickCapture.activityTypes.note"),
           }} />
+          {activityType === "note" && (
+            <Text style={{ ...Type.caption, color: c.textMuted, marginTop: Space.xs }}>
+              {t("quickCapture.noteNotContact")}
+            </Text>
+          )}
         </View>
 
         <View>

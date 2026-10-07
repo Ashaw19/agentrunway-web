@@ -16,7 +16,8 @@
 #   2. ci-bootstrap.sql: extensions prod enabled from the dashboard, plus the
 #      storage tables the Storage API service creates in real Supabase.
 #   3. Applies apps/web/supabase/migrations/*.sql in filename order; any failure fails the run.
-#   4. Runs plpgsql-check.sql; any error-level finding fails the run.
+#   4. Runs behavior-checks.sql (trigger outcomes, e.g. notes aren't contact).
+#   5. Runs plpgsql-check.sql; any error-level finding fails the run.
 #
 # Needs Docker. No secrets, never touches prod. Run locally:
 #   bash scripts/db/check-functions.sh
@@ -83,6 +84,15 @@ if [ "${#failed[@]}" -gt 0 ]; then
   printf '  %s\n' "${failed[@]}"
   exit 1
 fi
+
+# Behaviour checks: trigger outcomes that static analysis can't see
+# (e.g. a Note must not count as contact, 00171).
+if ! output=$(run_psql -f /checks/behavior-checks.sql 2>&1); then
+  echo "$output"
+  echo "::error::$(echo "$output" | grep -m1 -oE 'behaviour check: .*' || echo 'behaviour checks failed')"
+  exit 1
+fi
+echo "$output"
 
 if ! output=$(run_psql -f /checks/plpgsql-check.sql 2>&1); then
   echo "$output"

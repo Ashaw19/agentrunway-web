@@ -114,6 +114,7 @@
       "showing": "Visite",
       "meeting": "Rencontre",
       "note": "Note"
-    }
+    },
+    "noteNotContact": "Les notes ne comptent pas comme un contact. Choisissez Appel, Texto, Visite ou Rencontre si vous lui avez parlé."
   }
 }

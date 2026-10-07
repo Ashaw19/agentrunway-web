@@ -132,7 +132,8 @@
       "text": "Text",
       "showing": "Showing",
       "meeting": "Meeting"
-    }
+    },
+    "noteNotContact": "Notes don't count as contact. Pick Call, Text, Showing or Meeting if you spoke with them."
   },
   "legal": {
     "title": "Legal & Privacy",

@@ -454,11 +454,11 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
 
     // ── LOG CONTACT ACTIVITY ─────────────────────────────────────────────────
     logContactActivity: tool({
-      description: "Log a contact activity (call, email, text, showing, meeting, offer, or note) for a client. Also automatically updates the client's last contact date. Use this whenever the agent mentions they contacted, met, or interacted with a client.",
+      description: "Log a contact activity (call, email, text, showing, meeting, offer, or note) for a client. Any type except note also updates the client's last contact date (a note is an internal memo, not contact, so it doesn't). Use this whenever the agent mentions they contacted, met, or interacted with a client, and pick the type that matches how they reached them; use note only for a memo when nobody was contacted.",
       inputSchema: z.object({
         clientId: z.string().uuid().describe("The client UUID from searchClients"),
         clientName: z.string().describe("Client name for confirmation message"),
-        type: z.enum(ACTIVITY_TYPES).describe("Type of activity"),
+        type: z.enum(ACTIVITY_TYPES).describe("Type of activity. 'note' = internal memo, doesn't count as contact"),
         description: z.string().describe("Brief description of the activity"),
         activityDate: z.string().optional().describe("ISO date string (YYYY-MM-DD) — defaults to today if not provided"),
       }),
