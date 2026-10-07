@@ -10,15 +10,19 @@ import {
   ArrowRight,
   Terminal,
   Lock,
+  Target,
+  type LucideIcon,
 } from "lucide-react";
 import { MarketingNav } from "@/components/marketing-nav";
 import { MarketingFooter } from "@/components/marketing-footer";
 import { webPageSchema, breadcrumbSchema } from "@/lib/schema";
+import { MCP_TOOL_CATALOG, MCP_TOOL_COUNTS } from "@/lib/mcp-server/tool-catalog";
+
+const { total: TOOL_TOTAL, read: READ_TOOLS, write: WRITE_TOOLS } = MCP_TOOL_COUNTS;
 
 export const metadata: Metadata = {
-  title: "MCP Server — Connect AI to Your Real Estate Data",
-  description:
-    "Connect Claude, Cursor, or any MCP-compatible AI assistant to your Agent Runway business data. 16 tools for transactions, pipeline, CRM, expenses, forecasts, and Canadian tax estimates.",
+  title: "MCP Server: Connect AI to Your Real Estate Data",
+  description: `Connect an MCP client such as Claude or Cursor to your Agent Runway business data. ${READ_TOOLS} read tools for transactions, pipeline, CRM, expenses, forecasts and Canadian tax estimates, plus ${WRITE_TOOLS} write tools for pipeline opportunities.`,
   openGraph: {
     url: "https://agentrunway.ca/mcp",
     images: [{ url: "/og-image-v2.png", width: 1200, height: 630 }],
@@ -29,12 +33,10 @@ export const metadata: Metadata = {
 };
 
 const mcpWebPage = webPageSchema({
-  name:
-    "Agent Runway MCP Server — Connect AI to Your Real Estate Data",
-  description:
-    "The Agent Runway MCP server exposes 16 read-only tools for transactions, pipeline, CRM, expenses, forecasts, and Canadian tax estimates. Compatible with Claude, Cursor, and any MCP client.",
+  name: "Agent Runway MCP Server: Connect AI to Your Real Estate Data",
+  description: `The Agent Runway MCP server has ${TOOL_TOTAL} tools. ${READ_TOOLS} read transactions, pipeline, CRM, expenses, forecasts and Canadian tax estimates. ${WRITE_TOOLS} write tools create and update pipeline opportunities. It works with MCP clients that can send a Bearer token, such as Claude or Cursor.`,
   url: "/mcp",
-  lastReviewed: "2026-04-16",
+  lastReviewed: "2026-10-07",
 });
 
 const mcpBreadcrumb = breadcrumbSchema([
@@ -42,64 +44,17 @@ const mcpBreadcrumb = breadcrumbSchema([
   { name: "MCP Server", url: "/mcp" },
 ]);
 
-const TOOLS = [
-  {
-    category: "Analytics",
-    icon: BarChart3,
-    iconClass: "text-blue-400",
-    items: [
-      { name: "get_dashboard_kpis", desc: "YTD GCI, transactions, expenses, pipeline, goal progress" },
-      { name: "get_runway_score", desc: "0-100 business health grade (A+ to F)" },
-      { name: "get_forecast", desc: "Projected year-end GCI from pace + pipeline" },
-      { name: "get_tax_estimate", desc: "Canadian income tax with CPP, federal/provincial, quarterly installments" },
-    ],
-  },
-  {
-    category: "Transactions",
-    icon: Receipt,
-    iconClass: "text-emerald-400",
-    items: [
-      { name: "get_transactions", desc: "Closed deals with address, price, GCI, side, date" },
-      { name: "get_transaction_summary", desc: "Aggregate GCI and volume by year" },
-    ],
-  },
-  {
-    category: "Pipeline",
-    icon: Zap,
-    iconClass: "text-amber-400",
-    items: [
-      { name: "get_pipeline", desc: "Active deals with stage, probability, weighted GCI" },
-      { name: "get_pipeline_forecast", desc: "Stage-by-stage breakdown with goal coverage ratio" },
-    ],
-  },
-  {
-    category: "CRM",
-    icon: Users,
-    iconClass: "text-purple-400",
-    items: [
-      { name: "get_clients", desc: "Client list with flight status, contact info, property interest" },
-      { name: "get_client_detail", desc: "Full profile with activities and pipeline deals" },
-    ],
-  },
-  {
-    category: "Expenses & Mileage",
-    icon: Receipt,
-    iconClass: "text-rose-400",
-    items: [
-      { name: "get_expenses", desc: "YTD expenses by category with recurring totals" },
-      { name: "get_mileage_summary", desc: "Business mileage log with CRA deduction" },
-    ],
-  },
-  {
-    category: "Outreach & Settings",
-    icon: MessageSquare,
-    iconClass: "text-cyan-400",
-    items: [
-      { name: "get_flight_control_priorities", desc: "Outreach queue with AI-drafted messages" },
-      { name: "get_user_settings", desc: "Profile, goals, business settings, subscription" },
-    ],
-  },
-];
+// Icon styling per catalog group. Tool names, descriptions and read/write
+// labels come from MCP_TOOL_CATALOG, which a test checks against the server.
+const GROUP_STYLE: Record<string, { icon: LucideIcon; iconClass: string }> = {
+  Analytics: { icon: BarChart3, iconClass: "text-blue-400" },
+  Transactions: { icon: Receipt, iconClass: "text-emerald-400" },
+  Pipeline: { icon: Zap, iconClass: "text-amber-400" },
+  Opportunities: { icon: Target, iconClass: "text-orange-400" },
+  CRM: { icon: Users, iconClass: "text-purple-400" },
+  "Expenses & Mileage": { icon: Receipt, iconClass: "text-rose-400" },
+  "Outreach & Settings": { icon: MessageSquare, iconClass: "text-cyan-400" },
+};
 
 export default function McpPage() {
   return (
@@ -129,10 +84,11 @@ export default function McpPage() {
               </span>
             </h1>
             <p className="mt-6 text-lg leading-8 text-slate-300">
-              Agent Runway&apos;s MCP server lets Claude, Cursor, and any
-              MCP-compatible AI assistant query your business data directly.
-              16 tools covering transactions, pipeline, CRM, expenses,
-              forecasts, and Canadian tax estimates.
+              Agent Runway&apos;s MCP server lets an AI assistant such as
+              Claude or Cursor work with your business data directly.{" "}
+              {READ_TOOLS} tools read your transactions, pipeline, CRM,
+              expenses, forecasts and Canadian tax estimates. {WRITE_TOOLS}{" "}
+              tools create or update pipeline opportunities.
             </p>
             <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
               <Link
@@ -146,7 +102,7 @@ export default function McpPage() {
                 href="#tools"
                 className="inline-flex items-center gap-2 rounded-lg border border-slate-700 px-6 py-3 text-sm font-semibold text-slate-300 transition hover:border-slate-500 hover:text-white"
               >
-                View All 16 Tools
+                View All {TOOL_TOTAL} Tools
               </a>
             </div>
           </div>
@@ -169,7 +125,7 @@ export default function McpPage() {
                 {
                   step: "2",
                   title: "Add the Server URL",
-                  desc: "Point your MCP client to our endpoint with your access token as Bearer auth.",
+                  desc: "Point your MCP client at our endpoint and send your Agent Runway session token as a Bearer token. It expires after about an hour.",
                   icon: Terminal,
                 },
                 {
@@ -228,9 +184,12 @@ export default function McpPage() {
                 </div>
               </div>
               <p className="mt-4 text-xs text-slate-500">
-                Your access token is the Supabase JWT from your Agent Runway
-                session. Pro subscription required. All queries are
-                RLS-enforced — you only see your own data.
+                The token is the Supabase access token (JWT) from a signed-in
+                Agent Runway session. It expires after about an hour. The app
+                doesn&apos;t show it on any screen, so you have to copy a fresh
+                one from a signed-in browser session. There are no API keys,
+                and OAuth sign-in is not available. Pro access required. Every
+                query runs as you, so row-level security applies.
               </p>
             </div>
           </div>
@@ -240,36 +199,49 @@ export default function McpPage() {
         <section id="tools" className="bg-slate-900/50 px-6 py-20">
           <div className="mx-auto max-w-5xl">
             <h2 className="mb-4 text-center text-3xl font-bold text-white">
-              16 Tools, One Server
+              {TOOL_TOTAL} Tools, One Server
             </h2>
             <p className="mx-auto mb-12 max-w-2xl text-center text-slate-400">
-              Every tool returns structured JSON. Your AI assistant knows
-              exactly what to call based on your question.
+              Every tool returns JSON. {READ_TOOLS} tools only read data. The{" "}
+              {WRITE_TOOLS} marked <span className="text-amber-300">write</span>{" "}
+              create or change pipeline opportunities, and
+              mark_opportunity_lost is flagged destructive.
             </p>
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {TOOLS.map((group) => (
-                <div
-                  key={group.category}
-                  className="rounded-xl border border-slate-800 bg-slate-900 p-5"
-                >
-                  <div className="mb-3 flex items-center gap-2">
-                    <group.icon className={`h-5 w-5 ${group.iconClass}`} />
-                    <h3 className="font-semibold text-white">
-                      {group.category}
-                    </h3>
+              {MCP_TOOL_CATALOG.map((group) => {
+                const { icon: Icon, iconClass } =
+                  GROUP_STYLE[group.category] ?? GROUP_STYLE.Analytics;
+                return (
+                  <div
+                    key={group.category}
+                    className="rounded-xl border border-slate-800 bg-slate-900 p-5"
+                  >
+                    <div className="mb-3 flex items-center gap-2">
+                      <Icon className={`h-5 w-5 ${iconClass}`} />
+                      <h3 className="font-semibold text-white">
+                        {group.category}
+                      </h3>
+                    </div>
+                    <ul className="space-y-2">
+                      {group.tools.map((tool) => (
+                        <li key={tool.name}>
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <code className="text-xs text-blue-400">
+                              {tool.name}
+                            </code>
+                            {tool.access === "write" && (
+                              <span className="rounded border border-amber-500/40 bg-amber-500/10 px-1.5 text-[10px] font-medium uppercase tracking-wide text-amber-300">
+                                {tool.destructive ? "write, destructive" : "write"}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-slate-500">{tool.desc}</p>
+                        </li>
+                      ))}
+                    </ul>
                   </div>
-                  <ul className="space-y-2">
-                    {group.items.map((tool) => (
-                      <li key={tool.name}>
-                        <code className="text-xs text-blue-400">
-                          {tool.name}
-                        </code>
-                        <p className="text-xs text-slate-500">{tool.desc}</p>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </section>
@@ -279,16 +251,16 @@ export default function McpPage() {
           <div className="mx-auto max-w-3xl text-center">
             <Shield className="mx-auto mb-4 h-10 w-10 text-emerald-400" />
             <h2 className="mb-4 text-2xl font-bold text-white">
-              Secure by Design
+              Security
             </h2>
             <div className="grid gap-4 text-left sm:grid-cols-2">
               {[
-                "Bearer token authentication (Supabase JWT)",
-                "Row-level security — only your data, always",
-                "Pro subscription gate — no anonymous access",
-                "90-day auto-purge on usage logs",
-                "No sensitive financial credentials exposed",
-                "CORS-enabled for any MCP client",
+                "Bearer token auth with your session token (Supabase JWT, expires after about an hour)",
+                "Queries run as you, so row-level security applies",
+                "Pro access required, no anonymous access",
+                "Usage logs deleted after 90 days",
+                "No sensitive financial credentials returned",
+                `${WRITE_TOOLS} write tools, labelled so your MCP client can ask before running them`,
               ].map((point) => (
                 <div
                   key={point}

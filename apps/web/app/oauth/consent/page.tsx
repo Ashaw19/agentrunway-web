@@ -108,14 +108,18 @@ export default async function OAuthConsentPage({ searchParams }: PageProps) {
               ))}
               <li className="flex items-center gap-2 text-sm">
                 <span className="text-[#1A6EF0]">✓</span>
-                <span>Read your Agent Runway business data (read-only)</span>
+                <span>Read your Agent Runway business data, including client contact details</span>
+              </li>
+              <li className="flex items-center gap-2 text-sm">
+                <span className="text-[#1A6EF0]">✓</span>
+                <span>Create and update your pipeline opportunities, including marking them lost</span>
               </li>
             </ul>
           </div>
 
           <p className="text-xs text-muted-foreground">
-            Your data is never stored by the connecting application. You can revoke access at any
-            time in your Agent Runway settings.
+            Agent Runway can&apos;t control what the connecting application stores. To remove its
+            access later, email support@agentrunway.ca.
           </p>
         </div>
 

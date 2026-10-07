@@ -7,7 +7,8 @@
  * Transport:  Streamable HTTP — manual JSON-RPC 2.0 handler
  *             (WebStandardStreamableHTTPServerTransport has a Deno
  *              subpath resolution issue; manual impl is simpler here)
- * Auth:       Bearer token (Supabase OAuth 2.1 access token)
+ * Auth:       Bearer token: a Supabase session access token (JWT, ~1h expiry).
+ *             No API keys; the OAuth server is disabled in supabase/config.toml.
  * Gate:       Pro subscription or beta org membership required
  * Protocol:   MCP 2024-11-05
  * URL:        https://wlxkvnbncfzkmxzexgxt.supabase.co/functions/v1/mcp-server
