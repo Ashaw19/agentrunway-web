@@ -3,11 +3,11 @@
     "agent-runway": {
       "url": "https://wlxkvnbncfzkmxzexgxt.supabase.co/functions/v1/mcp-server",
       "name": "Agent Runway",
-      "description": "Real estate business analytics for Canadian agents — transactions, pipeline, CRM, expenses, forecasts, and AI insights.",
+      "description": "Business data for Canadian real estate agents: transactions, pipeline, CRM, expenses, forecasts. 17 read tools and 4 write tools that create and update pipeline opportunities.",
       "transport": "streamable-http",
       "authentication": {
         "type": "bearer",
-        "instructions": "Use your Agent Runway access token (Supabase JWT). Requires a Pro subscription."
+        "instructions": "Send the Supabase access token (JWT) from a signed-in Agent Runway session as a Bearer token. It expires after about an hour. Requires Pro access. There are no API keys, and OAuth is not available."
       }
     }
   }

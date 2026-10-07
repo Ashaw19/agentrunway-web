@@ -28,6 +28,7 @@ import {
   type ProtocolTool,
   type UsageLogger,
 } from "../../../supabase/functions/mcp-server/protocol";
+import { readRegisteredTools } from "./registry-source";
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
@@ -37,51 +38,22 @@ const CORS_HEADERS = {
 };
 
 /**
- * Real tool-registry composition, pinned for the count assertion:
- *   get_server_info (1, always-available)
- *   + analytics (5): get_dashboard_kpis, get_runway_score, get_forecast,
- *                    get_tax_estimate, get_hst_status
- *   + transactions (2): get_transactions, get_transaction_summary
- *   + pipeline (2): get_pipeline, get_pipeline_forecast
- *   + crm (2): get_clients, get_client_detail
- *   + expenses (2): get_expenses, get_mileage_summary
- *   + outreach (1): get_flight_control_priorities
- *   + settings (1): get_user_settings
- *   = 16 tools total.
- *
- * Verified 2026-06-26 against tools/*.ts (grep of `name:`) + tools/index.ts.
- * NOTE: an earlier investigation finding said "17"; tools/index.ts's `phase`
- * string was corrected from "17 tools live" to "16 tools live" to match the
- * real count (16) verified here.
+ * The stub registry mirrors the real one: tool names and readOnlyHint are read
+ * from the edge function source (see registry-source.ts), so this count can't
+ * go stale the way the old hand-pinned list did (it said 16 after the server
+ * grew to 21 tools, 4 of them write tools).
  */
-const EXPECTED_TOOL_NAMES = [
-  "get_server_info",
-  "get_dashboard_kpis",
-  "get_runway_score",
-  "get_forecast",
-  "get_tax_estimate",
-  "get_hst_status",
-  "get_transactions",
-  "get_transaction_summary",
-  "get_pipeline",
-  "get_pipeline_forecast",
-  "get_clients",
-  "get_client_detail",
-  "get_expenses",
-  "get_mileage_summary",
-  "get_flight_control_priorities",
-  "get_user_settings",
-] as const;
-
-const EXPECTED_TOOL_COUNT = 16;
+const REGISTERED_TOOLS = readRegisteredTools();
+const EXPECTED_TOOL_NAMES = REGISTERED_TOOLS.map((t) => t.name);
+const EXPECTED_TOOL_COUNT = EXPECTED_TOOL_NAMES.length;
 
 /** Build a stub registry mirroring the real registry's shape + count. */
 function buildStubRegistry(): ProtocolTool[] {
-  return EXPECTED_TOOL_NAMES.map((name) => ({
+  return REGISTERED_TOOLS.map(({ name, readOnly }) => ({
     name,
     description: `stub ${name}`,
     inputSchema: { type: "object", properties: {}, additionalProperties: false },
-    annotations: { readOnlyHint: true },
+    annotations: { readOnlyHint: readOnly },
     handler: async () => ({
       content: [{ type: "text" as const, text: JSON.stringify({ tool: name, ok: true }) }],
     }),
@@ -153,7 +125,7 @@ describe("handleRpcMessage — initialize", () => {
 // ── tools/list ─────────────────────────────────────────────────────────────────
 
 describe("handleRpcMessage — tools/list", () => {
-  it("returns exactly 16 tools (the real registry count) with the expected names", async () => {
+  it("returns every registered tool, in registry order", async () => {
     const { logger } = buildLoggerStub();
     const registry = buildStubRegistry();
     const msg: JsonRpcRequest = { jsonrpc: "2.0", id: "tl", method: "tools/list" };
@@ -164,7 +136,7 @@ describe("handleRpcMessage — tools/list", () => {
     if (result.kind !== "response") return;
     const tools = (result.body.result as { tools: Array<{ name: string }> }).tools;
     expect(tools).toHaveLength(EXPECTED_TOOL_COUNT);
-    expect(tools.map((t) => t.name)).toEqual([...EXPECTED_TOOL_NAMES]);
+    expect(tools.map((t) => t.name)).toEqual(EXPECTED_TOOL_NAMES);
   });
 
   it("faithfully returns whatever count the registry contains (no hidden hardcode)", async () => {
