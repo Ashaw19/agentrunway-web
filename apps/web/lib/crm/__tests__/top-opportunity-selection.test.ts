@@ -96,3 +96,24 @@ describe("clientLifetimeGci", () => {
     expect(map.has("b")).toBe(false);
   });
 });
+
+describe("sphere check-in cap (2026-10-07)", () => {
+  it("never shows more than 2 sphere cards, even with empty slots", () => {
+    const picked = selectTopCandidates(
+      [
+        cand("s1", "sphere_check_in", 30), cand("s2", "sphere_check_in", 30),
+        cand("s3", "sphere_check_in", 30), cand("s4", "sphere_check_in", 30),
+      ],
+      new Map(),
+    );
+    expect(ids(picked)).toEqual(["s1:sphere_check_in", "s2:sphere_check_in"]);
+  });
+
+  it("ranks sphere below idle past clients", () => {
+    const picked = selectTopCandidates(
+      [cand("s1", "sphere_check_in", 30), cand("i1", "idle_client", 38), cand("l1", "lead_going_quiet", 60)],
+      new Map(),
+    );
+    expect(ids(picked)).toEqual(["l1:lead_going_quiet", "i1:idle_client", "s1:sphere_check_in"]);
+  });
+});

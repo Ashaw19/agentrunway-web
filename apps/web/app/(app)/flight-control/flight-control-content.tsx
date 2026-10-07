@@ -24,7 +24,7 @@ import {
   Handshake, Heart, Repeat2,
   Flower2, Leaf, PartyPopper, Receipt,
   RefreshCw, Timer, Lightbulb, ArrowRight,
-  AlertTriangle, Brain, Zap, Phone,
+  AlertTriangle, Brain, Zap, Phone, PhoneCall,
 } from "lucide-react";
 import type { OutreachQueueItem, OutreachOpportunityType, TopOpportunity, NewsletterQueue, ActivityType, ClientStatus } from "@/lib/types/database";
 import { ACTIVITY_TYPE_LABELS, ACTIVITY_TYPE_ICONS, CLIENT_STATUS_LABELS } from "@/lib/types/database";
@@ -66,6 +66,9 @@ const OPTYPE_ICON: Record<OutreachOpportunityType, React.ElementType> = {
   educational_value_inactive: Lightbulb,
   condition_firming:      CheckCircle2,
   scheduled_date_approaching: Timer,
+  // Scan call cards (2026-10-07)
+  lead_going_quiet:       PhoneCall,
+  sphere_check_in:        Users,
 };
 
 // Opportunity score is a HEALTH/magnitude number — it follows the §9.1 score
@@ -239,12 +242,16 @@ function OpportunityCard({
         </p>
       </div>
 
-      {/* Call-only — CASL implied consent for email has lapsed */}
+      {/* Call-only card — reason from call_reason (CASL lapsed / active client / sphere) */}
       {isCallOnly && (
         <div className="flex items-start gap-2 pl-0.5">
           <Phone className="h-3.5 w-3.5 mt-0.5 shrink-0 text-muted-foreground" />
           <p className="text-[12px] text-muted-foreground leading-relaxed">
-            Call, don&apos;t email. Their last deal closed over 2 years ago, so CASL implied consent for email has lapsed.
+            {opportunity.call_reason === "personal_check_in"
+              ? "Call or text. A personal check-in works better than an email for an active client."
+              : opportunity.call_reason === "sphere"
+                ? "Call. You haven't done a deal together, so there's no email consent on record."
+                : "Call, don't email. Their last deal closed over 2 years ago, so CASL implied consent for email has lapsed."}
           </p>
         </div>
       )}

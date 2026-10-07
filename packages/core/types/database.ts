@@ -701,7 +701,10 @@ export type OutreachOpportunityType =
   | "mortgage_renewal_finance"  // Mortgage context surfaced in memory + finance-relevant timing
   | "educational_value_inactive"// Idle client + known topic of interest — value-add touchpoint
   | "condition_firming"         // Pipeline deal moving from conditional to firm
-  | "scheduled_date_approaching"; // Client in Scheduled stage, future-intent date approaching (within 30d)
+  | "scheduled_date_approaching" // Client in Scheduled stage, future-intent date approaching (within 30d)
+  // Scan call cards (2026-10-07) — Scan-only, call-first, never drafted as email
+  | "lead_going_quiet"          // Boarding / In-Flight, 14+ days since last contact
+  | "sphere_check_in";          // Cruising, no deal ever, 90+ days since contact (max 2 per scan)
 export type OutreachStatus          = "draft" | "ready" | "sent" | "skipped";
 
 export interface OutreachQueueItem {
@@ -741,8 +744,10 @@ export interface TopOpportunity {
   why_now:           string;           // timing justification
   suggested_angle:   string;           // practical approach recommendation
   context_level:     "sensitive" | "sparse" | "rich";
-  /** "call" when CASL implied consent from the client's last deal has lapsed — no email draft. */
+  /** "call" = no email draft for this card; `call_reason` says why. */
   contact_channel:   "email" | "call";
+  /** Why a call card is call-only: CASL lapsed, a personal check-in on an active client, or a sphere contact. */
+  call_reason?:      "casl_lapsed" | "personal_check_in" | "sphere" | null;
   client_record_id:  string | null;
   context:           Record<string, unknown>; // pass-through for optional drafting
   financial_impact:  string;                  // 1-2 sentence business impact explanation
