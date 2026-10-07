@@ -28,6 +28,9 @@ import { FounderStorySection } from "@/components/founder-story-section";
 
 export const metadata: Metadata = {
   title: "Know Where Your Business Stands",
+  // Without this, /index and ?ref= / ?utm_ copies of the homepage gave Google
+  // no preferred URL. Matches the sitemap's homepage entry.
+  alternates: { canonical: "https://agentrunway.ca/" },
   description:
     "Agent Runway connects your income, taxes, expenses, clients, and pipeline into one system — so you always know where you stand and what to do next. Built for Canadian real estate agents.",
   openGraph: {
