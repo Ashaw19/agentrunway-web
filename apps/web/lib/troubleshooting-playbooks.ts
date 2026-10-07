@@ -781,7 +781,7 @@ Flight Control also includes a newsletter builder for mass updates (market repor
 3. Cron may not have run yet today — check timing
 
 **"Scan only shows a few opportunities" / "Why won't other contacts pop up?"**
-1. Scan Now shows up to 5 cards, one per client. Dated signals come first (birthdays, closing anniversaries, post-close follow-ups, condition dates). Idle past clients (no deal in 18+ months) and repeat-client milestones fill the remaining slots.
+1. Scan Now shows up to 5 cards, one per client. Dated signals and active leads/clients going quiet (Boarding or In-Flight, 14+ days since contact) come first. Idle past clients (no deal in 18+ months) and repeat-client milestones fill the remaining slots, then up to 2 sphere check-ins (Cruising contacts with no deal, 90+ days since contact). Quiet-lead and sphere cards are call cards: no email draft. Dismissing a quiet lead hides it for the week; dismissing a sphere contact hides it for the quarter.
 2. A contact with no closed deal, no birthdate and no first-contact date gives Flight Control nothing to work from. Adding birthdates or linking their deals brings them in.
 3. Anyone contacted in the last 14 days (a logged CRM activity, a "Log contact" from a Flight Control card, or a draft marked sent) is held back, so working through the list rotates new people in. Birthday and condition-date cards show regardless.
 

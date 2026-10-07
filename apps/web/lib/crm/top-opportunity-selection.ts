@@ -1,3 +1,5 @@
+import { SPHERE_MAX_PER_SCAN } from "./scan-call-cards";
+
 /**
  * Card selection for Flight Control "Scan Now" (getTopOpportunities).
  *
@@ -14,6 +16,9 @@
 
 export const TOP_OPPORTUNITY_THRESHOLD = 55;
 export const MAX_TOP_OPPORTUNITIES     = 5;
+
+/** Per-type card limits. Sphere check-ins fill spare slots, never the whole list. */
+export const TYPE_CAPS: Readonly<Record<string, number>> = { sphere_check_in: SPHERE_MAX_PER_SCAN };
 
 export interface RankableCandidate {
   client_id:        string;
@@ -40,13 +45,17 @@ export function selectTopCandidates<T extends RankableCandidate>(
 
   const picked: T[] = [];
   const seen = new Set<string>();
+  const perType = new Map<string, number>();
   for (const c of ranked) {
     if (picked.length >= limit) break;
     if (seen.has(c.client_id)) continue;
+    const cap = TYPE_CAPS[c.opportunity_type];
+    if (cap !== undefined && (perType.get(c.opportunity_type) ?? 0) >= cap) continue;
     // Seasonal campaigns are broadcasts (the Newsletters tab owns them), not
     // "who should I contact" — they never take a backfill slot.
     if (scoreOf(c) < TOP_OPPORTUNITY_THRESHOLD && c.opportunity_type.startsWith("seasonal_")) continue;
     seen.add(c.client_id);
+    perType.set(c.opportunity_type, (perType.get(c.opportunity_type) ?? 0) + 1);
     picked.push(c);
   }
   return picked;
