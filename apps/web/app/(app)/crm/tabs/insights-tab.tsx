@@ -22,22 +22,10 @@ import type {
   ListingAppointment,
 } from "@/lib/types/database";
 import { computeSourceFunnel } from "@/lib/engines/crm-analytics-engine";
+import { repeatClientStats, type ClientGroup, type SourceStat } from "@/lib/crm/client-groups";
 import { CockpitStrip, CockpitStat, SEMANTIC, GOLD, magnitudePct } from "@/components/cockpit-ui";
 
 // ── Types ───────────────────────────────────────────────────────────────────
-
-type ClientGroup = {
-  clientId: string | null;
-  name: string;
-  deals: ClientRecord[];
-  totalGCI: number;
-  dealCount: number;
-  avgDeal: number;
-  lastDeal: string | null;
-  years: number[];
-};
-
-type SourceStat = { source: string; deals: number; totalGCI: number; avgGCI: number };
 
 // ── Props ───────────────────────────────────────────────────────────────────
 
@@ -87,17 +75,8 @@ export function InsightsTab({
         )
       : 0;
 
-  // Only clients who have closed at least one deal are eligible to be "repeat" clients.
-  // Using the full CRM roster as the denominator inflates the rate with contacts who
-  // have never transacted (pipeline leads, imports, etc.).
-  // A "closed" deal requires a non-null close_date and must not be collapsed.
-  const closedCount = (g: (typeof grouped)[number]) =>
-    g.deals.filter((d) => d.close_date !== null && d.condition_status !== "collapsed").length;
-  const transactionalClients = grouped.filter((g) => closedCount(g) >= 1);
-  const repeatCount = transactionalClients.filter((g) => closedCount(g) > 1).length;
-  const repeatRate = transactionalClients.length > 0
-    ? Math.round((repeatCount / transactionalClients.length) * 100)
-    : 0;
+  // Same repeat rate as the KPI strip (collapsed deals don't count).
+  const { transactionalClients, repeatCount, repeatRate } = repeatClientStats(grouped);
 
   // ── Listing Price Accuracy ──────────────────────────────────────────────────
   // Only computed when at least one appointment has both estimated and actual sale price.
@@ -404,7 +383,7 @@ export function InsightsTab({
       {/* ═══════════════════════════════════════════════════════════════════ */}
       {/* EXISTING: Repeat Client Rate                                       */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
-      {transactionalClients.length >= 2 && (
+      {transactionalClients >= 2 && (
         <Card
           className={cn(
             "rounded-2xl shadow-sm",
@@ -430,7 +409,7 @@ export function InsightsTab({
                 {repeatRate}%
               </p>
               <p className="text-sm text-muted-foreground pb-1">
-                {repeatCount} of {transactionalClients.length} clients with closed deals
+                {repeatCount} of {transactionalClients} clients with closed deals
               </p>
             </div>
             <div className="h-2 rounded-full bg-muted overflow-hidden">
@@ -455,14 +434,14 @@ export function InsightsTab({
                   Repeat Clients
                 </p>
                 {grouped
-                  .filter((g) => closedCount(g) > 1)
-                  .sort((a, b) => closedCount(b) - closedCount(a))
+                  .filter((g) => g.dealCount > 1)
+                  .sort((a, b) => b.dealCount - a.dealCount)
                   .slice(0, 8)
                   .map((g) => (
                     <div key={g.name} className="flex items-center justify-between text-xs">
                       <span className="text-foreground font-medium truncate mr-2">{g.name}</span>
                       <span className="text-muted-foreground shrink-0">
-                        {closedCount(g)} deals · {g.years.join(", ")}
+                        {g.dealCount} deals · {g.years.join(", ")}
                       </span>
                     </div>
                   ))}

@@ -107,7 +107,17 @@ import { fmtCurrency, fmtCompact } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 import { toNameSearch } from "@/lib/crm/client-identity";
 import { clusterDuplicateClients } from "@/lib/crm/duplicate-detection";
-import { computeHouseholdActivityIds } from "@/lib/crm/resolve-deal-clients";
+import {
+  achievementBadgeIds,
+  buildAllGroups,
+  buildClientGroup,
+  computeSourceStats,
+  firstClassThreshold as computeFirstClassThreshold,
+  repeatClientStats,
+  rewardBudgetBasisGci,
+  type AchievementBadgeId,
+  type ClientGroup,
+} from "@/lib/crm/client-groups";
 import { CLIENT_PANEL_DRAFT_TYPES } from "@/lib/crm/outreach-draft-actions";
 import { DuplicateReviewDialog } from "./duplicate-review-dialog";
 import type {
@@ -211,22 +221,9 @@ interface Props {
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type ClientGroup = {
-  clientId: string | null;
-  name: string;
-  deals: ClientRecord[];
-  totalGCI: number;
-  dealCount: number;
-  avgDeal: number;
-  lastDeal: string | null;
-  years: number[];
-  hasHouseholdActivity: boolean;
-};
-
 type SortCol = "name" | "deals" | "gci" | "avg" | "last" | "years" | "side";
 type SortDir = "asc" | "desc";
 type TabId = "clients" | "crm" | "insights" | "portfolio" | "flight_plans" | "pipeline";
-type SourceStat = { source: string; deals: number; totalGCI: number; avgGCI: number };
 
 // CSV import state
 interface CsvRow {
@@ -338,7 +335,6 @@ const LEAD_SOURCE_GROUPS: LeadSourceGroup[] = [
 
 // ── Achievement Badges ────────────────────────────────────────────────────────
 
-type AchievementBadgeId = "high_yield" | "frequent_flyer" | "silver_wings" | "tailwind_club" | "first_class";
 type RewardGenerosity   = "thoughtful" | "generous" | "lavish";
 
 interface AchievementBadge {
@@ -503,18 +499,8 @@ function AchievementBadgeIcon({
   );
 }
 
-function computeAchievements(
-  group: { deals: ClientRecord[]; dealCount: number; totalGCI: number },
-  firstClassThreshold: number,
-): AchievementBadge[] {
-  const badges: AchievementBadge[] = [];
-  if (group.deals.some((d) => d.gci >= 10_000)) badges.push(ACHIEVEMENT_DEFS.high_yield);
-  if (group.dealCount >= 2)  badges.push(ACHIEVEMENT_DEFS.frequent_flyer);
-  if (group.dealCount >= 5)  badges.push(ACHIEVEMENT_DEFS.silver_wings);
-  if (group.dealCount >= 10) badges.push(ACHIEVEMENT_DEFS.tailwind_club);
-  if (group.totalGCI >= firstClassThreshold && firstClassThreshold > 0)
-    badges.push(ACHIEVEMENT_DEFS.first_class);
-  return badges;
+function computeAchievements(group: ClientGroup, firstClassThreshold: number): AchievementBadge[] {
+  return achievementBadgeIds(group, firstClassThreshold).map((id) => ACHIEVEMENT_DEFS[id]);
 }
 
 // ── Priority style ────────────────────────────────────────────────────────────
@@ -524,91 +510,6 @@ const PRIORITY_STYLES: Record<TaskPriority, string> = {
   normal: "bg-blue-50 text-blue-700 border-blue-200",
   low:    "bg-gray-50 text-gray-600 border-gray-200",
 };
-
-// ── Build client groups ───────────────────────────────────────────────────────
-
-function buildAllGroups(
-  clients: Client[],
-  records: ClientRecord[],
-  coParties: ClientRecordCoParty[],
-): ClientGroup[] {
-  const nameToId = new Map(clients.map((c) => [c.name_search, c.id]));
-  const householdActivityIds = computeHouseholdActivityIds(coParties);
-
-  const buckets = new Map<string, ClientRecord[]>();
-
-  for (const r of records) {
-    const key =
-      r.client_id ??
-      nameToId.get(toNameSearch(r.name)) ??
-      `__v__${toNameSearch(r.name)}`;
-    const b = buckets.get(key) ?? [];
-    b.push(r);
-    buckets.set(key, b);
-  }
-
-  const groups: ClientGroup[] = [];
-
-  for (const client of clients) {
-    const deals = buckets.get(client.id) ?? [];
-    // Always include — clients with no records (e.g. FUB imports) must still appear
-    groups.push(makeGroup(client.id, client.name, deals, householdActivityIds.has(client.id)));
-  }
-
-  for (const [key, deals] of buckets) {
-    if (key.startsWith("__v__")) {
-      groups.push(makeGroup(null, deals[0].name, deals, false));
-    }
-  }
-
-  // Sort by GCI desc; break ties alphabetically so contacts-only clients are ordered
-  return groups.sort((a, b) => {
-    if (b.totalGCI !== a.totalGCI) return b.totalGCI - a.totalGCI;
-    return a.name.localeCompare(b.name);
-  });
-}
-
-function makeGroup(
-  clientId: string | null,
-  name: string,
-  deals: ClientRecord[],
-  hasHouseholdActivity: boolean,
-): ClientGroup {
-  const totalGCI =
-    Math.round(deals.reduce((s, d) => s + (d.gci ?? 0), 0) * 100) / 100;
-  const dealCount = deals.length;
-  const avgDeal = dealCount > 0 ? Math.round(totalGCI / dealCount) : 0;
-  const sortedDates = deals
-    .map((d) => d.close_date)
-    .filter(Boolean)
-    .sort()
-    .reverse();
-  const lastDeal = (sortedDates[0] as string | undefined) ?? null;
-  const years = [
-    ...new Set(
-      deals.map((d) => d.year).filter((y): y is number => y !== null),
-    ),
-  ].sort((a, b) => b - a);
-  return { clientId, name, deals, totalGCI, dealCount, avgDeal, lastDeal, years, hasHouseholdActivity };
-}
-
-function computeSourceStats(records: ClientRecord[]): SourceStat[] {
-  const map = new Map<string, { deals: number; totalGCI: number }>();
-  for (const r of records) {
-    const src = r.source?.trim() || "Unknown";
-    if (!map.has(src)) map.set(src, { deals: 0, totalGCI: 0 });
-    const s = map.get(src)!;
-    s.deals++;
-    s.totalGCI = Math.round((s.totalGCI + (r.gci ?? 0)) * 100) / 100;
-  }
-  return Array.from(map.entries())
-    .map(([source, s]) => ({
-      source,
-      ...s,
-      avgGCI: Math.round(s.totalGCI / s.deals),
-    }))
-    .sort((a, b) => b.totalGCI - a.totalGCI);
-}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -1413,16 +1314,9 @@ export function ClientsContent({
     () => grouped.reduce((s, g) => s + g.totalGCI, 0),
     [grouped],
   );
-  // Only count against clients who have closed at least one transaction.
-  // A "closed" deal requires a non-null close_date and must not be collapsed.
-  const closedCount = (g: ClientGroup) =>
-    g.deals.filter((d) => d.close_date !== null && d.condition_status !== "collapsed").length;
-  const clientsWithDeals = grouped.filter((g) => closedCount(g) >= 1);
-  const repeatCount = clientsWithDeals.filter((g) => closedCount(g) > 1).length;
-  const repeatRate =
-    clientsWithDeals.length > 0
-      ? Math.round((repeatCount / clientsWithDeals.length) * 100)
-      : 0;
+  // Repeat rate, Lifetime GCI and Total Deals all count the same deals:
+  // everything except collapsed ones (see lib/crm/client-groups.ts).
+  const { repeatCount, repeatRate } = repeatClientStats(grouped);
   const totalDeals = grouped.reduce((s, g) => s + g.dealCount, 0);
 
   const sourceStats = useMemo(() => computeSourceStats(localRecords), [localRecords]);
@@ -1604,12 +1498,7 @@ export function ClientsContent({
   );
 
   // Top-5% GCI threshold across ALL clients (for First Class badge)
-  const firstClassThreshold = useMemo(() => {
-    if (grouped.length === 0) return 0;
-    const sorted = [...grouped].sort((a, b) => b.totalGCI - a.totalGCI);
-    const idx = Math.max(0, Math.ceil(sorted.length * 0.05) - 1);
-    return sorted[idx]?.totalGCI ?? 0;
-  }, [grouped]);
+  const firstClassThreshold = useMemo(() => computeFirstClassThreshold(grouped), [grouped]);
 
   const hasAnyData = localRecords.length > 0;
 
@@ -1702,22 +1591,22 @@ export function ClientsContent({
     return localRecords.filter((r) => recordIds.has(r.id));
   }, [localCoParties, localRecords, selectedClientId]);
 
-  // Badges + reward budget for the selected client's detail panel
+  // Totals, badges + reward budget for the selected client's detail panel.
+  // Same buildClientGroup as the table row, so collapsed deals are left out of
+  // the panel's Lifetime GCI / Deals / badges exactly as they are in the row.
+  const selectedClientGroup = useMemo(
+    () => (selectedClientId ? buildClientGroup(selectedClientId, "", clientDeals, false) : null),
+    [selectedClientId, clientDeals],
+  );
+
   const selectedClientBadges = useMemo(() => {
-    if (!selectedClientId || !clientDeals.length) return [];
-    const group = {
-      deals: clientDeals,
-      dealCount: clientDeals.length,
-      totalGCI: clientDeals.reduce((s, d) => s + d.gci, 0),
-    };
-    return computeAchievements(group, firstClassThreshold);
-  }, [selectedClientId, clientDeals, firstClassThreshold]);
+    if (!selectedClientGroup || !clientDeals.length) return [];
+    return computeAchievements(selectedClientGroup, firstClassThreshold);
+  }, [selectedClientGroup, clientDeals, firstClassThreshold]);
 
   const selectedClientRewardBudget = useMemo(() => {
-    if (!clientDeals.length) return undefined;
-    const sorted = [...clientDeals].filter((d) => d.close_date).sort((a, b) => (b.close_date ?? "").localeCompare(a.close_date ?? ""));
-    const gci = sorted[0]?.gci ?? (clientDeals.reduce((s, d) => s + d.gci, 0) / clientDeals.length);
-    return gci > 0 ? calcRewardBudget(gci, rewardGenerosity) : undefined;
+    const gci = rewardBudgetBasisGci(clientDeals);
+    return gci !== null && gci > 0 ? calcRewardBudget(gci, rewardGenerosity) : undefined;
   }, [clientDeals, rewardGenerosity]);
 
 
@@ -3883,12 +3772,9 @@ export function ClientsContent({
                           // this client; needs ≥2 active months to draw a line.
                           const gciSpark        = buildClientGciSpark(group.deals);
                           const hasGciTrajectory = gciSpark.length >= 2;
-                          // Budget basis: most recent deal's GCI (fallback to average per deal)
-                          const mostRecentGCI = group.deals
-                            .filter((d) => d.close_date)
-                            .sort((a, b) => (b.close_date ?? "").localeCompare(a.close_date ?? ""))[0]?.gci
-                            ?? (group.dealCount > 0 ? group.totalGCI / group.dealCount : 0);
-                          const rewardBudget = mostRecentGCI > 0 ? calcRewardBudget(mostRecentGCI, rewardGenerosity) : undefined;
+                          // Same budget basis as the client panel (rewardBudgetBasisGci).
+                          const budgetGCI    = rewardBudgetBasisGci(group.deals);
+                          const rewardBudget = budgetGCI !== null && budgetGCI > 0 ? calcRewardBudget(budgetGCI, rewardGenerosity) : undefined;
                           return (
                             <TableRow
                               key={group.clientId ?? group.name}
@@ -4493,7 +4379,8 @@ export function ClientsContent({
                 {/* Client instrument strip — lifetime value at a glance, in the
                     same dark-cockpit shell as the dashboard + CRM-tab headers. */}
                 {(() => {
-                  const lifetimeGci = clientDeals.reduce((s, d) => s + (d.gci ?? 0), 0);
+                  const lifetimeGci = selectedClientGroup?.totalGCI ?? 0;
+                  const dealCount   = selectedClientGroup?.dealCount ?? 0;
                   return (
                     <CockpitStrip animate={false} className="px-4 py-3">
                       <div className="grid grid-cols-3 gap-3">
@@ -4505,8 +4392,8 @@ export function ClientsContent({
                         />
                         <CockpitStat
                           label="Deals"
-                          value={clientDeals.length}
-                          color={clientDeals.length > 0 ? SEMANTIC.onTrack : "#F8FAFC"}
+                          value={dealCount}
+                          color={dealCount > 0 ? SEMANTIC.onTrack : "#F8FAFC"}
                           icon={<Layers className="h-3.5 w-3.5" />}
                         />
                         <CockpitStat
