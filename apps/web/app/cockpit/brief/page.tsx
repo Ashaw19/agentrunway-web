@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { cn } from "@/lib/utils";
 import type { CorpBriefEntry, CorpBriefPriority } from "@agent-runway/core/types/database";
+import { atlanticISODate } from "@agent-runway/core/lib/local-date";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -15,7 +16,7 @@ const fmtDate = (iso: string) =>
   });
 
 const isToday = (iso: string) =>
-  iso === new Date().toISOString().split("T")[0];
+  iso === atlanticISODate();
 
 const SOURCE_LABELS: Record<string, string> = {
   "hugo-bookkeeping":   "Hugo · Weekly Bookkeeping",
@@ -64,7 +65,7 @@ export default async function BriefPage() {
     grouped.set(entry.brief_date, existing);
   }
 
-  const today = new Date().toISOString().split("T")[0];
+  const today = atlanticISODate();
   const hasTodayEntry = grouped.has(today);
 
   return (

@@ -38,6 +38,7 @@ import {
   type RealDealInput,
 } from "./real-compensation-engine";
 import type { UserSettings } from "../types/database";
+import { localISODate } from "../lib/local-date";
 
 /** Every field the plan-aware split/fee chain reads (legacy + REAL). */
 type PlanSettingsKeys = keyof CompSettingsSlice;
@@ -110,7 +111,7 @@ export function projectedAgentNet(
   // REAL waterfall (projections have no deal list).
   const { grossAfterPlan } = computePlanGross(settings, projectedGCI, {
     dealCount: projectedDealCount,
-    asOf: now.toISOString().slice(0, 10),
+    asOf: localISODate(now),
   });
   const brokerageFeeAnnual = settings.monthly_brokerage_fee * 12;
   return grossAfterPlan - brokerageFeeAnnual;
@@ -256,7 +257,7 @@ export function computeEffectiveCashForSurvival(
   // Plan-aware: under 'real' with transactions provided this is the EXACT
   // per-deal waterfall over the calendar YTD window; simple_split is the
   // byte-identical legacy chain (agentGross − txFees).
-  const asOf = now.toISOString().slice(0, 10);
+  const asOf = localISODate(now);
   const yearStart = `${now.getFullYear()}-01-01`;
   const yearEnd = `${now.getFullYear() + 1}-01-01`;
   const { grossAfterPlan: ytdGrossAfterPlan } = computePlanGross(settings, ytdGCI, {

@@ -10,6 +10,7 @@ import type {
   CorpComplianceUrgency,
   CorpUpcomingComplianceRow,
 } from "@agent-runway/core/types/database";
+import { localISODate } from "@agent-runway/core/lib/local-date";
 
 const KIND_OPTIONS: { value: CorpComplianceKind; label: string }[] = [
   { value: "cra-t2-filing", label: "CRA · T2 filing" },
@@ -382,7 +383,7 @@ interface EventFormProps {
 function EventForm({ mode, event, onClose, onSaved }: EventFormProps) {
   const [title, setTitle] = useState(event?.title ?? "");
   const [kind, setKind] = useState<string>(event?.kind ?? "corp-other");
-  const [dueDate, setDueDate] = useState<string>(event?.due_date ?? new Date().toISOString().slice(0, 10));
+  const [dueDate, setDueDate] = useState<string>(event?.due_date ?? localISODate());
   const [severity, setSeverity] = useState<CorpComplianceSeverity>(event?.severity ?? "medium");
   const [recurring, setRecurring] = useState<string>(event?.recurring_pattern ?? "");
   const [notes, setNotes] = useState<string>(event?.notes ?? "");

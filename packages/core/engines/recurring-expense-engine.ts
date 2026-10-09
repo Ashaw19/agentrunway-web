@@ -7,6 +7,7 @@
  */
 
 import type { RecurringExpense } from "../types/database";
+import { localISODate } from "../lib/local-date";
 
 // ── Monthly equivalent ────────────────────────────────────────────────────
 
@@ -158,7 +159,7 @@ export function totalRecurringHSTYTD(
   return totalRecurringHSTForPeriod(
     expenses,
     `${thisYear}-01-01`,
-    new Date().toISOString().split("T")[0],
+    localISODate(),
   );
 }
 

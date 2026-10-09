@@ -21,6 +21,8 @@
  * an open-house sign-up, express consent), so their behaviour is unchanged.
  */
 
+import { localISODate } from "@agent-runway/core/lib/local-date";
+
 /** CASL s.10(10)(a): implied consent from a purchase lasts two years. */
 export const CASL_IMPLIED_CONSENT_MONTHS = 24;
 
@@ -78,9 +80,7 @@ export function lastClosedDealByClient(
 }
 
 /** A Date as YYYY-MM-DD in local time (toISOString would give the UTC day). */
-export function localISODate(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
+export { localISODate };
 
 /**
  * How Flight Control should reach this client for an opportunity.

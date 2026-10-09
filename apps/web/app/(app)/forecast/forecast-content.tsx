@@ -29,6 +29,7 @@ import {
   type ListingAppointment,
 } from "@/lib/types/database";
 import { computePlanGross } from "@/lib/engines/real-compensation-engine";
+import { localISODate } from "@agent-runway/core/lib/local-date";
 import {
   seasonalFractionElapsed,
   projectedYearEndGCI,
@@ -177,7 +178,7 @@ export function ForecastContent({
   // (REAL: company dollar + any team override; simple: brokerage %).
   const planProjected = computePlanGross(settings, projectedGCI, {
     dealCount: projectedDeals,
-    asOf: new Date().toISOString().slice(0, 10),
+    asOf: localISODate(),
   });
   const agentGross = planProjected.shareBeforePlanFees;
   const brokerageTake = Math.max(0, projectedGCI - agentGross);

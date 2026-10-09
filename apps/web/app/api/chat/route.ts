@@ -23,6 +23,7 @@ import { computePlanGross, describeSplit } from "@/lib/engines/real-compensation
 import { fmtCurrency } from "@/lib/formatters";
 import { describeIncomeGoals, incomeGoalCurrentYear, goalForYear, hasGoalRow } from "@/lib/income-goals";
 import { pipelineLinedUpForYear } from "@agent-runway/core/engines/year-plan-engine";
+import { atlanticISODate } from "@agent-runway/core/lib/local-date";
 import {
   seasonalFractionElapsed,
   paceVsGoalPercent,
@@ -274,7 +275,7 @@ export async function POST(req: NextRequest) {
   let financialContext = "No user data available.";
   try {
     const currentYear = new Date().getFullYear();
-    const todayISO = new Date().toISOString().split("T")[0];
+    const todayISO = atlanticISODate();
     const ytdStart = `${new Date().getFullYear()}-01-01`;
     const settled = await Promise.allSettled([
         supabase.from("user_settings").select("*").eq("user_id", user.id).maybeSingle(),                                                                  // 0
@@ -637,7 +638,7 @@ export async function POST(req: NextRequest) {
           deals: ytdTx.map((tx: any) => ({ date: tx.date, gci: computeGCI(tx) })),
           windowStart: `${now.getFullYear()}-01-01`,
           windowEnd: `${now.getFullYear() + 1}-01-01`,
-          asOf: now.toISOString().slice(0, 10),
+          asOf: atlanticISODate(now),
         });
         const cpBrokerageFees = (settings.monthly_brokerage_fee ?? 0) * (now.getMonth() + 1);
         const cpYtdAgentNet = Math.max(0, cpGrossAfterPlan - cpBrokerageFees);

@@ -56,6 +56,7 @@ import { cn } from "@/lib/utils";
 import type { ListingAppointment, ClientStatus } from "@/lib/types/database";
 import { CLIENT_STATUS_LABELS, CLIENT_STATUS_COLORS } from "@/lib/types/database";
 import { OpportunitiesSection } from "./components/opportunities-section";
+import { localISODate } from "@agent-runway/core/lib/local-date";
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -226,7 +227,7 @@ export function PipelineContent({ seed }: { seed: PipelineSeedData }) {
       const supabase = createClient();
       const payload = {
         property_address: listingForm.property_address.trim(),
-        appointment_date: listingForm.appointment_date || new Date().toISOString().slice(0, 10),
+        appointment_date: listingForm.appointment_date || localISODate(),
         estimated_list_price: Number(listingForm.estimated_list_price),
         estimated_commission_pct: Number(listingForm.estimated_commission_pct) / 100,
         actual_list_price: Number.isFinite(Number(listingForm.actual_list_price)) && listingForm.actual_list_price ? Number(listingForm.actual_list_price) : null,

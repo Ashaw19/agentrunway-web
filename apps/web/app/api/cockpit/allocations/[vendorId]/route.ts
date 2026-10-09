@@ -11,6 +11,7 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { atlanticISODate } from "@agent-runway/core/lib/local-date";
 
 const ALLOWED_EMAILS = new Set(["andrew@andrewdshaw.ca"]);
 
@@ -65,7 +66,7 @@ export async function PATCH(
       personal_pct,
       rationale_text,
       set_by:         "cockpit-ui",
-      effective_from: new Date().toISOString().slice(0, 10),
+      effective_from: atlanticISODate(),
     });
 
   if (allocErr) {

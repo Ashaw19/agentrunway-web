@@ -10,6 +10,7 @@
 import { NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import type { CorpSredEntry } from "@agent-runway/core/types/database";
+import { atlanticISODate } from "@agent-runway/core/lib/local-date";
 
 const ALLOWED_EMAILS = new Set(["andrew@andrewdshaw.ca"]);
 
@@ -122,7 +123,7 @@ export async function GET(req: NextRequest) {
   ].join(","));
 
   const csv = lines.join("\r\n");
-  const today = new Date().toISOString().slice(0, 10);
+  const today = atlanticISODate();
   const filename = `AR-Inc-SR&ED-FY${year}-working-paper-${today}.csv`;
 
   return new Response(csv, {

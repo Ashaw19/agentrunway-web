@@ -65,6 +65,7 @@ import {
   draftSocialPost as draftSocialPostService,
   type SocialPostTemplate,
 } from "@/lib/ai/draft-services";
+import { addDaysISO, atlanticISODate } from "@agent-runway/core/lib/local-date";
 
 // ── Approval Gate ──────────────────────────────────────────────────────────
 // Tools in this set require explicit user confirmation before executing.
@@ -466,7 +467,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
       execute: async ({ clientId, clientName, type, description, activityDate }) => {
         try {
           const now = new Date();
-          const dateStr = activityDate ?? now.toISOString().split("T")[0];
+          const dateStr = activityDate ?? atlanticISODate(now);
           const activityTimestamp = activityDate
             ? new Date(activityDate + "T12:00:00").toISOString()
             : now.toISOString();
@@ -1409,8 +1410,8 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
       inputSchema: z.object({}),
       execute: async () => {
         try {
-          const todayStr = new Date().toISOString().split("T")[0];
-          const weekAhead = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+          const todayStr = atlanticISODate();
+          const weekAhead = addDaysISO(todayStr, 7);
 
           const [tasksRes, outreachRes, staleRes] = await Promise.all([
             supabase.from("contact_tasks").select("title, due_date, priority, client_id").eq("user_id", userId).is("completed_at", null).order("due_date", { ascending: true }).limit(10),
@@ -1593,7 +1594,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
               estimated_value: estimatedValue ?? null,
               status: "active",
               notes: notes ?? null,
-              referral_date: new Date().toISOString().split("T")[0],
+              referral_date: atlanticISODate(),
             });
 
           if (error) return `Failed to record referral: ${error.message}`;
@@ -1681,7 +1682,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
       }),
       execute: async ({ clientId, clientName, propertyAddress, showingDate, clientRating, listingPrice, notes }) => {
         try {
-          const dateStr = showingDate ?? new Date().toISOString().split("T")[0];
+          const dateStr = showingDate ?? atlanticISODate();
 
           const { error } = await supabase
             .from("property_showings")
@@ -2898,7 +2899,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
         try {
           const currentYear = new Date().getFullYear();
           const ytdStart = `${currentYear}-01-01`;
-          const todayISO = new Date().toISOString().split("T")[0];
+          const todayISO = atlanticISODate();
 
           switch (stat) {
             case "active_clients": {

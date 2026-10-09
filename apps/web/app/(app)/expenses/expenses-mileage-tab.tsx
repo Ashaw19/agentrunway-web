@@ -21,6 +21,7 @@ import { cn }                  from "@/lib/utils";
 import { CRA_MILEAGE_RATES }   from "@/lib/types/database";
 import type { MileageLog }     from "@/lib/types/database";
 import Link                    from "next/link";
+import { localISODate } from "@agent-runway/core/lib/local-date";
 
 // ── CRA 2025 rates ────────────────────────────────────────────────────────────
 const RATE_FIRST  = CRA_MILEAGE_RATES.first5000;    // $0.72/km
@@ -54,7 +55,7 @@ export function ExpensesMileageTab({ mileageLogs, year, settings }: Props) {
   const [deleting, setDeleting] = useState<string | null>(null);
 
   // ── New trip form state ────────────────────────────────────────────────────
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localISODate();
   const [form, setForm] = useState({
     trip_date:     today,
     description:   "",
