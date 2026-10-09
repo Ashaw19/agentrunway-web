@@ -364,6 +364,7 @@ const TOPIC_RULES: TopicRule[] = [
       "no closed deal",
       "going quiet",
       "draft button",
+      "anniversary note",
     ],
   },
   {
