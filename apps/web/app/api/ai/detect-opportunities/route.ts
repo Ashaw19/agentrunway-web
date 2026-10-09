@@ -26,7 +26,7 @@ import type { OutreachQueueItem, AgentState } from "@agent-runway/core/types/dat
 import { POST_CLOSE_OPPORTUNITY_CONFIGS as POST_CLOSE_CONFIGS } from "@agent-runway/core/engines/nurture-engine";
 import type { SupabaseClient }    from "@supabase/supabase-js";
 import type { ClientMemoryFacts } from "@/lib/ai/client-memory-engine";
-import { contactableRecords }     from "@/lib/crm/contactable-records";
+import { contactableRecords, excludeCollapsedDeals } from "@/lib/crm/contactable-records";
 import { lastClosedDealByClient, outreachChannel, withCoBuyerDeals } from "@/lib/crm/outreach-consent";
 import { recentlyContactedClientIds, outreachSuppressionCutoff } from "@/lib/crm/recently-contacted";
 import { selectTopCandidates, clientLifetimeGci } from "@/lib/crm/top-opportunity-selection";
@@ -844,8 +844,8 @@ export async function detectAndDraftForUser(
       .is("archived_at", null),
     supabase
       .from("client_records")
-      // condition_status: the multi-deal loop's collapsed filter and the CASL
-      // gate both read it — without it in the select both were no-ops here.
+      // condition_status: excludeCollapsedDeals below and the CASL gate both
+      // read it. Without it in the select both are no-ops here.
       .select("id, client_id, address, close_date, gci, side, property_use, condition_status")
       .eq("user_id", userId)
       .not("close_date", "is", null)
@@ -886,7 +886,10 @@ export async function detectAndDraftForUser(
   // lib/crm/contactable-records.ts. The detectors below iterate `records`, not
   // `clients`, so without this an archived client (incl. 'deceased' /
   // 'do_not_contact') keeps generating drafted outreach forever.
-  const records    = contactableRecords(recordsRes.data ?? [], _clientMap);
+  // Collapsed deals never closed, so they can't anchor anniversaries,
+  // post-close follow-ups or past-client status. Dropped here, once, for
+  // every detector below.
+  const records    = excludeCollapsedDeals(contactableRecords(recordsRes.data ?? [], _clientMap));
 
   // Memory lookup — graceful degradation if fetch failed
   const memoryMap = new Map<string, { memory_summary: string | null; structured_facts: ClientMemoryFacts }>();
@@ -1055,10 +1058,8 @@ export async function detectAndDraftForUser(
   // ── 7. Multi-deal milestone (Batch 2) ─────────────────────────────────────
   const clientDealDates = new Map<string, string[]>();
   for (const rec of records) {
+    // Collapsed deals are already out of `records` (excludeCollapsedDeals).
     if (!rec.client_id || !rec.close_date) continue;
-    // Collapsed deals are not real closings — exclude from milestone math
-    // (mirrors clients-content.tsx:1248 and insights-tab.tsx:96).
-    if ((rec as Record<string, unknown>).condition_status === "collapsed") continue;
     const arr = clientDealDates.get(rec.client_id) ?? [];
     arr.push(rec.close_date);
     clientDealDates.set(rec.client_id, arr);
@@ -1086,16 +1087,9 @@ export async function detectAndDraftForUser(
   }
 
   // ── 8. Seasonal campaigns (Batch 3) ───────────────────────────────────────
-  // Rank clients by lifetime GCI; limit to top SEASONAL_TOP_N
-  const clientLifetimeGCI = new Map<string, number>();
-  for (const rec of records) {
-    if (rec.client_id && rec.gci) {
-      clientLifetimeGCI.set(
-        rec.client_id,
-        (clientLifetimeGCI.get(rec.client_id) ?? 0) + (rec.gci as number),
-      );
-    }
-  }
+  // Rank clients by lifetime GCI; limit to top SEASONAL_TOP_N. Collapsed
+  // deals earned nothing (clientLifetimeGci, same as the Scan ranking).
+  const clientLifetimeGCI = clientLifetimeGci(records);
   const top25Ids = new Set(
     [...clientLifetimeGCI.entries()]
       .sort(([, a], [, b]) => b - a)
@@ -2249,10 +2243,10 @@ export async function getTopOpportunities(
 
   const clients    = clientsRes.data ?? [];
   const _clientMap = new Map(clients.map((c) => [c.id, c]));
-  // Same archived gate as the write path — shared helper keeps the two in
-  // lock-step. Without it archived clients also rendered as cards titled
-  // "Unknown", since _clientMap cannot resolve them.
-  const records    = contactableRecords(recordsRes.data ?? [], _clientMap);
+  // Same archived + collapsed gates as the write path — shared helpers keep
+  // the two in lock-step. Without the archived gate archived clients also
+  // rendered as cards titled "Unknown", since _clientMap cannot resolve them.
+  const records    = excludeCollapsedDeals(contactableRecords(recordsRes.data ?? [], _clientMap));
 
   const memoryMap = new Map<string, { memory_summary: string | null; structured_facts: ClientMemoryFacts }>();
   if (memoryRes.data) {
@@ -2417,11 +2411,11 @@ export async function getTopOpportunities(
 
   // Multi-deal milestone
   // The repeat-rate metric below also reads from clientDealDates, so the
-  // collapsed-deal filter here is load-bearing for feedback_repeat_clients_metric.md.
+  // collapsed-deal gate on `records` is load-bearing for
+  // feedback_repeat_clients_metric.md.
   const clientDealDates = new Map<string, string[]>();
   for (const rec of records) {
     if (!rec.client_id || !rec.close_date) continue;
-    if ((rec as Record<string, unknown>).condition_status === "collapsed") continue;
     const arr = clientDealDates.get(rec.client_id) ?? [];
     arr.push(rec.close_date);
     clientDealDates.set(rec.client_id, arr);

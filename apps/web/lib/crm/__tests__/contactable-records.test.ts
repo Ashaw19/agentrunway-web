@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { contactableRecords } from "../contactable-records";
+import { contactableRecords, excludeCollapsedDeals } from "../contactable-records";
+import { excludeCollapsedDeals as coreExcludeCollapsedDeals } from "@agent-runway/core/types/database";
 
 /**
  * Regression suite: archived clients must not generate AI outreach.
@@ -58,5 +59,29 @@ describe("contactableRecords", () => {
     expect(contactableRecords(records, clientMap)).toEqual([
       { client_id: "active-1", close_date: "2025-07-25", gci: 14_500 },
     ]);
+  });
+});
+
+/**
+ * A collapsed deal never closed: nobody moved in, nobody sold. Outreach that
+ * treats it as a closing congratulates a client on a home they never bought.
+ */
+describe("excludeCollapsedDeals", () => {
+  it("drops collapsed deals and keeps every other condition status", () => {
+    const records = [
+      { id: "a", condition_status: "firmed" },
+      { id: "b", condition_status: "collapsed" },
+      { id: "c", condition_status: "waived" },
+      { id: "d", condition_status: "pending" },
+      { id: "e", condition_status: null },
+      { id: "f" },
+    ];
+    expect(excludeCollapsedDeals(records).map((r) => r.id)).toEqual(["a", "c", "d", "e", "f"]);
+  });
+});
+
+describe("excludeCollapsedDeals has one definition", () => {
+  it("the web export is the core helper, not a copy that can drift", () => {
+    expect(excludeCollapsedDeals).toBe(coreExcludeCollapsedDeals);
   });
 });

@@ -91,6 +91,7 @@ import {
 import type { PipelineDeal } from "@/lib/types/database";
 // Draft button eligibility: which briefing rows can draft, and as what type.
 import { BRIEFING_TO_OUTREACH_TYPE } from "@/lib/crm/outreach-draft-actions";
+import { clientLifetimeGci } from "@/lib/crm/top-opportunity-selection";
 
 // ── Props ───────────────────────────────────────────────────────────────────
 
@@ -331,13 +332,11 @@ export function CrmDashboardTab({
     };
   }, []);
 
-  const clientGciById = useMemo(() => {
-    const map: Record<string, number> = {};
-    for (const r of records) {
-      if (r.client_id) map[r.client_id] = (map[r.client_id] ?? 0) + (r.gci ?? 0);
-    }
-    return map;
-  }, [records]);
+  // Collapsed deals earned nothing (same lifetime GCI as Flight Control's ranking).
+  const clientGciById = useMemo(
+    () => Object.fromEntries(clientLifetimeGci(records)),
+    [records],
+  );
 
   const todaysActions = useMemo<TodayAction[]>(() => {
     const items = briefing.items.filter((i) => !dismissedIds.has(i.id));

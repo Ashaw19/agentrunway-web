@@ -18,6 +18,8 @@
  * in lock-step — they drifted precisely because each built its own filtering.
  */
 
+import { excludeCollapsedDeals } from "@agent-runway/core/types/database";
+
 /** Minimal shape needed to gate a record — anything with an optional client FK. */
 export interface RecordWithClientRef {
   client_id?: string | null;
@@ -36,4 +38,28 @@ export function contactableRecords<T extends RecordWithClientRef>(
   clientMap: ReadonlyMap<string, unknown>,
 ): T[] {
   return records.filter((r) => !!r.client_id && clientMap.has(r.client_id));
+}
+
+/**
+ * Drop collapsed deals. One definition, in core (packages/core/types/database.ts),
+ * re-exported here so the outreach paths (nightly drafting, Scan, on-demand
+ * drafting) and the CRM totals / briefing / funnel can't drift apart.
+ * The fetch must select `condition_status`, or this is a no-op.
+ */
+export { excludeCollapsedDeals };
+
+/** Minimal shape needed to tell a collapsed deal from a real one. */
+export interface RecordWithConditionStatus {
+  condition_status?: string | null;
+}
+
+/**
+ * True when at least one deal has a close date and didn't collapse. Drives
+ * the Flight Plan "anniversary" template's eligibility, in the CRM client
+ * panel and the Flight Crew getWorkflowTemplates tool alike.
+ */
+export function hasClosedDeal(
+  records: readonly (RecordWithConditionStatus & { close_date?: string | null })[],
+): boolean {
+  return excludeCollapsedDeals(records).some((r) => !!r.close_date);
 }

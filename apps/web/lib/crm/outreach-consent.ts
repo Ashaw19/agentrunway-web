@@ -22,6 +22,7 @@
  */
 
 import { localISODate } from "@agent-runway/core/lib/local-date";
+import { excludeCollapsedDeals } from "@agent-runway/core/types/database";
 
 /** CASL s.10(10)(a): implied consent from a purchase lasts two years. */
 export const CASL_IMPLIED_CONSENT_MONTHS = 24;
@@ -70,9 +71,8 @@ export function lastClosedDealByClient(
   records: readonly DealForConsent[],
 ): Map<string, string> {
   const out = new Map<string, string>();
-  for (const r of records) {
+  for (const r of excludeCollapsedDeals(records)) {
     if (!r.client_id || !r.close_date) continue;
-    if (r.condition_status === "collapsed") continue;
     const prev = out.get(r.client_id);
     if (!prev || r.close_date > prev) out.set(r.client_id, r.close_date);
   }
