@@ -11,7 +11,12 @@ import type { Client, ClientRecord, ContactActivity, ContactTask, UserSettings, 
  */
 const CLIENT_SIDE_FETCH_THRESHOLD = 500;
 
-export default async function ClientsPage() {
+export default async function ClientsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ client?: string }>;
+}) {
+  const { client: openClientId } = await searchParams;
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
@@ -124,6 +129,7 @@ export default async function ClientsPage() {
       showings={(showingsResult.data ?? []) as PropertyShowing[]}
       listingAppointments={(listingApptsResult.data ?? []) as ListingAppointment[]}
       userId={user.id}
+      openClientId={openClientId ?? null}
     />
   );
 }

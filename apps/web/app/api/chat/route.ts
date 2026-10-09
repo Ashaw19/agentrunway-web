@@ -421,7 +421,7 @@ export async function POST(req: NextRequest) {
           if (tasks.length === 0) return null;
           const overdue = tasks.filter(t => t.due_date < todayISO).length;
           const upcoming = tasks.slice(0, 3).map(t => `"${t.title}" (due ${t.due_date}${t.priority === "high" ? " ⚡" : ""})`).join(", ");
-          return `Open Tasks: ${tasks.length} open${overdue > 0 ? ` (${overdue} overdue)` : ""}. Next: ${upcoming}`;
+          return `Checklist (/checklist, open items): ${tasks.length} open${overdue > 0 ? ` (${overdue} overdue)` : ""}. Next: ${upcoming}`;
         })(),
         (() => {
           const items = (outreachRows ?? []) as { status: string }[];

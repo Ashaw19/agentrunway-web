@@ -1074,9 +1074,14 @@ export interface ContactTask {
   priority:     TaskPriority;
   notes:        string | null;
   completed_at: string | null;  // null = pending
+  /** How it was done (00172): a contact method (also logged on the client) or "done". */
+  completed_via?: ChecklistCompletedVia | null;
   created_at:   string;
   updated_at:   string;
 }
+
+/** contact_tasks.completed_via (00172). */
+export type ChecklistCompletedVia = "call" | "text" | "email" | "meeting" | "done";
 
 export interface ClientNote {
   id:         string;

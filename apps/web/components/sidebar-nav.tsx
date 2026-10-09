@@ -12,6 +12,7 @@ import {
 
   Sparkles,
   Users,
+  ListChecks,
   Share2,
   Globe,
   BookOpen,
@@ -71,6 +72,10 @@ const sidebarEntries: SidebarEntry[] = [
   },
   // ── CRM ────────────────────────────────────────────────────────
   { type: "header", label: "CRM" },
+  {
+    type: "item", label: "Checklist", href: "/checklist", icon: ListChecks,
+    iconActive: "text-lime-300", iconInactive: "text-lime-400/50", borderActive: "border-l-lime-400", textActive: "text-lime-200",
+  },
   {
     type: "item", label: "CRM", href: "/crm", icon: Users,
     iconActive: "text-teal-300", iconInactive: "text-teal-400/50", borderActive: "border-l-teal-400", textActive: "text-teal-200",

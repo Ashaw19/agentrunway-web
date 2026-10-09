@@ -33,7 +33,7 @@ export default async function FlightControlPage() {
   const now        = new Date();
   const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
 
-  const [sentCountRes, newslettersRes, closedDealsRes, coPartiesRes] = await Promise.all([
+  const [sentCountRes, newslettersRes, closedDealsRes, coPartiesRes, checklistRes] = await Promise.all([
     supabase
       .from("outreach_queue")
       .select("id", { count: "exact", head: true })
@@ -61,7 +61,18 @@ export default async function FlightControlPage() {
       .from("client_record_co_parties")
       .select("client_record_id, co_client_id")
       .eq("user_id", user.id),
+    // Clients already on the Checklist: their cards read "On checklist".
+    supabase
+      .from("contact_tasks")
+      .select("client_id")
+      .eq("user_id", user.id)
+      .is("completed_at", null)
+      .not("client_id", "is", null)
+      .limit(1000),
   ]);
+  if (checklistRes.error) {
+    console.error("[flight-control] checklist fetch failed:", checklistRes.error.message);
+  }
 
   if (closedDealsRes.error || coPartiesRes.error) {
     console.error(
@@ -95,6 +106,7 @@ export default async function FlightControlPage() {
       initialVoiceGuide={(settingsRow?.ai_voice_guide as string | null) ?? ""}
       initialNewsletters={(newslettersRes.data ?? []) as NewsletterQueue[]}
       lapsedPastClientNames={lapsedPastClientNames}
+      checklistClientIds={[...new Set((checklistRes.data ?? []).map((r) => r.client_id as string))]}
     />
   );
 }

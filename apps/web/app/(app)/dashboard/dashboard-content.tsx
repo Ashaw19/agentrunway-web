@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
+import { CompleteItemDialog } from "@/components/checklist/complete-item-dialog";
 import {
   DndContext,
   closestCenter,
@@ -175,6 +176,9 @@ import { GuideLink } from "@/components/guide-link";
 import { AiProfilePrompt } from "./ai-profile-prompt";
 import { ClosingDayPrompt } from "./closing-day-prompt";
 import type { CommunicationProfile, BusinessIdentity } from "@/lib/types/database";
+
+/** Open checklist item with its client's name (dashboard/page.tsx joins clients(name)). */
+type TaskWithClient = ContactTask & { clients?: { name: string } | null };
 
 function MetricInfo({ tip }: { tip: string }) {
   return (
@@ -412,6 +416,8 @@ export function DashboardContent({
   const [showAnnualReview, setShowAnnualReview] = useState(false);
   // ── CRM task widget state ───────────────────────────────────────────────
   const [localTasks, setLocalTasks] = useState<ContactTask[]>(openTasks);
+  // Client items open the Checklist tick-off pop-up; general items are marked done.
+  const [tickingTask, setTickingTask] = useState<ContactTask | null>(null);
   async function completeTaskFromDashboard(taskId: string) {
     // Optimistic removal — use functional updater so we can reverse just this task
     // even if multiple completions are in-flight simultaneously (no stale closure).
@@ -427,7 +433,7 @@ export function DashboardContent({
     }
     const { error } = await supabase
       .from("contact_tasks")
-      .update({ completed_at: new Date().toISOString() })
+      .update({ completed_at: new Date().toISOString(), completed_via: "done" })
       .eq("id", taskId)
       .eq("user_id", user.id);
     if (error) {
@@ -1940,10 +1946,10 @@ export function DashboardContent({
           <div className="flex items-center justify-between">
             <CardTitle className="text-sm font-semibold text-slate-800 flex items-center gap-2">
               <CheckSquare className="h-4 w-4 text-slate-500" />
-              Follow-up Tasks
+              Checklist
             </CardTitle>
-            <Link href="/crm" className="text-xs text-slate-500 hover:text-slate-800 hover:underline font-medium">
-              View all →
+            <Link href="/checklist" className="text-xs text-slate-500 hover:text-slate-800 hover:underline font-medium">
+              Open checklist →
             </Link>
           </div>
           {(overdue.length > 0 || staleLeadCount > 0) && (
@@ -1973,9 +1979,10 @@ export function DashboardContent({
             return (
               <div key={task.id} className="flex items-center gap-2.5 rounded-lg bg-white/60 px-3 py-2">
                 <button
-                  onClick={() => completeTaskFromDashboard(task.id)}
+                  onClick={() => task.client_id ? setTickingTask(task) : completeTaskFromDashboard(task.id)}
                   className="text-muted-foreground hover:text-emerald-600 transition-colors shrink-0"
-                  title="Mark complete"
+                  title="Tick off"
+                  aria-label={`Tick off "${task.title}"`}
                 >
                   <Square className="h-4 w-4" />
                 </button>
@@ -1998,8 +2005,8 @@ export function DashboardContent({
           })}
           {localTasks.length > 5 && (
             <p className="text-xs text-slate-500 text-center pt-1">
-              +{localTasks.length - 5} more tasks.{" "}
-              <Link href="/crm" className="underline font-medium text-slate-700">View all in CRM</Link>
+              +{localTasks.length - 5} more.{" "}
+              <Link href="/checklist" className="underline font-medium text-slate-700">See your whole checklist</Link>
             </p>
           )}
           {localTasks.length === 0 && staleLeadCount > 0 && (
@@ -2009,6 +2016,13 @@ export function DashboardContent({
             </div>
           )}
         </CardContent>
+        <CompleteItemDialog
+          task={tickingTask}
+          clientName={(tickingTask as TaskWithClient | null)?.clients?.name ?? ""}
+          onClose={() => setTickingTask(null)}
+          onCompleted={(task) => setLocalTasks((prev) => prev.filter((t) => t.id !== task.id))}
+          onRescheduled={(task, dueDate) => setLocalTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, due_date: dueDate } : t)))}
+        />
       </Card>
     );
   })();

@@ -35,12 +35,17 @@ function fakeSupabase(opts: {
           && Object.entries(filters).every(([k, v]) => client[k] === v);
         return { data: hit ? { status: client!.status } : null, error: null };
       },
-      insert: async (row: Row) => {
-        if (opts.insertError) return { error: opts.insertError };
-        inserts.push(row);
-        if (client && opts.statusAfterInsert) client.status = opts.statusAfterInsert;
-        return { error: null };
-      },
+      // insert(row).select().single() returns the saved row (shown without a reload).
+      insert: (row: Row) => ({
+        select: () => ({
+          single: async () => {
+            if (opts.insertError) return { data: null, error: opts.insertError };
+            inserts.push(row);
+            if (client && opts.statusAfterInsert) client.status = opts.statusAfterInsert;
+            return { data: { id: `a${inserts.length}`, ...row }, error: null };
+          },
+        }),
+      }),
     };
     return builder;
   };
@@ -65,6 +70,7 @@ describe("logClientContact", () => {
       user_id: "u1", client_id: "c1", type: "call",
       description: "Caught up about the fall market", activity_date: "2026-10-06T15:00:00.000Z",
     }]);
+    expect(res.activity).toMatchObject({ id: "a1", client_id: "c1", type: "call" });
   });
 
   it("reports an insert failure instead of claiming success", async () => {
