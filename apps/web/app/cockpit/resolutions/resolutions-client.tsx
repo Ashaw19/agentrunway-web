@@ -15,6 +15,7 @@ import type {
   CorpResolutionType,
   CorpResolutionStatus,
 } from "@agent-runway/core/types/database";
+import { localISODate } from "@agent-runway/core/lib/local-date";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -50,7 +51,7 @@ const STATUS_COLORS: Record<CorpResolutionStatus, string> = {
   draft:  "bg-amber-500/10 text-amber-300 border-amber-500/20",
 };
 
-const today = new Date().toISOString().slice(0, 10);
+const today = localISODate();
 const thisYear = new Date().getFullYear();
 
 const TEMPLATES: Record<CorpResolutionType, { subject: string; body: string }> = {

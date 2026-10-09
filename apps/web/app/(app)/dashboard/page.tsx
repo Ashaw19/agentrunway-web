@@ -7,6 +7,7 @@ import { totalRecurringMonthly, totalRecurringYTD } from "@agent-runway/core/eng
 import type { RecurringExpense } from "@/lib/types/database";
 import { computeIsPro } from "@/lib/compute-is-pro";
 import type { IncomeGoalRow } from "@/lib/income-goals";
+import { addDaysISO, atlanticISODate } from "@agent-runway/core/lib/local-date";
 
 
 export default async function DashboardPage({
@@ -199,8 +200,8 @@ export default async function DashboardPage({
     : [];
 
   // ── Upcoming condition dates (next 14 days, pending only) ──────────────
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const twoWeeksStr = new Date(Date.now() + 14 * 86_400_000).toISOString().slice(0, 10);
+  const todayStr = atlanticISODate();
+  const twoWeeksStr = addDaysISO(todayStr, 14);
   const clientRecordsAll = briefingRecordsResult.data ?? [];
   const clientsAll = briefingClientsResult.data ?? [];
   const clientNameMap = new Map(clientsAll.map((c: Client) => [c.id, c.name ?? "Unknown"]));

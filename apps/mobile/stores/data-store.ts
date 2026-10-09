@@ -12,6 +12,7 @@ import { useToastStore } from "./toast-store";
 import { useOfflineQueueStore } from "./offline-queue";
 import { safeDateMs } from "../lib/safe-date";
 import { isExpectedAuthBootstrapError } from "../lib/auth-context";
+import { localISODate } from "@agent-runway/core/lib/local-date";
 // Score is read directly from the web dashboard's snapshot in user_settings.
 // No local recomputation needed — guarantees exact parity.
 
@@ -1266,7 +1267,7 @@ export const useDataStore = create<DataStore>((set, get) => {
         const DAY = 86400000;
 
         // Mobile-only: tasks due today (engine doesn't surface tasks)
-        const todayStr = new Date().toISOString().split("T")[0];
+        const todayStr = localISODate();
         const dueTasks = state.tasks.filter(
           (t) => t.due_date && t.due_date.startsWith(todayStr),
         );
@@ -1386,7 +1387,7 @@ export const useDataStore = create<DataStore>((set, get) => {
       }
 
       // 3. Tasks due today
-      const todayStr = new Date().toISOString().split("T")[0];
+      const todayStr = localISODate();
       const dueTasks = state.tasks.filter(
         (t) => t.due_date && t.due_date.startsWith(todayStr)
       );

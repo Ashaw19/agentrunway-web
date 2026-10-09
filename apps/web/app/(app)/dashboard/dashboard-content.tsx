@@ -176,6 +176,7 @@ import { GuideLink } from "@/components/guide-link";
 import { AiProfilePrompt } from "./ai-profile-prompt";
 import { ClosingDayPrompt } from "./closing-day-prompt";
 import type { CommunicationProfile, BusinessIdentity } from "@/lib/types/database";
+import { localISODate } from "@agent-runway/core/lib/local-date";
 
 /** Open checklist item with its client's name (dashboard/page.tsx joins clients(name)). */
 type TaskWithClient = ContactTask & { clients?: { name: string } | null };
@@ -703,7 +704,7 @@ export function DashboardContent({
         deals: planDeals,
         windowStart: `${now.getFullYear()}-01-01`,
         windowEnd: `${now.getFullYear() + 1}-01-01`,
-        asOf: now.toISOString().slice(0, 10),
+        asOf: localISODate(now),
       });
       const brokerageFees = settings.monthly_brokerage_fee * (now.getMonth() + 1);
       return Math.max(0, grossAfterPlan - brokerageFees);
@@ -1185,7 +1186,7 @@ export function DashboardContent({
         deals: planDeals,
         windowStart: `${now.getFullYear()}-01-01`,
         windowEnd: `${now.getFullYear() + 1}-01-01`,
-        asOf: now.toISOString().slice(0, 10),
+        asOf: localISODate(now),
       })
     : null;
   const ytdAgentGross = ytdPlanGross?.shareBeforePlanFees ?? ytdGCI;
@@ -3945,7 +3946,7 @@ function computeProjectedNet(
   // effective-cash.ts:projectedAgentNet exactly.
   const { grossAfterPlan } = computePlanGross(settings, projectedGCI, {
     dealCount: projectedDealCount,
-    asOf: new Date().toISOString().slice(0, 10),
+    asOf: localISODate(),
   });
   const brokerageFeeAnnual = settings.monthly_brokerage_fee * 12;
   return grossAfterPlan - brokerageFeeAnnual;

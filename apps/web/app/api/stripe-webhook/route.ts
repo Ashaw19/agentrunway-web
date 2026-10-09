@@ -9,6 +9,7 @@ import { winBackEmail } from "@/lib/emails/win-back";
 import { paymentFailedEmail } from "@/lib/emails/payment-failed";
 import { logAuditEvent } from "@/lib/audit-log";
 import type Stripe from "stripe";
+import { atlanticISODate } from "@agent-runway/core/lib/local-date";
 
 /**
  * Stripe webhook handler.
@@ -656,7 +657,7 @@ export async function POST(request: Request) {
       const nextRetryDaysMap: Record<number, number | null> = { 1: 3, 2: 4, 3: null };
       const nextRetryDays = nextRetryDaysMap[attemptCount] ?? null;
       const nextRetryDate = nextRetryDays
-        ? new Date(Date.now() + nextRetryDays * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
+        ? atlanticISODate(new Date(Date.now() + nextRetryDays * 24 * 60 * 60 * 1000))
         : null;
 
       // ── Send payment-failed email ────────────────────────────────────────

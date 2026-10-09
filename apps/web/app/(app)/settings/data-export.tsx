@@ -21,6 +21,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { localISODate } from "@agent-runway/core/lib/local-date";
 
 export function DataExportCard() {
   const [downloading, setDownloading] = useState(false);
@@ -57,7 +58,7 @@ export function DataExportCard() {
       const blob = await res.blob();
       const filename =
         parseFilename(res.headers.get("Content-Disposition")) ??
-        `agentrunway-export-${new Date().toISOString().split("T")[0]}.zip`;
+        `agentrunway-export-${localISODate()}.zip`;
 
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");

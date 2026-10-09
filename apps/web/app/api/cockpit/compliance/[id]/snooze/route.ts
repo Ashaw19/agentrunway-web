@@ -19,6 +19,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import type { CorpComplianceEvent } from "@agent-runway/core/types/database";
+import { atlanticISODate } from "@agent-runway/core/lib/local-date";
 
 const ALLOWED_EMAILS = new Set(["andrew@andrewdshaw.ca"]);
 
@@ -86,7 +87,7 @@ export async function POST(
   date.setUTCDate(date.getUTCDate() + days);
   const new_due_date = date.toISOString().slice(0, 10);
 
-  const auditPrefix = `[snoozed ${new Date().toISOString().slice(0, 10)} +${days}d]`;
+  const auditPrefix = `[snoozed ${atlanticISODate()} +${days}d]`;
   const auditLine = reason ? `${auditPrefix} ${reason}` : auditPrefix;
   const next_notes = event.notes ? `${event.notes}\n\n${auditLine}` : auditLine;
 

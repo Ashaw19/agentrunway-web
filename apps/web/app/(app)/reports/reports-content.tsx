@@ -66,6 +66,7 @@ import {
   type ListingAppointment,
 } from "@/lib/types/database";
 import { computePlanGross } from "@/lib/engines/real-compensation-engine";
+import { localISODate } from "@agent-runway/core/lib/local-date";
 import dynamic from "next/dynamic";
 import type { YoYDataPoint } from "@/components/year-over-year-chart";
 import type { ProbabilityDataPoint } from "@/components/probability-chart";
@@ -140,7 +141,7 @@ function computeProjectedNet(
   // effective-cash.ts:projectedAgentNet exactly.
   const { grossAfterPlan } = computePlanGross(settings, projectedGCI, {
     dealCount: projectedDealCount,
-    asOf: new Date().toISOString().slice(0, 10),
+    asOf: localISODate(),
   });
   const brokerageFeeAnnual = settings.monthly_brokerage_fee * 12;
   return grossAfterPlan - brokerageFeeAnnual;
@@ -318,7 +319,7 @@ export function ReportsContent({
     deals: ytdTx.map((tx) => ({ date: tx.date, gci: computeGCI(tx) })),
     windowStart: `${currentYear}-01-01`,
     windowEnd: `${currentYear + 1}-01-01`,
-    asOf: now.toISOString().slice(0, 10),
+    asOf: localISODate(now),
   });
   const agentGross = planYtd.shareBeforePlanFees;
   const brokerageTake = Math.max(0, ytdGCI - agentGross);

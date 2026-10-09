@@ -2,6 +2,7 @@ import { ArrowDownLeft, ArrowUpRight, Wallet } from "lucide-react";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { atlanticISODate } from "@agent-runway/core/lib/local-date";
 
 // Phase 1 cash surface: manual snapshot logger + shareholder loan tracker.
 // AR Inc. has no bank-feed (Plaid Growth deferred, QuickBooks skipped) so
@@ -158,7 +159,7 @@ export default async function CashPage({
   const snapshots  = (snapshotRes.data ?? []) as SnapshotRow[];
   const loanRows   = (loanRes.data ?? []) as LoanRow[];
   const latestSnap = snapshots[0] ?? null;
-  const todayYmd   = new Date().toISOString().slice(0, 10);
+  const todayYmd   = atlanticISODate();
 
   // Running balance: SUM of all signed amounts. Positive = corp owes Andrew.
   const loanBalance = loanRows.reduce((s, r) => s + Number(r.amount_total), 0);

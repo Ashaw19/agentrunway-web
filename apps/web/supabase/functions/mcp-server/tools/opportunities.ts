@@ -5,6 +5,7 @@ import {
   OPPORTUNITY_DEFAULT_ODDS,
   type OpportunityRow,
 } from "../lib/opportunity-conversion-engine.ts";
+import { atlanticISODate } from "../../_shared/core/lib/local-date.ts";
 
 // ─── Loss-reason vocabulary ───────────────────────────────────────────────
 // Inlined from packages/core/lib/opportunity-loss-reasons.ts. The DB enforces
@@ -214,7 +215,7 @@ export function getOpportunityTools(supabase: SupabaseClient, userId: string): M
             .insert({
               user_id: userId,
               property_address: a.name,
-              appointment_date: a.appointment_date ?? new Date().toISOString().slice(0, 10),
+              appointment_date: a.appointment_date ?? atlanticISODate(),
               estimated_list_price: a.estimated_price ?? null,
               estimated_commission_pct: commission,
               close_odds_pct: odds,

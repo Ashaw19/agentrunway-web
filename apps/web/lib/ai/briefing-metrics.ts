@@ -27,6 +27,7 @@ import {
   type PipelineDeal,
 } from "@/lib/types/database";
 import { seasonalFractionElapsed } from "@/lib/engines/projection-engine";
+import { addDaysISO, atlanticISODate } from "@agent-runway/core/lib/local-date";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type AnySupabaseClient = SupabaseClient<any, any, any>;
@@ -53,15 +54,14 @@ export interface BriefingDateRanges {
 
 /** Derive the date windows the briefing queries use. */
 export function briefingDateRanges(now: Date = new Date()): BriefingDateRanges {
+  const todayStr = atlanticISODate(now);
   return {
-    todayStr: now.toISOString().slice(0, 10),
+    todayStr,
     yearStart: `${now.getFullYear()}-01-01`,
     fourteenDaysAgo: new Date(now.getTime() - 14 * 86_400_000)
       .toISOString()
       .slice(0, 10),
-    fourteenDaysAhead: new Date(now.getTime() + 14 * 86_400_000)
-      .toISOString()
-      .slice(0, 10),
+    fourteenDaysAhead: addDaysISO(todayStr, 14),
   };
 }
 
