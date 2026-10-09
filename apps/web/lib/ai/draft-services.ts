@@ -52,10 +52,11 @@ import {
   type DealForConsent,
   emailConsentLapsedReason,
   lastClosedDealByClient,
-  localISODate,
   outreachChannel,
   withCoBuyerDeals,
 } from "@/lib/crm/outreach-consent";
+import { APP_TIME_ZONE, atlanticISODate, atlanticNoon } from "@agent-runway/core/lib/local-date";
+import { nextBirthdayDate } from "@/lib/crm/next-birthday";
 import type {
   OutreachOpportunityType,
   NewsletterTemplateType,
@@ -100,14 +101,14 @@ export interface DraftOutreachResult {
 }
 
 // ─── Outreach: pure date helpers (mirrored from the route) ────────────────────
+// Server code: "today" is the Atlantic day (local-date.ts), not the UTC day.
 
 function toISODate(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
 function firstOfMonth(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
+  return `${atlanticISODate().slice(0, 7)}-01`;
 }
 
 function addYears(isoDate: string, years: number): Date {
@@ -123,22 +124,12 @@ function addDays(isoDate: string, days: number): Date {
 }
 
 function daysUntil(target: Date): number {
-  const today = new Date();
-  today.setHours(12, 0, 0, 0);
+  const today = atlanticNoon();
   return (target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24);
 }
 
 function daysSince(isoDate: string): number {
   return Math.round(-daysUntil(addDays(isoDate.slice(0, 10), 0)));
-}
-
-function nextBirthdayDate(birthdate: string): Date {
-  const today = new Date();
-  const [, mmdd] = birthdate.split(/-(.+)/);
-  const candidate = new Date(`${today.getFullYear()}-${mmdd}T12:00:00`);
-  if (isNaN(candidate.getTime())) return candidate;
-  if (candidate < today) candidate.setFullYear(today.getFullYear() + 1);
-  return candidate;
 }
 
 function extractFirstName(displayName: string | null): string {
@@ -584,7 +575,7 @@ export async function draftOutreachForClient(input: {
       // Written around the most recent deal that has actually closed: one
       // still waiting on its close date doesn't count (collapsed deals are
       // already out of `records`).
-      const todayIso = localISODate(new Date());
+      const todayIso = atlanticISODate();
       const closed = records.find((r) => String(r.close_date).slice(0, 10) <= todayIso);
       const cadence = POST_CLOSE_OPPORTUNITY_CONFIGS.find((c) => c.type === opType);
       if (!closed?.close_date || !cadence) {
@@ -616,7 +607,7 @@ export async function draftOutreachForClient(input: {
   // Checked before the existing-draft lookup so a lapsed client is never
   // pointed at an old draft either. A co-buyer's shared deal counts too.
   const lastClose = lastClosedDealByClient([...records, ...coBought]).get(clientId);
-  if (lastClose && outreachChannel(lastClose, triggerDate) === "call") {
+  if (lastClose && outreachChannel(lastClose, triggerDate, atlanticNoon()) === "call") {
     return {
       status: "call_only",
       queueItemId: "",
@@ -1055,7 +1046,7 @@ export async function draftNewsletter(input: {
       const oldRate = Number(input.oldRate);
       const newRate = Number(input.newRate);
       const effectiveDate = input.effectiveDate
-        ?? new Date().toLocaleDateString("en-CA", { month: "long", day: "numeric", year: "numeric" });
+        ?? new Date().toLocaleDateString("en-CA", { timeZone: APP_TIME_ZONE, month: "long", day: "numeric", year: "numeric" });
       const notes = input.notes?.trim() || null;
       context = { old_rate: oldRate, new_rate: newRate, effective_date: effectiveDate, notes };
       prompt = buildBocRateChangeNewsletterPrompt(agentFirst, oldRate, newRate, effectiveDate, notes);
@@ -1352,7 +1343,7 @@ export async function draftWorkflowMessage(
   // A workflow draft goes out today. Same rule and helper as Flight Control
   // Scan (lib/crm/outreach-consent.ts). A co-buyer's shared deal counts too.
   const lastClose = lastClosedDealByClient([...(recordsRes.data ?? []), ...coBought]).get(clientId);
-  if (lastClose && outreachChannel(lastClose, localISODate(new Date())) === "call") {
+  if (lastClose && outreachChannel(lastClose, atlanticISODate(), atlanticNoon()) === "call") {
     return {
       status: "call_only",
       reason: emailConsentLapsedReason(clientDisplayName, lastClose),

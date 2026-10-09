@@ -3,6 +3,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { cn } from "@/lib/utils";
 import { ArrowUpRight, ArrowDownLeft } from "lucide-react";
+import { atlanticYear } from "@agent-runway/core/lib/local-date";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -30,9 +31,10 @@ const fmtDate = (iso: string) =>
     year: "numeric",
   });
 
-const currentYear = new Date().getFullYear();
-
 export default async function FounderCompPage() {
+  // Per request, in Atlantic time. At module scope it was evaluated once per
+  // server instance (and in UTC), so a warm instance kept last year's YTD.
+  const currentYear = atlanticYear();
   const supabase = await createClient();
   const {
     data: { user },

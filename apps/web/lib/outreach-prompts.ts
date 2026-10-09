@@ -124,6 +124,7 @@ export const SUBJECT_LINE_RULES = `SUBJECT LINE RULES (apply strictly):
 // Re-export from centralized types for backward compatibility
 export type { Tone } from "@/lib/types/outreach";
 import type { Tone } from "@/lib/types/outreach";
+import { atlanticMonth } from "@agent-runway/core/lib/local-date";
 
 export const TONE_INSTRUCTIONS: Record<Tone, string> = {
   casual: `TONE: Very casual, like texting a close friend. Use contractions freely, short sentences, maybe even humour. First names only. Think "buddy sending a quick note" — not an agent running a campaign. No formal greetings. Canadian casual: self-deprecating warmth is good, aggressive informality is not. Sentence fragments are fine. Even encouraged.`,
@@ -277,7 +278,7 @@ export function buildIdlePrompt(
   tone: Tone = "friendly",
 ): string {
   const location = [city, province].filter(Boolean).join(", ");
-  const month    = new Date().getMonth();
+  const month    = atlanticMonth(); // Atlantic, not the server's UTC month
   const season   =
     month >= 2  && month <= 4  ? "spring market season"  :
     month >= 5  && month <= 7  ? "summer"                :
@@ -945,7 +946,7 @@ export function buildPastClientCheckInPrompt(
   province:    string | null,
   tone:        Tone = "friendly",
 ): string {
-  const month  = new Date().getMonth();
+  const month  = atlanticMonth(); // Atlantic, not the server's UTC month
   const season =
     month >= 2 && month <= 4 ? "spring market season" :
     month >= 5 && month <= 7 ? "summer"               :

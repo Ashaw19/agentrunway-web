@@ -29,6 +29,7 @@ import { survivalResult } from "@agent-runway/core/engines/survival-engine";
 import { computeEffectiveCashForSurvival, computePipelineMonthlyIncome } from "@agent-runway/core/engines/effective-cash";
 import { projectedYearEndTransactions } from "@agent-runway/core/engines/projection-engine";
 import { totalRecurringYTD } from "@agent-runway/core/engines/recurring-expense-engine";
+import { atlanticNoon } from "@agent-runway/core/lib/local-date";
 import type { RecurringExpense } from "@/lib/types/database";
 import { generateText } from "ai";
 import { models } from "@/lib/ai/provider";
@@ -73,12 +74,16 @@ export async function GET(req: NextRequest) {
   }
 
   const admin = createAdminClient();
-  const year = new Date().getFullYear();
   const now = new Date();
+  // Atlantic calendar for this year / this month (local-date.ts). The cron
+  // fires Monday 12:00 UTC, when UTC and Atlantic share a day, but a manual
+  // run after 8 pm Atlantic would otherwise total the wrong year or month.
+  const today = atlanticNoon(now);
+  const year = today.getFullYear();
   const sevenDaysAgo = new Date(now);
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
   const sevenDaysAgoISO = sevenDaysAgo.toISOString().slice(0, 10);
-  const monthStart = `${year}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
+  const monthStart = `${year}-${String(today.getMonth() + 1).padStart(2, "0")}-01`;
 
   // Find all professional-tier users (active or trialing).
   // Select * so we have every field computeEffectiveCashForSurvival needs
@@ -306,7 +311,7 @@ export async function GET(req: NextRequest) {
       // The fractional form (fixed 2026-06-26) made the digest's expensesYTD —
       // and the Runway Score / expense ratio derived from it — disagree with
       // the dashboard. See dashboard_metric_divergence_fix_2026-06-26.md.
-      const expMonthsElapsed = now.getMonth() + 1;
+      const expMonthsElapsed = today.getMonth() + 1;
       const recurringYTDEstimate = monthlyRecurring * expMonthsElapsed;
       // Also include new recurring_expenses table (matches dashboard canonical formula)
       const { data: recurringExpRows } = await admin
@@ -314,7 +319,7 @@ export async function GET(req: NextRequest) {
         .select("*")
         .eq("user_id", user.user_id)
         .eq("is_active", true);
-      const recurringExpYTD = totalRecurringYTD((recurringExpRows ?? []) as RecurringExpense[]);
+      const recurringExpYTD = totalRecurringYTD((recurringExpRows ?? []) as RecurringExpense[], today);
       const expensesYTD = Math.max(receiptYTD, recurringYTDEstimate) + recurringExpYTD;
 
       // Health report (canonical 3 sub-scores: pace, pipeline, expenses)
@@ -346,7 +351,7 @@ export async function GET(req: NextRequest) {
         projectedGCI,
         projectedDealCount,
         fraction,
-        now,
+        now: today,
       });
       const survival = survivalResult(
         user.monthly_brokerage_fee ?? 0,

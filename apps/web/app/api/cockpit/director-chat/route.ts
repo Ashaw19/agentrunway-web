@@ -31,6 +31,7 @@ import {
   DIRECTOR_INTERNAL_DISCLAIMER,
 } from "@/lib/cockpit/director-persona";
 import { log } from "@/lib/logger";
+import { atlanticYear } from "@agent-runway/core/lib/local-date";
 
 export const maxDuration = 120;
 export const runtime = "nodejs";
@@ -95,7 +96,7 @@ export async function POST(req: NextRequest) {
           .describe("Calendar year to filter on. Defaults to the current year."),
       }),
       execute: async ({ year }) => {
-        const targetYear = year ?? new Date().getFullYear();
+        const targetYear = year ?? atlanticYear();
         const { data, error } = await supabase
           .from("v_corp_pl_by_account")
           .select("account_code, account_name, account_type, total_amount, year")
@@ -280,7 +281,7 @@ export async function POST(req: NextRequest) {
           .describe("Calendar year to scan. Defaults to current year."),
       }),
       execute: async ({ year }) => {
-        const targetYear = year ?? new Date().getFullYear();
+        const targetYear = year ?? atlanticYear();
         const startDate = `${targetYear}-01-01`;
         const endDate = `${targetYear}-12-31`;
 
@@ -455,7 +456,7 @@ export async function POST(req: NextRequest) {
           .describe("Max recent entries to return. Defaults to 20."),
       }),
       execute: async ({ year, limit }) => {
-        const fiscalYear = year ?? new Date().getFullYear();
+        const fiscalYear = year ?? atlanticYear();
         const [summaryRes, entriesRes] = await Promise.all([
           supabase
             .from("v_corp_sred_annual_summary")

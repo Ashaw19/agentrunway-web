@@ -20,6 +20,7 @@ import {
   type Deviation,
 } from "../deviation-engine";
 import type { Transaction, ContactActivity } from "../../types/database";
+import { atlanticNoon } from "../../lib/local-date";
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -138,6 +139,18 @@ describe("Personal Baselines", () => {
     const result = computeBaselines(txs, [], 0, 0);
     // Only 3 months should count (months 1, 2, 3)
     expect(result.monthsOfData).toBe(3);
+  });
+
+  it("takes the current month from the calendar anchor (server: atlanticNoon)", () => {
+    // Dec 31 2026, 10 pm Atlantic. On the UTC clock it is already January,
+    // which would count December as a completed month (4 instead of 3).
+    const txs = ["2026-09-15", "2026-10-15", "2026-11-15", "2026-12-15"].map((date) =>
+      makeTx(0, 400000, { date }),
+    );
+    const dec31Evening = atlanticNoon(new Date("2027-01-01T02:00:00Z"));
+    const jan1 = atlanticNoon(new Date("2027-01-01T05:00:00Z"));
+    expect(computeBaselines(txs, [], 0, 0, dec31Evening).monthsOfData).toBe(3);
+    expect(computeBaselines(txs, [], 0, 0, jan1).monthsOfData).toBe(4);
   });
 
   it("excludes transactions older than 12 months", () => {

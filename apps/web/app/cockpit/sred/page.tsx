@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { SredClient } from "./sred-client";
 import type { CorpSredEntry, CorpSredAnnualSummary } from "@agent-runway/core/types/database";
+import { atlanticYear } from "@agent-runway/core/lib/local-date";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +18,7 @@ export default async function SredPage() {
     redirect("/dashboard");
   }
 
-  const year = new Date().getFullYear();
+  const year = atlanticYear(); // Atlantic, not the server's UTC year
 
   const [entriesResult, summaryResult] = await Promise.all([
     supabase

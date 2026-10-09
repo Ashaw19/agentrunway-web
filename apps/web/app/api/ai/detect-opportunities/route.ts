@@ -31,6 +31,8 @@ import { lastClosedDealByClient, outreachChannel, withCoBuyerDeals } from "@/lib
 import { recentlyContactedClientIds, outreachSuppressionCutoff } from "@/lib/crm/recently-contacted";
 import { selectTopCandidates, clientLifetimeGci } from "@/lib/crm/top-opportunity-selection";
 import { withoutDismissed } from "@/lib/crm/dismissed-opportunities";
+import { atlanticISODate, atlanticMonth, atlanticNoon, atlanticYear } from "@agent-runway/core/lib/local-date";
+import { nextBirthdayDate } from "@/lib/crm/next-birthday";
 import {
   quietLeadCandidates,
   sphereCandidates,
@@ -78,6 +80,7 @@ const MAX_DRAFTS_PER_RUN = 10;   // max Groq calls per invocation (~2-3s each, w
 const SEASONAL_TOP_N     = 25;   // max clients for seasonal campaigns
 
 // ── Date helpers ──────────────────────────────────────────────────────────────
+// Server code: "today" is the Atlantic day (local-date.ts), not the UTC day.
 
 function addYears(isoDate: string, years: number): Date {
   const d = new Date(isoDate + "T12:00:00");
@@ -92,8 +95,7 @@ function addDays(isoDate: string, days: number): Date {
 }
 
 function daysUntil(target: Date): number {
-  const today = new Date();
-  today.setHours(12, 0, 0, 0);
+  const today = atlanticNoon();
   return (target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24);
 }
 
@@ -102,23 +104,13 @@ function toISODate(d: Date): string {
 }
 
 function firstOfMonth(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
+  return `${atlanticISODate().slice(0, 7)}-01`;
 }
 
 function monthsAgoDate(months: number): Date {
   const d = new Date();
   d.setMonth(d.getMonth() - months);
   return d;
-}
-
-function nextBirthdayDate(birthdate: string): Date {
-  const today = new Date();
-  const [, mmdd] = birthdate.split(/-(.+)/); // "1990-03-21" → "03-21"
-  const candidate = new Date(`${today.getFullYear()}-${mmdd}T12:00:00`);
-  if (isNaN(candidate.getTime())) return candidate; // guard malformed dates
-  if (candidate < today) candidate.setFullYear(today.getFullYear() + 1);
-  return candidate;
 }
 
 // ── Memory-powered scoring & value selection ─────────────────────────────────
@@ -1036,7 +1028,7 @@ export async function detectAndDraftForUser(
     if (!client.first_contacted_at) continue;
     if (recentlyContactedIds.has(client.id)) continue; // suppress if recently contacted
     const startDate  = client.first_contacted_at.slice(0, 10);
-    const yearsSince = new Date().getFullYear() - new Date(startDate + "T12:00:00").getFullYear();
+    const yearsSince = atlanticYear() - new Date(startDate + "T12:00:00").getFullYear();
     if (yearsSince < 1) continue;
     for (const yr of [1, 2, 3, 5, 10]) {
       if (yr > yearsSince + 1) break;
@@ -1097,7 +1089,7 @@ export async function detectAndDraftForUser(
       .map(([id]) => id),
   );
 
-  const todayD  = new Date();
+  const todayD  = atlanticNoon();
   const thisYr  = todayD.getFullYear();
   const todayMM = todayD.getMonth() + 1;
   const todayDD = todayD.getDate();
@@ -1264,7 +1256,7 @@ export async function detectAndDraftForUser(
   );
   const emailable = inserts.filter((ins) => {
     const i = ins as { client_id: string; trigger_date: string };
-    return outreachChannel(lastCloseByClient.get(i.client_id), i.trigger_date) === "email";
+    return outreachChannel(lastCloseByClient.get(i.client_id), i.trigger_date, atlanticNoon()) === "email";
   });
   if (emailable.length < inserts.length) {
     console.log(`[detect-opportunities] CASL gate: ${inserts.length - emailable.length} opportunities left as call-only (implied consent lapsed)`);
@@ -1806,8 +1798,7 @@ function buildWhyNow(
 
 function daysUntilLabel(triggerDate: string): string {
   const target = new Date(triggerDate + "T12:00:00");
-  const today  = new Date();
-  today.setHours(12, 0, 0, 0);
+  const today  = atlanticNoon();
   const days = Math.round((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
   if (days < 0)  return `${Math.abs(days)} days ago`;
   if (days === 0) return "today";
@@ -2162,7 +2153,7 @@ function computeAgentState(
 
   if (yearsActive >= 1 && totalDeals >= 2) {
     const yearlyAvg = totalDeals / yearsActive;
-    const monthFraction = (new Date().getMonth() + 1) / 12;
+    const monthFraction = (atlanticMonth() + 1) / 12;
     const expectedByNow = yearlyAvg * monthFraction;
 
     if (dealsThisYear >= expectedByNow * 1.25) {
@@ -2394,7 +2385,7 @@ export async function getTopOpportunities(
     if (!client.first_contacted_at) continue;
     if (recentlyContactedIds.has(client.id)) continue;
     const startDate = client.first_contacted_at.slice(0, 10);
-    const yearsSince = new Date().getFullYear() - new Date(startDate + "T12:00:00").getFullYear();
+    const yearsSince = atlanticYear() - new Date(startDate + "T12:00:00").getFullYear();
     if (yearsSince < 1) continue;
     for (const yr of [1, 2, 3, 5, 10]) {
       if (yr > yearsSince + 1) break;
@@ -2539,7 +2530,7 @@ export async function getTopOpportunities(
   const pipelineLight = activeClients < 3;
 
   // ── Compute agent state ────────────────────────────────────────────────────
-  const currentYear = new Date().getFullYear();
+  const currentYear = atlanticYear();
   const dealsThisYear = records.filter((r) =>
     r.close_date && r.close_date.startsWith(String(currentYear)),
   ).length;
@@ -2566,7 +2557,7 @@ export async function getTopOpportunities(
     const callCopy = callCardCopy(typed.opportunity_type, typed.context);
     const channel: "email" | "call" = CALL_FIRST_TYPES.has(typed.opportunity_type)
       ? "call"
-      : outreachChannel(lastCloseByClient.get(typed.client_id), typed.trigger_date);
+      : outreachChannel(lastCloseByClient.get(typed.client_id), typed.trigger_date, atlanticNoon());
 
     return {
       client_id:        typed.client_id,
@@ -2615,7 +2606,7 @@ export async function getTopOpportunities(
 
       // Boost time-sensitive items (trigger date is today or very soon)
       const trigTarget = new Date(r.trigger_date + "T12:00:00");
-      const today = new Date(); today.setHours(12, 0, 0, 0);
+      const today = atlanticNoon();
       const daysAway = Math.round((trigTarget.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
       if (daysAway >= -3 && daysAway <= 0) priority += 12; // overdue ≤3 days: most urgent
       else if (daysAway < -3) priority += 3;              // overdue >3 days: decayed, fresh items should win
@@ -2716,7 +2707,7 @@ function buildPrimaryReason(
 
   // ── Time-critical window ──────────────────────────────────────────────────
   const trigTarget = new Date(triggerDate + "T12:00:00");
-  const today = new Date(); today.setHours(12, 0, 0, 0);
+  const today = atlanticNoon();
   const daysAway = isNaN(trigTarget.getTime()) ? 999 : Math.round((trigTarget.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 
   if (daysAway <= 0) {
@@ -2808,7 +2799,7 @@ function buildRiskIfIgnored(
 
   // Timing awareness
   const trigTarget = new Date(triggerDate + "T12:00:00");
-  const today = new Date(); today.setHours(12, 0, 0, 0);
+  const today = atlanticNoon();
   const daysAway = isNaN(trigTarget.getTime()) ? 999 : Math.round((trigTarget.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
   const isOverdue = daysAway <= 0;
   const isImminent = daysAway > 0 && daysAway <= 3;

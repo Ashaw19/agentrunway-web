@@ -23,7 +23,7 @@ import { computePlanGross, describeSplit } from "@/lib/engines/real-compensation
 import { fmtCurrency } from "@/lib/formatters";
 import { describeIncomeGoals, incomeGoalCurrentYear, goalForYear, hasGoalRow } from "@/lib/income-goals";
 import { pipelineLinedUpForYear } from "@agent-runway/core/engines/year-plan-engine";
-import { atlanticISODate } from "@agent-runway/core/lib/local-date";
+import { atlanticISODate, atlanticNoon } from "@agent-runway/core/lib/local-date";
 import {
   seasonalFractionElapsed,
   paceVsGoalPercent,
@@ -274,9 +274,14 @@ export async function POST(req: NextRequest) {
   // ── 5. Build financial context server-side (never trust client-provided data) ─
   let financialContext = "No user data available.";
   try {
-    const currentYear = new Date().getFullYear();
+    // The user's calendar (Atlantic), not the server's UTC clock: from 8 pm
+    // Atlantic on Dec 31, UTC is already next year (month-end evenings: next
+    // month). `today` anchors every engine's year / month / day math; the
+    // seasonal fraction takes the real instant and reads Atlantic itself.
+    const today = atlanticNoon();
+    const currentYear = today.getFullYear();
     const todayISO = atlanticISODate();
-    const ytdStart = `${new Date().getFullYear()}-01-01`;
+    const ytdStart = `${currentYear}-01-01`;
     const settled = await Promise.allSettled([
         supabase.from("user_settings").select("*").eq("user_id", user.id).maybeSingle(),                                                                  // 0
         supabase.from("transactions").select("date, sale_price, commission_pct, team_split_pct, gci_override").eq("user_id", user.id).eq("status", "closed"), // 1
@@ -323,7 +328,7 @@ export async function POST(req: NextRequest) {
     const { data: incomeGoalRows } = val(settled[17], emptyResult);
     const recurringExps = (recurringExpRows ?? []) as RecurringExpense[];
     const recurringExpMonthly = totalRecurringMonthly(recurringExps);
-    const recurringExpYTDTotal = totalRecurringYTD(recurringExps);
+    const recurringExpYTDTotal = totalRecurringYTD(recurringExps, today);
 
     if (settings && transactions) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -354,7 +359,6 @@ export async function POST(req: NextRequest) {
         0,
       );
       const monthlyRecurring = legacyMonthlyRecurring + recurringExpMonthly;
-      const expNow = new Date();
       // Months elapsed for the recurring-expense YTD estimate. MUST match the
       // dashboard exactly: integer `getMonth() + 1` (1–12), NOT the fractional
       // `getMonth() + getDate()/30`. The fractional form (fixed 2026-06-26)
@@ -362,7 +366,7 @@ export async function POST(req: NextRequest) {
       // propagated into the Runway Score, survival, tax projection, and
       // expense-ratio surfaced in Captain's answer. See dashboard-content.tsx
       // (expMonthsElapsed) + memory/findings/dashboard_metric_divergence_fix_2026-06-26.md.
-      const expMonthsElapsed = expNow.getMonth() + 1;
+      const expMonthsElapsed = today.getMonth() + 1;
       const legacyRecurringYTDEstimate = legacyMonthlyRecurring * expMonthsElapsed;
       const expensesYTD = Math.max(receiptTotal, legacyRecurringYTDEstimate) + recurringExpYTDTotal;
       // Plan-aware label: 'real' has no pXX_YY preset — describeSplit renders
@@ -545,8 +549,8 @@ export async function POST(req: NextRequest) {
         // ACTIVE deals only — this feeds projectedYearEndTransactions and the
         // "active deals" copy Captain speaks aloud.
         const pipelineCount = livePipeline.length;
-        const remaining = daysRemaining();
-        const _elapsedDays = dayOfYear();
+        const remaining = daysRemaining(today);
+        const _elapsedDays = dayOfYear(today);
 
         // 1. Projection Engine — uses engineFraction (agent-specific seasonal weights)
         // Projection input is pipeline-weighted + listing-weighted GCI, exactly
@@ -559,7 +563,7 @@ export async function POST(req: NextRequest) {
         const projDeals = projectedYearEndTransactions(
           ytdTx.length, pipelineCount, engineFraction,
         );
-        const trend = trendDirection(txForEngines);
+        const trend = trendDirection(txForEngines, today);
         const dailyPace = settings.goal_gci > 0
           ? dailyPaceRequired(settings.goal_gci, ytdGCI, remaining)
           : 0;
@@ -591,6 +595,7 @@ export async function POST(req: NextRequest) {
           monthlyRecurring,
           settings,
           projectedDealCount: projDeals,
+          now: today,
         });
         const taxResult: CanadianTaxResult = calculateTax(
           projectedNetIncome,
@@ -607,7 +612,6 @@ export async function POST(req: NextRequest) {
         // 25/100 (critical) in Captain's answer for the same agent, same
         // moment — then Captain gave alarmist "build up your buffer" advice
         // on a wrong number. See feedback_data_consistency_protocol.md.
-        const now = new Date();
         const hstRateValue = gstHstRate((settings.province ?? "ontario") as Province);
         // D-4 fix (Audit 1 2026-04-22): canonical HST helper. Previous inline
         // formula `ytdGCI * hstRate` missed the `brokerageWithholdsHst` case
@@ -636,11 +640,11 @@ export async function POST(req: NextRequest) {
         const { grossAfterPlan: cpGrossAfterPlan } = computePlanGross(settings, ytdGCI, {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           deals: ytdTx.map((tx: any) => ({ date: tx.date, gci: computeGCI(tx) })),
-          windowStart: `${now.getFullYear()}-01-01`,
-          windowEnd: `${now.getFullYear() + 1}-01-01`,
-          asOf: atlanticISODate(now),
+          windowStart: `${currentYear}-01-01`,
+          windowEnd: `${currentYear + 1}-01-01`,
+          asOf: todayISO,
         });
-        const cpBrokerageFees = (settings.monthly_brokerage_fee ?? 0) * (now.getMonth() + 1);
+        const cpBrokerageFees = (settings.monthly_brokerage_fee ?? 0) * (today.getMonth() + 1);
         const cpYtdAgentNet = Math.max(0, cpGrossAfterPlan - cpBrokerageFees);
         const cashPosition: CashPositionResult = computeCashPosition({
           ytdGCI,
@@ -685,7 +689,7 @@ export async function POST(req: NextRequest) {
 
         // 7. Probabilistic Forecast Engine
         const bands: ProbabilityBands = probabilityBands(
-          txForEngines, projGCI, engineFraction,
+          txForEngines, projGCI, engineFraction, today,
         );
 
         // 8. Where You Stand Engine
@@ -706,12 +710,13 @@ export async function POST(req: NextRequest) {
           experienceYears: settings.experience_years ?? null,
           cohort,
           hasPriorYearData: hasPriorYear,
-          currentQuarter: getCurrentQuarter(),
+          currentQuarter: getCurrentQuarter(today),
+          now: today,
         });
 
         // 10. Deviation Engine
         const tier = experienceTier(settings.experience_years);
-        const monthsElapsed = Math.max(1, new Date().getMonth() + 1);
+        const monthsElapsed = Math.max(1, today.getMonth() + 1);
         const currentMonthlyGCI = ytdGCI / monthsElapsed;
         const currentMonthlyDeals = ytdTx.length / monthsElapsed;
         const currentExpenseRatio = ytdGCI > 0 ? expensesYTD / ytdGCI : 0;
@@ -724,6 +729,7 @@ export async function POST(req: NextRequest) {
           (activities ?? []) as unknown as ContactActivity[],
           monthlyRecurring,
           currentMonthlyGCI,
+          today,
         );
         const deviations = detectAllDeviations(
           baselines,
@@ -760,6 +766,7 @@ export async function POST(req: NextRequest) {
           runwayGrade: runwayScore.grade,
           runwayStateLabel: runwayScore.stateLabel,
           runwayWeakestLabel: healthReport.weakestLabel,
+          now: today,
         }, 5);
 
         // ── Build computed outputs context string ──────────────────────────
@@ -884,7 +891,7 @@ export async function POST(req: NextRequest) {
         {
           const quarterlyInstalment = taxResult.quarterlyEstimate;
           const perDealSetAside = taxResult.perDealSetAside;
-          const currentQ = getCurrentQuarter();
+          const currentQ = getCurrentQuarter(today);
           const _nextInstalmentQ = currentQ < 4 ? currentQ + 1 : 1;
           const nextInstalmentLabel = currentQ === 1 ? "June 15" : currentQ === 2 ? "Sep 15" : currentQ === 3 ? "Dec 15" : "Mar 15";
           if (quarterlyInstalment > 500) {
@@ -918,7 +925,7 @@ export async function POST(req: NextRequest) {
           });
           const receiptDetails = (receiptDetailsRows ?? []) as { total_amount?: number | null; tax_amount?: number | null; category_key?: string | null }[];
           const receiptITCs = receiptDetails.reduce((sum, r) => sum + Number(r.tax_amount ?? 0), 0);
-          const recurringITCs = totalRecurringHSTYTD(recurringExps);
+          const recurringITCs = totalRecurringHSTYTD(recurringExps, today);
           const totalITCsClaimed = receiptITCs + recurringITCs;
           const netHST = totalHSTCollected - totalITCsClaimed;
           if (ytdGCI > 0) {
@@ -1002,7 +1009,7 @@ export async function POST(req: NextRequest) {
 
         // 7. Seasonal Tax Set-Aside Adjustments
         {
-          const currentQ = getCurrentQuarter();
+          const currentQ = getCurrentQuarter(today);
           const qFraction = engineSeasonalWeights[currentQ - 1];
           if (qFraction > 0.30 && ytdTx.length > 0) {
             // This is a heavy quarter — agent earning disproportionately
@@ -1052,8 +1059,8 @@ export async function POST(req: NextRequest) {
         {
           const filingFreq = (settings.filing_frequency ?? "quarterly") as FilingFrequency;
           try {
-            const currentPeriod = getCurrentFilingPeriod(filingFreq);
-            const deadlineInfo = deadlineUrgency(currentPeriod.deadline);
+            const currentPeriod = getCurrentFilingPeriod(filingFreq, undefined, today);
+            const deadlineInfo = deadlineUrgency(currentPeriod.deadline, today);
             if (deadlineInfo.daysUntil <= 30 && deadlineInfo.daysUntil > 0) {
               taxIntelLines.push(
                 `[FILING DEADLINE] ${filingFreq.charAt(0).toUpperCase() + filingFreq.slice(1)} GST/HST return ` +
@@ -1210,10 +1217,8 @@ IMPORTANT: When comparing this agent to team averages, always reference ${leader
 
         // ── T5: Team comparative insights ─────────────────────────────────
         if (myRow) {
-          const dayOfYear = Math.floor(
-            (Date.now() - new Date(new Date().getFullYear(), 0, 0).getTime()) / 86400000
-          );
-          const seasonalFraction = Math.max(dayOfYear / 365, 0.01);
+          const elapsedDays = dayOfYear(atlanticNoon());
+          const seasonalFraction = Math.max(elapsedDays / 365, 0.01);
 
           const comparativeInsights = generateTeamComparativeInsights({
             agent: {

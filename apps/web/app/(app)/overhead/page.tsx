@@ -8,6 +8,7 @@ import { projectedYearEndGCI, projectedYearEndTransactions, seasonalFractionElap
 import { computeEffectiveCashForSurvival } from "@/lib/engines/effective-cash";
 import type { ScenarioSeedData } from "@/app/(app)/scenarios/page";
 import { computeIsPro } from "@/lib/compute-is-pro";
+import { atlanticNoon } from "@agent-runway/core/lib/local-date";
 
 
 export default async function OverheadPage() {
@@ -22,7 +23,9 @@ export default async function OverheadPage() {
     .eq("user_id", user.id)
     .maybeSingle();
 
-  const currentYear = new Date().getFullYear();
+  // Atlantic calendar, not the server's UTC clock (local-date.ts).
+  const today = atlanticNoon();
+  const currentYear = today.getFullYear();
 
   // ── Live Supabase queries ──
   const [
@@ -93,7 +96,7 @@ export default async function OverheadPage() {
 
   const recurringExpenses = (recurringExpResult.data ?? []) as RecurringExpense[];
   const recurringExpMonthly = totalRecurringMonthly(recurringExpenses);
-  const recurringExpYTD = totalRecurringYTD(recurringExpenses);
+  const recurringExpYTD = totalRecurringYTD(recurringExpenses, today);
 
   const transactions = (txResult.data ?? []) as Transaction[];
   const expenseItems = expItemResult.data ?? [];
@@ -125,10 +128,9 @@ export default async function OverheadPage() {
   const pipelineWeightedGCI = livePipelineDeals.reduce((sum, d) => sum + computeWeightedGCI(d), 0);
   const legacyMonthlyRecurring = expenseItems.reduce((sum, i) => sum + Number(i.monthly_recurring ?? 0), 0);
   const monthlyRecurring = legacyMonthlyRecurring + recurringExpMonthly;
-  const now = new Date();
   // Integer months elapsed (1-12) — matches the dashboard. See
   // dashboard_metric_divergence_fix_2026-06-26.md.
-  const expMonthsElapsed = now.getMonth() + 1;
+  const expMonthsElapsed = today.getMonth() + 1;
   const expensesYTD = Math.max(receiptYTD, legacyMonthlyRecurring * expMonthsElapsed) + recurringExpYTD;
   const qPcts = rawSettings?.national_quarter_pcts ?? [0.25, 0.25, 0.25, 0.25];
   const fraction = seasonalFractionElapsed(qPcts);
@@ -149,6 +151,7 @@ export default async function OverheadPage() {
         projectedGCI,
         projectedDealCount: overheadProjectedDealCount,
         fraction,
+        now: today,
       }).cashPosition.effectiveCash
     : 0;
 

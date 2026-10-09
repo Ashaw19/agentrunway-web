@@ -5,6 +5,7 @@ import type { CcaAsset, RecurringExpense, ListingAppointment } from "@/lib/types
 import { totalRecurringMonthly, totalRecurringYTD } from "@agent-runway/core/engines/recurring-expense-engine";
 import { computeIsPro } from "@/lib/compute-is-pro";
 import { aggregateReceiptTotals } from "@/lib/expenses/receipt-totals";
+import { atlanticNoon } from "@agent-runway/core/lib/local-date";
 
 
 export default async function ReportsPage() {
@@ -12,7 +13,9 @@ export default async function ReportsPage() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const year = new Date().getFullYear();
+  // Atlantic calendar, not the server's UTC clock (local-date.ts).
+  const today = atlanticNoon();
+  const year = today.getFullYear();
 
   // Fetch settings
   const { data: settingsRaw } = await supabase
@@ -96,7 +99,7 @@ export default async function ReportsPage() {
 
   const recurringExpenses = (recurringExpResult.data ?? []) as RecurringExpense[];
   const recurringExpMonthly = totalRecurringMonthly(recurringExpenses);
-  const recurringExpYTD = totalRecurringYTD(recurringExpenses);
+  const recurringExpYTD = totalRecurringYTD(recurringExpenses, today);
 
   const categories = (expCatResult.data ?? []).map((cat) => ({
     ...cat,
@@ -112,8 +115,7 @@ export default async function ReportsPage() {
   // Build expenseAmounts for T2125 tab: receipts YTD + recurring for completed months only.
   // T2125 is a tax form — only include expenses actually incurred (not projected future months).
   // completedMonths = number of fully elapsed months before the current month (e.g. March → 2).
-  const now = new Date();
-  const completedMonths = now.getMonth(); // 0-based: Jan=0 → 0 completed, Mar=2 → 2 completed
+  const completedMonths = today.getMonth(); // 0-based: Jan=0 → 0 completed, Mar=2 → 2 completed
   const expenseAmounts: Record<string, number> = { ...receiptTotalsByKey };
   for (const item of expItemResult.data ?? []) {
     if (item.monthly_recurring > 0 && completedMonths > 0) {

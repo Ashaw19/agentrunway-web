@@ -102,6 +102,9 @@ export interface WhereYouStandInput {
 
   // Current quarter (0-based: 0=Q1, 3=Q4)
   currentQuarter: number;
+
+  /** Calendar anchor for the month within the quarter. Defaults to now; server callers pass atlanticNoon(). */
+  now?: Date;
 }
 
 // ── Band Determination ─────────────────────────────────────────────────────────
@@ -325,6 +328,7 @@ function generateDistanceLine(
   projectedGCI: number,
   avgDealGCI: number,
   currentQuarter: number,
+  currentMonth: number,
 ): { line: string | null; deals: number | null; nextLabel: string | null } {
   const next = nextBand(band);
   if (!next) {
@@ -351,7 +355,7 @@ function generateDistanceLine(
     const qLabel = `Q${currentQuarter + 1}`;
 
     // Monthly cadence hint — only when math divides cleanly
-    const monthsLeftInQ = 3 - (new Date().getMonth() % 3);
+    const monthsLeftInQ = 3 - (currentMonth % 3);
     const perMonth = monthsLeftInQ > 0 ? dealsNeeded / monthsLeftInQ : 0;
     const cadenceHint =
       dealsNeeded >= 2 && monthsLeftInQ >= 2 && perMonth === Math.round(perMonth) && perMonth <= 3
@@ -481,7 +485,7 @@ export function computeWhereYouStand(input: WhereYouStandInput): WhereYouStandRe
 
   // Distance to next tier — uses cohort-specific band thresholds, NOT cross-cohort distance
   const { line: distanceLine, deals: dealsToNextTier, nextLabel: nextBandLabel } =
-    generateDistanceLine(band, input.cohort, projectedGCI, avgDealGCI, currentQuarter);
+    generateDistanceLine(band, input.cohort, projectedGCI, avgDealGCI, currentQuarter, (input.now ?? new Date()).getMonth());
 
   // Bridge to action
   const bridgeLine = generateBridgeLine(band, momentum);

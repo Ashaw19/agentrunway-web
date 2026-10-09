@@ -26,10 +26,15 @@ export function totalRecurringMonthly(expenses: RecurringExpense[]): number {
 }
 
 // ── YTD calculation ───────────────────────────────────────────────────────
+//
+// `now` is the calendar anchor: the year to total and the day to total up
+// to. Browser callers take the default; server callers pass atlanticNoon()
+// (the server's own clock is UTC, already next year from 8 pm Atlantic on
+// Dec 31, which totals one month of a monthly expense instead of twelve).
 
 /** YTD amount for a single recurring expense based on frequency and start_date */
-export function recurringYTD(re: RecurringExpense, year?: number): number {
-  const thisYear = year ?? new Date().getFullYear();
+export function recurringYTD(re: RecurringExpense, now: Date = new Date()): number {
+  const thisYear = now.getFullYear();
   const freq = re.frequency ?? "monthly";
   const amt = Number(re.amount);
   const startDate = re.start_date
@@ -37,7 +42,6 @@ export function recurringYTD(re: RecurringExpense, year?: number): number {
     : new Date(thisYear, 0, 1);
   const yearStart = new Date(thisYear, 0, 1);
   const effectiveStart = startDate > yearStart ? startDate : yearStart;
-  const now = new Date();
 
   if (effectiveStart > now) return 0;
 
@@ -71,20 +75,20 @@ export function recurringYTD(re: RecurringExpense, year?: number): number {
 /** Total YTD across all active recurring expenses */
 export function totalRecurringYTD(
   expenses: RecurringExpense[],
-  year?: number,
+  now: Date = new Date(),
 ): number {
   return expenses
     .filter((re) => re.is_active)
-    .reduce((sum, re) => sum + recurringYTD(re, year), 0);
+    .reduce((sum, re) => sum + recurringYTD(re, now), 0);
 }
 
 /** Project annual total: YTD actuals + remaining monthly recurring */
 export function projectedAnnualRecurring(
   expenses: RecurringExpense[],
+  now: Date = new Date(),
 ): number {
-  const ytd = totalRecurringYTD(expenses);
+  const ytd = totalRecurringYTD(expenses, now);
   const monthly = totalRecurringMonthly(expenses);
-  const now = new Date();
   const monthsElapsed = now.getMonth() + now.getDate() / 30;
   const remainingMonths = Math.max(0, 12 - Math.ceil(monthsElapsed));
   return ytd + monthly * remainingMonths;
@@ -153,13 +157,12 @@ export function totalRecurringHSTForPeriod(
 /** Total YTD HST on active recurring expenses (mirrors totalRecurringYTD). */
 export function totalRecurringHSTYTD(
   expenses: RecurringExpense[],
-  year?: number,
+  now: Date = new Date(),
 ): number {
-  const thisYear = year ?? new Date().getFullYear();
   return totalRecurringHSTForPeriod(
     expenses,
-    `${thisYear}-01-01`,
-    localISODate(),
+    `${now.getFullYear()}-01-01`,
+    localISODate(now),
   );
 }
 

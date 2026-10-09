@@ -15,8 +15,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { fmtCurrency } from "@/lib/formatters";
-
-export const INCOME_GOAL_TIMEZONE = "America/Halifax";
+import { atlanticMonth, atlanticYear } from "@agent-runway/core/lib/local-date";
 
 export interface IncomeGoalRow {
   year:     number;
@@ -24,7 +23,7 @@ export interface IncomeGoalRow {
 }
 
 export function incomeGoalCurrentYear(now: Date = new Date()): number {
-  return Number(new Intl.DateTimeFormat("en-CA", { timeZone: INCOME_GOAL_TIMEZONE, year: "numeric" }).format(now));
+  return atlanticYear(now);
 }
 
 /** That year's goal, or 0 when the year has none. */
@@ -43,8 +42,7 @@ export function hasGoalRow(rows: readonly IncomeGoalRow[], year: number): boolea
  * A deliberate $0 for next year counts as answered.
  */
 export function shouldPromptNextYearGoal(rows: readonly IncomeGoalRow[], now: Date = new Date()): boolean {
-  const month = Number(new Intl.DateTimeFormat("en-CA", { timeZone: INCOME_GOAL_TIMEZONE, month: "numeric" }).format(now));
-  if (month < 10) return false;
+  if (atlanticMonth(now) < 9) return false; // before October (0-based)
   return !hasGoalRow(rows, incomeGoalCurrentYear(now) + 1);
 }
 

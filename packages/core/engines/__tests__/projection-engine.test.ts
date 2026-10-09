@@ -27,6 +27,7 @@ import {
   computeListingWeightedGCI,
   LISTING_PROBABILITIES,
 } from "../projection-engine";
+import { atlanticNoon } from "../../lib/local-date";
 import { TEST_TRANSACTIONS, EXPECTED_GCI, EXPECTED_MONTHLY_GCI } from "./test-data";
 
 // ── Fake Timers ──────────────────────────────────────────────────────────────
@@ -127,9 +128,9 @@ describe("seasonalFractionElapsed", () => {
     expect(result).toBeCloseTo(0.155, 1);
   });
 
-  it("falls back to yearFractionElapsed for invalid weights", () => {
+  it("falls back to yearFractionElapsed of the Atlantic day for invalid weights", () => {
     const result = seasonalFractionElapsed([0.5, 0.5]); // only 2 elements
-    expect(result).toBeCloseTo(yearFractionElapsed(), 4);
+    expect(result).toBeCloseTo(yearFractionElapsed(atlanticNoon()), 4);
   });
 
   it("is clamped between 0.01 and 0.999", () => {
@@ -186,6 +187,81 @@ describe("seasonalFractionElapsed", () => {
     const result = seasonalFractionElapsed([NaN, NaN, NaN, NaN]);
     const uniform = seasonalFractionElapsed([0.25, 0.25, 0.25, 0.25]);
     expect(result).toBeCloseTo(uniform, 6);
+  });
+});
+
+// ── Atlantic year / quarter boundary (server "this year", 2026-10-09) ────────
+//
+// The server's YTD is the Atlantic year (atlanticYear). The fraction it is
+// divided by has to roll over at the same moment. When the fraction was
+// UTC-anchored it reached Jan 1 (0.01, the floor) at 8 pm Atlantic on Dec 31,
+// so a full year of GCI over 0.01 projected ~11x the year (1,308,000 on
+// 120,000 with the early-year dampening). These instants are pinned and the
+// expected values hold in any host zone (CI runs UTC; dev runs Atlantic).
+
+describe("seasonalFractionElapsed — Atlantic-anchored", () => {
+  const DEC31_10PM_AST = new Date("2027-01-01T02:00:00Z");
+  const JAN1_0030_AST = new Date("2027-01-01T04:30:00Z");
+  const SEP30_1030PM_ADT = new Date("2026-10-01T01:30:00Z");
+  const OCT1_0030_ADT = new Date("2026-10-01T03:30:00Z");
+  const uniform = [0.25, 0.25, 0.25, 0.25];
+  const agent = [0.2, 0.3, 0.3, 0.2];
+
+  it("is still the end of the year at 10 pm Atlantic on Dec 31 (UTC is Jan 1)", () => {
+    expect(seasonalFractionElapsed(uniform, DEC31_10PM_AST)).toBe(0.999);
+  });
+
+  it("starts the new year at Atlantic midnight", () => {
+    expect(seasonalFractionElapsed(uniform, JAN1_0030_AST)).toBe(0.01);
+  });
+
+  it("does not blow up the projection on Dec 31 evening", () => {
+    const ytd = 120_000; // a full year closed, Atlantic YTD
+    const fraction = seasonalFractionElapsed(uniform, DEC31_10PM_AST);
+    const projected = projectedYearEndGCI(ytd, 0, fraction, 120_000);
+    expect(projected).toBeGreaterThanOrEqual(ytd);
+    expect(projected).toBeLessThan(ytd * 1.01);
+  });
+
+  it("stays in Q3 until Atlantic midnight on Sep 30", () => {
+    const before = seasonalFractionElapsed(agent, SEP30_1030PM_ADT);
+    const after = seasonalFractionElapsed(agent, OCT1_0030_ADT);
+    expect(before).toBeLessThan(0.8);
+    expect(before).toBeGreaterThan(0.799);
+    expect(after).toBeGreaterThan(0.8);
+    expect(after).toBeLessThan(0.801);
+  });
+
+  it("is continuous across the quarter boundary (no jump)", () => {
+    const a = seasonalFractionElapsed(agent, new Date("2026-10-01T02:59:00Z"));
+    const b = seasonalFractionElapsed(agent, new Date("2026-10-01T03:01:00Z"));
+    expect(Math.abs(b - a)).toBeLessThan(0.0001);
+  });
+
+  it("gives the same answer for an atlanticNoon anchor as for real noon Atlantic", () => {
+    // Engines handed atlanticNoon() as `now` read the same quarter and year.
+    const noonAtlantic = new Date("2026-12-31T16:00:00Z"); // 12:00 AST
+    const anchor = atlanticNoon(DEC31_10PM_AST);
+    const viaAnchor = seasonalFractionElapsed(agent, anchor);
+    const viaInstant = seasonalFractionElapsed(agent, noonAtlantic);
+    // Same day and quarter; the anchor's wall time is noon only on a host in
+    // Atlantic time, so allow the intra-day difference.
+    expect(Math.abs(viaAnchor - viaInstant)).toBeLessThan(0.002);
+  });
+});
+
+describe("monthlyGCITotals / trendDirection — calendar anchor", () => {
+  const decClose = { ...TEST_TRANSACTIONS[0], status: "closed" as const, date: "2026-12-15" };
+
+  it("counts December as this year on Dec 31 evening (Atlantic anchor)", () => {
+    const totals = monthlyGCITotals([decClose], atlanticNoon(new Date("2027-01-01T02:00:00Z")));
+    expect(totals).toHaveLength(12);
+    expect(totals[11]).toBeGreaterThan(0);
+  });
+
+  it("reads next year once the anchor is in January", () => {
+    const totals = monthlyGCITotals([decClose], atlanticNoon(new Date("2027-01-01T05:00:00Z")));
+    expect(totals).toEqual([0]);
   });
 });
 

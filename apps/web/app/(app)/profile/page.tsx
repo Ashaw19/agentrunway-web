@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { ProfileContent } from "./profile-content";
 import { computeGCI, type HistoryItem, type Transaction } from "@/lib/types/database";
+import { atlanticYear } from "@agent-runway/core/lib/local-date";
 
 export const metadata = { title: "Profile" };
 
@@ -41,7 +42,8 @@ export default async function ProfilePage() {
   // YTD stats — cast partial rows since computeGCI only needs these 5 fields
   type TxPartial = Pick<Transaction, "date" | "sale_price" | "commission_pct" | "team_split_pct" | "gci_override">;
   const txRows = (transactions ?? []) as TxPartial[];
-  const currentYear = new Date().getFullYear();
+  // Atlantic calendar, not the server's UTC clock (local-date.ts).
+  const currentYear = atlanticYear();
   const ytdTx = txRows.filter((tx) => tx.date.startsWith(String(currentYear)));
   const ytdGCI = ytdTx.reduce((sum, tx) => sum + computeGCI(tx as Transaction), 0);
   const ytdDeals = ytdTx.length;

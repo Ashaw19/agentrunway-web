@@ -40,6 +40,7 @@ import {
 } from "@agent-runway/core/engines/canadian-tax-engine";
 import type { Province } from "@agent-runway/core/types/database";
 import type { TroubleshootingTopic } from "./troubleshooting-classifier";
+import { atlanticNoon } from "@agent-runway/core/lib/local-date";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -127,6 +128,8 @@ interface DiagContext {
    *  dashboard. See dashboard_metric_divergence_fix_2026-06-26.md. */
   listingWeighted: number;
   currentYear: number;
+  /** Atlantic calendar anchor (atlanticNoon) for engine year / month math. */
+  today: Date;
   engineFraction: number;
   monthlyRecurring: number;
   expensesYTD: number;
@@ -149,7 +152,9 @@ export async function buildDiagnostics(
   if (dataTopics.length === 0) return "";
 
   const supabase = await createClient();
-  const currentYear = new Date().getFullYear();
+  // Atlantic calendar, not the server's UTC clock (local-date.ts).
+  const today = atlanticNoon();
+  const currentYear = today.getFullYear();
 
   // Fetch all data in parallel
   const [
@@ -260,8 +265,7 @@ export async function buildDiagnostics(
   const receiptTotal = (receiptExpenses ?? []).reduce(
     (sum: number, r: { total_amount?: number | string }) => sum + Number(r.total_amount ?? 0), 0,
   );
-  const expNow = new Date();
-  const expMonthsElapsed = expNow.getMonth() + 1; // 1-12, consistent with dashboard engine
+  const expMonthsElapsed = today.getMonth() + 1; // 1-12, consistent with dashboard engine
   const recurringYTDEstimate = monthlyRecurring * expMonthsElapsed;
   const expensesYTD = Math.max(receiptTotal, recurringYTDEstimate);
 
@@ -276,6 +280,7 @@ export async function buildDiagnostics(
     pipelineWeighted,
     listingWeighted,
     currentYear,
+    today,
     engineFraction,
     monthlyRecurring,
     expensesYTD,
@@ -368,6 +373,7 @@ function diagRunwayScore(ctx: DiagContext): string {
     projectedGCI: projGCI,
     projectedDealCount: projDeals,
     fraction: engineFraction,
+    now: ctx.today,
   });
   const survival = computeSurvivalResult(
     s.monthly_brokerage_fee ?? 0,
@@ -430,6 +436,7 @@ function diagTax(ctx: DiagContext): string {
     expensesYTD,
     monthlyRecurring,
     settings: s as unknown as CanonicalUserSettings,
+    now: ctx.today,
   });
 
   const projDeals = projectedYearEndTransactions(
@@ -755,6 +762,7 @@ function diagSurvival(ctx: DiagContext): string {
     projectedGCI: projGCIforSurvival,
     projectedDealCount: projDealsForSurvival,
     fraction: engineFraction,
+    now: ctx.today,
   });
   const survival = computeSurvivalResult(
     s.monthly_brokerage_fee ?? 0,
@@ -763,7 +771,7 @@ function diagSurvival(ctx: DiagContext): string {
     0, // conservative: no pipeline income estimate
   );
 
-  const monthsElapsed = Math.max(1, new Date().getMonth() + 1);
+  const monthsElapsed = Math.max(1, ctx.today.getMonth() + 1);
   const monthlyAvgIncome = ytdGCI / monthsElapsed;
 
   return `[SURVIVAL DIAGNOSTIC]

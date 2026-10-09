@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "npm:@supabase/supabase-js@2";
 import type { McpTool } from "./index.ts";
+import { atlanticYear } from "../../_shared/core/lib/local-date.ts";
 
 export function getTransactionTools(supabase: SupabaseClient, userId: string): McpTool[] {
   return [
@@ -94,7 +95,7 @@ export function getTransactionTools(supabase: SupabaseClient, userId: string): M
       handler: async (args) => {
         const { years = 3 } = args as { years?: number };
         const cap = Math.min(years, 10);
-        const fromYear = new Date().getFullYear() - cap + 1;
+        const fromYear = atlanticYear() - cap + 1;
 
         const { data, error } = await supabase
           .from("transactions")

@@ -17,6 +17,7 @@ import { createClient } from "@/lib/supabase/server";
 import { cn } from "@/lib/utils";
 import { CheckCircle2, AlertTriangle, XCircle, ArrowRight } from "lucide-react";
 import { YearEndExportButton } from "./year-end-client";
+import { atlanticYear } from "@agent-runway/core/lib/local-date";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -47,7 +48,7 @@ export default async function YearEndPage({
     redirect("/dashboard");
   }
 
-  const fiscalYear = params.year ? Number(params.year) : new Date().getFullYear();
+  const fiscalYear = params.year ? Number(params.year) : atlanticYear();
   const yearStart = `${fiscalYear}-01-01`;
   const yearEnd = `${fiscalYear}-12-31`;
 

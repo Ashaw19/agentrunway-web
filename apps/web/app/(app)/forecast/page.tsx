@@ -5,6 +5,7 @@ import { ForecastContent } from "./forecast-content";
 import { totalRecurringMonthly, totalRecurringYTD } from "@agent-runway/core/engines/recurring-expense-engine";
 import type { RecurringExpense } from "@/lib/types/database";
 import { computeIsPro } from "@/lib/compute-is-pro";
+import { atlanticNoon } from "@agent-runway/core/lib/local-date";
 
 export default async function ForecastPage() {
   const supabase = await createClient();
@@ -21,7 +22,9 @@ export default async function ForecastPage() {
   const rawSettings = settingsResult.data;
 
   // ── Live Supabase queries ───────────────────────────────────────
-  const year = new Date().getFullYear();
+  // Atlantic calendar, not the server's UTC clock (local-date.ts).
+  const today = atlanticNoon();
+  const year = today.getFullYear();
   const [txResult, pipelineResult, expCatResult, expItemResult, historyResult, mileageResult, ccaResult, receiptTotalsResult, listingApptResult, recurringExpResult] =
     await Promise.all([
       supabase
@@ -89,7 +92,7 @@ export default async function ForecastPage() {
 
   const recurringExpenses = (recurringExpResult.data ?? []) as RecurringExpense[];
   const recurringExpMonthly = totalRecurringMonthly(recurringExpenses);
-  const recurringExpYTD = totalRecurringYTD(recurringExpenses);
+  const recurringExpYTD = totalRecurringYTD(recurringExpenses, today);
 
   const expenseCategories = (expCatResult.data ?? []).map((cat) => ({
     ...cat,

@@ -20,6 +20,8 @@
 //   - memory/findings/dashboard_metric_divergence_fix_2026-06-26.md
 //   - apps/web/supabase/functions/mcp-server/lib/README.md
 
+import { atlanticNoon, atlanticWallClock } from "../../_shared/core/lib/local-date.ts";
+
 /**
  * Coerce quarter weights into normalized fractions (sum ≈ 1).
  * Mirrors normalizeSeasonalWeights in the canonical engine.
@@ -50,25 +52,28 @@ function yearFractionElapsed(date: Date): number {
 
 /**
  * Fraction of year elapsed, weighted by quarterly seasonality.
- * UTC-anchored — mirrors seasonalFractionElapsed in the canonical engine
- * character-for-character so server (MCP/Deno) and client (dashboard) agree.
+ * Atlantic-anchored (America/Halifax wall clock, any runtime) — mirrors
+ * seasonalFractionElapsed in the canonical engine character-for-character so
+ * server (MCP/Deno) and client (dashboard) agree, and the year boundary
+ * matches the Atlantic-year YTD it divides.
  */
 export function seasonalFractionElapsed(
   weights: number[],
   date: Date = new Date(),
 ): number {
-  if (!weights || weights.length !== 4) return yearFractionElapsed(date);
+  if (!weights || weights.length !== 4) return yearFractionElapsed(atlanticNoon(date));
   const w = normalizeSeasonalWeights(weights);
 
-  const year = date.getUTCFullYear();
-  const qIndex = Math.floor(date.getUTCMonth() / 3);
+  const wall = atlanticWallClock(date);
+  const year = wall.getUTCFullYear();
+  const qIndex = Math.floor(wall.getUTCMonth() / 3);
 
   const qStartMonth = qIndex * 3;
   const qStart = new Date(Date.UTC(year, qStartMonth, 1));
   const qEnd = new Date(Date.UTC(year, qStartMonth + 3, 1));
 
   const qTotalDays = Math.max(1, (qEnd.getTime() - qStart.getTime()) / 86_400_000);
-  const qElapsedDays = Math.max(0, (date.getTime() - qStart.getTime()) / 86_400_000);
+  const qElapsedDays = Math.max(0, (wall.getTime() - qStart.getTime()) / 86_400_000);
   const withinQ = qElapsedDays / qTotalDays;
 
   let fraction = 0;
