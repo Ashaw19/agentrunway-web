@@ -711,6 +711,11 @@ function QuickNoteSheet({
           );
         })}
       </View>
+      {activityType === "note" && (
+        <Text style={[Type.caption, { color: c.textMuted, marginTop: 4 }]}>
+          {t("search.noteNotContact")}
+        </Text>
+      )}
 
       {/* Note input */}
       <TextInput

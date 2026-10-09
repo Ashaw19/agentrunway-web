@@ -1794,14 +1794,18 @@ export function ClientsContent({
 
       if (!error && data) {
         setLocalActivities((prev) => [data as ContactActivity, ...prev]);
-        // Keep last_contact_at in sync so the CRM card reflects the new activity immediately
-        setLocalClients((prev) =>
-          prev.map((c) =>
-            c.id === clientId
-              ? { ...c, last_contact_at: activityDate }
-              : c
-          )
-        );
+        // Keep last_contact_at in sync so the CRM card reflects the new activity
+        // immediately. A note is not contact (00171): the DB leaves the date
+        // alone, so the local copy must too.
+        if (type !== "note") {
+          setLocalClients((prev) =>
+            prev.map((c) =>
+              c.id === clientId
+                ? { ...c, last_contact_at: activityDate }
+                : c
+            )
+          );
+        }
         markMemoryStaleClient(clientId);
 
         // Detect auto-promotion. Only re-fetch when prior status was one the
@@ -5339,6 +5343,11 @@ export function ClientsContent({
                             ))}
                           </SelectContent>
                         </Select>
+                        {logType === "note" && (
+                          <p className="text-[11px] text-muted-foreground">
+                            Notes don&apos;t count as contact. Log a call, text, email or meeting if you spoke with them.
+                          </p>
+                        )}
                       </div>
                       <div className="space-y-1">
                         <Label className="text-xs">Description</Label>

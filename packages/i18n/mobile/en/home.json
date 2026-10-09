@@ -114,6 +114,7 @@
       "showing": "Showing",
       "meeting": "Meeting",
       "note": "Note"
-    }
+    },
+    "noteNotContact": "Notes don't count as contact. Pick Call, Text, Showing or Meeting if you spoke with them."
   }
 }

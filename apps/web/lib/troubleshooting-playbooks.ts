@@ -785,6 +785,9 @@ Flight Control also includes a newsletter builder for mass updates (market repor
 2. A contact with no closed deal, no birthdate and no first-contact date gives Flight Control nothing to work from. Adding birthdates or linking their deals brings them in.
 3. Anyone contacted in the last 14 days (a logged CRM activity, a "Log contact" from a Flight Control card, or a draft marked sent) is held back, so working through the list rotates new people in. Birthday and condition-date cards show regardless.
 
+**"I logged a note but they still show as not contacted"**
+→ Since 2026-10-07 a Note is an internal memo and doesn't count as contact: it doesn't change "last contacted" or "first contacted", so Flight Control, the going-quiet list and "days since contact" ignore it. Log a call, text, email, meeting or showing if you actually reached them. (The mobile quick-capture defaults to Note — pick the real type.)
+
 **"I already called/texted them — how do I get them off Flight Control?"**
 → Click "Log contact" on their card, pick Call / Text / Email / Meeting, add an optional note, Save. It logs the activity in the CRM, removes the card, brings in the next person, and holds that client back from Scan for 14 days. If the client was Cruising or Scheduled, logging a real touchpoint moves them to Boarding.
 
