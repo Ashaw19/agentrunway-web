@@ -2,6 +2,7 @@
 // Day-accurate projection math for real-time business intelligence.
 
 import { computeGCI, type Transaction } from "../types/database";
+import { atlanticNoon, atlanticWallClock } from "../lib/local-date";
 
 // ── Calendar Awareness ──────────────────────────────────────────────────────
 
@@ -104,26 +105,36 @@ export function normalizeSeasonalWeights(weights: number[] | null | undefined): 
  * crons, chat, diagnostics) produces the same fraction regardless of how
  * the row was seeded.
  *
- * UTC-ANCHORED: quarter boundaries (qStart/qEnd) and the current quarter
- * index are derived in UTC so server-rendered surfaces (chat route, cron
- * jobs) and client-rendered surfaces (dashboard, reports, forecast, etc.)
- * produce the same fraction for the same instant. Prior behaviour used
- * `new Date(year, month, 1)`, which resolves to LOCAL midnight and drifts
- * by the runtime's TZ offset — that shifted paceScore by 1 point between
- * the Captain (server, UTC) and the dashboard (client, local), which
- * propagated to a 1-point Runway Score divergence.
+ * ATLANTIC-ANCHORED: quarter boundaries (qStart/qEnd) and the current
+ * quarter index are read off the America/Halifax wall clock of `date`, not
+ * the runtime's zone, so server-rendered surfaces (chat route, crons, MCP)
+ * and client-rendered surfaces (dashboard, reports, forecast, etc.) produce
+ * the same fraction for the same instant. Using `new Date(year, month, 1)`
+ * (local midnight) once shifted paceScore by 1 point between the Captain
+ * (server, UTC) and the dashboard (client, local) — a 1-point Runway Score
+ * divergence.
+ *
+ * Atlantic, not UTC, because the year boundary has to match the YTD it
+ * divides: YTD is the Atlantic year (atlanticYear on the server, the local
+ * year on an Atlantic user's device, income_goal_current_year() in SQL). A
+ * UTC fraction rolls over to Jan 1 (fraction 0.01, the floor) at 8 pm
+ * Atlantic on Dec 31 while a full year of GCI is still YTD: for those four
+ * hours pace vs goal reads ~100x and projected year-end GCI ~11x (after the
+ * early-year dampening).
  */
 export function seasonalFractionElapsed(
   weights: number[],
   date: Date = new Date(),
 ): number {
-  if (!weights || weights.length !== 4) return yearFractionElapsed(date);
+  if (!weights || weights.length !== 4) return yearFractionElapsed(atlanticNoon(date));
   const w = normalizeSeasonalWeights(weights);
 
-  const year = date.getUTCFullYear();
-  const qIndex = Math.floor(date.getUTCMonth() / 3);
+  // Atlantic wall clock with its fields read as UTC — every runtime agrees.
+  const wall = atlanticWallClock(date);
+  const year = wall.getUTCFullYear();
+  const qIndex = Math.floor(wall.getUTCMonth() / 3);
 
-  // Quarter start and end dates — UTC so all runtimes agree.
+  // Quarter start and end dates on the same wall clock.
   const qStartMonth = qIndex * 3;
   const qStart = new Date(Date.UTC(year, qStartMonth, 1));
   const qEnd = new Date(Date.UTC(year, qStartMonth + 3, 1));
@@ -134,7 +145,7 @@ export function seasonalFractionElapsed(
   );
   const qElapsedDays = Math.max(
     0,
-    (date.getTime() - qStart.getTime()) / 86_400_000,
+    (wall.getTime() - qStart.getTime()) / 86_400_000,
   );
   const withinQ = qElapsedDays / qTotalDays;
 
@@ -287,12 +298,15 @@ export function paceVsGoalPercent(
 
 export type TrendDirection = "up" | "flat" | "down";
 
-/** Detect trend direction from transaction history. */
-export function trendDirection(transactions: Transaction[]): TrendDirection {
+/**
+ * Detect trend direction from transaction history. `now` is the calendar
+ * anchor (server callers pass atlanticNoon()).
+ */
+export function trendDirection(transactions: Transaction[], now: Date = new Date()): TrendDirection {
   const closed = transactions.filter((tx) => tx.status === "closed");
   if (closed.length < 5) return "flat";
 
-  const monthly = monthlyGCITotals(closed);
+  const monthly = monthlyGCITotals(closed, now);
   if (monthly.length < 3) return "flat";
 
   const recentMonths = monthly.slice(-2);
@@ -311,10 +325,13 @@ export function trendDirection(transactions: Transaction[]): TrendDirection {
   return "flat";
 }
 
-/** Monthly GCI totals for the current year, ordered by month. */
-export function monthlyGCITotals(transactions: Transaction[]): number[] {
-  const currentYear = new Date().getFullYear();
-  const currentMonth = new Date().getMonth(); // 0-indexed
+/**
+ * Monthly GCI totals for the current year, ordered by month. `now` is the
+ * calendar anchor (server callers pass atlanticNoon()).
+ */
+export function monthlyGCITotals(transactions: Transaction[], now: Date = new Date()): number[] {
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth(); // 0-indexed
 
   const yearTx = transactions.filter(
     (tx) =>
@@ -343,16 +360,20 @@ export interface MonthProjection {
   isActual: boolean;
 }
 
-/** Generate month-by-month projections for chart display. */
+/**
+ * Generate month-by-month projections for chart display. `now` is the
+ * calendar anchor (server callers pass atlanticNoon()).
+ */
 export function monthlyProjections(
   transactions: Transaction[],
   goalGCI: number,
   seasonalWeights: number[],
+  now: Date = new Date(),
 ): MonthProjection[] {
-  const currentYear = new Date().getFullYear();
-  const currentMonth = new Date().getMonth() + 1; // 1-indexed
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth() + 1; // 1-indexed
 
-  const monthlyActuals = monthlyGCITotals(transactions);
+  const monthlyActuals = monthlyGCITotals(transactions, now);
 
   // Monthly weights derived from quarterly weights.
   // Normalize first so callers can pass either percentages or fractions.

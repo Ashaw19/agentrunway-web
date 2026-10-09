@@ -5,6 +5,7 @@ import { computeIsPro } from "@/lib/compute-is-pro";
 import { aggregateReceiptTotals } from "@/lib/expenses/receipt-totals";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { PlaidItem, PlaidTransaction, PipelineDeal, HistoryItem, RecurringExpense } from "@/lib/types/database";
+import { atlanticYear } from "@agent-runway/core/lib/local-date";
 
 // ── Default expense categories ───────────────────────────────────────────────
 const DEFAULT_CATEGORIES = [
@@ -159,7 +160,8 @@ export default async function ExpensesPage() {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const year = new Date().getFullYear();
+  // Atlantic calendar, not the server's UTC clock (local-date.ts).
+  const year = atlanticYear();
 
   // Server-side Plaid credential check
   const plaidConfigured = !!(
@@ -197,7 +199,7 @@ export default async function ExpensesPage() {
       .select("*")
       .eq("user_id", user.id)
       .eq("status", "closed")
-      .gte("date", `${new Date().getFullYear()}-01-01`)
+      .gte("date", `${year}-01-01`)
       .limit(10000),
     // All current-year receipts for YTD totals (lightweight — just the two fields we need)
     supabase

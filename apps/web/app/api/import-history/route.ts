@@ -14,6 +14,7 @@ import { planTextBatches } from "@/lib/import/chunking/plan-text-batches";
 import { planVisionBatches } from "@/lib/import/chunking/plan-vision-batches";
 import { runBatchedExtraction } from "@/lib/import/chunking/run-batched-extraction";
 import { parseMoneyStrict } from "@/lib/import/normalizers/normalize-money";
+import { atlanticYear } from "@agent-runway/core/lib/local-date";
 
 // ── Exported types shared with the client component ──────────────────────────
 //
@@ -822,7 +823,7 @@ export async function POST(req: NextRequest) {
 
     // yearHint from the sheet name overrides LLM's title-row year detection.
     // If no hint and LLM returned an implausible year, default to current year.
-    const currentYear = new Date().getFullYear();
+    const currentYear = atlanticYear();
     const llmYear = parsed.year > 2000 && parsed.year <= currentYear + 1 ? parsed.year : currentYear;
     const effectiveYear = yearHintValid ?? llmYear;
 

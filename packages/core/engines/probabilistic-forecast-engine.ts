@@ -20,13 +20,17 @@ export interface ProbabilityBands {
 
 // ── Computation ─────────────────────────────────────────────────────────────
 
-/** Compute probability bands for projected year-end GCI. */
+/**
+ * Compute probability bands for projected year-end GCI. `now` is the calendar
+ * anchor for the month buckets (server callers pass atlanticNoon()).
+ */
 export function probabilityBands(
   transactions: Transaction[],
   baseProjectedGCI: number,
   _seasonalFraction?: number,
+  now: Date = new Date(),
 ): ProbabilityBands {
-  const totals = monthlyGCITotals(transactions);
+  const totals = monthlyGCITotals(transactions, now);
   const nonZeroMonths = totals.filter((v) => v > 0);
   const monthCount = nonZeroMonths.length;
 

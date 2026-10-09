@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "npm:@supabase/supabase-js@2";
 import type { McpTool } from "./index.ts";
+import { atlanticYear } from "../../_shared/core/lib/local-date.ts";
 
 export function getExpenseTools(supabase: SupabaseClient, userId: string): McpTool[] {
   return [
@@ -86,7 +87,7 @@ export function getExpenseTools(supabase: SupabaseClient, userId: string): McpTo
         openWorldHint: false,
       },
       handler: async (args) => {
-        const { year = new Date().getFullYear(), include_trips = false } = args as { year?: number; include_trips?: boolean };
+        const { year = atlanticYear(), include_trips = false } = args as { year?: number; include_trips?: boolean };
 
         const { data, error } = await supabase
           .from("mileage_logs")

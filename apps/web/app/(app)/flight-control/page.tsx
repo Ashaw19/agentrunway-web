@@ -3,6 +3,7 @@ import { redirect }        from "next/navigation";
 import { FlightControlContent } from "./flight-control-content";
 import type { OutreachQueueItem, NewsletterQueue } from "@/lib/types/database";
 import { lapsedPastClients, withCoBuyerDeals } from "@/lib/crm/outreach-consent";
+import { atlanticISODate, atlanticNoon } from "@agent-runway/core/lib/local-date";
 
 
 export const dynamic = "force-dynamic";
@@ -30,8 +31,8 @@ export default async function FlightControlPage() {
     .order("trigger_date", { ascending: true });
 
   // Count messages sent this month for the stats strip
-  const now        = new Date();
-  const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
+  // Atlantic month, not the server's UTC clock (local-date.ts).
+  const monthStart = `${atlanticISODate().slice(0, 7)}-01`;
 
   const [sentCountRes, newslettersRes, closedDealsRes, coPartiesRes, checklistRes] = await Promise.all([
     supabase
@@ -80,7 +81,7 @@ export default async function FlightControlPage() {
       closedDealsRes.error?.message ?? coPartiesRes.error?.message,
     );
   }
-  const lapsedIds = lapsedPastClients(withCoBuyerDeals(closedDealsRes.data ?? [], coPartiesRes.data ?? []));
+  const lapsedIds = lapsedPastClients(withCoBuyerDeals(closedDealsRes.data ?? [], coPartiesRes.data ?? []), atlanticNoon());
 
   // Names for the note, archived clients excluded (they get no newsletter).
   const { data: lapsedClients, error: lapsedClientsError } = lapsedIds.length > 0

@@ -95,13 +95,14 @@ export function getFilingPeriods(
 }
 
 /**
- * Get the current filing period based on today's date.
+ * Get the current filing period based on today's date. `now` is the calendar
+ * anchor (server callers pass atlanticNoon()).
  */
 export function getCurrentFilingPeriod(
   frequency: FilingFrequency,
   year?: number,
+  now: Date = new Date(),
 ): FilingPeriod {
-  const now = new Date();
   const y = year ?? now.getFullYear();
   const periods = getFilingPeriods(frequency, y);
   const today = toISO(now.getFullYear(), now.getMonth() + 1, now.getDate());
@@ -140,14 +141,15 @@ export function getFilingPeriodOptions(
 }
 
 /**
- * Format a deadline with urgency context.
+ * Format a deadline with urgency context. `today` is the calendar anchor
+ * (server callers pass atlanticNoon()).
  */
-export function deadlineUrgency(deadline: string): {
+export function deadlineUrgency(deadline: string, today: Date = new Date()): {
   label: string;
   daysUntil: number;
   urgency: "overdue" | "urgent" | "soon" | "ok";
 } {
-  const now = new Date();
+  const now = new Date(today);
   now.setHours(0, 0, 0, 0);
   const dl = new Date(deadline + "T00:00:00");
   const diffMs = dl.getTime() - now.getTime();

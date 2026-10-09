@@ -4,6 +4,7 @@ import { AltimeterContent } from "./altimeter-content";
 import type { HistoryItem, RecurringExpense } from "@/lib/types/database";
 import { totalRecurringMonthly, totalRecurringYTD } from "@agent-runway/core/engines/recurring-expense-engine";
 import { computeIsPro } from "@/lib/compute-is-pro";
+import { atlanticNoon } from "@agent-runway/core/lib/local-date";
 
 
 export default async function AltimeterPage() {
@@ -11,7 +12,9 @@ export default async function AltimeterPage() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const dashYear = new Date().getFullYear();
+  // Atlantic calendar, not the server's UTC clock (local-date.ts).
+  const today = atlanticNoon();
+  const dashYear = today.getFullYear();
 
   const settingsResult = await supabase
     .from("user_settings")
@@ -86,11 +89,11 @@ export default async function AltimeterPage() {
   );
   const recurringExps = (recurringExpResult.data ?? []) as RecurringExpense[];
   const recurringExpMonthly = totalRecurringMonthly(recurringExps);
-  const recurringExpYTD = totalRecurringYTD(recurringExps);
+  const recurringExpYTD = totalRecurringYTD(recurringExps, today);
   const altMonthlyRecurring = legacyMonthlyRecurring + recurringExpMonthly;
   // Integer months elapsed (1-12) — matches the dashboard. See
   // dashboard_metric_divergence_fix_2026-06-26.md.
-  const expMonthsElapsed = new Date().getMonth() + 1;
+  const expMonthsElapsed = today.getMonth() + 1;
   const altExpensesYTD = Math.max(receiptYTD, legacyMonthlyRecurring * expMonthsElapsed) + recurringExpYTD;
 
   return (

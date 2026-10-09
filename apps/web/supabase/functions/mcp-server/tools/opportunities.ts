@@ -5,7 +5,7 @@ import {
   OPPORTUNITY_DEFAULT_ODDS,
   type OpportunityRow,
 } from "../lib/opportunity-conversion-engine.ts";
-import { atlanticISODate } from "../../_shared/core/lib/local-date.ts";
+import { atlanticISODate, atlanticWallClock } from "../../_shared/core/lib/local-date.ts";
 
 // ─── Loss-reason vocabulary ───────────────────────────────────────────────
 // Inlined from packages/core/lib/opportunity-loss-reasons.ts. The DB enforces
@@ -34,9 +34,12 @@ function normalizePct(v: number | null | undefined): number | null {
   return v;
 }
 
+// Days since Jan 1 of the Atlantic year. On the UTC clock Jan 1 arrives at
+// 8 pm Atlantic on Dec 31, which shrank "YTD" to a single day.
 function days_since_jan1(now: Date): number {
-  const jan1 = Date.UTC(now.getUTCFullYear(), 0, 1);
-  return Math.max(1, Math.ceil((now.getTime() - jan1) / 86_400_000));
+  const wall = atlanticWallClock(now);
+  const jan1 = Date.UTC(wall.getUTCFullYear(), 0, 1);
+  return Math.max(1, Math.ceil((wall.getTime() - jan1) / 86_400_000));
 }
 
 export function getOpportunityTools(supabase: SupabaseClient, userId: string): McpTool[] {

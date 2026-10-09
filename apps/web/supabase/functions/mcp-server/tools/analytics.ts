@@ -19,7 +19,7 @@ import {
   seasonalFractionElapsed,
 } from "../lib/projection-engine.ts";
 import { CANONICAL_TAX_DISCLAIMER } from "../lib/constants.ts";
-import { atlanticISODate } from "../../_shared/core/lib/local-date.ts";
+import { atlanticISODate, atlanticNoon, atlanticYear } from "../../_shared/core/lib/local-date.ts";
 
 // Canonical stage probabilities — mirrors packages/core/types/database.ts
 // PIPELINE_STAGE_DEFAULTS. `lost: 0.0` was added there by migration 00154 and
@@ -86,7 +86,8 @@ export function getAnalyticsTools(supabase: SupabaseClient, userId: string): Mcp
         openWorldHint: false,
       },
       handler: async () => {
-        const yearStart = new Date(new Date().getFullYear(), 0, 1).toISOString().split("T")[0];
+        // Atlantic year: from 8 pm Atlantic on Dec 31 the UTC year is already next year.
+        const yearStart = `${atlanticYear()}-01-01`;
         const today = atlanticISODate();
 
         const [settingsRes, txRes, pipelineRes, expenseRes, listingRes, historyRes] = await Promise.all([
@@ -182,7 +183,7 @@ export function getAnalyticsTools(supabase: SupabaseClient, userId: string): Mcp
             type: "text" as const,
             text: JSON.stringify({
               as_of: today,
-              year: now.getFullYear(),
+              year: atlanticYear(now),
               ytd_gci: Math.round(ytdGCI),
               ytd_transactions: transactions.length,
               ytd_expenses: Math.round(ytdExpenses),
@@ -267,7 +268,8 @@ export function getAnalyticsTools(supabase: SupabaseClient, userId: string): Mcp
         openWorldHint: false,
       },
       handler: async () => {
-        const yearStart = new Date(new Date().getFullYear(), 0, 1).toISOString().split("T")[0];
+        // Atlantic year: from 8 pm Atlantic on Dec 31 the UTC year is already next year.
+        const yearStart = `${atlanticYear()}-01-01`;
         const today = atlanticISODate();
 
         const [settingsRes, txRes, pipelineRes, listingRes, historyRes] = await Promise.all([
@@ -350,7 +352,7 @@ export function getAnalyticsTools(supabase: SupabaseClient, userId: string): Mcp
           content: [{
             type: "text" as const,
             text: JSON.stringify({
-              year: now.getFullYear(),
+              year: atlanticYear(now),
               as_of: today,
               ytd_gci: Math.round(ytdGCI),
               ytd_transactions: transactions.length,
@@ -396,7 +398,8 @@ export function getAnalyticsTools(supabase: SupabaseClient, userId: string): Mcp
       },
       handler: async (args) => {
         const overrideIncome = (args as { override_income?: number }).override_income;
-        const yearStart = new Date(new Date().getFullYear(), 0, 1).toISOString().split("T")[0];
+        // Atlantic year: from 8 pm Atlantic on Dec 31 the UTC year is already next year.
+        const yearStart = `${atlanticYear()}-01-01`;
         const today = atlanticISODate();
 
         const [settingsRes, txRes, expenseRes, pipelineRes, listingRes, historyRes] = await Promise.all([
@@ -532,7 +535,8 @@ export function getAnalyticsTools(supabase: SupabaseClient, userId: string): Mcp
             expensesYTD: ytdExpenses,
             monthlyRecurring,
             settings: settingsSlice,
-            now,
+            // Calendar anchor for remaining-months math: the Atlantic day.
+            now: atlanticNoon(now),
           });
         } else {
           // Missing settings — fall back to the simple YTD net.
@@ -603,7 +607,7 @@ export function getAnalyticsTools(supabase: SupabaseClient, userId: string): Mcp
       },
       handler: async () => {
         const now = new Date();
-        const year = now.getFullYear();
+        const year = atlanticYear(now); // Atlantic, not the edge runtime's UTC year
         const yearStart = `${year}-01-01`;
         const today = atlanticISODate(now);
 

@@ -25,6 +25,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
+import { atlanticISODate } from "@agent-runway/core/lib/local-date";
 
 // Mirror the cockpit layout's allowlist.  If access widens to a bookkeeper
 // later, widen both surfaces in the same change.
@@ -51,14 +52,6 @@ interface VendorRow {
   sred_category:        string | null;
   corp_pct:             number;
   regex_pattern:        string;
-}
-
-function todayIso(): string {
-  const d = new Date();
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  return `${yyyy}-${mm}-${dd}`;
 }
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
@@ -92,7 +85,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const vendorRaw = (body.vendor ?? "").trim();
   const expenseDate = body.expense_date && /^\d{4}-\d{2}-\d{2}$/.test(body.expense_date)
     ? body.expense_date
-    : todayIso();
+    : atlanticISODate(); // the Atlantic day; this server runs in UTC
   const totalAmount = Number(body.total_amount ?? 0);
   const taxAmount   = Number(body.tax_amount ?? 0);
   const subtotal    = body.subtotal != null

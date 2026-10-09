@@ -65,7 +65,7 @@ import {
   draftSocialPost as draftSocialPostService,
   type SocialPostTemplate,
 } from "@/lib/ai/draft-services";
-import { addDaysISO, atlanticISODate } from "@agent-runway/core/lib/local-date";
+import { addDaysISO, atlanticISODate, atlanticNoon, atlanticYear } from "@agent-runway/core/lib/local-date";
 
 // ── Approval Gate ──────────────────────────────────────────────────────────
 // Tools in this set require explicit user confirmation before executing.
@@ -2220,7 +2220,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
       }),
       execute: async ({ year, startDate, endDate }) => {
         try {
-          const currentYear = year ?? new Date().getFullYear();
+          const currentYear = year ?? atlanticYear();
           const start = startDate ?? `${currentYear}-01-01`;
           const end = endDate ?? `${currentYear}-12-31`;
 
@@ -2284,7 +2284,9 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
       }),
       execute: async ({ period, offset: periodOffset }) => {
         try {
-          const now = new Date();
+          // Atlantic calendar day (local-date.ts): on the UTC server, "this
+          // week / month / quarter / year" rolls over at 8 pm Atlantic.
+          const now = atlanticNoon();
           const off = periodOffset ?? 0;
 
           let startDate: Date;
@@ -2433,7 +2435,8 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
       }),
       execute: async ({ period, periodAOffset, periodBOffset }) => {
         try {
-          const now = new Date();
+          // Atlantic calendar day (local-date.ts), as in getPerformanceSummary.
+          const now = atlanticNoon();
 
           function getPeriodRange(off: number): { start: string; end: string; label: string } {
             let startDate: Date;
@@ -2897,7 +2900,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
       }),
       execute: async ({ stat }) => {
         try {
-          const currentYear = new Date().getFullYear();
+          const currentYear = atlanticYear();
           const ytdStart = `${currentYear}-01-01`;
           const todayISO = atlanticISODate();
 

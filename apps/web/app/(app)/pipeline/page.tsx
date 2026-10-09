@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { atlanticYear } from "@agent-runway/core/lib/local-date";
 import { redirect } from "next/navigation";
 import { PipelineContent } from "./pipeline-content";
 
@@ -38,7 +39,8 @@ export default async function PipelinePage() {
   const _rawSettings = settingsResult.data;
 
   // ── Live Supabase queries ───────────────────────────────────────────
-  const year = new Date().getFullYear();
+  // Atlantic calendar, not the server's UTC clock (local-date.ts).
+  const year = atlanticYear();
 
   const [
     dealsResult,

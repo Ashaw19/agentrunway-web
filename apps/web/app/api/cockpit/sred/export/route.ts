@@ -10,7 +10,7 @@
 import { NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import type { CorpSredEntry } from "@agent-runway/core/types/database";
-import { atlanticISODate } from "@agent-runway/core/lib/local-date";
+import { atlanticISODate, atlanticYear } from "@agent-runway/core/lib/local-date";
 
 const ALLOWED_EMAILS = new Set(["andrew@andrewdshaw.ca"]);
 
@@ -49,7 +49,7 @@ export async function GET(req: NextRequest) {
   }
 
   const yearParam = req.nextUrl.searchParams.get("year");
-  const year = yearParam ? Number(yearParam) : new Date().getFullYear();
+  const year = yearParam ? Number(yearParam) : atlanticYear();
   if (!Number.isInteger(year) || year < 2020 || year > 2100) {
     return new Response(JSON.stringify({ error: "invalid year" }), {
       status: 400,

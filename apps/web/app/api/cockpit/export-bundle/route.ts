@@ -19,6 +19,7 @@ import { NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { buildExportBundle } from "@/lib/cockpit/export-bundle";
 import { log } from "@/lib/logger";
+import { atlanticYear } from "@agent-runway/core/lib/local-date";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -38,7 +39,7 @@ export async function GET(req: NextRequest) {
   }
 
   const yearParam = req.nextUrl.searchParams.get("year");
-  const year = yearParam ? Number(yearParam) : new Date().getFullYear();
+  const year = yearParam ? Number(yearParam) : atlanticYear();
   if (!Number.isInteger(year) || year < 2020 || year > 2100) {
     return new Response(JSON.stringify({ error: "invalid year" }), {
       status: 400,

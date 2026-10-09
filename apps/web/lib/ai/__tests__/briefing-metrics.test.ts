@@ -259,3 +259,15 @@ describe("gatherBriefingMetrics — fails loudly, never silently zero", () => {
     expect(data.userName).toBe("Test Agent");
   });
 });
+
+describe("briefingDateRanges — Atlantic year (2026-10-09)", () => {
+  it("keeps this year's start on Dec 31 evening, when UTC is already Jan 1", () => {
+    const r = briefingDateRanges(new Date("2027-01-01T02:00:00Z")); // Dec 31, 22:00 AST
+    expect(r.todayStr).toBe("2026-12-31");
+    expect(r.yearStart).toBe("2026-01-01");
+  });
+
+  it("rolls over at Atlantic midnight", () => {
+    expect(briefingDateRanges(new Date("2027-01-01T04:00:00Z")).yearStart).toBe("2027-01-01");
+  });
+});

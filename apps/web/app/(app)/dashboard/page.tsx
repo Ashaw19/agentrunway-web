@@ -7,7 +7,7 @@ import { totalRecurringMonthly, totalRecurringYTD } from "@agent-runway/core/eng
 import type { RecurringExpense } from "@/lib/types/database";
 import { computeIsPro } from "@/lib/compute-is-pro";
 import type { IncomeGoalRow } from "@/lib/income-goals";
-import { addDaysISO, atlanticISODate } from "@agent-runway/core/lib/local-date";
+import { addDaysISO, atlanticISODate, atlanticNoon } from "@agent-runway/core/lib/local-date";
 
 
 export default async function DashboardPage({
@@ -21,7 +21,9 @@ export default async function DashboardPage({
 
   // Onboarding guard now runs in the (app) layout — no need to check here.
 
-  const dashYear = new Date().getFullYear();
+  // Atlantic calendar, not the server's UTC clock (local-date.ts).
+  const today = atlanticNoon();
+  const dashYear = today.getFullYear();
 
   const { data: settingsRow } = await supabase
     .from("user_settings")
@@ -150,7 +152,7 @@ export default async function DashboardPage({
 
   const recurringExpenses = (recurringExpResult.data ?? []) as RecurringExpense[];
   const recurringExpMonthly = totalRecurringMonthly(recurringExpenses);
-  const recurringExpYTD = totalRecurringYTD(recurringExpenses);
+  const recurringExpYTD = totalRecurringYTD(recurringExpenses, today);
 
   // ── Runway Score trajectory backing (last 12 daily rows, DESC → ASC) ────
   // NUMERIC columns can arrive as strings over the wire — coerce defensively.

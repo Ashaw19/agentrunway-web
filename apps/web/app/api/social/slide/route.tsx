@@ -25,6 +25,7 @@
 
 import { ImageResponse } from "next/og";
 import { NextRequest } from "next/server";
+import { atlanticYear } from "@agent-runway/core/lib/local-date";
 
 export const runtime = "edge";
 export const dynamic = "force-dynamic";
@@ -196,7 +197,7 @@ export async function GET(req: NextRequest) {
   const agentName    = sp.get("agentName")    ?? "Your Agent";
   const businessName = sp.get("businessName") ?? sp.get("brokerage") ?? "";
   const month        = sp.get("month")        ?? "January";
-  const year         = sp.get("year")         ?? String(new Date().getFullYear());
+  const year         = sp.get("year")         ?? String(atlanticYear());
   const slideNum     = sp.get("slideNum")     ?? "1";
   const slideTotal   = sp.get("slideTotal")   ?? "1";
   const showLogo     = sp.get("showLogo")     === "1";

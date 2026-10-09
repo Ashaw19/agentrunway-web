@@ -57,6 +57,8 @@ export interface InsightsInput {
   runwayGrade?: string;                      // grade string (A+, A, B, C, D, F)
   runwayStateLabel?: string;                 // canonical prose band: Strong / On Track / Building / At Risk
   runwayWeakestLabel?: string;               // weakest component label
+  /** Calendar anchor for "this year / this month / today". Defaults to now; server callers pass atlanticNoon(). */
+  now?: Date;
 }
 
 // ── Engine ───────────────────────────────────────────────────────────────────
@@ -77,7 +79,10 @@ export function generateInsights(input: InsightsInput, limit: number = 5): Insig
   // double-counted against ytdGCI in the projection milestone below.
   const activeDeals = activePipelineDeals(input.pipelineDeals);
 
-  const currentYear = new Date().getFullYear();
+  // Calendar anchor for year / month / day math. The seasonal fraction below
+  // takes the real instant (it is zone-independent on its own).
+  const today = input.now ?? new Date();
+  const currentYear = today.getFullYear();
   const closedTx = input.transactions.filter(
     (tx) => tx.status === "closed" && parseTxDate(tx.date).getFullYear() === currentYear,
   );
@@ -85,8 +90,8 @@ export function generateInsights(input: InsightsInput, limit: number = 5): Insig
   const ytdGCI = closedTx.reduce((sum, tx) => sum + computeGCI(tx), 0);
 
   const fraction = seasonalFractionElapsed(input.seasonalWeights);
-  const elapsed = dayOfYear();
-  const remaining = daysRemaining();
+  const elapsed = dayOfYear(today);
+  const remaining = daysRemaining(today);
 
   // ── Pace Analysis ──
   if (input.goalGCI > 0 && ytdGCI > 0) {
@@ -222,7 +227,7 @@ export function generateInsights(input: InsightsInput, limit: number = 5): Insig
 
   // ── Trend Detection ──
   if (hasTransactions) {
-    const trend = trendDirection(input.transactions);
+    const trend = trendDirection(input.transactions, today);
     if (trend === "up") {
       insights.push({
         id: nextId(), type: "praise", icon: "trending-up",
@@ -286,7 +291,7 @@ export function generateInsights(input: InsightsInput, limit: number = 5): Insig
 
   // ── Monthly Runway — current month target vs actual ──
   if (input.goalGCI > 0 && input.seasonalWeights.length === 4) {
-    const nowDate = new Date();
+    const nowDate = today;
     const currentQ = Math.floor(nowDate.getMonth() / 3);
     // Normalize — seasonalWeights may arrive as percentages (sum=100) from
     // settings.national_quarter_pcts or as fractions (sum≈1) from agent history.

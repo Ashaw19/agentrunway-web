@@ -57,14 +57,15 @@ export interface PersonalBaselines {
  *
  * Uses up to 12 months of data ending at the previous month.
  * Requires at least 3 months with data to produce a baseline.
+ * `now` is the calendar anchor (server callers pass atlanticNoon()).
  */
 export function computeBaselines(
   transactions: Transaction[],
   activities: ContactActivity[],
   monthlyExpensesTotal: number,
   monthlyGCIForRatio: number,
+  now: Date = new Date(),
 ): PersonalBaselines {
-  const now = new Date();
   const currentMonth = now.getFullYear() * 12 + now.getMonth(); // months since epoch
 
   // ── Bucket transactions by month (last 12 months, excluding current) ──

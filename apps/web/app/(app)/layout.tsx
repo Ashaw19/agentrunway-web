@@ -208,7 +208,8 @@ export default async function AppLayout({
     // ── Financial context (AI chat) ──────────────────────────────────────────
     if (settings && transactions) {
       try {
-        const currentYear = new Date().getFullYear();
+        // Atlantic year (income_goal_current_year()), not the server's UTC clock.
+        const currentYear = incomeGoalCurrentYear();
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const ytdTx = transactions.filter((tx: any) =>
           tx.date.startsWith(String(currentYear)),

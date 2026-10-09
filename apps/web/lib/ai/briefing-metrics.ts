@@ -57,7 +57,7 @@ export function briefingDateRanges(now: Date = new Date()): BriefingDateRanges {
   const todayStr = atlanticISODate(now);
   return {
     todayStr,
-    yearStart: `${now.getFullYear()}-01-01`,
+    yearStart: `${todayStr.slice(0, 4)}-01-01`,
     fourteenDaysAgo: new Date(now.getTime() - 14 * 86_400_000)
       .toISOString()
       .slice(0, 10),

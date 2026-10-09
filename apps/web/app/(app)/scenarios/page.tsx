@@ -6,6 +6,7 @@ import { totalRecurringMonthly, totalRecurringYTD } from "@agent-runway/core/eng
 import { computeGCI, computeWeightedGCI, activePipelineDeals } from "@/lib/types/database";
 import { projectedYearEndGCI, projectedYearEndTransactions, seasonalFractionElapsed } from "@/lib/engines/projection-engine";
 import { computeEffectiveCashForSurvival } from "@/lib/engines/effective-cash";
+import { atlanticNoon } from "@agent-runway/core/lib/local-date";
 
 
 /** Data the client component needs — pre-computed server-side. */
@@ -66,7 +67,9 @@ export default async function ScenariosPage() {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const currentYear = new Date().getFullYear();
+  // Atlantic calendar, not the server's UTC clock (local-date.ts).
+  const today = atlanticNoon();
+  const currentYear = today.getFullYear();
 
   // ── Step 1: Fetch settings ──────────────────────────────────────────────
   const { data: settingsRow } = await supabase
@@ -111,7 +114,7 @@ export default async function ScenariosPage() {
 
     const recurringExps = (recurringExpResult.data ?? []) as RecurringExpense[];
     const recurringExpMonthly = totalRecurringMonthly(recurringExps);
-    const recurringExpYTDValue = totalRecurringYTD(recurringExps);
+    const recurringExpYTDValue = totalRecurringYTD(recurringExps, today);
 
     const transactions = (txResult.data ?? []) as Transaction[];
     const pipelineDeals = (pipelineResult.data ?? []) as PipelineDeal[];
@@ -137,10 +140,9 @@ export default async function ScenariosPage() {
       (sum, r) => sum + Number(r.total_amount ?? 0),
       0,
     );
-    const now = new Date();
     // Integer months elapsed (1-12) — matches the dashboard. See
     // dashboard_metric_divergence_fix_2026-06-26.md.
-    const expMonthsElapsed = now.getMonth() + 1;
+    const expMonthsElapsed = today.getMonth() + 1;
     const legacyRecurringYTDEstimate = legacyMonthlyRecurring * expMonthsElapsed;
     const expensesYTD = Math.max(receiptYTD, legacyRecurringYTDEstimate) + recurringExpYTDValue;
 
@@ -162,6 +164,7 @@ export default async function ScenariosPage() {
           projectedGCI: projectedAnnualGCI,
           projectedDealCount,
           fraction,
+          now: today,
         }).cashPosition.effectiveCash
       : 0;
 

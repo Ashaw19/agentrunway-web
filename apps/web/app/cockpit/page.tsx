@@ -14,6 +14,7 @@ import {
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { cn } from "@/lib/utils";
+import { atlanticNoon } from "@agent-runway/core/lib/local-date";
 
 // Snapshot — the 8 cards that belong on a glance view.
 //
@@ -89,7 +90,9 @@ export default async function SnapshotPage() {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login?next=/cockpit");
 
-  const today = new Date();
+  // Calendar anchor: noon on the Atlantic day, so fiscal year, burn window and
+  // deadlines don't roll over at 8 pm Atlantic on the UTC server (local-date.ts).
+  const today = atlanticNoon();
   const ymd = (d: Date) => d.toISOString().slice(0, 10);
   const _startOfFY = ymd(new Date(today.getFullYear(), 0, 1));
 
