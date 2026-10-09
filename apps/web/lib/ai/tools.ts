@@ -3589,7 +3589,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
     // generate one (or asks Dispatcher to call draftOutreachForClient for
     // the specific opportunity).
     getWorkflowTemplates: tool({
-      description: "List the Flight Status workflow email templates available for a specific client based on their current Flight Status stage (Boarding / Scheduled / In-Flight / Cruising) and whether they have a closed transaction on record. Also lists any pending workflow drafts already generated for this client. Use this to proactively suggest a templated draft when the agent mentions a stage transition. This tool is read-only — to actually generate a draft, the agent clicks Draft in the CRM client detail panel.",
+      description: "List the Flight Status workflow email templates available for a specific client based on their current Flight Status stage (Boarding / Scheduled / In-Flight / Cruising) and whether they have a closed transaction on record. Also lists any pending workflow drafts already generated for this client. Use this to proactively suggest a templated draft when the agent mentions a stage transition. This tool is read-only — to actually generate a draft, the agent clicks Draft in the CRM client profile's Flight Crew tab (Flight Plan templates).",
       inputSchema: z.object({
         client_id: z.string().uuid().describe("The client UUID — get this from searchClients first"),
       }),

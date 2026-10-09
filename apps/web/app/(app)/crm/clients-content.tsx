@@ -37,6 +37,7 @@ import {
   Sheet,
   SheetContent,
   SheetHeader,
+  SheetTitle,
 } from "@/components/ui/sheet";
 import {
   Select,
@@ -200,6 +201,15 @@ import { HoverCard, HoverCardTrigger, HoverCardContent } from "@/components/ui/h
 import { buildClientGciSpark } from "@/lib/charts/client-gci-spark";
 
 // ── Props ─────────────────────────────────────────────────────────────────────
+
+/** Client profile tabs (Andrew, 2026-10-09): the profile was ~20 sections in one scroll. */
+type ProfileTab = "overview" | "activity" | "deals" | "crew";
+const PROFILE_TABS: { id: ProfileTab; label: string }[] = [
+  { id: "overview", label: "Overview" },
+  { id: "activity", label: "Activity" },
+  { id: "deals",    label: "Deals" },
+  { id: "crew",     label: "Flight Crew" },
+];
 
 interface Props {
   clients: Client[];
@@ -1058,6 +1068,8 @@ export function ClientsContent({
   const [localTasks, setLocalTasks] = useState<ContactTask[]>(initialTasks);
   // Checklist item being ticked off (opens CompleteItemDialog).
   const [tickingTask, setTickingTask] = useState<ContactTask | null>(null);
+  // Which tab of the client profile is showing.
+  const [panelTab, setPanelTab] = useState<ProfileTab>("overview");
   const [clientNotes, setClientNotes] = useState<ClientNote[]>([]);
   const [newNoteText, setNewNoteText] = useState("");
   const [localClients, setLocalClients] = useState<Client[]>(initialClients);
@@ -1836,7 +1848,7 @@ export function ClientsContent({
     if (!openClientId || openedFromLink.current) return;
     if (!localClients.some((c) => c.id === openClientId)) return;
     openedFromLink.current = true;
-    openDetailPanel(openClientId);
+    openDetailPanel(openClientId, "activity");
   }, [openClientId, localClients]);
 
   // Tracks which (clientId, planId) pairs have already fired this session to
@@ -2319,6 +2331,7 @@ export function ClientsContent({
       if (match) {
         setSelectedClientId(match.id);
         setDetailPanelOpen(true);
+        setPanelTab("activity");
         setLogActivityClientId(match.id);
         setLogType(draft.note.activity_type);
         setLogDescription(draft.note.description);
@@ -2657,9 +2670,10 @@ export function ClientsContent({
 
   // ── Form handlers ────────────────────────────────────────────────────────────
 
-  function openDetailPanel(clientId: string) {
+  function openDetailPanel(clientId: string, tab: ProfileTab = "overview") {
     setSelectedClientId(clientId);
     setDetailPanelOpen(true);
+    setPanelTab(tab);
     setShowLogActivity(false);
     setShowAddTask(false);
     setLogType("call");
@@ -4179,7 +4193,7 @@ export function ClientsContent({
           {selectedClient && (
             <div className="flex flex-col">
               {/* ── Profile Header ───────────────────────────────────── */}
-              <div className="sticky top-0 z-10 bg-background">
+              <div className="bg-background">
                 {/* Status gradient banner */}
                 <div className={cn("h-20 w-full bg-gradient-to-r", STATUS_HEADER_GRADIENT[selectedClient.status])} />
 
@@ -4304,6 +4318,8 @@ export function ClientsContent({
                 {/* Name + save */}
                 <div className="px-5 pt-3 pb-4 border-b border-border/60 space-y-3">
                   <SheetHeader className="p-0">
+                    {/* Screen readers announce the profile by name (the visible name is in the inputs). */}
+                    <SheetTitle className="sr-only">{selectedClient.name}</SheetTitle>
                     <div className="grid grid-cols-2 gap-2">
                       <div className="space-y-0.5">
                         <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">First Name</label>
@@ -4345,14 +4361,6 @@ export function ClientsContent({
                             Last contact: {relativeDate(selectedClient.last_contact_at)}
                           </span>
                         )}
-                        <AddToChecklistButton
-                          key={`${selectedClient.id}:${clientTasks.length > 0}`}
-                          clientId={selectedClient.id}
-                          clientName={selectedClient.name}
-                          onList={clientTasks.length > 0}
-                          onAdded={(task) => setLocalTasks((prev) => [...prev, task])}
-                          className="h-6 px-2 text-[11px]"
-                        />
                       </div>
                       <Button
                         size="sm"
@@ -4369,802 +4377,901 @@ export function ClientsContent({
                     </div>
                   </SheetHeader>
 
+                  {/* Quick actions: reach them, log it, or put them on the Checklist */}
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {selectedClient.phone && (
+                      <>
+                        <Button asChild variant="outline" size="sm" className="h-7 gap-1.5 text-xs">
+                          <a href={`tel:${selectedClient.phone}`}><Phone className="h-3.5 w-3.5" />Call</a>
+                        </Button>
+                        <Button asChild variant="outline" size="sm" className="h-7 gap-1.5 text-xs">
+                          <a href={`sms:${selectedClient.phone}`}><MessageSquare className="h-3.5 w-3.5" />Text</a>
+                        </Button>
+                      </>
+                    )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 gap-1.5 text-xs"
+                      onClick={() => {
+                        setPanelTab("activity");
+                        setShowLogActivity(true);
+                        setLogActivityClientId(selectedClient.id);
+                        setShowAddTask(false);
+                      }}
+                    >
+                      <Activity className="h-3.5 w-3.5" />
+                      Log activity
+                    </Button>
+                    <AddToChecklistButton
+                      key={`${selectedClient.id}:${clientTasks.length > 0}`}
+                      clientId={selectedClient.id}
+                      clientName={selectedClient.name}
+                      onList={clientTasks.length > 0}
+                      onAdded={(task) => setLocalTasks((prev) => [...prev, task])}
+                      className="h-7 text-xs"
+                    />
+                  </div>
+
                   {/* Flight Status Strip */}
                   <FlightStatusStrip current={selectedClient.status} />
                 </div>
               </div>
 
-              {/* ── Body ────────────────────────────────────────────────── */}
-              <div className="px-4 py-4 space-y-3">
-
-                {/* Client instrument strip — lifetime value at a glance, in the
-                    same dark-cockpit shell as the dashboard + CRM-tab headers. */}
-                {(() => {
-                  const lifetimeGci = selectedClientGroup?.totalGCI ?? 0;
-                  const dealCount   = selectedClientGroup?.dealCount ?? 0;
+              {/* ── Tabs: pinned while the panel scrolls ─────────────────── */}
+              <div
+                role="tablist"
+                aria-label="Client profile"
+                className="sticky top-0 z-10 flex border-b border-border/60 bg-background px-2"
+              >
+                {PROFILE_TABS.map((t) => {
+                  const count = t.id === "activity" ? clientTasks.length
+                              : t.id === "deals"    ? (selectedClientGroup?.dealCount ?? 0) // collapsed deals don't count (#293)
+                              : 0;
+                  const active = panelTab === t.id;
                   return (
-                    <CockpitStrip animate={false} className="px-4 py-3">
-                      <div className="grid grid-cols-3 gap-3">
-                        <CockpitStat
-                          label="Lifetime GCI"
-                          value={fmtCompact(lifetimeGci)}
-                          color={lifetimeGci > 0 ? SEMANTIC.strong : "#F8FAFC"}
-                          icon={<DollarSign className="h-3.5 w-3.5" />}
-                        />
-                        <CockpitStat
-                          label="Deals"
-                          value={dealCount}
-                          color={dealCount > 0 ? SEMANTIC.onTrack : "#F8FAFC"}
-                          icon={<Layers className="h-3.5 w-3.5" />}
-                        />
-                        <CockpitStat
-                          label="Last Contact"
-                          value={selectedClient.last_contact_at ? relativeDate(selectedClient.last_contact_at) : "—"}
-                          color="#F8FAFC"
-                          icon={<Clock className="h-3.5 w-3.5" />}
-                        />
-                      </div>
-                    </CockpitStrip>
+                    <button
+                      key={t.id}
+                      type="button"
+                      role="tab"
+                      id={`profile-tab-${t.id}`}
+                      aria-selected={active}
+                      aria-controls={`profile-panel-${t.id}`}
+                      onClick={(e) => {
+                        setPanelTab(t.id);
+                        // Scrolled past the header? Start the new tab at its top,
+                        // just under the pinned bar.
+                        const bar = e.currentTarget.parentElement;
+                        const header = bar?.previousElementSibling as HTMLElement | null;
+                        const scroller = bar?.closest<HTMLElement>('[data-slot="sheet-content"]');
+                        if (scroller && header && scroller.scrollTop > header.offsetHeight) {
+                          scroller.scrollTop = header.offsetHeight;
+                        }
+                      }}
+                      className={cn(
+                        "flex-1 inline-flex items-center justify-center gap-1.5 border-b-2 px-1 py-2.5 text-xs sm:text-sm font-medium transition-colors",
+                        active
+                          ? "border-primary text-foreground"
+                          : "border-transparent text-muted-foreground hover:text-foreground",
+                      )}
+                    >
+                      {t.label}
+                      {count > 0 && (
+                        <span className={cn(
+                          "rounded-full px-1.5 text-[10px] font-semibold tabular-nums",
+                          active ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground",
+                        )}>
+                          {count}
+                        </span>
+                      )}
+                    </button>
                   );
-                })()}
+                })}
+              </div>
 
-                {/* Contact info section */}
-                <div className={CRM_SECTION_CARD}>
-                  <h3 className={CRM_SECTION_HEADER}>
-                    <div className={CRM_SECTION_ICON_CHIP}>
-                      <Phone className="h-3 w-3" />
-                    </div>
-                    Contact Information
-                  </h3>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <div className="flex items-center gap-1 mb-0.5">
-                        <Select
-                          value={selectedClient.phone_type ?? "mobile"}
-                          onValueChange={(v) => updateClientField(selectedClient.id, "phone_type", v)}
-                        >
-                          <SelectTrigger className="h-4 text-[10px] text-muted-foreground border-0 bg-transparent p-0 w-auto gap-0.5 shadow-none hover:text-foreground">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {(Object.entries(PHONE_TYPE_LABELS) as [PhoneType, string][]).map(([k, label]) => (
-                              <SelectItem key={k} value={k} className="text-xs">{label}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <span className="text-[10px] text-muted-foreground">Phone</span>
-                      </div>
-                      <InlineEdit
-                        value={selectedClient.phone ?? ""}
-                        onSave={(v) => updateClientField(selectedClient.id, "phone", v || null)}
-                        placeholder="Add phone…"
-                      />
-                    </div>
-                    <InlineEdit
-                      label="Email"
-                      value={selectedClient.email ?? ""}
-                      onSave={(v) => updateClientField(selectedClient.id, "email", v || null)}
-                      placeholder="Add email…"
-                    />
-                    <div>
-                      <div className="flex items-center gap-1 mb-0.5">
-                        <Select
-                          value={selectedClient.secondary_phone_type ?? "mobile"}
-                          onValueChange={(v) => updateClientField(selectedClient.id, "secondary_phone_type", v)}
-                        >
-                          <SelectTrigger className="h-4 text-[10px] text-muted-foreground border-0 bg-transparent p-0 w-auto gap-0.5 shadow-none hover:text-foreground">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {(Object.entries(PHONE_TYPE_LABELS) as [PhoneType, string][]).map(([k, label]) => (
-                              <SelectItem key={k} value={k} className="text-xs">{label}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <span className="text-[10px] text-muted-foreground">Phone</span>
-                      </div>
-                      <InlineEdit
-                        value={selectedClient.secondary_phone ?? ""}
-                        onSave={(v) => updateClientField(selectedClient.id, "secondary_phone", v || null)}
-                        placeholder="Add secondary phone…"
-                      />
-                    </div>
-                    <InlineEdit
-                      label="Secondary Email"
-                      value={selectedClient.secondary_email ?? ""}
-                      onSave={(v) => updateClientField(selectedClient.id, "secondary_email", v || null)}
-                      placeholder="Add secondary email…"
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <InlineEdit
-                      label="Birthday"
-                      value={selectedClient.birthdate ?? ""}
-                      type="date"
-                      onSave={(v) => updateClientField(selectedClient.id, "birthdate", v || null)}
-                      placeholder="Add birthday…"
-                    />
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="flex-1">
-                      <span className="text-[10px] text-muted-foreground block mb-1">Preferred Contact</span>
-                      <div className="flex gap-1">
-                        {(["phone", "email", "text"] as PreferredContact[]).map((pc) => (
-                          <button
-                            key={pc}
-                            onClick={() => updateClientField(selectedClient.id, "preferred_contact", pc)}
-                            className={cn(
-                              "rounded-full px-2.5 py-0.5 text-[10px] font-semibold border transition-colors",
-                              selectedClient.preferred_contact === pc
-                                ? "bg-primary text-primary-foreground border-primary"
-                                : "bg-card text-muted-foreground border-border hover:border-primary/40",
-                            )}
-                          >
-                            {PREFERRED_CONTACT_LABELS[pc]}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                    <div className="flex-1">
-                      <span className="text-[10px] text-muted-foreground block mb-1">AI Message Tone</span>
-                      <div className="flex gap-1">
-                        {(["casual", "friendly", "professional", "formal"] as CommunicationTone[]).map((tone) => (
-                          <button
-                            key={tone}
-                            onClick={() => updateClientField(selectedClient.id, "communication_tone", tone)}
-                            title={COMMUNICATION_TONE_DESCRIPTIONS[tone]}
-                            className={cn(
-                              "rounded-full px-2 py-0.5 text-[10px] font-semibold border transition-colors",
-                              selectedClient.communication_tone === tone
-                                ? "bg-violet-600 text-white border-violet-600"
-                                : "bg-card text-muted-foreground border-border hover:border-violet-400/40",
-                            )}
-                          >
-                            {COMMUNICATION_TONE_LABELS[tone]}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </div>
 
-                {/* Address */}
-                {(() => {
-                  const addrLabels = getCountryLabels(selectedClient.country ?? "Canada");
-                  return (
+              {/* ── Body: one tab at a time ──────────────────────────────
+                  Panels stay mounted (hidden, not unmounted) so drafts,
+                  open forms and fetched history survive a tab switch. */}
+              <div className="px-4 py-4">
+                <div role="tabpanel" id="profile-panel-overview" aria-labelledby="profile-tab-overview" hidden={panelTab !== "overview"} className="space-y-3">
+                    {/* Client instrument strip — lifetime value at a glance, in the
+                        same dark-cockpit shell as the dashboard + CRM-tab headers. */}
+                    {(() => {
+                      const lifetimeGci = selectedClientGroup?.totalGCI ?? 0;
+                      const dealCount   = selectedClientGroup?.dealCount ?? 0;
+                      return (
+                        <CockpitStrip animate={false} className="px-4 py-3">
+                          <div className="grid grid-cols-3 gap-3">
+                            <CockpitStat
+                              label="Lifetime GCI"
+                              value={fmtCompact(lifetimeGci)}
+                              color={lifetimeGci > 0 ? SEMANTIC.strong : "#F8FAFC"}
+                              icon={<DollarSign className="h-3.5 w-3.5" />}
+                            />
+                            <CockpitStat
+                              label="Deals"
+                              value={dealCount}
+                              color={dealCount > 0 ? SEMANTIC.onTrack : "#F8FAFC"}
+                              icon={<Layers className="h-3.5 w-3.5" />}
+                            />
+                            <CockpitStat
+                              label="Last Contact"
+                              value={selectedClient.last_contact_at ? relativeDate(selectedClient.last_contact_at) : "—"}
+                              color="#F8FAFC"
+                              icon={<Clock className="h-3.5 w-3.5" />}
+                            />
+                          </div>
+                        </CockpitStrip>
+                      );
+                    })()}
+
+                    {/* Contact info section */}
                     <div className={CRM_SECTION_CARD}>
                       <h3 className={CRM_SECTION_HEADER}>
                         <div className={CRM_SECTION_ICON_CHIP}>
-                          <MapPin className="h-3 w-3" />
+                          <Phone className="h-3 w-3" />
                         </div>
-                        Address
+                        Contact Information
                       </h3>
-                      <div className="grid grid-cols-1 gap-2">
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <div className="flex items-center gap-1 mb-0.5">
+                            <Select
+                              value={selectedClient.phone_type ?? "mobile"}
+                              onValueChange={(v) => updateClientField(selectedClient.id, "phone_type", v)}
+                            >
+                              <SelectTrigger className="h-4 text-[10px] text-muted-foreground border-0 bg-transparent p-0 w-auto gap-0.5 shadow-none hover:text-foreground">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {(Object.entries(PHONE_TYPE_LABELS) as [PhoneType, string][]).map(([k, label]) => (
+                                  <SelectItem key={k} value={k} className="text-xs">{label}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <span className="text-[10px] text-muted-foreground">Phone</span>
+                          </div>
+                          <InlineEdit
+                            value={selectedClient.phone ?? ""}
+                            onSave={(v) => updateClientField(selectedClient.id, "phone", v || null)}
+                            placeholder="Add phone…"
+                          />
+                        </div>
                         <InlineEdit
-                          label="Street Address"
-                          value={selectedClient.street_address ?? ""}
-                          onSave={(v) => updateClientField(selectedClient.id, "street_address", v || null)}
-                          placeholder="Add street address…"
+                          label="Email"
+                          value={selectedClient.email ?? ""}
+                          onSave={(v) => updateClientField(selectedClient.id, "email", v || null)}
+                          placeholder="Add email…"
                         />
+                        <div>
+                          <div className="flex items-center gap-1 mb-0.5">
+                            <Select
+                              value={selectedClient.secondary_phone_type ?? "mobile"}
+                              onValueChange={(v) => updateClientField(selectedClient.id, "secondary_phone_type", v)}
+                            >
+                              <SelectTrigger className="h-4 text-[10px] text-muted-foreground border-0 bg-transparent p-0 w-auto gap-0.5 shadow-none hover:text-foreground">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {(Object.entries(PHONE_TYPE_LABELS) as [PhoneType, string][]).map(([k, label]) => (
+                                  <SelectItem key={k} value={k} className="text-xs">{label}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <span className="text-[10px] text-muted-foreground">Phone</span>
+                          </div>
+                          <InlineEdit
+                            value={selectedClient.secondary_phone ?? ""}
+                            onSave={(v) => updateClientField(selectedClient.id, "secondary_phone", v || null)}
+                            placeholder="Add secondary phone…"
+                          />
+                        </div>
                         <InlineEdit
-                          label="Unit / Suite"
-                          value={selectedClient.unit_number ?? ""}
-                          onSave={(v) => updateClientField(selectedClient.id, "unit_number", v || null)}
-                          placeholder="Apt, Suite, Unit…"
+                          label="Secondary Email"
+                          value={selectedClient.secondary_email ?? ""}
+                          onSave={(v) => updateClientField(selectedClient.id, "secondary_email", v || null)}
+                          placeholder="Add secondary email…"
                         />
                       </div>
                       <div className="grid grid-cols-2 gap-3">
                         <InlineEdit
-                          label="City"
-                          value={selectedClient.city ?? ""}
-                          onSave={(v) => updateClientField(selectedClient.id, "city", v || null)}
-                          placeholder="Add city…"
-                        />
-                        <InlineEdit
-                          label={addrLabels.provinceLabel}
-                          value={selectedClient.province_region ?? ""}
-                          onSave={(v) => updateClientField(selectedClient.id, "province_region", v || null)}
-                          placeholder={`Add ${addrLabels.provinceLabel.toLowerCase()}…`}
-                        />
-                        <InlineEdit
-                          label={addrLabels.postalLabel}
-                          value={selectedClient.postal_code ?? ""}
-                          onSave={(v) => updateClientField(selectedClient.id, "postal_code", v || null)}
-                          placeholder={addrLabels.postalPlaceholder || addrLabels.postalLabel}
-                        />
-                        <InlineEdit
-                          label="Country"
-                          value={selectedClient.country ?? "Canada"}
-                          onSave={(v) => updateClientField(selectedClient.id, "country", v || "Canada")}
-                          placeholder="Canada"
+                          label="Birthday"
+                          value={selectedClient.birthdate ?? ""}
+                          type="date"
+                          onSave={(v) => updateClientField(selectedClient.id, "birthdate", v || null)}
+                          placeholder="Add birthday…"
                         />
                       </div>
-                    </div>
-                  );
-                })()}
-
-                {/* Details */}
-                <div className={CRM_SECTION_CARD}>
-                  <h3 className={CRM_SECTION_HEADER}>
-                    <div className={CRM_SECTION_ICON_CHIP}>
-                      <FileText className="h-3 w-3" />
-                    </div>
-                    Details
-                  </h3>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <span className="text-[10px] text-muted-foreground block mb-1">Property Interest</span>
-                      <div className="flex items-center gap-1.5">
-                        <Select
-                          value={selectedClient.property_interest_type ?? "budget"}
-                          onValueChange={(v) => updateClientField(selectedClient.id, "property_interest_type", v)}
-                        >
-                          <SelectTrigger className="h-7 w-24 text-[10px]">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="budget">Budget</SelectItem>
-                            <SelectItem value="listing">Listing</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <Input
-                          type="number"
-                          placeholder="$"
-                          value={selectedClient.property_interest ?? ""}
-                          onChange={(e) => updateClientField(selectedClient.id, "property_interest", e.target.value ? Number(e.target.value) : null)}
-                          className="h-7 text-xs flex-1"
-                        />
+                      <div className="flex items-center gap-3">
+                        <div className="flex-1">
+                          <span className="text-[10px] text-muted-foreground block mb-1">Preferred Contact</span>
+                          <div className="flex gap-1">
+                            {(["phone", "email", "text"] as PreferredContact[]).map((pc) => (
+                              <button
+                                key={pc}
+                                onClick={() => updateClientField(selectedClient.id, "preferred_contact", pc)}
+                                className={cn(
+                                  "rounded-full px-2.5 py-0.5 text-[10px] font-semibold border transition-colors",
+                                  selectedClient.preferred_contact === pc
+                                    ? "bg-primary text-primary-foreground border-primary"
+                                    : "bg-card text-muted-foreground border-border hover:border-primary/40",
+                                )}
+                              >
+                                {PREFERRED_CONTACT_LABELS[pc]}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="flex-1">
+                          <span className="text-[10px] text-muted-foreground block mb-1">AI Message Tone</span>
+                          <div className="flex gap-1">
+                            {(["casual", "friendly", "professional", "formal"] as CommunicationTone[]).map((tone) => (
+                              <button
+                                key={tone}
+                                onClick={() => updateClientField(selectedClient.id, "communication_tone", tone)}
+                                title={COMMUNICATION_TONE_DESCRIPTIONS[tone]}
+                                className={cn(
+                                  "rounded-full px-2 py-0.5 text-[10px] font-semibold border transition-colors",
+                                  selectedClient.communication_tone === tone
+                                    ? "bg-violet-600 text-white border-violet-600"
+                                    : "bg-card text-muted-foreground border-border hover:border-violet-400/40",
+                                )}
+                              >
+                                {COMMUNICATION_TONE_LABELS[tone]}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
                       </div>
                     </div>
-                    <div>
-                      <span className="text-[10px] text-muted-foreground block mb-1">Timeframe</span>
-                      <Select
-                        value={selectedClient.timeframe ?? "unknown"}
-                        onValueChange={(v) => updateClientField(selectedClient.id, "timeframe", v === "unknown" ? null : v)}
-                      >
-                        <SelectTrigger className="h-7 text-xs">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {(Object.entries(CLIENT_TIMEFRAME_LABELS) as [ClientTimeframe, string][]).map(([k, label]) => (
-                            <SelectItem key={k} value={k}>{label}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <span className="text-[10px] text-muted-foreground block mb-1">Lead Source</span>
-                      <Select
-                        value={selectedClient.lead_source ?? "__none__"}
-                        onValueChange={(v) => updateClientField(selectedClient.id, "lead_source", v === "__none__" ? null : v)}
-                      >
-                        <SelectTrigger className="h-7 text-xs w-full">
-                          <SelectValue placeholder="Select source…" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="__none__" className="text-muted-foreground text-xs italic">
-                            — Not set —
-                          </SelectItem>
-                          {LEAD_SOURCE_GROUPS.map((group) => (
-                            <SelectGroup key={group.label}>
-                              <SelectLabel className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70 px-2 py-1">
-                                {group.label}
-                              </SelectLabel>
-                              {group.options.map((src) => (
-                                <SelectItem key={src} value={src} className="text-xs pl-4">
-                                  {src}
-                                </SelectItem>
-                              ))}
-                            </SelectGroup>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    {/* Buyer Profile — pre-approval, financing, target close */}
-                    <div>
-                      <span className="text-[10px] text-muted-foreground block mb-1">Pre-Approved</span>
-                      <Select
-                        value={selectedClient.buyer_pre_approved ? "yes" : "no"}
-                        onValueChange={(v) => updateClientField(selectedClient.id, "buyer_pre_approved", v === "yes")}
-                      >
-                        <SelectTrigger className="h-7 text-xs">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="no">No</SelectItem>
-                          <SelectItem value="yes">Yes</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <span className="text-[10px] text-muted-foreground block mb-1">Financing</span>
-                      <Select
-                        value={selectedClient.buyer_financing_type ?? "unknown"}
-                        onValueChange={(v) => updateClientField(selectedClient.id, "buyer_financing_type", v === "unknown" ? null : v)}
-                      >
-                        <SelectTrigger className="h-7 text-xs">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {(Object.keys(BUYER_FINANCING_LABELS) as BuyerFinancingType[]).map((k) => (
-                            <SelectItem key={k} value={k} className="text-xs">{BUYER_FINANCING_LABELS[k]}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    {selectedClient.buyer_pre_approved && (
-                      <div>
-                        <span className="text-[10px] text-muted-foreground block mb-1">Pre-Approval Amount</span>
-                        <Input
-                          type="number"
-                          placeholder="$"
-                          value={selectedClient.buyer_pre_approval_amount ?? ""}
-                          onChange={(e) => updateClientField(selectedClient.id, "buyer_pre_approval_amount", e.target.value ? Number(e.target.value) : null)}
-                          className="h-7 text-xs"
-                        />
-                      </div>
-                    )}
-                    <InlineEdit
-                      label="Search Area"
-                      value={selectedClient.buyer_target_area ?? ""}
-                      onSave={(v) => updateClientField(selectedClient.id, "buyer_target_area", v || null)}
-                      placeholder="Where are they looking?"
-                    />
-                    <InlineEdit
-                      label="Target Close Date"
-                      value={selectedClient.buyer_target_close_date ?? ""}
-                      type="date"
-                      onSave={(v) => updateClientField(selectedClient.id, "buyer_target_close_date", v || null)}
-                      placeholder="Expected close…"
-                    />
-                  </div>
-                  {/* Tags */}
-                  <div className="col-span-2">
-                    <span className="text-[10px] text-muted-foreground block mb-1.5">Tags</span>
-                    <TagPicker
-                      value={selectedClient.tags ?? []}
-                      onChange={(tags) => updateClientField(selectedClient.id, "tags", tags)}
-                    />
-                  </div>
-                </div>
 
-                {/* Mortgage Estimate — only for buyer clients with a budget set */}
-                {selectedClient.property_interest_type === "budget" &&
-                  selectedClient.property_interest &&
-                  selectedClient.property_interest > 0 && (
-                    <MortgageEstimateSection price={selectedClient.property_interest} />
-                  )}
+                    {/* Address */}
+                    {(() => {
+                      const addrLabels = getCountryLabels(selectedClient.country ?? "Canada");
+                      return (
+                        <div className={CRM_SECTION_CARD}>
+                          <h3 className={CRM_SECTION_HEADER}>
+                            <div className={CRM_SECTION_ICON_CHIP}>
+                              <MapPin className="h-3 w-3" />
+                            </div>
+                            Address
+                          </h3>
+                          <div className="grid grid-cols-1 gap-2">
+                            <InlineEdit
+                              label="Street Address"
+                              value={selectedClient.street_address ?? ""}
+                              onSave={(v) => updateClientField(selectedClient.id, "street_address", v || null)}
+                              placeholder="Add street address…"
+                            />
+                            <InlineEdit
+                              label="Unit / Suite"
+                              value={selectedClient.unit_number ?? ""}
+                              onSave={(v) => updateClientField(selectedClient.id, "unit_number", v || null)}
+                              placeholder="Apt, Suite, Unit…"
+                            />
+                          </div>
+                          <div className="grid grid-cols-2 gap-3">
+                            <InlineEdit
+                              label="City"
+                              value={selectedClient.city ?? ""}
+                              onSave={(v) => updateClientField(selectedClient.id, "city", v || null)}
+                              placeholder="Add city…"
+                            />
+                            <InlineEdit
+                              label={addrLabels.provinceLabel}
+                              value={selectedClient.province_region ?? ""}
+                              onSave={(v) => updateClientField(selectedClient.id, "province_region", v || null)}
+                              placeholder={`Add ${addrLabels.provinceLabel.toLowerCase()}…`}
+                            />
+                            <InlineEdit
+                              label={addrLabels.postalLabel}
+                              value={selectedClient.postal_code ?? ""}
+                              onSave={(v) => updateClientField(selectedClient.id, "postal_code", v || null)}
+                              placeholder={addrLabels.postalPlaceholder || addrLabels.postalLabel}
+                            />
+                            <InlineEdit
+                              label="Country"
+                              value={selectedClient.country ?? "Canada"}
+                              onSave={(v) => updateClientField(selectedClient.id, "country", v || "Canada")}
+                              placeholder="Canada"
+                            />
+                          </div>
+                        </div>
+                      );
+                    })()}
 
-                {/* Relationships */}
-                <div className={CRM_SECTION_CARD}>
-                  <div className="flex items-center justify-between">
-                    <h3 className={CRM_SECTION_HEADER}>
-                      <div className={CRM_SECTION_ICON_CHIP}>
-                        <Link2 className="h-3 w-3" />
-                      </div>
-                      Relationships
-                    </h3>
-                    <div className="flex gap-1">
-                      {/* Quick referral button — "this client referred someone" */}
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="gap-1 h-6 text-[10px] text-violet-400 border-violet-400/40 hover:border-violet-400/70 hover:text-violet-300"
-                        onClick={() => {
-                          setLinkRelType("referrer");
-                          setLinkRelOpen(true);
-                          setLinkRelSearch("");
-                        }}
-                      >
-                        <GitBranch className="h-3 w-3" />
-                        Referral
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="gap-1 h-6 text-[10px]"
-                        onClick={() => {
-                          setLinkRelType("spouse");
-                          setLinkRelOpen((v) => !v);
-                          setLinkRelSearch("");
-                        }}
-                      >
-                        <Link2 className="h-3 w-3" />
-                        Link
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="gap-1 h-6 text-[10px] text-emerald-500 border-emerald-400/40 hover:border-emerald-400/70 hover:text-emerald-400"
-                        onClick={() => {
-                          setAddSpouseOpen((v) => !v);
-                          setSpouseName("");
-                        }}
-                      >
-                        <UserPlus className="h-3 w-3" />
-                        Add Spouse
-                      </Button>
-                    </div>
-                  </div>
-
-                  {linkRelOpen && (
-                    <div className="rounded-xl border border-border/60 bg-muted/30 p-3 space-y-2">
-                      {linkRelType === "referrer" && (
-                        <p className="text-[10px] text-violet-500 font-medium leading-tight">
-                          Who did {selectedClient.name.split(" ")[0]} refer to you? Select them below.
-                        </p>
-                      )}
-                      <Input
-                        autoFocus
-                        placeholder={linkRelType === "referrer" ? `Search for client ${selectedClient.name.split(" ")[0]} referred…` : "Search clients…"}
-                        value={linkRelSearch}
-                        onChange={(e) => setLinkRelSearch(e.target.value)}
-                        className="h-7 text-xs"
-                      />
-                      <Select value={linkRelType} onValueChange={(v) => setLinkRelType(v as RelationshipType)}>
-                        <SelectTrigger className="h-7 text-xs">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {(Object.entries(RELATIONSHIP_TYPE_LABELS) as [RelationshipType, string][]).map(([k, label]) => (
-                            <SelectItem key={k} value={k}>{label}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      {linkCandidates.length > 0 && (
-                        <div className="border border-border rounded-lg bg-background overflow-hidden">
-                          {linkCandidates.map((c) => (
-                            <button
-                              key={c.id}
-                              className="w-full text-left px-3 py-1.5 text-xs hover:bg-muted transition-colors"
-                              onClick={async () => {
-                                await addRelationship(selectedClient.id, c.id, linkRelType);
-                                setLinkRelOpen(false);
-                                setLinkRelSearch("");
-                              }}
+                    {/* Details */}
+                    <div className={CRM_SECTION_CARD}>
+                      <h3 className={CRM_SECTION_HEADER}>
+                        <div className={CRM_SECTION_ICON_CHIP}>
+                          <FileText className="h-3 w-3" />
+                        </div>
+                        Details
+                      </h3>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <span className="text-[10px] text-muted-foreground block mb-1">Property Interest</span>
+                          <div className="flex items-center gap-1.5">
+                            <Select
+                              value={selectedClient.property_interest_type ?? "budget"}
+                              onValueChange={(v) => updateClientField(selectedClient.id, "property_interest_type", v)}
                             >
-                              {c.name}
-                            </button>
-                          ))}
+                              <SelectTrigger className="h-7 w-24 text-[10px]">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="budget">Budget</SelectItem>
+                                <SelectItem value="listing">Listing</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <Input
+                              type="number"
+                              placeholder="$"
+                              value={selectedClient.property_interest ?? ""}
+                              onChange={(e) => updateClientField(selectedClient.id, "property_interest", e.target.value ? Number(e.target.value) : null)}
+                              className="h-7 text-xs flex-1"
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-muted-foreground block mb-1">Timeframe</span>
+                          <Select
+                            value={selectedClient.timeframe ?? "unknown"}
+                            onValueChange={(v) => updateClientField(selectedClient.id, "timeframe", v === "unknown" ? null : v)}
+                          >
+                            <SelectTrigger className="h-7 text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {(Object.entries(CLIENT_TIMEFRAME_LABELS) as [ClientTimeframe, string][]).map(([k, label]) => (
+                                <SelectItem key={k} value={k}>{label}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-muted-foreground block mb-1">Lead Source</span>
+                          <Select
+                            value={selectedClient.lead_source ?? "__none__"}
+                            onValueChange={(v) => updateClientField(selectedClient.id, "lead_source", v === "__none__" ? null : v)}
+                          >
+                            <SelectTrigger className="h-7 text-xs w-full">
+                              <SelectValue placeholder="Select source…" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="__none__" className="text-muted-foreground text-xs italic">
+                                — Not set —
+                              </SelectItem>
+                              {LEAD_SOURCE_GROUPS.map((group) => (
+                                <SelectGroup key={group.label}>
+                                  <SelectLabel className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70 px-2 py-1">
+                                    {group.label}
+                                  </SelectLabel>
+                                  {group.options.map((src) => (
+                                    <SelectItem key={src} value={src} className="text-xs pl-4">
+                                      {src}
+                                    </SelectItem>
+                                  ))}
+                                </SelectGroup>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        {/* Buyer Profile — pre-approval, financing, target close */}
+                        <div>
+                          <span className="text-[10px] text-muted-foreground block mb-1">Pre-Approved</span>
+                          <Select
+                            value={selectedClient.buyer_pre_approved ? "yes" : "no"}
+                            onValueChange={(v) => updateClientField(selectedClient.id, "buyer_pre_approved", v === "yes")}
+                          >
+                            <SelectTrigger className="h-7 text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="no">No</SelectItem>
+                              <SelectItem value="yes">Yes</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-muted-foreground block mb-1">Financing</span>
+                          <Select
+                            value={selectedClient.buyer_financing_type ?? "unknown"}
+                            onValueChange={(v) => updateClientField(selectedClient.id, "buyer_financing_type", v === "unknown" ? null : v)}
+                          >
+                            <SelectTrigger className="h-7 text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {(Object.keys(BUYER_FINANCING_LABELS) as BuyerFinancingType[]).map((k) => (
+                                <SelectItem key={k} value={k} className="text-xs">{BUYER_FINANCING_LABELS[k]}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        {selectedClient.buyer_pre_approved && (
+                          <div>
+                            <span className="text-[10px] text-muted-foreground block mb-1">Pre-Approval Amount</span>
+                            <Input
+                              type="number"
+                              placeholder="$"
+                              value={selectedClient.buyer_pre_approval_amount ?? ""}
+                              onChange={(e) => updateClientField(selectedClient.id, "buyer_pre_approval_amount", e.target.value ? Number(e.target.value) : null)}
+                              className="h-7 text-xs"
+                            />
+                          </div>
+                        )}
+                        <InlineEdit
+                          label="Search Area"
+                          value={selectedClient.buyer_target_area ?? ""}
+                          onSave={(v) => updateClientField(selectedClient.id, "buyer_target_area", v || null)}
+                          placeholder="Where are they looking?"
+                        />
+                        <InlineEdit
+                          label="Target Close Date"
+                          value={selectedClient.buyer_target_close_date ?? ""}
+                          type="date"
+                          onSave={(v) => updateClientField(selectedClient.id, "buyer_target_close_date", v || null)}
+                          placeholder="Expected close…"
+                        />
+                      </div>
+                      {/* Tags */}
+                      <div className="col-span-2">
+                        <span className="text-[10px] text-muted-foreground block mb-1.5">Tags</span>
+                        <TagPicker
+                          value={selectedClient.tags ?? []}
+                          onChange={(tags) => updateClientField(selectedClient.id, "tags", tags)}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Mortgage Estimate — only for buyer clients with a budget set */}
+                    {selectedClient.property_interest_type === "budget" &&
+                      selectedClient.property_interest &&
+                      selectedClient.property_interest > 0 && (
+                        <MortgageEstimateSection price={selectedClient.property_interest} />
+                      )}
+
+                    {/* Relationships */}
+                    <div className={CRM_SECTION_CARD}>
+                      <div className="flex items-center justify-between">
+                        <h3 className={CRM_SECTION_HEADER}>
+                          <div className={CRM_SECTION_ICON_CHIP}>
+                            <Link2 className="h-3 w-3" />
+                          </div>
+                          Relationships
+                        </h3>
+                        <div className="flex gap-1">
+                          {/* Quick referral button — "this client referred someone" */}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="gap-1 h-6 text-[10px] text-violet-400 border-violet-400/40 hover:border-violet-400/70 hover:text-violet-300"
+                            onClick={() => {
+                              setLinkRelType("referrer");
+                              setLinkRelOpen(true);
+                              setLinkRelSearch("");
+                            }}
+                          >
+                            <GitBranch className="h-3 w-3" />
+                            Referral
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="gap-1 h-6 text-[10px]"
+                            onClick={() => {
+                              setLinkRelType("spouse");
+                              setLinkRelOpen((v) => !v);
+                              setLinkRelSearch("");
+                            }}
+                          >
+                            <Link2 className="h-3 w-3" />
+                            Link
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="gap-1 h-6 text-[10px] text-emerald-500 border-emerald-400/40 hover:border-emerald-400/70 hover:text-emerald-400"
+                            onClick={() => {
+                              setAddSpouseOpen((v) => !v);
+                              setSpouseName("");
+                            }}
+                          >
+                            <UserPlus className="h-3 w-3" />
+                            Add Spouse
+                          </Button>
+                        </div>
+                      </div>
+
+                      {linkRelOpen && (
+                        <div className="rounded-xl border border-border/60 bg-muted/30 p-3 space-y-2">
+                          {linkRelType === "referrer" && (
+                            <p className="text-[10px] text-violet-500 font-medium leading-tight">
+                              Who did {selectedClient.name.split(" ")[0]} refer to you? Select them below.
+                            </p>
+                          )}
+                          <Input
+                            autoFocus
+                            placeholder={linkRelType === "referrer" ? `Search for client ${selectedClient.name.split(" ")[0]} referred…` : "Search clients…"}
+                            value={linkRelSearch}
+                            onChange={(e) => setLinkRelSearch(e.target.value)}
+                            className="h-7 text-xs"
+                          />
+                          <Select value={linkRelType} onValueChange={(v) => setLinkRelType(v as RelationshipType)}>
+                            <SelectTrigger className="h-7 text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {(Object.entries(RELATIONSHIP_TYPE_LABELS) as [RelationshipType, string][]).map(([k, label]) => (
+                                <SelectItem key={k} value={k}>{label}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          {linkCandidates.length > 0 && (
+                            <div className="border border-border rounded-lg bg-background overflow-hidden">
+                              {linkCandidates.map((c) => (
+                                <button
+                                  key={c.id}
+                                  className="w-full text-left px-3 py-1.5 text-xs hover:bg-muted transition-colors"
+                                  onClick={async () => {
+                                    await addRelationship(selectedClient.id, c.id, linkRelType);
+                                    setLinkRelOpen(false);
+                                    setLinkRelSearch("");
+                                  }}
+                                >
+                                  {c.name}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {addSpouseOpen && (
+                        <div className="rounded-xl border border-emerald-200/60 bg-emerald-50/30 p-3 space-y-2">
+                          <p className="text-[10px] text-emerald-600 font-medium leading-tight">
+                            Enter the spouse/partner&apos;s full name. Address and shared details will be copied from {selectedClient.name.split(" ")[0]}&apos;s profile.
+                          </p>
+                          <div className="flex gap-2">
+                            <Input
+                              autoFocus
+                              placeholder="Full name (e.g. Sarah Smith)"
+                              value={spouseName}
+                              onChange={(e) => setSpouseName(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter" && spouseName.trim()) handleAddSpouse(spouseName.trim());
+                                if (e.key === "Escape") { setAddSpouseOpen(false); setSpouseName(""); }
+                              }}
+                              className="h-7 text-xs flex-1"
+                            />
+                            <Button
+                              size="sm"
+                              className="h-7 text-xs gap-1"
+                              disabled={!spouseName.trim() || spouseSaving}
+                              onClick={() => handleAddSpouse(spouseName.trim())}
+                            >
+                              {spouseSaving ? "Creating…" : "Create & Link"}
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+
+                      {clientRelationships.length === 0 ? (
+                        <div className="py-2 text-center space-y-1">
+                          <p className="text-xs text-muted-foreground">No linked clients.</p>
+                          <p className="text-[10px] text-muted-foreground/60">
+                            Use <span className="font-medium text-violet-400">Referral</span> to track who this client referred to you,
+                            or <span className="font-medium">Link</span> for family connections.
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="space-y-1">
+                          {clientRelationships.map((rel) => {
+                            const otherId = rel.client_id_a === selectedClient.id ? rel.client_id_b : rel.client_id_a;
+                            const other = clientById.get(otherId);
+                            if (!other) return null;
+                            const isReferral = rel.relationship_type === "referred" || rel.relationship_type === "referrer";
+
+                            // Determine referral direction relative to the current client
+                            // "referrer" type: client_id_a referred client_id_b
+                            let referralLabel = "";
+                            if (isReferral) {
+                              const currentIsA = rel.client_id_a === selectedClient.id;
+                              if (rel.relationship_type === "referrer") {
+                                // A referred B
+                                referralLabel = currentIsA
+                                  ? `Referred ${other.name.split(" ")[0]} to you`
+                                  : `Referred to you by ${other.name.split(" ")[0]}`;
+                              } else {
+                                // Legacy "referred" type — A was referred by B (old logic)
+                                referralLabel = currentIsA
+                                  ? `Referred by ${other.name.split(" ")[0]}`
+                                  : `Referred ${other.name.split(" ")[0]}`;
+                              }
+                            }
+
+                            // Household primary: rel.primary_client_id if set, else
+                            // whichever side already holds deal history (same rule
+                            // the 00164 backfill migration uses). The UI never
+                            // re-derives the alphabetical tie-break itself.
+                            const isHouseholdType = rel.relationship_type === "spouse" || rel.relationship_type === "partner";
+                            let showMakePrimaryFor: string | null = null;
+                            if (isHouseholdType) {
+                              const aHoldsRecords = localRecords.some((r) => r.client_id === rel.client_id_a);
+                              const bHoldsRecords = localRecords.some((r) => r.client_id === rel.client_id_b);
+                              const currentPrimaryId =
+                                rel.primary_client_id ??
+                                (aHoldsRecords ? rel.client_id_a : bHoldsRecords ? rel.client_id_b : null);
+                              if (currentPrimaryId !== null && currentPrimaryId !== other.id) {
+                                showMakePrimaryFor = other.id;
+                              }
+                            }
+
+                            return (
+                              <div
+                                key={rel.id}
+                                className={cn(
+                                  "group flex items-center gap-2 py-1.5 px-2 rounded-lg hover:bg-muted/30 transition-colors cursor-pointer",
+                                  isReferral && "bg-violet-500/5 hover:bg-violet-500/10",
+                                )}
+                                onClick={() => openDetailPanel(otherId)}
+                              >
+                                <div className={cn(
+                                  "h-7 w-7 rounded-full flex items-center justify-center text-xs font-semibold shrink-0",
+                                  isReferral ? "bg-violet-500/15 text-violet-400" : "bg-primary/10 text-primary",
+                                )}>
+                                  {isReferral
+                                    ? <GitBranch className="h-3.5 w-3.5" />
+                                    : other.name.charAt(0).toUpperCase()}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <span className="text-sm font-medium text-foreground truncate block">{other.name}</span>
+                                  {isReferral && (
+                                    <span className="text-[10px] text-violet-400/80 leading-none">
+                                      {referralLabel}
+                                    </span>
+                                  )}
+                                  {!isReferral && (
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="text-[10px] text-muted-foreground/60 leading-none">
+                                        {RELATIONSHIP_TYPE_LABELS[rel.relationship_type as RelationshipType] ?? rel.relationship_type}
+                                      </span>
+                                      {showMakePrimaryFor && (
+                                        <button
+                                          className="text-[9px] text-primary/70 hover:text-primary underline-offset-2 hover:underline leading-none"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleSetPrimary(rel.id, showMakePrimaryFor!);
+                                          }}
+                                        >
+                                          Make primary
+                                        </button>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                                <button
+                                  className="opacity-0 group-hover:opacity-100 transition-opacity h-5 w-5 rounded-full flex items-center justify-center hover:bg-destructive/10 text-muted-foreground/40 hover:text-destructive shrink-0"
+                                  title="Remove relationship"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    removeRelationship(rel.id);
+                                  }}
+                                >
+                                  <X className="h-3 w-3" />
+                                </button>
+                              </div>
+                            );
+                          })}
                         </div>
                       )}
                     </div>
-                  )}
+                </div>
 
-                  {addSpouseOpen && (
-                    <div className="rounded-xl border border-emerald-200/60 bg-emerald-50/30 p-3 space-y-2">
-                      <p className="text-[10px] text-emerald-600 font-medium leading-tight">
-                        Enter the spouse/partner&apos;s full name. Address and shared details will be copied from {selectedClient.name.split(" ")[0]}&apos;s profile.
-                      </p>
-                      <div className="flex gap-2">
-                        <Input
-                          autoFocus
-                          placeholder="Full name (e.g. Sarah Smith)"
-                          value={spouseName}
-                          onChange={(e) => setSpouseName(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter" && spouseName.trim()) handleAddSpouse(spouseName.trim());
-                            if (e.key === "Escape") { setAddSpouseOpen(false); setSpouseName(""); }
+                <div role="tabpanel" id="profile-panel-activity" aria-labelledby="profile-tab-activity" hidden={panelTab !== "activity"} className="space-y-3">
+                    {/* Tasks section */}
+                    <div className={CRM_SECTION_CARD}>
+                      <div className="flex items-center justify-between">
+                        <h3 className={CRM_SECTION_HEADER}>
+                          <div className={CRM_SECTION_ICON_CHIP}>
+                            <ListTodo className="h-3 w-3" />
+                          </div>
+                          Checklist
+                        </h3>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="gap-1 h-6 text-[10px]"
+                          onClick={() => {
+                            setShowAddTask((v) => !v);
+                            setAddTaskClientId(selectedClient.id);
+                            setShowLogActivity(false);
                           }}
-                          className="h-7 text-xs flex-1"
+                        >
+                          <Plus className="h-3 w-3" />
+                          Add item
+                        </Button>
+                      </div>
+
+                      {showAddTask && (
+                        <div className="rounded-xl border border-border/60 bg-muted/30 p-3 space-y-3">
+                          <div className="space-y-1">
+                            <Label className="text-xs">Title</Label>
+                            <Input placeholder="e.g. Send market update" value={taskTitle} onChange={(e) => setTaskTitle(e.target.value)} className="h-8 text-sm" />
+                          </div>
+                          <div className="grid grid-cols-2 gap-2">
+                            <div className="space-y-1">
+                              <Label className="text-xs">Due date</Label>
+                              <Input type="date" value={taskDueDate} onChange={(e) => setTaskDueDate(e.target.value)} className="h-8 text-sm" />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-xs">Priority</Label>
+                              <Select value={taskPriority} onValueChange={(v) => setTaskPriority(v as TaskPriority)}>
+                                <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="low">Low</SelectItem>
+                                  <SelectItem value="normal">Normal</SelectItem>
+                                  <SelectItem value="high">High</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs">Notes (optional)</Label>
+                            <Textarea placeholder="Any notes…" value={taskNotes} onChange={(e) => setTaskNotes(e.target.value)} rows={2} className="text-sm resize-none" />
+                          </div>
+                          <div className="flex gap-2">
+                            <Button size="sm" disabled={!taskTitle.trim() || taskSaving} onClick={handleAddTask} className="h-7 text-xs">{taskSaving ? "Saving…" : "Save"}</Button>
+                            <Button size="sm" variant="ghost" onClick={() => setShowAddTask(false)} className="h-7 text-xs">Cancel</Button>
+                          </div>
+                        </div>
+                      )}
+
+                      {clientTasks.length === 0 ? (
+                        <p className="text-xs text-muted-foreground py-3 text-center">Nothing on your checklist for this client.</p>
+                      ) : (
+                        <div className="space-y-1">
+                          {clientTasks.map((task) => {
+                            const isOverdue = task.due_date < todayIso();
+                            return (
+                              <div key={task.id} className="flex items-start gap-2.5 py-2 px-1 rounded-lg hover:bg-muted/30 transition-colors">
+                                <button onClick={() => setTickingTask(task)} className="mt-0.5 text-muted-foreground hover:text-emerald-600 transition-colors shrink-0" title="Tick off" aria-label={`Tick off "${task.title}"`}>
+                                  <Square className="h-4 w-4" />
+                                </button>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className={cn("text-[10px] font-semibold border rounded-full px-2.5 py-0.5 shrink-0", PRIORITY_STYLES[task.priority])}>{task.priority}</span>
+                                    <span className="text-sm font-medium text-foreground truncate">{task.title}</span>
+                                  </div>
+                                  <span className={cn("text-xs mt-0.5", isOverdue ? "text-red-600 font-medium" : "text-muted-foreground")}>{isOverdue ? "Overdue · " : ""}{fmtDate(task.due_date)}</span>
+                                  {task.notes && <p className="text-[11px] text-muted-foreground mt-0.5 truncate">{task.notes}</p>}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Activity section */}
+                    <div className={CRM_SECTION_CARD}>
+                      <div className="flex items-center justify-between">
+                        <h3 className={CRM_SECTION_HEADER}>
+                          <div className={CRM_SECTION_ICON_CHIP}>
+                            <Activity className="h-3 w-3" />
+                          </div>
+                          Activity
+                        </h3>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="gap-1 h-6 text-[10px]"
+                          onClick={() => {
+                            setShowLogActivity((v) => !v);
+                            setLogActivityClientId(selectedClient.id);
+                            setShowAddTask(false);
+                          }}
+                        >
+                          <Plus className="h-3 w-3" />
+                          Log activity
+                        </Button>
+                      </div>
+
+                      {showLogActivity && (
+                        <div className="rounded-xl border border-border/60 bg-muted/30 p-3 space-y-3">
+                          <div className="space-y-1">
+                            <Label className="text-xs">Type</Label>
+                            <Select value={logType} onValueChange={(v) => setLogType(v as ActivityType)}>
+                              <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                {(Object.keys(ACTIVITY_TYPE_LABELS) as ActivityType[]).map((t) => (
+                                  <SelectItem key={t} value={t}>{ACTIVITY_TYPE_ICONS[t]} {ACTIVITY_TYPE_LABELS[t]}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            {logType === "note" && (
+                              <p className="text-[11px] text-muted-foreground">
+                                Notes don&apos;t count as contact. Log a call, text, email or meeting if you spoke with them.
+                              </p>
+                            )}
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs">Description</Label>
+                            <Textarea placeholder="Optional — leave blank to use activity type as description" value={logDescription} onChange={(e) => setLogDescription(e.target.value)} rows={2} className="text-sm resize-none" />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs">Date & time</Label>
+                            <Input type="datetime-local" value={logDate} onChange={(e) => setLogDate(e.target.value)} className="h-8 text-sm" />
+                          </div>
+                          <div className="flex gap-2">
+                            <Button size="sm" disabled={logSaving} onClick={handleLogActivity} className="h-7 text-xs">{logSaving ? "Saving…" : "Save"}</Button>
+                            <Button size="sm" variant="ghost" onClick={() => setShowLogActivity(false)} className="h-7 text-xs">Cancel</Button>
+                          </div>
+                        </div>
+                      )}
+
+                      {clientActivities.length === 0 ? (
+                        <p className="text-xs text-muted-foreground py-3 text-center">No activity logged yet.</p>
+                      ) : (
+                        <FlightLog
+                          items={clientActivities.map((act): FlightLogItem => ({
+                            icon: activityLucideIcon(act.type),
+                            direction: activityDirection(act.type),
+                            title: ACTIVITY_TYPE_LABELS[act.type],
+                            time: relativeDate(act.activity_date),
+                            description: act.description,
+                          }))}
+                        />
+                      )}
+                    </div>
+
+                    {/* Notes Log */}
+                    <div className="rounded-2xl border border-slate-200/60 bg-slate-50/40 dark:bg-slate-900/20 p-4 space-y-3">
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 flex items-center gap-2">
+                        <div className="h-5 w-5 rounded-md bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+                          <FileText className="h-3 w-3 text-slate-500 dark:text-slate-400" />
+                        </div>
+                        Notes
+                      </h3>
+
+                      {/* Add note input */}
+                      <div className="flex gap-2">
+                        <Textarea
+                          placeholder="Add a note…"
+                          value={newNoteText}
+                          onChange={(e) => setNewNoteText(e.target.value)}
+                          rows={2}
+                          className="text-sm resize-none bg-white/60 dark:bg-slate-900/40 flex-1"
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && newNoteText.trim()) {
+                              e.preventDefault();
+                              (async () => {
+                                if (!selectedClient) return;
+                                const { data: { user } } = await supabase.auth.getUser();
+                                if (!user) return;
+                                const { data, error } = await supabase
+                                  .from("client_notes")
+                                  .insert({ user_id: user.id, client_id: selectedClient.id, content: newNoteText.trim() })
+                                  .select()
+                                  .single();
+                                if (error) { toast.error("Failed to save note"); return; }
+                                if (data) {
+                                  setClientNotes((prev) => [data as ClientNote, ...prev]);
+                                  setNewNoteText("");
+                                  markMemoryStaleClient(selectedClient.id);
+                                }
+                              })();
+                            }
+                          }}
                         />
                         <Button
                           size="sm"
-                          className="h-7 text-xs gap-1"
-                          disabled={!spouseName.trim() || spouseSaving}
-                          onClick={() => handleAddSpouse(spouseName.trim())}
-                        >
-                          {spouseSaving ? "Creating…" : "Create & Link"}
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-
-                  {clientRelationships.length === 0 ? (
-                    <div className="py-2 text-center space-y-1">
-                      <p className="text-xs text-muted-foreground">No linked clients.</p>
-                      <p className="text-[10px] text-muted-foreground/60">
-                        Use <span className="font-medium text-violet-400">Referral</span> to track who this client referred to you,
-                        or <span className="font-medium">Link</span> for family connections.
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="space-y-1">
-                      {clientRelationships.map((rel) => {
-                        const otherId = rel.client_id_a === selectedClient.id ? rel.client_id_b : rel.client_id_a;
-                        const other = clientById.get(otherId);
-                        if (!other) return null;
-                        const isReferral = rel.relationship_type === "referred" || rel.relationship_type === "referrer";
-
-                        // Determine referral direction relative to the current client
-                        // "referrer" type: client_id_a referred client_id_b
-                        let referralLabel = "";
-                        if (isReferral) {
-                          const currentIsA = rel.client_id_a === selectedClient.id;
-                          if (rel.relationship_type === "referrer") {
-                            // A referred B
-                            referralLabel = currentIsA
-                              ? `Referred ${other.name.split(" ")[0]} to you`
-                              : `Referred to you by ${other.name.split(" ")[0]}`;
-                          } else {
-                            // Legacy "referred" type — A was referred by B (old logic)
-                            referralLabel = currentIsA
-                              ? `Referred by ${other.name.split(" ")[0]}`
-                              : `Referred ${other.name.split(" ")[0]}`;
-                          }
-                        }
-
-                        // Household primary: rel.primary_client_id if set, else
-                        // whichever side already holds deal history (same rule
-                        // the 00164 backfill migration uses). The UI never
-                        // re-derives the alphabetical tie-break itself.
-                        const isHouseholdType = rel.relationship_type === "spouse" || rel.relationship_type === "partner";
-                        let showMakePrimaryFor: string | null = null;
-                        if (isHouseholdType) {
-                          const aHoldsRecords = localRecords.some((r) => r.client_id === rel.client_id_a);
-                          const bHoldsRecords = localRecords.some((r) => r.client_id === rel.client_id_b);
-                          const currentPrimaryId =
-                            rel.primary_client_id ??
-                            (aHoldsRecords ? rel.client_id_a : bHoldsRecords ? rel.client_id_b : null);
-                          if (currentPrimaryId !== null && currentPrimaryId !== other.id) {
-                            showMakePrimaryFor = other.id;
-                          }
-                        }
-
-                        return (
-                          <div
-                            key={rel.id}
-                            className={cn(
-                              "group flex items-center gap-2 py-1.5 px-2 rounded-lg hover:bg-muted/30 transition-colors cursor-pointer",
-                              isReferral && "bg-violet-500/5 hover:bg-violet-500/10",
-                            )}
-                            onClick={() => openDetailPanel(otherId)}
-                          >
-                            <div className={cn(
-                              "h-7 w-7 rounded-full flex items-center justify-center text-xs font-semibold shrink-0",
-                              isReferral ? "bg-violet-500/15 text-violet-400" : "bg-primary/10 text-primary",
-                            )}>
-                              {isReferral
-                                ? <GitBranch className="h-3.5 w-3.5" />
-                                : other.name.charAt(0).toUpperCase()}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <span className="text-sm font-medium text-foreground truncate block">{other.name}</span>
-                              {isReferral && (
-                                <span className="text-[10px] text-violet-400/80 leading-none">
-                                  {referralLabel}
-                                </span>
-                              )}
-                              {!isReferral && (
-                                <div className="flex items-center gap-1.5">
-                                  <span className="text-[10px] text-muted-foreground/60 leading-none">
-                                    {RELATIONSHIP_TYPE_LABELS[rel.relationship_type as RelationshipType] ?? rel.relationship_type}
-                                  </span>
-                                  {showMakePrimaryFor && (
-                                    <button
-                                      className="text-[9px] text-primary/70 hover:text-primary underline-offset-2 hover:underline leading-none"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleSetPrimary(rel.id, showMakePrimaryFor!);
-                                      }}
-                                    >
-                                      Make primary
-                                    </button>
-                                  )}
-                                </div>
-                              )}
-                            </div>
-                            <button
-                              className="opacity-0 group-hover:opacity-100 transition-opacity h-5 w-5 rounded-full flex items-center justify-center hover:bg-destructive/10 text-muted-foreground/40 hover:text-destructive shrink-0"
-                              title="Remove relationship"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                removeRelationship(rel.id);
-                              }}
-                            >
-                              <X className="h-3 w-3" />
-                            </button>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-
-                {/* What Agent Runway remembers — AI memory profile */}
-                <ClientMemoryPanel clientId={selectedClient.id} />
-
-                {/* AI Actions */}
-                <div className={CRM_SECTION_CARD}>
-                  <h3 className={CRM_SECTION_HEADER}>
-                    <div className={CRM_SECTION_ICON_CHIP}>
-                      <Sparkles className="h-3 w-3" />
-                    </div>
-                    AI Actions
-                  </h3>
-                  <div className="grid grid-cols-2 gap-1.5">
-                    <button
-                      className="h-8 rounded-lg text-[11px] font-medium border border-dashed border-indigo-200 text-indigo-600 hover:bg-indigo-100/50 hover:border-indigo-300 dark:text-indigo-400 dark:hover:bg-indigo-900/30 transition-colors flex items-center justify-center gap-1.5"
-                      onClick={async () => {
-                        if (!selectedClient?.email) {
-                          toast.error("Add an email address first");
-                          return;
-                        }
-                        toast.info("Drafting referral ask…");
-                        try {
-                          const res = await fetch("/api/ai/draft-outreach", {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({
-                              client_id: selectedClient.id,
-                              opportunity_type: CLIENT_PANEL_DRAFT_TYPES.referral,
-                            }),
-                          });
-                          if (res.ok) {
-                            toast.success("Referral ask drafted — check Flight Control");
-                          } else {
-                            const err = await res.json().catch(() => ({}));
-                            if (err.status === "call_only") {
-                              // CASL: implied consent from their last purchase has lapsed.
-                              toast.info("Call instead of email", { description: err.error, duration: 10000 });
-                            } else {
-                              toast.error(err.error || "Failed to draft referral ask");
-                            }
-                          }
-                        } catch {
-                          toast.error("Failed to draft referral ask");
-                        }
-                      }}
-                    >
-                      <Handshake className="h-3.5 w-3.5" /> Ask for Referral
-                    </button>
-                    <button
-                      className="h-8 rounded-lg text-[11px] font-medium border border-dashed border-indigo-200 text-indigo-600 hover:bg-indigo-100/50 hover:border-indigo-300 dark:text-indigo-400 dark:hover:bg-indigo-900/30 transition-colors flex items-center justify-center gap-1.5"
-                      onClick={async () => {
-                        if (!selectedClient?.email) {
-                          toast.error("Add an email address first");
-                          return;
-                        }
-                        toast.info("Drafting check-in…");
-                        try {
-                          const res = await fetch("/api/ai/draft-outreach", {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({
-                              client_id: selectedClient.id,
-                              opportunity_type: CLIENT_PANEL_DRAFT_TYPES.checkIn,
-                            }),
-                          });
-                          if (res.ok) {
-                            toast.success("Check-in drafted — check Flight Control");
-                          } else {
-                            const err = await res.json().catch(() => ({}));
-                            if (err.status === "call_only") {
-                              // CASL: implied consent from their last purchase has lapsed.
-                              toast.info("Call instead of email", { description: err.error, duration: 10000 });
-                            } else {
-                              toast.error(err.error || "Failed to draft check-in");
-                            }
-                          }
-                        } catch {
-                          toast.error("Failed to draft check-in");
-                        }
-                      }}
-                    >
-                      <Hand className="h-3.5 w-3.5" /> Check In
-                    </button>
-                    <button
-                      className="h-8 rounded-lg text-[11px] font-medium border border-dashed border-indigo-200 text-indigo-600 hover:bg-indigo-100/50 hover:border-indigo-300 dark:text-indigo-400 dark:hover:bg-indigo-900/30 transition-colors flex items-center justify-center gap-1.5"
-                      onClick={async () => {
-                        if (!selectedClient?.email) {
-                          toast.error("Add an email address first");
-                          return;
-                        }
-                        toast.info("Drafting review request…");
-                        try {
-                          const res = await fetch("/api/ai/draft-outreach", {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({
-                              client_id: selectedClient.id,
-                              opportunity_type: CLIENT_PANEL_DRAFT_TYPES.review,
-                            }),
-                          });
-                          if (res.ok) {
-                            toast.success("Review request drafted — check Flight Control");
-                          } else {
-                            const err = await res.json().catch(() => ({}));
-                            if (err.status === "call_only") {
-                              // CASL: implied consent from their last purchase has lapsed.
-                              toast.info("Call instead of email", { description: err.error, duration: 10000 });
-                            } else {
-                              toast.error(err.error || "Failed to draft review request");
-                            }
-                          }
-                        } catch {
-                          toast.error("Failed to draft review request");
-                        }
-                      }}
-                    >
-                      <Star className="h-3.5 w-3.5" /> Request Review
-                    </button>
-                    <button
-                      className="h-8 rounded-lg text-[11px] font-medium border border-dashed border-indigo-200 text-indigo-600 hover:bg-indigo-100/50 hover:border-indigo-300 dark:text-indigo-400 dark:hover:bg-indigo-900/30 transition-colors flex items-center justify-center gap-1.5"
-                      onClick={async () => {
-                        if (!selectedClient?.email) {
-                          toast.error("Add an email address first");
-                          return;
-                        }
-                        toast.info("Drafting anniversary message…");
-                        try {
-                          const res = await fetch("/api/ai/draft-outreach", {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({
-                              client_id: selectedClient.id,
-                              opportunity_type: CLIENT_PANEL_DRAFT_TYPES.anniversary,
-                            }),
-                          });
-                          if (res.ok) {
-                            toast.success("Anniversary message drafted — check Flight Control");
-                          } else {
-                            const err = await res.json().catch(() => ({}));
-                            if (err.status === "call_only") {
-                              // CASL: implied consent from their last purchase has lapsed.
-                              toast.info("Call instead of email", { description: err.error, duration: 10000 });
-                            } else {
-                              toast.error(err.error || "Failed to draft message");
-                            }
-                          }
-                        } catch {
-                          toast.error("Failed to draft message");
-                        }
-                      }}
-                    >
-                      <PartyPopper className="h-3.5 w-3.5" /> Anniversary Note
-                    </button>
-                  </div>
-                </div>
-
-                {/* Flight Plan Templates — Phase 2.3 (HML gap closure) */}
-                <WorkflowSuggestionsPanel
-                  clientId={selectedClient.id}
-                  clientName={selectedClient.name}
-                  flightStatus={selectedClient.status}
-                  hasClosedRecord={hasClosedDeal(clientDeals)}
-                />
-
-                {/* Message History — Phase 2.4 (HML gap closure):
-                    per-client communication timeline. Aggregates outbound
-                    drafts (workflow_drafts + outreach_queue) with manually
-                    logged inbound replies and notes. No email integration —
-                    Gmail/Workspace is CASA-shelved. */}
-                <ClientConversationPanel
-                  clientId={selectedClient.id}
-                  clientName={selectedClient.name}
-                />
-
-                {/* Notes Log */}
-                <div className="rounded-2xl border border-slate-200/60 bg-slate-50/40 dark:bg-slate-900/20 p-4 space-y-3">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 flex items-center gap-2">
-                    <div className="h-5 w-5 rounded-md bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
-                      <FileText className="h-3 w-3 text-slate-500 dark:text-slate-400" />
-                    </div>
-                    Notes
-                  </h3>
-
-                  {/* Add note input */}
-                  <div className="flex gap-2">
-                    <Textarea
-                      placeholder="Add a note…"
-                      value={newNoteText}
-                      onChange={(e) => setNewNoteText(e.target.value)}
-                      rows={2}
-                      className="text-sm resize-none bg-white/60 dark:bg-slate-900/40 flex-1"
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && newNoteText.trim()) {
-                          e.preventDefault();
-                          (async () => {
+                          variant="outline"
+                          className="self-end shrink-0"
+                          disabled={!newNoteText.trim()}
+                          onClick={async () => {
                             if (!selectedClient) return;
                             const { data: { user } } = await supabase.auth.getUser();
                             if (!user) return;
@@ -5179,769 +5286,767 @@ export function ClientsContent({
                               setNewNoteText("");
                               markMemoryStaleClient(selectedClient.id);
                             }
-                          })();
-                        }
-                      }}
-                    />
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="self-end shrink-0"
-                      disabled={!newNoteText.trim()}
-                      onClick={async () => {
-                        if (!selectedClient) return;
-                        const { data: { user } } = await supabase.auth.getUser();
-                        if (!user) return;
-                        const { data, error } = await supabase
-                          .from("client_notes")
-                          .insert({ user_id: user.id, client_id: selectedClient.id, content: newNoteText.trim() })
-                          .select()
-                          .single();
-                        if (error) { toast.error("Failed to save note"); return; }
-                        if (data) {
-                          setClientNotes((prev) => [data as ClientNote, ...prev]);
-                          setNewNoteText("");
-                          markMemoryStaleClient(selectedClient.id);
-                        }
-                      }}
-                    >
-                      <Plus className="h-3.5 w-3.5 mr-1" />
-                      Save
-                    </Button>
-                  </div>
-
-                  {/* Notes log */}
-                  {clientNotes.length > 0 && (
-                    <div className="space-y-2 max-h-48 overflow-y-auto">
-                      {clientNotes.map((note) => (
-                        <div
-                          key={note.id}
-                          className="group flex items-start gap-2 rounded-lg border border-slate-200/50 dark:border-slate-700/50 bg-white/60 dark:bg-slate-900/40 px-3 py-2"
+                          }}
                         >
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap">{note.content}</p>
-                            <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
-                              {new Date(note.created_at).toLocaleDateString("en-CA", { month: "short", day: "numeric", year: "numeric" })}
-                              {" · "}
-                              {new Date(note.created_at).toLocaleTimeString("en-CA", { hour: "numeric", minute: "2-digit" })}
-                            </p>
-                          </div>
-                          <button
-                            className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-red-50 dark:hover:bg-red-950/30 text-slate-400 hover:text-red-500"
-                            title="Delete note"
-                            onClick={async () => {
-                              const { error } = await supabase
-                                .from("client_notes")
-                                .delete()
-                                .eq("id", note.id)
-                                .eq("user_id", userId!);
-                              if (!error) {
-                                setClientNotes((prev) => prev.filter((n) => n.id !== note.id));
-                                if (selectedClient) markMemoryStaleClient(selectedClient.id);
-                              }
-                            }}
-                          >
-                            <X className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* Activity section */}
-                <div className={CRM_SECTION_CARD}>
-                  <div className="flex items-center justify-between">
-                    <h3 className={CRM_SECTION_HEADER}>
-                      <div className={CRM_SECTION_ICON_CHIP}>
-                        <Activity className="h-3 w-3" />
-                      </div>
-                      Activity
-                    </h3>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="gap-1 h-6 text-[10px]"
-                      onClick={() => {
-                        setShowLogActivity((v) => !v);
-                        setLogActivityClientId(selectedClient.id);
-                        setShowAddTask(false);
-                      }}
-                    >
-                      <Plus className="h-3 w-3" />
-                      Log Activity
-                    </Button>
-                  </div>
-
-                  {showLogActivity && (
-                    <div className="rounded-xl border border-border/60 bg-muted/30 p-3 space-y-3">
-                      <div className="space-y-1">
-                        <Label className="text-xs">Type</Label>
-                        <Select value={logType} onValueChange={(v) => setLogType(v as ActivityType)}>
-                          <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            {(Object.keys(ACTIVITY_TYPE_LABELS) as ActivityType[]).map((t) => (
-                              <SelectItem key={t} value={t}>{ACTIVITY_TYPE_ICONS[t]} {ACTIVITY_TYPE_LABELS[t]}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        {logType === "note" && (
-                          <p className="text-[11px] text-muted-foreground">
-                            Notes don&apos;t count as contact. Log a call, text, email or meeting if you spoke with them.
-                          </p>
-                        )}
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-xs">Description</Label>
-                        <Textarea placeholder="Optional — leave blank to use activity type as description" value={logDescription} onChange={(e) => setLogDescription(e.target.value)} rows={2} className="text-sm resize-none" />
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-xs">Date & time</Label>
-                        <Input type="datetime-local" value={logDate} onChange={(e) => setLogDate(e.target.value)} className="h-8 text-sm" />
-                      </div>
-                      <div className="flex gap-2">
-                        <Button size="sm" disabled={logSaving} onClick={handleLogActivity} className="h-7 text-xs">{logSaving ? "Saving…" : "Save"}</Button>
-                        <Button size="sm" variant="ghost" onClick={() => setShowLogActivity(false)} className="h-7 text-xs">Cancel</Button>
-                      </div>
-                    </div>
-                  )}
-
-                  {clientActivities.length === 0 ? (
-                    <p className="text-xs text-muted-foreground py-3 text-center">No activity logged yet.</p>
-                  ) : (
-                    <FlightLog
-                      items={clientActivities.map((act): FlightLogItem => ({
-                        icon: activityLucideIcon(act.type),
-                        direction: activityDirection(act.type),
-                        title: ACTIVITY_TYPE_LABELS[act.type],
-                        time: relativeDate(act.activity_date),
-                        description: act.description,
-                      }))}
-                    />
-                  )}
-                </div>
-
-                {/* Tasks section */}
-                <div className={CRM_SECTION_CARD}>
-                  <div className="flex items-center justify-between">
-                    <h3 className={CRM_SECTION_HEADER}>
-                      <div className={CRM_SECTION_ICON_CHIP}>
-                        <ListTodo className="h-3 w-3" />
-                      </div>
-                      Checklist
-                    </h3>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="gap-1 h-6 text-[10px]"
-                      onClick={() => {
-                        setShowAddTask((v) => !v);
-                        setAddTaskClientId(selectedClient.id);
-                        setShowLogActivity(false);
-                      }}
-                    >
-                      <Plus className="h-3 w-3" />
-                      Add item
-                    </Button>
-                  </div>
-
-                  {showAddTask && (
-                    <div className="rounded-xl border border-border/60 bg-muted/30 p-3 space-y-3">
-                      <div className="space-y-1">
-                        <Label className="text-xs">Title</Label>
-                        <Input placeholder="e.g. Send market update" value={taskTitle} onChange={(e) => setTaskTitle(e.target.value)} className="h-8 text-sm" />
-                      </div>
-                      <div className="grid grid-cols-2 gap-2">
-                        <div className="space-y-1">
-                          <Label className="text-xs">Due date</Label>
-                          <Input type="date" value={taskDueDate} onChange={(e) => setTaskDueDate(e.target.value)} className="h-8 text-sm" />
-                        </div>
-                        <div className="space-y-1">
-                          <Label className="text-xs">Priority</Label>
-                          <Select value={taskPriority} onValueChange={(v) => setTaskPriority(v as TaskPriority)}>
-                            <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="low">Low</SelectItem>
-                              <SelectItem value="normal">Normal</SelectItem>
-                              <SelectItem value="high">High</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-xs">Notes (optional)</Label>
-                        <Textarea placeholder="Any notes…" value={taskNotes} onChange={(e) => setTaskNotes(e.target.value)} rows={2} className="text-sm resize-none" />
-                      </div>
-                      <div className="flex gap-2">
-                        <Button size="sm" disabled={!taskTitle.trim() || taskSaving} onClick={handleAddTask} className="h-7 text-xs">{taskSaving ? "Saving…" : "Save"}</Button>
-                        <Button size="sm" variant="ghost" onClick={() => setShowAddTask(false)} className="h-7 text-xs">Cancel</Button>
-                      </div>
-                    </div>
-                  )}
-
-                  {clientTasks.length === 0 ? (
-                    <p className="text-xs text-muted-foreground py-3 text-center">Nothing on your checklist for this client.</p>
-                  ) : (
-                    <div className="space-y-1">
-                      {clientTasks.map((task) => {
-                        const isOverdue = task.due_date < todayIso();
-                        return (
-                          <div key={task.id} className="flex items-start gap-2.5 py-2 px-1 rounded-lg hover:bg-muted/30 transition-colors">
-                            <button onClick={() => setTickingTask(task)} className="mt-0.5 text-muted-foreground hover:text-emerald-600 transition-colors shrink-0" title="Tick off" aria-label={`Tick off "${task.title}"`}>
-                              <Square className="h-4 w-4" />
-                            </button>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <span className={cn("text-[10px] font-semibold border rounded-full px-2.5 py-0.5 shrink-0", PRIORITY_STYLES[task.priority])}>{task.priority}</span>
-                                <span className="text-sm font-medium text-foreground truncate">{task.title}</span>
-                              </div>
-                              <span className={cn("text-xs mt-0.5", isOverdue ? "text-red-600 font-medium" : "text-muted-foreground")}>{isOverdue ? "Overdue · " : ""}{fmtDate(task.due_date)}</span>
-                              {task.notes && <p className="text-[11px] text-muted-foreground mt-0.5 truncate">{task.notes}</p>}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-
-                {/* Property Showings */}
-                <ShowingsSection
-                  clientId={selectedClient.id}
-                  clientName={selectedClient.name}
-                  showings={selectedClientShowings}
-                  onShowingsChange={(updated) => {
-                    // Replace this client's showings in the global list
-                    const otherShowings = localShowings.filter((s) => s.client_id !== selectedClient.id);
-                    setLocalShowings([...updated, ...otherShowings]);
-                  }}
-                />
-
-                {/* Listing Appointments */}
-                <div className={CRM_SECTION_CARD}>
-                  <div className="flex items-center justify-between">
-                    <h3 className={CRM_SECTION_HEADER}>
-                      <div className={CRM_SECTION_ICON_CHIP}>
-                        <CalendarDays className="h-3 w-3" />
-                      </div>
-                      Listing Appointments
-                    </h3>
-                    <button
-                      onClick={() => setShowAddApptForm((v) => !v)}
-                      className="flex items-center gap-0.5 text-[10px] text-orange-600 hover:text-orange-700 font-medium"
-                    >
-                      <Plus className="h-3 w-3" /> Add
-                    </button>
-                  </div>
-
-                  {showAddApptForm && (
-                    <div className="space-y-2 bg-white/60 dark:bg-orange-900/20 rounded-lg p-3 border border-orange-100 dark:border-orange-800/30">
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <span className="text-[10px] text-muted-foreground block mb-1">Date *</span>
-                          <Input
-                            type="date"
-                            className="h-7 text-xs"
-                            value={newApptForm.appointment_date}
-                            onChange={(e) => setNewApptForm((f) => ({ ...f, appointment_date: e.target.value }))}
-                          />
-                        </div>
-                        <div>
-                          <span className="text-[10px] text-muted-foreground block mb-1">Est. List Price</span>
-                          <Input
-                            type="number"
-                            placeholder="$"
-                            className="h-7 text-xs"
-                            value={newApptForm.estimated_list_price}
-                            onChange={(e) => setNewApptForm((f) => ({ ...f, estimated_list_price: e.target.value }))}
-                          />
-                        </div>
-                      </div>
-                      <div>
-                        <span className="text-[10px] text-muted-foreground block mb-1">Property Address</span>
-                        <Input
-                          className="h-7 text-xs"
-                          placeholder="123 Main St…"
-                          value={newApptForm.property_address}
-                          onChange={(e) => setNewApptForm((f) => ({ ...f, property_address: e.target.value }))}
-                        />
-                      </div>
-                      <div className="flex gap-2 justify-end">
-                        <button
-                          onClick={() => setShowAddApptForm(false)}
-                          className="text-[10px] text-muted-foreground hover:text-foreground px-2 py-1"
-                        >
-                          Cancel
-                        </button>
-                        <button
-                          onClick={addListingAppointment}
-                          disabled={!newApptForm.appointment_date}
-                          className="text-[10px] bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white px-3 py-1 rounded-md font-medium"
-                        >
+                          <Plus className="h-3.5 w-3.5 mr-1" />
                           Save
-                        </button>
+                        </Button>
                       </div>
-                    </div>
-                  )}
 
-                  {selectedClientListingAppointments.length === 0 && !showAddApptForm ? (
-                    <p className="text-xs text-muted-foreground text-center py-1">No listing appointments recorded.</p>
-                  ) : (
-                    <div className="space-y-2">
-                      {[...selectedClientListingAppointments]
-                        .sort((a, b) => b.appointment_date.localeCompare(a.appointment_date))
-                        .map((appt) => {
-                          const accuracy =
-                            appt.estimated_list_price != null && appt.actual_sale_price != null && appt.actual_sale_price > 0
-                              ? Math.round((1 - Math.abs(appt.estimated_list_price - appt.actual_sale_price) / appt.actual_sale_price) * 100)
-                              : null;
-                          return (
-                            <div key={appt.id} className="py-2 px-3 rounded-lg bg-white/50 dark:bg-orange-900/20 border border-orange-100/60 dark:border-orange-800/30 space-y-2">
-                              <div className="flex items-start justify-between gap-2">
-                                <div className="min-w-0 flex-1">
-                                  <p className="text-xs font-medium truncate">{appt.property_address || "No address"}</p>
-                                  <p className="text-[10px] text-muted-foreground">{fmtDate(appt.appointment_date)}</p>
+                      {/* Notes log */}
+                      {clientNotes.length > 0 && (
+                        <div className="space-y-2 max-h-48 overflow-y-auto">
+                          {clientNotes.map((note) => (
+                            <div
+                              key={note.id}
+                              className="group flex items-start gap-2 rounded-lg border border-slate-200/50 dark:border-slate-700/50 bg-white/60 dark:bg-slate-900/40 px-3 py-2"
+                            >
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap">{note.content}</p>
+                                <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
+                                  {new Date(note.created_at).toLocaleDateString("en-CA", { month: "short", day: "numeric", year: "numeric" })}
+                                  {" · "}
+                                  {new Date(note.created_at).toLocaleTimeString("en-CA", { hour: "numeric", minute: "2-digit" })}
+                                </p>
+                              </div>
+                              <button
+                                className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-red-50 dark:hover:bg-red-950/30 text-slate-400 hover:text-red-500"
+                                title="Delete note"
+                                onClick={async () => {
+                                  const { error } = await supabase
+                                    .from("client_notes")
+                                    .delete()
+                                    .eq("id", note.id)
+                                    .eq("user_id", userId!);
+                                  if (!error) {
+                                    setClientNotes((prev) => prev.filter((n) => n.id !== note.id));
+                                    if (selectedClient) markMemoryStaleClient(selectedClient.id);
+                                  }
+                                }}
+                              >
+                                <X className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Message History — Phase 2.4 (HML gap closure):
+                        per-client communication timeline. Aggregates outbound
+                        drafts (workflow_drafts + outreach_queue) with manually
+                        logged inbound replies and notes. No email integration —
+                        Gmail/Workspace is CASA-shelved. */}
+                    <ClientConversationPanel
+                      clientId={selectedClient.id}
+                      clientName={selectedClient.name}
+                    />
+                </div>
+
+                <div role="tabpanel" id="profile-panel-deals" aria-labelledby="profile-tab-deals" hidden={panelTab !== "deals"} className="space-y-3">
+                    {/* Pipeline Deals (linked via client_id) */}
+                    {linkedPipelineDeals.length > 0 && (
+                      <div className={CRM_SECTION_CARD}>
+                        <h3 className={CRM_SECTION_HEADER}>
+                          <div className={CRM_SECTION_ICON_CHIP}>
+                            <Layers className="h-3 w-3" />
+                          </div>
+                          Active Pipeline Deals
+                        </h3>
+                        <div className="space-y-1.5">
+                          {linkedPipelineDeals.map((deal) => {
+                            const gci = deal.estimated_price * deal.estimated_commission_pct;
+                            return (
+                              <div key={deal.id} className="py-1.5 px-2 rounded-lg bg-white/50 dark:bg-slate-900/30 border border-slate-200/60 dark:border-slate-800/40">
+                                <div className="flex items-center justify-between">
+                                  <div className="min-w-0 flex-1">
+                                    <p className="text-xs font-medium text-foreground truncate">
+                                      {deal.address || "No address"}
+                                    </p>
+                                    <div className="flex items-center gap-2 mt-0.5">
+                                      <span className="text-[9px] font-semibold border rounded-full px-2 py-0 capitalize text-blue-700 bg-blue-100 border-blue-200">
+                                        {deal.side}
+                                      </span>
+                                      <span className="text-[9px] font-semibold border rounded-full px-2 py-0 capitalize text-purple-700 bg-purple-100 border-purple-200">
+                                        {deal.stage}
+                                      </span>
+                                    </div>
+                                  </div>
+                                  <span className="text-sm font-bold tabular-nums text-foreground shrink-0 ml-3">
+                                    {fmtCurrency(gci)}
+                                  </span>
                                 </div>
-                                <div className="flex items-center gap-1 shrink-0">
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Deal History */}
+                    {clientDeals.length > 0 && (
+                      <div className={CRM_SECTION_CARD}>
+                        <h3 className={CRM_SECTION_HEADER}>
+                          <div className={CRM_SECTION_ICON_CHIP}>
+                            <DollarSign className="h-3 w-3" />
+                          </div>
+                          Deal History
+                        </h3>
+                        <div className="space-y-1.5">
+                          {clientDeals.map((deal) => (
+                            <div key={deal.id} className="py-1.5 px-2 rounded-lg bg-white/50 dark:bg-slate-900/30 border border-slate-200/60 dark:border-slate-800/40 space-y-1.5">
+                                <div className="flex items-center justify-between">
+                                  <div className="min-w-0 flex-1">
+                                    <p className="text-xs font-medium text-foreground truncate">
+                                      {deal.address || "No address"}
+                                    </p>
+                                    <div className="flex items-center gap-2 mt-0.5">
+                                      {deal.side && (
+                                        <span className={cn("text-[9px] font-semibold border rounded-full px-2 py-0 shrink-0", SIDE_STYLES[deal.side]?.cls)}>
+                                          {SIDE_STYLES[deal.side]?.label}
+                                        </span>
+                                      )}
+                                      {deal.close_date && <span className="text-[10px] text-muted-foreground">{fmtMonthYear(deal.close_date)}</span>}
+                                    </div>
+                                  </div>
+                                  <span className="text-sm font-bold tabular-nums text-foreground shrink-0 ml-3">
+                                    {fmtCurrency(deal.gci ?? 0)}
+                                  </span>
+                                </div>
+                                {/* Property use — only relevant for buyer-side deals */}
+                                {deal.side !== "seller" && (
                                   <Select
-                                    value={appt.status}
-                                    onValueChange={(v) => updateApptField(appt.id, "status", v)}
+                                    value={deal.property_use ?? "_none"}
+                                    onValueChange={(v) => updateClientRecordField(deal.id, "property_use", v === "_none" ? null : v)}
                                   >
-                                    <SelectTrigger className="h-6 text-[9px] w-28 border-dashed bg-transparent">
-                                      <SelectValue />
+                                    <SelectTrigger className="h-6 text-[10px] border-dashed bg-transparent">
+                                      <SelectValue placeholder="Property use…" />
                                     </SelectTrigger>
                                     <SelectContent>
-                                      {(Object.keys(LISTING_STATUS_LABELS) as ListingStatus[]).map((s) => (
-                                        <SelectItem key={s} value={s} className="text-xs">{LISTING_STATUS_LABELS[s]}</SelectItem>
+                                      <SelectItem value="_none">Unknown</SelectItem>
+                                      {(Object.keys(PROPERTY_USE_LABELS) as PropertyUse[]).map((u) => (
+                                        <SelectItem key={u} value={u} className="text-xs">
+                                          {PROPERTY_USE_LABELS[u]}
+                                        </SelectItem>
                                       ))}
                                     </SelectContent>
                                   </Select>
+                                )}
+
+                                {/* Listing URL + MLS auto-populate */}
+                                <div className="pt-1 flex gap-1">
+                                  <Input
+                                    type="url"
+                                    placeholder="MLS / listing URL…"
+                                    className="h-6 text-[10px] px-2 border-dashed flex-1"
+                                    defaultValue={deal.listing_url ?? ""}
+                                    id={`listing-url-${deal.id}`}
+                                    onBlur={(e) => {
+                                      const v = e.target.value.trim() || null;
+                                      if (v !== (deal.listing_url ?? null)) updateClientRecordField(deal.id, "listing_url", v);
+                                    }}
+                                  />
                                   <button
-                                    onClick={() => deleteListingAppointment(appt.id)}
-                                    className="h-6 w-6 flex items-center justify-center rounded text-muted-foreground hover:text-destructive"
+                                    className="h-6 px-2 rounded text-[9px] border border-dashed text-muted-foreground hover:border-blue-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors whitespace-nowrap"
+                                    onClick={async () => {
+                                      const urlInput = document.getElementById(`listing-url-${deal.id}`) as HTMLInputElement | null;
+                                      const listingUrl = urlInput?.value?.trim();
+                                      if (!listingUrl) {
+                                        toast.error("Enter a Realtor.ca URL first");
+                                        return;
+                                      }
+                                      toast.info("Looking up listing…");
+                                      try {
+                                        const res = await fetch("/api/mls-lookup", {
+                                          method: "POST",
+                                          headers: { "Content-Type": "application/json" },
+                                          body: JSON.stringify({ url: listingUrl }),
+                                        });
+                                        if (!res.ok) {
+                                          const err = await res.json().catch(() => ({}));
+                                          toast.error(err.error || "Could not fetch listing data");
+                                          return;
+                                        }
+                                        const specs = await res.json();
+                                        // Auto-fill any returned specs that have values
+                                        const updates: Record<string, unknown> = {};
+                                        if (specs.bedrooms != null) updates.bedrooms = specs.bedrooms;
+                                        if (specs.bathrooms != null) updates.bathrooms = specs.bathrooms;
+                                        if (specs.square_feet != null) updates.square_feet = specs.square_feet;
+                                        if (specs.lot_acres != null) updates.lot_acres = specs.lot_acres;
+                                        if (specs.garage != null) updates.garage = specs.garage;
+                                        if (specs.waterfront != null) updates.waterfront = specs.waterfront;
+
+                                        if (Object.keys(updates).length > 0) {
+                                          // Save listing URL too
+                                          updates.listing_url = listingUrl;
+                                          // Stamp edited_at so reimport won't stomp this
+                                          updates.edited_at = new Date().toISOString();
+                                          const { error } = await supabase
+                                            .from("client_records")
+                                            .update(updates)
+                                            .eq("id", deal.id);
+                                          if (!error) {
+                                            toast.success(`Auto-filled ${Object.keys(updates).length - 1} property fields`);
+                                            router.refresh();
+                                          } else {
+                                            toast.error("Saved lookup data partially");
+                                          }
+                                        } else {
+                                          toast.info("No property data found — enter details manually");
+                                        }
+                                      } catch {
+                                        toast.error("Failed to look up listing");
+                                      }
+                                    }}
                                   >
-                                    <X className="h-3 w-3" />
+                                    Fetch
                                   </button>
                                 </div>
+
+                                {/* Property specs */}
+                                <div className="grid grid-cols-3 gap-1.5 pt-1">
+                                  <div>
+                                    <span className="text-[9px] text-muted-foreground block mb-0.5">Beds</span>
+                                    <Input
+                                      type="number" min={0}
+                                      className="h-6 text-[10px] px-2"
+                                      defaultValue={deal.bedrooms ?? ""}
+                                      onBlur={(e) => {
+                                        const v = e.target.value ? Number(e.target.value) : null;
+                                        if (v !== (deal.bedrooms ?? null)) updateClientRecordField(deal.id, "bedrooms", v);
+                                      }}
+                                    />
+                                  </div>
+                                  <div>
+                                    <span className="text-[9px] text-muted-foreground block mb-0.5">Baths</span>
+                                    <Input
+                                      type="number" min={0} step={0.5}
+                                      className="h-6 text-[10px] px-2"
+                                      defaultValue={deal.bathrooms ?? ""}
+                                      onBlur={(e) => {
+                                        const v = e.target.value ? Number(e.target.value) : null;
+                                        if (v !== (deal.bathrooms ?? null)) updateClientRecordField(deal.id, "bathrooms", v);
+                                      }}
+                                    />
+                                  </div>
+                                  <div>
+                                    <span className="text-[9px] text-muted-foreground block mb-0.5">Sq Ft</span>
+                                    <Input
+                                      type="number" min={0}
+                                      className="h-6 text-[10px] px-2"
+                                      defaultValue={deal.square_feet ?? ""}
+                                      onBlur={(e) => {
+                                        const v = e.target.value ? Number(e.target.value) : null;
+                                        if (v !== (deal.square_feet ?? null)) updateClientRecordField(deal.id, "square_feet", v);
+                                      }}
+                                    />
+                                  </div>
+                                </div>
+                                <div className="grid grid-cols-3 gap-1.5">
+                                  <div>
+                                    <span className="text-[9px] text-muted-foreground block mb-0.5">Lot (acres)</span>
+                                    <Input
+                                      type="number" min={0} step={0.01}
+                                      className="h-6 text-[10px] px-2"
+                                      defaultValue={deal.lot_acres ?? ""}
+                                      onBlur={(e) => {
+                                        const v = e.target.value ? Number(e.target.value) : null;
+                                        if (v !== (deal.lot_acres ?? null)) updateClientRecordField(deal.id, "lot_acres", v);
+                                      }}
+                                    />
+                                  </div>
+                                  <div className="flex items-end gap-1.5 pb-0.5">
+                                    <button
+                                      className={cn("h-6 px-2 rounded text-[10px] border transition-colors", deal.garage ? "bg-green-100 dark:bg-green-900/40 border-green-300 dark:border-green-700 text-green-700 dark:text-green-400" : "border-dashed text-muted-foreground hover:border-slate-400")}
+                                      onClick={() => updateClientRecordField(deal.id, "garage", !deal.garage)}
+                                    >
+                                      Garage
+                                    </button>
+                                  </div>
+                                  <div className="flex items-end gap-1.5 pb-0.5">
+                                    <button
+                                      className={cn("h-6 px-2 rounded text-[10px] border transition-colors", deal.waterfront ? "bg-blue-100 dark:bg-blue-900/40 border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-400" : "border-dashed text-muted-foreground hover:border-slate-400")}
+                                      onClick={() => updateClientRecordField(deal.id, "waterfront", !deal.waterfront)}
+                                    >
+                                      Waterfront
+                                    </button>
+                                  </div>
+                                </div>
+
+                                {/* Condition tracking — only for deals without a close date yet, or recent deals */}
+                                <div className="grid grid-cols-2 gap-1.5 pt-1">
+                                  <div>
+                                    <span className="text-[9px] text-muted-foreground block mb-0.5">Condition date</span>
+                                    <Input
+                                      type="date"
+                                      className="h-6 text-[10px] px-2"
+                                      defaultValue={deal.condition_date ?? ""}
+                                      onBlur={(e) => {
+                                        const v = e.target.value || null;
+                                        if (v !== (deal.condition_date ?? null)) updateClientRecordField(deal.id, "condition_date", v);
+                                      }}
+                                    />
+                                  </div>
+                                  <div>
+                                    <span className="text-[9px] text-muted-foreground block mb-0.5">Status</span>
+                                    <Select
+                                      value={deal.condition_status ?? "pending"}
+                                      onValueChange={(v) => updateClientRecordField(deal.id, "condition_status", v)}
+                                    >
+                                      <SelectTrigger className="h-6 text-[10px] border-dashed bg-transparent">
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="pending" className="text-xs">Pending</SelectItem>
+                                        <SelectItem value="waived" className="text-xs">Waived</SelectItem>
+                                        <SelectItem value="firmed" className="text-xs">Firmed</SelectItem>
+                                        <SelectItem value="collapsed" className="text-xs">Collapsed</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                </div>
+
+                                {/* AI listing description generator */}
+                                {(deal.bedrooms != null || deal.bathrooms != null || deal.square_feet != null) && (
+                                  <div className="pt-1 flex gap-1">
+                                    <button
+                                      className="flex-1 h-7 rounded text-[10px] border border-dashed text-violet-600 hover:border-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/20 transition-colors flex items-center justify-center gap-1"
+                                      onClick={async () => {
+                                        toast.info("Generating listing description…");
+                                        try {
+                                          const res = await fetch("/api/ai/listing-description", {
+                                            method: "POST",
+                                            headers: { "Content-Type": "application/json" },
+                                            body: JSON.stringify({
+                                              client_record_id: deal.id,
+                                              client_id: selectedClient?.id,
+                                            }),
+                                          });
+                                          if (!res.ok) {
+                                            const err = await res.json().catch(() => ({}));
+                                            toast.error(err.error || "Failed to generate description");
+                                            return;
+                                          }
+                                          const result = await res.json();
+                                          const fullText = `${result.description}\n\n---\n\nSocial Media Post:\n${result.social_post}`;
+                                          await navigator.clipboard.writeText(fullText);
+                                          toast.success("Listing description copied to clipboard!");
+                                        } catch {
+                                          toast.error("Failed to generate description");
+                                        }
+                                      }}
+                                    >
+                                      ✨ Generate Description
+                                    </button>
+                                    <button
+                                      className="h-7 px-2 rounded text-[9px] border border-dashed text-slate-500 hover:border-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors whitespace-nowrap"
+                                      title="Generate without emojis"
+                                      onClick={async () => {
+                                        toast.info("Generating (no emojis)…");
+                                        try {
+                                          const res = await fetch("/api/ai/listing-description", {
+                                            method: "POST",
+                                            headers: { "Content-Type": "application/json" },
+                                            body: JSON.stringify({
+                                              client_record_id: deal.id,
+                                              client_id: selectedClient?.id,
+                                              no_emoji: true,
+                                            }),
+                                          });
+                                          if (!res.ok) {
+                                            const err = await res.json().catch(() => ({}));
+                                            toast.error(err.error || "Failed to generate description");
+                                            return;
+                                          }
+                                          const result = await res.json();
+                                          const fullText = `${result.description}\n\n---\n\nSocial Media Post:\n${result.social_post}`;
+                                          await navigator.clipboard.writeText(fullText);
+                                          toast.success("Description (no emojis) copied to clipboard!");
+                                        } catch {
+                                          toast.error("Failed to generate description");
+                                        }
+                                      }}
+                                    >
+                                      No emoji
+                                    </button>
+                                  </div>
+                                )}
                               </div>
-                              {/* Price tracking */}
-                              <div className="grid grid-cols-3 gap-1.5">
-                                <div>
-                                  <span className="text-[9px] text-muted-foreground block mb-0.5">Est. List</span>
-                                  <Input
-                                    type="number"
-                                    placeholder="$"
-                                    className="h-6 text-[10px] px-2"
-                                    value={appt.estimated_list_price ?? ""}
-                                    onChange={(e) => updateApptField(appt.id, "estimated_list_price", e.target.value ? Number(e.target.value) : null)}
-                                  />
-                                </div>
-                                <div>
-                                  <span className="text-[9px] text-muted-foreground block mb-0.5">List Price</span>
-                                  <Input
-                                    type="number"
-                                    placeholder="$"
-                                    className="h-6 text-[10px] px-2"
-                                    value={appt.actual_list_price ?? ""}
-                                    onChange={(e) => updateApptField(appt.id, "actual_list_price", e.target.value ? Number(e.target.value) : null)}
-                                  />
-                                </div>
-                                <div>
-                                  <span className="text-[9px] text-muted-foreground block mb-0.5">Sold For</span>
-                                  <Input
-                                    type="number"
-                                    placeholder="$"
-                                    className="h-6 text-[10px] px-2"
-                                    value={appt.actual_sale_price ?? ""}
-                                    onChange={(e) => updateApptField(appt.id, "actual_sale_price", e.target.value ? Number(e.target.value) : null)}
-                                  />
-                                </div>
-                              </div>
-                              {accuracy !== null && (
-                                <p className={cn("text-[9px] font-medium", accuracy >= 95 ? "text-green-600" : accuracy >= 85 ? "text-amber-600" : "text-red-500")}>
-                                  Price accuracy: {accuracy}%
-                                </p>
-                              )}
+                            ))}
+                          </div>
+                      </div>
+                    )}
+
+                    {/* Property Showings */}
+                    <ShowingsSection
+                      clientId={selectedClient.id}
+                      clientName={selectedClient.name}
+                      showings={selectedClientShowings}
+                      onShowingsChange={(updated) => {
+                        // Replace this client's showings in the global list
+                        const otherShowings = localShowings.filter((s) => s.client_id !== selectedClient.id);
+                        setLocalShowings([...updated, ...otherShowings]);
+                      }}
+                    />
+
+                    {/* Listing Appointments */}
+                    <div className={CRM_SECTION_CARD}>
+                      <div className="flex items-center justify-between">
+                        <h3 className={CRM_SECTION_HEADER}>
+                          <div className={CRM_SECTION_ICON_CHIP}>
+                            <CalendarDays className="h-3 w-3" />
+                          </div>
+                          Listing Appointments
+                        </h3>
+                        <button
+                          onClick={() => setShowAddApptForm((v) => !v)}
+                          className="flex items-center gap-0.5 text-[10px] text-orange-600 hover:text-orange-700 font-medium"
+                        >
+                          <Plus className="h-3 w-3" /> Add
+                        </button>
+                      </div>
+
+                      {showAddApptForm && (
+                        <div className="space-y-2 bg-white/60 dark:bg-orange-900/20 rounded-lg p-3 border border-orange-100 dark:border-orange-800/30">
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <span className="text-[10px] text-muted-foreground block mb-1">Date *</span>
+                              <Input
+                                type="date"
+                                className="h-7 text-xs"
+                                value={newApptForm.appointment_date}
+                                onChange={(e) => setNewApptForm((f) => ({ ...f, appointment_date: e.target.value }))}
+                              />
                             </div>
-                          );
-                        })}
+                            <div>
+                              <span className="text-[10px] text-muted-foreground block mb-1">Est. List Price</span>
+                              <Input
+                                type="number"
+                                placeholder="$"
+                                className="h-7 text-xs"
+                                value={newApptForm.estimated_list_price}
+                                onChange={(e) => setNewApptForm((f) => ({ ...f, estimated_list_price: e.target.value }))}
+                              />
+                            </div>
+                          </div>
+                          <div>
+                            <span className="text-[10px] text-muted-foreground block mb-1">Property Address</span>
+                            <Input
+                              className="h-7 text-xs"
+                              placeholder="123 Main St…"
+                              value={newApptForm.property_address}
+                              onChange={(e) => setNewApptForm((f) => ({ ...f, property_address: e.target.value }))}
+                            />
+                          </div>
+                          <div className="flex gap-2 justify-end">
+                            <button
+                              onClick={() => setShowAddApptForm(false)}
+                              className="text-[10px] text-muted-foreground hover:text-foreground px-2 py-1"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              onClick={addListingAppointment}
+                              disabled={!newApptForm.appointment_date}
+                              className="text-[10px] bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white px-3 py-1 rounded-md font-medium"
+                            >
+                              Save
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {selectedClientListingAppointments.length === 0 && !showAddApptForm ? (
+                        <p className="text-xs text-muted-foreground text-center py-1">No listing appointments recorded.</p>
+                      ) : (
+                        <div className="space-y-2">
+                          {[...selectedClientListingAppointments]
+                            .sort((a, b) => b.appointment_date.localeCompare(a.appointment_date))
+                            .map((appt) => {
+                              const accuracy =
+                                appt.estimated_list_price != null && appt.actual_sale_price != null && appt.actual_sale_price > 0
+                                  ? Math.round((1 - Math.abs(appt.estimated_list_price - appt.actual_sale_price) / appt.actual_sale_price) * 100)
+                                  : null;
+                              return (
+                                <div key={appt.id} className="py-2 px-3 rounded-lg bg-white/50 dark:bg-orange-900/20 border border-orange-100/60 dark:border-orange-800/30 space-y-2">
+                                  <div className="flex items-start justify-between gap-2">
+                                    <div className="min-w-0 flex-1">
+                                      <p className="text-xs font-medium truncate">{appt.property_address || "No address"}</p>
+                                      <p className="text-[10px] text-muted-foreground">{fmtDate(appt.appointment_date)}</p>
+                                    </div>
+                                    <div className="flex items-center gap-1 shrink-0">
+                                      <Select
+                                        value={appt.status}
+                                        onValueChange={(v) => updateApptField(appt.id, "status", v)}
+                                      >
+                                        <SelectTrigger className="h-6 text-[9px] w-28 border-dashed bg-transparent">
+                                          <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          {(Object.keys(LISTING_STATUS_LABELS) as ListingStatus[]).map((s) => (
+                                            <SelectItem key={s} value={s} className="text-xs">{LISTING_STATUS_LABELS[s]}</SelectItem>
+                                          ))}
+                                        </SelectContent>
+                                      </Select>
+                                      <button
+                                        onClick={() => deleteListingAppointment(appt.id)}
+                                        className="h-6 w-6 flex items-center justify-center rounded text-muted-foreground hover:text-destructive"
+                                      >
+                                        <X className="h-3 w-3" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                  {/* Price tracking */}
+                                  <div className="grid grid-cols-3 gap-1.5">
+                                    <div>
+                                      <span className="text-[9px] text-muted-foreground block mb-0.5">Est. List</span>
+                                      <Input
+                                        type="number"
+                                        placeholder="$"
+                                        className="h-6 text-[10px] px-2"
+                                        value={appt.estimated_list_price ?? ""}
+                                        onChange={(e) => updateApptField(appt.id, "estimated_list_price", e.target.value ? Number(e.target.value) : null)}
+                                      />
+                                    </div>
+                                    <div>
+                                      <span className="text-[9px] text-muted-foreground block mb-0.5">List Price</span>
+                                      <Input
+                                        type="number"
+                                        placeholder="$"
+                                        className="h-6 text-[10px] px-2"
+                                        value={appt.actual_list_price ?? ""}
+                                        onChange={(e) => updateApptField(appt.id, "actual_list_price", e.target.value ? Number(e.target.value) : null)}
+                                      />
+                                    </div>
+                                    <div>
+                                      <span className="text-[9px] text-muted-foreground block mb-0.5">Sold For</span>
+                                      <Input
+                                        type="number"
+                                        placeholder="$"
+                                        className="h-6 text-[10px] px-2"
+                                        value={appt.actual_sale_price ?? ""}
+                                        onChange={(e) => updateApptField(appt.id, "actual_sale_price", e.target.value ? Number(e.target.value) : null)}
+                                      />
+                                    </div>
+                                  </div>
+                                  {accuracy !== null && (
+                                    <p className={cn("text-[9px] font-medium", accuracy >= 95 ? "text-green-600" : accuracy >= 85 ? "text-amber-600" : "text-red-500")}>
+                                      Price accuracy: {accuracy}%
+                                    </p>
+                                  )}
+                                </div>
+                              );
+                            })}
+                        </div>
+                      )}
                     </div>
-                  )}
+
+                    {/* Household Activity — read-only. Deals this client was named
+                        on but doesn't hold GCI credit for; their own totalGCI
+                        stat above is unaffected. */}
+                    {householdDeals.length > 0 && (
+                      <div className={CRM_SECTION_CARD}>
+                        <h3 className={CRM_SECTION_HEADER}>
+                          <div className={CRM_SECTION_ICON_CHIP}>
+                            <Users className="h-3 w-3" />
+                          </div>
+                          Household Activity
+                        </h3>
+                        <div className="space-y-1.5">
+                          {householdDeals.map((deal) => {
+                            const primary = deal.client_id ? clientById.get(deal.client_id) : null;
+                            return (
+                              <div
+                                key={deal.id}
+                                className="py-1.5 px-2 rounded-lg bg-white/50 dark:bg-slate-900/30 border border-slate-200/60 dark:border-slate-800/40 cursor-pointer hover:border-violet-300/60"
+                                onClick={() => { if (deal.client_id) openDetailPanel(deal.client_id); }}
+                              >
+                                <div className="flex items-center justify-between">
+                                  <div className="min-w-0 flex-1">
+                                    <p className="text-xs font-medium text-foreground truncate">
+                                      {deal.address || "No address"}
+                                    </p>
+                                    <p className="text-[10px] text-muted-foreground/70">
+                                      {primary ? `Counts toward ${primary.name}'s total` : "Primary contact not found"}
+                                    </p>
+                                  </div>
+                                  <span className="text-sm font-bold tabular-nums text-muted-foreground/60 shrink-0 ml-3">
+                                    {fmtCurrency(deal.gci ?? 0)}
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                 </div>
 
-                {/* Pipeline Deals (linked via client_id) */}
-                {linkedPipelineDeals.length > 0 && (
-                  <div className={CRM_SECTION_CARD}>
-                    <h3 className={CRM_SECTION_HEADER}>
-                      <div className={CRM_SECTION_ICON_CHIP}>
-                        <Layers className="h-3 w-3" />
+                <div role="tabpanel" id="profile-panel-crew" aria-labelledby="profile-tab-crew" hidden={panelTab !== "crew"} className="space-y-3">
+                    {/* What Agent Runway remembers — AI memory profile */}
+                    <ClientMemoryPanel clientId={selectedClient.id} />
+
+                    {/* AI Actions */}
+                    <div className={CRM_SECTION_CARD}>
+                      <h3 className={CRM_SECTION_HEADER}>
+                        <div className={CRM_SECTION_ICON_CHIP}>
+                          <Sparkles className="h-3 w-3" />
+                        </div>
+                        AI Actions
+                      </h3>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        <button
+                          className="h-8 rounded-lg text-[11px] font-medium border border-dashed border-indigo-200 text-indigo-600 hover:bg-indigo-100/50 hover:border-indigo-300 dark:text-indigo-400 dark:hover:bg-indigo-900/30 transition-colors flex items-center justify-center gap-1.5"
+                          onClick={async () => {
+                            if (!selectedClient?.email) {
+                              toast.error("Add an email address first");
+                              return;
+                            }
+                            toast.info("Drafting referral ask…");
+                            try {
+                              const res = await fetch("/api/ai/draft-outreach", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({
+                                  client_id: selectedClient.id,
+                                  opportunity_type: CLIENT_PANEL_DRAFT_TYPES.referral,
+                                }),
+                              });
+                              if (res.ok) {
+                                toast.success("Referral ask drafted — check Flight Control");
+                              } else {
+                                const err = await res.json().catch(() => ({}));
+                                if (err.status === "call_only") {
+                                  // CASL: implied consent from their last purchase has lapsed.
+                                  toast.info("Call instead of email", { description: err.error, duration: 10000 });
+                                } else {
+                                  toast.error(err.error || "Failed to draft referral ask");
+                                }
+                              }
+                            } catch {
+                              toast.error("Failed to draft referral ask");
+                            }
+                          }}
+                        >
+                          <Handshake className="h-3.5 w-3.5" /> Ask for Referral
+                        </button>
+                        <button
+                          className="h-8 rounded-lg text-[11px] font-medium border border-dashed border-indigo-200 text-indigo-600 hover:bg-indigo-100/50 hover:border-indigo-300 dark:text-indigo-400 dark:hover:bg-indigo-900/30 transition-colors flex items-center justify-center gap-1.5"
+                          onClick={async () => {
+                            if (!selectedClient?.email) {
+                              toast.error("Add an email address first");
+                              return;
+                            }
+                            toast.info("Drafting check-in…");
+                            try {
+                              const res = await fetch("/api/ai/draft-outreach", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({
+                                  client_id: selectedClient.id,
+                                  opportunity_type: CLIENT_PANEL_DRAFT_TYPES.checkIn,
+                                }),
+                              });
+                              if (res.ok) {
+                                toast.success("Check-in drafted — check Flight Control");
+                              } else {
+                                const err = await res.json().catch(() => ({}));
+                                if (err.status === "call_only") {
+                                  // CASL: implied consent from their last purchase has lapsed.
+                                  toast.info("Call instead of email", { description: err.error, duration: 10000 });
+                                } else {
+                                  toast.error(err.error || "Failed to draft check-in");
+                                }
+                              }
+                            } catch {
+                              toast.error("Failed to draft check-in");
+                            }
+                          }}
+                        >
+                          <Hand className="h-3.5 w-3.5" /> Check In
+                        </button>
+                        <button
+                          className="h-8 rounded-lg text-[11px] font-medium border border-dashed border-indigo-200 text-indigo-600 hover:bg-indigo-100/50 hover:border-indigo-300 dark:text-indigo-400 dark:hover:bg-indigo-900/30 transition-colors flex items-center justify-center gap-1.5"
+                          onClick={async () => {
+                            if (!selectedClient?.email) {
+                              toast.error("Add an email address first");
+                              return;
+                            }
+                            toast.info("Drafting review request…");
+                            try {
+                              const res = await fetch("/api/ai/draft-outreach", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({
+                                  client_id: selectedClient.id,
+                                  opportunity_type: CLIENT_PANEL_DRAFT_TYPES.review,
+                                }),
+                              });
+                              if (res.ok) {
+                                toast.success("Review request drafted — check Flight Control");
+                              } else {
+                                const err = await res.json().catch(() => ({}));
+                                if (err.status === "call_only") {
+                                  // CASL: implied consent from their last purchase has lapsed.
+                                  toast.info("Call instead of email", { description: err.error, duration: 10000 });
+                                } else {
+                                  toast.error(err.error || "Failed to draft review request");
+                                }
+                              }
+                            } catch {
+                              toast.error("Failed to draft review request");
+                            }
+                          }}
+                        >
+                          <Star className="h-3.5 w-3.5" /> Request Review
+                        </button>
+                        <button
+                          className="h-8 rounded-lg text-[11px] font-medium border border-dashed border-indigo-200 text-indigo-600 hover:bg-indigo-100/50 hover:border-indigo-300 dark:text-indigo-400 dark:hover:bg-indigo-900/30 transition-colors flex items-center justify-center gap-1.5"
+                          onClick={async () => {
+                            if (!selectedClient?.email) {
+                              toast.error("Add an email address first");
+                              return;
+                            }
+                            toast.info("Drafting anniversary message…");
+                            try {
+                              const res = await fetch("/api/ai/draft-outreach", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({
+                                  client_id: selectedClient.id,
+                                  opportunity_type: CLIENT_PANEL_DRAFT_TYPES.anniversary,
+                                }),
+                              });
+                              if (res.ok) {
+                                toast.success("Anniversary message drafted — check Flight Control");
+                              } else {
+                                const err = await res.json().catch(() => ({}));
+                                if (err.status === "call_only") {
+                                  // CASL: implied consent from their last purchase has lapsed.
+                                  toast.info("Call instead of email", { description: err.error, duration: 10000 });
+                                } else {
+                                  toast.error(err.error || "Failed to draft message");
+                                }
+                              }
+                            } catch {
+                              toast.error("Failed to draft message");
+                            }
+                          }}
+                        >
+                          <PartyPopper className="h-3.5 w-3.5" /> Anniversary Note
+                        </button>
                       </div>
-                      Active Pipeline Deals
-                    </h3>
-                    <div className="space-y-1.5">
-                      {linkedPipelineDeals.map((deal) => {
-                        const gci = deal.estimated_price * deal.estimated_commission_pct;
-                        return (
-                          <div key={deal.id} className="py-1.5 px-2 rounded-lg bg-white/50 dark:bg-slate-900/30 border border-slate-200/60 dark:border-slate-800/40">
-                            <div className="flex items-center justify-between">
-                              <div className="min-w-0 flex-1">
-                                <p className="text-xs font-medium text-foreground truncate">
-                                  {deal.address || "No address"}
-                                </p>
-                                <div className="flex items-center gap-2 mt-0.5">
-                                  <span className="text-[9px] font-semibold border rounded-full px-2 py-0 capitalize text-blue-700 bg-blue-100 border-blue-200">
-                                    {deal.side}
-                                  </span>
-                                  <span className="text-[9px] font-semibold border rounded-full px-2 py-0 capitalize text-purple-700 bg-purple-100 border-purple-200">
-                                    {deal.stage}
-                                  </span>
-                                </div>
-                              </div>
-                              <span className="text-sm font-bold tabular-nums text-foreground shrink-0 ml-3">
-                                {fmtCurrency(gci)}
-                              </span>
-                            </div>
-                          </div>
-                        );
-                      })}
                     </div>
-                  </div>
-                )}
 
-                {/* Deal History */}
-                {clientDeals.length > 0 && (
-                  <div className={CRM_SECTION_CARD}>
-                    <h3 className={CRM_SECTION_HEADER}>
-                      <div className={CRM_SECTION_ICON_CHIP}>
-                        <DollarSign className="h-3 w-3" />
-                      </div>
-                      Deal History
-                    </h3>
-                    <div className="space-y-1.5">
-                      {clientDeals.map((deal) => (
-                        <div key={deal.id} className="py-1.5 px-2 rounded-lg bg-white/50 dark:bg-slate-900/30 border border-slate-200/60 dark:border-slate-800/40 space-y-1.5">
-                            <div className="flex items-center justify-between">
-                              <div className="min-w-0 flex-1">
-                                <p className="text-xs font-medium text-foreground truncate">
-                                  {deal.address || "No address"}
-                                </p>
-                                <div className="flex items-center gap-2 mt-0.5">
-                                  {deal.side && (
-                                    <span className={cn("text-[9px] font-semibold border rounded-full px-2 py-0 shrink-0", SIDE_STYLES[deal.side]?.cls)}>
-                                      {SIDE_STYLES[deal.side]?.label}
-                                    </span>
-                                  )}
-                                  {deal.close_date && <span className="text-[10px] text-muted-foreground">{fmtMonthYear(deal.close_date)}</span>}
-                                </div>
-                              </div>
-                              <span className="text-sm font-bold tabular-nums text-foreground shrink-0 ml-3">
-                                {fmtCurrency(deal.gci ?? 0)}
-                              </span>
-                            </div>
-                            {/* Property use — only relevant for buyer-side deals */}
-                            {deal.side !== "seller" && (
-                              <Select
-                                value={deal.property_use ?? "_none"}
-                                onValueChange={(v) => updateClientRecordField(deal.id, "property_use", v === "_none" ? null : v)}
-                              >
-                                <SelectTrigger className="h-6 text-[10px] border-dashed bg-transparent">
-                                  <SelectValue placeholder="Property use…" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="_none">Unknown</SelectItem>
-                                  {(Object.keys(PROPERTY_USE_LABELS) as PropertyUse[]).map((u) => (
-                                    <SelectItem key={u} value={u} className="text-xs">
-                                      {PROPERTY_USE_LABELS[u]}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            )}
-
-                            {/* Listing URL + MLS auto-populate */}
-                            <div className="pt-1 flex gap-1">
-                              <Input
-                                type="url"
-                                placeholder="MLS / listing URL…"
-                                className="h-6 text-[10px] px-2 border-dashed flex-1"
-                                defaultValue={deal.listing_url ?? ""}
-                                id={`listing-url-${deal.id}`}
-                                onBlur={(e) => {
-                                  const v = e.target.value.trim() || null;
-                                  if (v !== (deal.listing_url ?? null)) updateClientRecordField(deal.id, "listing_url", v);
-                                }}
-                              />
-                              <button
-                                className="h-6 px-2 rounded text-[9px] border border-dashed text-muted-foreground hover:border-blue-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors whitespace-nowrap"
-                                onClick={async () => {
-                                  const urlInput = document.getElementById(`listing-url-${deal.id}`) as HTMLInputElement | null;
-                                  const listingUrl = urlInput?.value?.trim();
-                                  if (!listingUrl) {
-                                    toast.error("Enter a Realtor.ca URL first");
-                                    return;
-                                  }
-                                  toast.info("Looking up listing…");
-                                  try {
-                                    const res = await fetch("/api/mls-lookup", {
-                                      method: "POST",
-                                      headers: { "Content-Type": "application/json" },
-                                      body: JSON.stringify({ url: listingUrl }),
-                                    });
-                                    if (!res.ok) {
-                                      const err = await res.json().catch(() => ({}));
-                                      toast.error(err.error || "Could not fetch listing data");
-                                      return;
-                                    }
-                                    const specs = await res.json();
-                                    // Auto-fill any returned specs that have values
-                                    const updates: Record<string, unknown> = {};
-                                    if (specs.bedrooms != null) updates.bedrooms = specs.bedrooms;
-                                    if (specs.bathrooms != null) updates.bathrooms = specs.bathrooms;
-                                    if (specs.square_feet != null) updates.square_feet = specs.square_feet;
-                                    if (specs.lot_acres != null) updates.lot_acres = specs.lot_acres;
-                                    if (specs.garage != null) updates.garage = specs.garage;
-                                    if (specs.waterfront != null) updates.waterfront = specs.waterfront;
-
-                                    if (Object.keys(updates).length > 0) {
-                                      // Save listing URL too
-                                      updates.listing_url = listingUrl;
-                                      // Stamp edited_at so reimport won't stomp this
-                                      updates.edited_at = new Date().toISOString();
-                                      const { error } = await supabase
-                                        .from("client_records")
-                                        .update(updates)
-                                        .eq("id", deal.id);
-                                      if (!error) {
-                                        toast.success(`Auto-filled ${Object.keys(updates).length - 1} property fields`);
-                                        router.refresh();
-                                      } else {
-                                        toast.error("Saved lookup data partially");
-                                      }
-                                    } else {
-                                      toast.info("No property data found — enter details manually");
-                                    }
-                                  } catch {
-                                    toast.error("Failed to look up listing");
-                                  }
-                                }}
-                              >
-                                Fetch
-                              </button>
-                            </div>
-
-                            {/* Property specs */}
-                            <div className="grid grid-cols-3 gap-1.5 pt-1">
-                              <div>
-                                <span className="text-[9px] text-muted-foreground block mb-0.5">Beds</span>
-                                <Input
-                                  type="number" min={0}
-                                  className="h-6 text-[10px] px-2"
-                                  defaultValue={deal.bedrooms ?? ""}
-                                  onBlur={(e) => {
-                                    const v = e.target.value ? Number(e.target.value) : null;
-                                    if (v !== (deal.bedrooms ?? null)) updateClientRecordField(deal.id, "bedrooms", v);
-                                  }}
-                                />
-                              </div>
-                              <div>
-                                <span className="text-[9px] text-muted-foreground block mb-0.5">Baths</span>
-                                <Input
-                                  type="number" min={0} step={0.5}
-                                  className="h-6 text-[10px] px-2"
-                                  defaultValue={deal.bathrooms ?? ""}
-                                  onBlur={(e) => {
-                                    const v = e.target.value ? Number(e.target.value) : null;
-                                    if (v !== (deal.bathrooms ?? null)) updateClientRecordField(deal.id, "bathrooms", v);
-                                  }}
-                                />
-                              </div>
-                              <div>
-                                <span className="text-[9px] text-muted-foreground block mb-0.5">Sq Ft</span>
-                                <Input
-                                  type="number" min={0}
-                                  className="h-6 text-[10px] px-2"
-                                  defaultValue={deal.square_feet ?? ""}
-                                  onBlur={(e) => {
-                                    const v = e.target.value ? Number(e.target.value) : null;
-                                    if (v !== (deal.square_feet ?? null)) updateClientRecordField(deal.id, "square_feet", v);
-                                  }}
-                                />
-                              </div>
-                            </div>
-                            <div className="grid grid-cols-3 gap-1.5">
-                              <div>
-                                <span className="text-[9px] text-muted-foreground block mb-0.5">Lot (acres)</span>
-                                <Input
-                                  type="number" min={0} step={0.01}
-                                  className="h-6 text-[10px] px-2"
-                                  defaultValue={deal.lot_acres ?? ""}
-                                  onBlur={(e) => {
-                                    const v = e.target.value ? Number(e.target.value) : null;
-                                    if (v !== (deal.lot_acres ?? null)) updateClientRecordField(deal.id, "lot_acres", v);
-                                  }}
-                                />
-                              </div>
-                              <div className="flex items-end gap-1.5 pb-0.5">
-                                <button
-                                  className={cn("h-6 px-2 rounded text-[10px] border transition-colors", deal.garage ? "bg-green-100 dark:bg-green-900/40 border-green-300 dark:border-green-700 text-green-700 dark:text-green-400" : "border-dashed text-muted-foreground hover:border-slate-400")}
-                                  onClick={() => updateClientRecordField(deal.id, "garage", !deal.garage)}
-                                >
-                                  Garage
-                                </button>
-                              </div>
-                              <div className="flex items-end gap-1.5 pb-0.5">
-                                <button
-                                  className={cn("h-6 px-2 rounded text-[10px] border transition-colors", deal.waterfront ? "bg-blue-100 dark:bg-blue-900/40 border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-400" : "border-dashed text-muted-foreground hover:border-slate-400")}
-                                  onClick={() => updateClientRecordField(deal.id, "waterfront", !deal.waterfront)}
-                                >
-                                  Waterfront
-                                </button>
-                              </div>
-                            </div>
-
-                            {/* Condition tracking — only for deals without a close date yet, or recent deals */}
-                            <div className="grid grid-cols-2 gap-1.5 pt-1">
-                              <div>
-                                <span className="text-[9px] text-muted-foreground block mb-0.5">Condition date</span>
-                                <Input
-                                  type="date"
-                                  className="h-6 text-[10px] px-2"
-                                  defaultValue={deal.condition_date ?? ""}
-                                  onBlur={(e) => {
-                                    const v = e.target.value || null;
-                                    if (v !== (deal.condition_date ?? null)) updateClientRecordField(deal.id, "condition_date", v);
-                                  }}
-                                />
-                              </div>
-                              <div>
-                                <span className="text-[9px] text-muted-foreground block mb-0.5">Status</span>
-                                <Select
-                                  value={deal.condition_status ?? "pending"}
-                                  onValueChange={(v) => updateClientRecordField(deal.id, "condition_status", v)}
-                                >
-                                  <SelectTrigger className="h-6 text-[10px] border-dashed bg-transparent">
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="pending" className="text-xs">Pending</SelectItem>
-                                    <SelectItem value="waived" className="text-xs">Waived</SelectItem>
-                                    <SelectItem value="firmed" className="text-xs">Firmed</SelectItem>
-                                    <SelectItem value="collapsed" className="text-xs">Collapsed</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                              </div>
-                            </div>
-
-                            {/* AI listing description generator */}
-                            {(deal.bedrooms != null || deal.bathrooms != null || deal.square_feet != null) && (
-                              <div className="pt-1 flex gap-1">
-                                <button
-                                  className="flex-1 h-7 rounded text-[10px] border border-dashed text-violet-600 hover:border-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/20 transition-colors flex items-center justify-center gap-1"
-                                  onClick={async () => {
-                                    toast.info("Generating listing description…");
-                                    try {
-                                      const res = await fetch("/api/ai/listing-description", {
-                                        method: "POST",
-                                        headers: { "Content-Type": "application/json" },
-                                        body: JSON.stringify({
-                                          client_record_id: deal.id,
-                                          client_id: selectedClient?.id,
-                                        }),
-                                      });
-                                      if (!res.ok) {
-                                        const err = await res.json().catch(() => ({}));
-                                        toast.error(err.error || "Failed to generate description");
-                                        return;
-                                      }
-                                      const result = await res.json();
-                                      const fullText = `${result.description}\n\n---\n\nSocial Media Post:\n${result.social_post}`;
-                                      await navigator.clipboard.writeText(fullText);
-                                      toast.success("Listing description copied to clipboard!");
-                                    } catch {
-                                      toast.error("Failed to generate description");
-                                    }
-                                  }}
-                                >
-                                  ✨ Generate Description
-                                </button>
-                                <button
-                                  className="h-7 px-2 rounded text-[9px] border border-dashed text-slate-500 hover:border-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors whitespace-nowrap"
-                                  title="Generate without emojis"
-                                  onClick={async () => {
-                                    toast.info("Generating (no emojis)…");
-                                    try {
-                                      const res = await fetch("/api/ai/listing-description", {
-                                        method: "POST",
-                                        headers: { "Content-Type": "application/json" },
-                                        body: JSON.stringify({
-                                          client_record_id: deal.id,
-                                          client_id: selectedClient?.id,
-                                          no_emoji: true,
-                                        }),
-                                      });
-                                      if (!res.ok) {
-                                        const err = await res.json().catch(() => ({}));
-                                        toast.error(err.error || "Failed to generate description");
-                                        return;
-                                      }
-                                      const result = await res.json();
-                                      const fullText = `${result.description}\n\n---\n\nSocial Media Post:\n${result.social_post}`;
-                                      await navigator.clipboard.writeText(fullText);
-                                      toast.success("Description (no emojis) copied to clipboard!");
-                                    } catch {
-                                      toast.error("Failed to generate description");
-                                    }
-                                  }}
-                                >
-                                  No emoji
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                  </div>
-                )}
-
-                {/* Household Activity — read-only. Deals this client was named
-                    on but doesn't hold GCI credit for; their own totalGCI
-                    stat above is unaffected. */}
-                {householdDeals.length > 0 && (
-                  <div className={CRM_SECTION_CARD}>
-                    <h3 className={CRM_SECTION_HEADER}>
-                      <div className={CRM_SECTION_ICON_CHIP}>
-                        <Users className="h-3 w-3" />
-                      </div>
-                      Household Activity
-                    </h3>
-                    <div className="space-y-1.5">
-                      {householdDeals.map((deal) => {
-                        const primary = deal.client_id ? clientById.get(deal.client_id) : null;
-                        return (
-                          <div
-                            key={deal.id}
-                            className="py-1.5 px-2 rounded-lg bg-white/50 dark:bg-slate-900/30 border border-slate-200/60 dark:border-slate-800/40 cursor-pointer hover:border-violet-300/60"
-                            onClick={() => { if (deal.client_id) openDetailPanel(deal.client_id); }}
-                          >
-                            <div className="flex items-center justify-between">
-                              <div className="min-w-0 flex-1">
-                                <p className="text-xs font-medium text-foreground truncate">
-                                  {deal.address || "No address"}
-                                </p>
-                                <p className="text-[10px] text-muted-foreground/70">
-                                  {primary ? `Counts toward ${primary.name}'s total` : "Primary contact not found"}
-                                </p>
-                              </div>
-                              <span className="text-sm font-bold tabular-nums text-muted-foreground/60 shrink-0 ml-3">
-                                {fmtCurrency(deal.gci ?? 0)}
-                              </span>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
+                    {/* Flight Plan Templates — Phase 2.3 (HML gap closure) */}
+                    <WorkflowSuggestionsPanel
+                      clientId={selectedClient.id}
+                      clientName={selectedClient.name}
+                      flightStatus={selectedClient.status}
+                      hasClosedRecord={hasClosedDeal(clientDeals)}
+                    />
+                </div>
               </div>
             </div>
           )}
