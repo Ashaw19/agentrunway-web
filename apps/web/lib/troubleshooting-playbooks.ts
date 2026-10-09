@@ -655,13 +655,16 @@ Each contact has a decayed engagement score based on recent activity history.
 5. A logged activity (call, email, text, etc.) resets the timer
 
 **"The briefing shows an anniversary, a mortgage renewal or 'past client' for a deal that fell through"** / **"Why is a renewal or anniversary reminder missing?"**
-→ The briefing ("Today's briefing" on the CRM tab, "Daily Briefing" on the dashboard, "Today's Focus" in the mobile app) reads closings from each client's Deal History. A deal set to Collapsed never closed, so it gives no closing anniversary, home anniversary or mortgage renewal reminder. A Cruising client whose only deal collapsed shows as a long-term contact, not a past client. If the client also has an older deal that did close, that one still counts: renewal reminders follow the most recent deal that closed, and a newer collapsed deal doesn't hide it. If a reminder is missing for a deal that did close, open the client's Deal History and check the deal has a close date and its condition status (next to the condition date) isn't Collapsed. The Closed column under Lead sources on the Insights tab counts the same way.
+→ The briefing ("Today's briefing" on the CRM tab, "Daily Briefing" on the dashboard, "Today's Focus" in the mobile app) reads closings from each client's Deal History. A deal set to Collapsed never closed, so it gives no closing anniversary, home anniversary or mortgage renewal reminder. A Cruising client whose only deal collapsed shows as a long-term contact, not a past client. If the client also has an older deal that did close, that one still counts: renewal reminders follow the most recent deal that closed, and a newer collapsed deal doesn't hide it. If a reminder is missing for a deal that did close, open the client's Deal History and check the deal has a close date and its condition status (next to the condition date) isn't Collapsed. The Lead sources table on the Insights tab also leaves collapsed deals out (Closed and GCI).
+
+**"My Lifetime GCI, Total Deals or repeat rate went down"** / **"Why doesn't a deal count toward a client's GCI, badges or gift budget?"**
+→ The Clients page totals count every deal in a client's Deal History except deals set to Collapsed. A collapsed deal never closed, so it adds no GCI and isn't counted as a deal. It's also left out of avg / deal, repeat rate, the client's own Lifetime GCI and Deals, top clients, concentration %, badges (High Yield, Frequent Flyer, Silver Wings, Tailwind Club, First Class), client tiers, the Lead sources table and the closing-gift budget. It stays in Deal History. If it was marked Collapsed by mistake, change its condition status back and the totals return. A deal with no close date still counts, because history imports don't always include one. It's left off only what needs a date: the last deal date, the GCI trend line on hover, and anniversaries. The dashboard's GCI comes from Transactions, not Deal History, so it isn't affected.
 
 **"Save button isn't working"**
 → The Save button commits first name, last name, and notes. Other fields (email, phone, etc.) may save differently. Ensure required fields aren't empty.
 
 **"Client tiers don't seem accurate"**
-→ Tiers recalculate based on all clients with transaction history. New clients with no deals start as Bronze. Tiers shift as deal data changes.
+→ Tiers recalculate based on all clients with transaction history. New clients with no deals start as Bronze. Tiers shift as deal data changes. Collapsed deals don't count toward a client's tier.
 
 **"How do relationships work?"**
 → Link clients together (spouse, referral source, etc.). Relationships are bidirectional. Useful for tracking referral chains.
@@ -812,6 +815,9 @@ Flight Control also includes a newsletter builder for mass updates (market repor
 
 **"Ask for Referral / Request Review says 'No closed deal on record for this client'"**
 → Both are written around the client's most recent closed deal. A collapsed deal doesn't count, and neither does one whose close date hasn't arrived yet. Add the closed deal to the client's record (or link the existing deal to them), then click again. For a client who hasn't bought or sold with the agent, Check In is the better fit. If Flight Control already drafted one for that deal (it drafts review requests about 3 weeks after closing and referral asks about 6 weeks after), clicking doesn't make a second copy: the existing draft is waiting in Flight Control.
+
+**"A deal collapsed. Why did its anniversary / follow-ups / review request stop?"** / **"Why isn't this client showing as a past client?"**
+→ A collapsed deal never closed, so Flight Control doesn't treat it as one. No closing anniversary, post-close follow-up, review request, referral ask or idle-past-client card comes from it, in Scan, the nightly drafts, or the client panel buttons, and the Flight Plan anniversary template isn't offered. A client whose only deal collapsed isn't a past client. If they have an older deal that did close, that one still counts: a newer collapsed deal doesn't hide it. If the deal was marked collapsed by mistake, change its condition status on the deal and Flight Control picks it up again. A draft already in the Outreach Queue from before the deal was marked collapsed isn't removed straight away; skip it.
 
 **"Why is there no Draft button on a 'going quiet' row?"**
 → "Going quiet" means a client who's usually in regular contact has gone silent longer than their own rhythm. It shows up for leads and active buyers or sellers too, not just past clients, and every check-in draft is written to a past client. So there's no one-click draft on those rows. Reach out directly and log it, or open the client and use Check In if they're a past client.

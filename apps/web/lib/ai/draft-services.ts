@@ -47,6 +47,7 @@ import {
   buildBocRateChangeNewsletterPrompt,
   buildCustomNewsletterPrompt,
 } from "@/lib/newsletter-prompts";
+import { excludeCollapsedDeals } from "@/lib/crm/contactable-records";
 import {
   type DealForConsent,
   emailConsentLapsedReason,
@@ -377,8 +378,8 @@ export async function draftOutreachForClient(input: {
       .single(),
     supabase
       .from("client_records")
-      // condition_status: the CASL gate skips collapsed deals. Without it in
-      // the select a collapsed deal would count as a purchase.
+      // condition_status: excludeCollapsedDeals and the CASL gate read it.
+      // Without it in the select a collapsed deal would count as a purchase.
       .select("id, client_id, address, close_date, gci, side, property_use, condition_status")
       .eq("client_id", clientId)
       .eq("user_id", userId)
@@ -390,7 +391,9 @@ export async function draftOutreachForClient(input: {
   const agentFirst = extractFirstName(settingsRes.data?.display_name ?? null);
   const emailSignature = (settingsRes.data?.email_signature as string) ?? "";
   const agentStyleGuide = (settingsRes.data?.ai_voice_guide as string | null) ?? null;
-  const records = recordsRes.data ?? [];
+  // A collapsed deal never closed, so it can't anchor an anniversary, a
+  // renewal, a milestone or a check-in. Same gate as nightly drafting + Scan.
+  const records = excludeCollapsedDeals(recordsRes.data ?? []);
   const latestRecord = records[0] ?? null;
 
   const clientTags = (client.tags as string[] | null) ?? [];
@@ -569,12 +572,11 @@ export async function draftOutreachForClient(input: {
 
     case "review_request":
     case "referral_ask": {
-      // Written around the most recent deal that has actually closed: a
-      // collapsed deal or one still waiting on its close date doesn't count.
+      // Written around the most recent deal that has actually closed: one
+      // still waiting on its close date doesn't count (collapsed deals are
+      // already out of `records`).
       const todayIso = atlanticISODate();
-      const closed = records.find(
-        (r) => r.condition_status !== "collapsed" && String(r.close_date).slice(0, 10) <= todayIso,
-      );
+      const closed = records.find((r) => String(r.close_date).slice(0, 10) <= todayIso);
       const cadence = POST_CLOSE_OPPORTUNITY_CONFIGS.find((c) => c.type === opType);
       if (!closed?.close_date || !cadence) {
         return { status: "queued", queueItemId: "", reason: "No closed deal on record for this client", clientName: clientDisplayName };

@@ -1,3 +1,4 @@
+import { excludeCollapsedDeals } from "@agent-runway/core/types/database";
 import { SPHERE_MAX_PER_SCAN } from "./scan-call-cards";
 
 /**
@@ -70,8 +71,8 @@ export function clientLifetimeGci(
   }[],
 ): Map<string, number> {
   const out = new Map<string, number>();
-  for (const r of records) {
-    if (!r.client_id || r.condition_status === "collapsed") continue;
+  for (const r of excludeCollapsedDeals(records)) {
+    if (!r.client_id) continue;
     const gci = Number(r.gci ?? 0);
     if (!Number.isFinite(gci) || gci <= 0) continue;
     out.set(r.client_id, (out.get(r.client_id) ?? 0) + gci);

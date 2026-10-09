@@ -66,6 +66,7 @@ import {
   type SocialPostTemplate,
 } from "@/lib/ai/draft-services";
 import { addDaysISO, atlanticISODate, atlanticNoon, atlanticYear } from "@agent-runway/core/lib/local-date";
+import { hasClosedDeal } from "@/lib/crm/contactable-records";
 
 // ── Approval Gate ──────────────────────────────────────────────────────────
 // Tools in this set require explicit user confirmation before executing.
@@ -3614,14 +3615,16 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
             || [client.first_name, client.last_name].filter(Boolean).join(" ").trim()
             || "this client";
 
-          // 2. Has closed record? (drives anniversary eligibility)
-          const { count: closedCount } = await supabase
+          // 2. Has a closed deal? (drives anniversary eligibility). Rows, not a
+          // count: a collapsed deal has a close date but never closed, and
+          // .neq("condition_status", "collapsed") would also drop NULL rows.
+          const { data: closedRows } = await supabase
             .from("client_records")
-            .select("id", { count: "exact", head: true })
+            .select("close_date, condition_status")
             .eq("client_id", client_id)
             .eq("user_id", userId)
             .not("close_date", "is", null);
-          const hasClosedRecord = (closedCount ?? 0) > 0;
+          const hasClosedRecord = hasClosedDeal(closedRows ?? []);
 
           // 3. Map status → eligible trigger events (mirrors WorkflowSuggestionsPanel)
           const status = client.status as "boarding" | "scheduled" | "in_flight" | "cruising";

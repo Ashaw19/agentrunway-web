@@ -79,6 +79,19 @@ describe("classifyTopic — CRM on-demand draft buttons reach the Flight Control
   });
 });
 
+describe("classifyTopic — collapsed-deal outreach questions reach the Flight Control playbook", () => {
+  const cases = [
+    "why is there no anniversary note for a client whose deal collapsed",
+    "the deal collapsed, why did the review request and follow-ups stop",
+  ];
+
+  for (const message of cases) {
+    it(`routes to flight-control: "${message}"`, () => {
+      expect(classifyTopic(message)).toBe("flight-control");
+    });
+  }
+});
+
 describe("classifyTopic — CRM briefing questions reach the CRM playbook", () => {
   const cases = [
     "why does my briefing show a closing anniversary for a deal that collapsed",
@@ -95,4 +108,19 @@ describe("classifyTopic — CRM briefing questions reach the CRM playbook", () =
   it("a Draft button question on the briefing still reaches Flight Control", () => {
     expect(classifyTopic("why is there no draft button on the briefing row")).toBe("flight-control");
   });
+});
+
+describe("classifyTopic — CRM lifetime GCI questions reach the CRM playbook", () => {
+  const cases = [
+    "why doesn't my lifetime gci include a collapsed deal",
+    "my total deals and repeat rate dropped after a deal collapsed",
+    "the gift budget for this client changed",
+    "why did the first class badge disappear",
+  ];
+
+  for (const message of cases) {
+    it(`routes to crm: "${message}"`, () => {
+      expect(classifyTopic(message)).toBe("crm");
+    });
+  }
 });

@@ -396,18 +396,24 @@ export function computeSourceFunnel(
 
   const activeStatuses: ClientStatus[] = ["boarding", "scheduled", "in_flight"];
 
-  // A client is "closed" only if they have at least one ClientRecord with a close_date
-  // that didn't collapse. Using status === "cruising" was wrong: auto-imported sphere
-  // contacts land in Cruising without ever transacting, inflating close rates per source.
+  // A client is "closed" if they have at least one ClientRecord that didn't
+  // collapse. Using status === "cruising" was wrong: auto-imported sphere
+  // contacts land in Cruising without ever transacting, inflating close rates
+  // per source. An undated record still counts: client_records come from
+  // history imports, so a missing close_date means the sheet had no date, not
+  // an open deal. Same deals as the CRM's Lifetime GCI, so every client whose
+  // GCI is summed below is in `closed` and avgGCI (GCI per closed client)
+  // divides like by like.
+  const countedRecords = excludeCollapsedDeals(records);
   const closedClientIds = new Set(
-    excludeCollapsedDeals(records)
-      .filter((r) => r.client_id && r.close_date)
+    countedRecords
+      .filter((r) => r.client_id)
       .map((r) => r.client_id as string),
   );
 
-  // GCI by client
+  // GCI by client. A collapsed deal earned nothing, so it adds no GCI.
   const gciByClient = new Map<string, number>();
-  for (const r of records) {
+  for (const r of countedRecords) {
     if (r.client_id) {
       gciByClient.set(r.client_id, (gciByClient.get(r.client_id) ?? 0) + r.gci);
     }
