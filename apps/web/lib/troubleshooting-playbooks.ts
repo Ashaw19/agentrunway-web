@@ -601,13 +601,13 @@ No benchmark threshold — just tracks the metric for self-improvement.
 ### Contact Activity Types
 call, email, text, showing, meeting, note, task
 
-### Client Detail Panel Layout
-1. Gradient status banner (color matches flight status)
-2. Circular avatar
-3. Separate First Name and Last Name fields
-4. Save button (commits first name, last name, notes together — NOT auto-save)
-5. Flight Status strip
-6. Colored section cards: Sky blue (Contact), Emerald (Address), Amber (Details), Violet (Relationships), Slate (Notes), Blue (Activity Log), Orange (Tasks), Green (Deal History)
+### Client Detail Panel Layout (tabs since 2026-10-09)
+Top (always shown): gradient status banner, avatar, stage menu, First/Last Name fields with Save (not auto-save), badges and last contact, quick actions (Call and Text when a phone is on file, Log activity, Add to checklist / On checklist), Flight Status strip. Under it, a tab bar that stays pinned while scrolling:
+1. Overview (opens by default): lifetime GCI / deals / last contact strip, Contact information, Address, Details (buyer profile, tags), Mortgage estimate, Relationships
+2. Activity (count = open checklist items): Checklist, Activity log (Log activity), Notes, Message history
+3. Deals (count = deals): Pipeline deals, Deal History, Showings, Listing appointments, Household activity
+4. Flight Crew: What Agent Runway remembers, AI Actions (Ask for Referral, Check In, Request Review, Anniversary Note), Flight Plan templates
+Opening a client from the Checklist, or by voice to log a call, lands on Activity. Log activity in the header switches to Activity with the form open.
 
 ### CRM Dashboard Tab
 - Total clients by status (donut chart)
@@ -785,6 +785,9 @@ Flight Control also includes a newsletter builder for mass updates (market repor
 2. A contact with no closed deal, no birthdate and no first-contact date gives Flight Control nothing to work from. Adding birthdates or linking their deals brings them in.
 3. Anyone contacted in the last 14 days (a logged CRM activity, a "Log contact" from a Flight Control card, or a draft marked sent) is held back, so working through the list rotates new people in. Birthday and condition-date cards show regardless.
 
+**"Where did Deal History / the activity log / AI Actions go on the client profile?"**
+→ Since 2026-10-09 the client profile has tabs under the header: Overview (contact info, address, details, relationships), Activity (checklist, activity log, notes, messages), Deals (pipeline, Deal History, showings, listing appointments) and Flight Crew (what Agent Runway remembers, AI Actions, Flight Plan templates). Call, Text, Log activity and Add to checklist stay at the top on every tab.
+
 **"Where's my checklist?" / "How do I tick something off and log it?"**
 → Checklist is in the sidebar under CRM (/checklist). Tick the box next to an item. If the item has a client, a pop-up asks how it went: Save to their profile logs the call, text, email or meeting on their profile and ticks it off; Couldn't reach them notes the attempt on their profile and moves it to tomorrow; Just mark done ticks it off without logging anything. The same list shows on the client's profile (Checklist section) and the dashboard Checklist card.
 
@@ -799,7 +802,7 @@ Flight Control also includes a newsletter builder for mass updates (market repor
 
 **"Log Activity says Failed to log activity"**
 → From 2026-04-12 to 2026-10-06 every activity save failed because of a database bug, fixed 2026-10-06. If it still fails, the browser console shows the cause, logged under "[crm] contact_activities insert failed".
-4. Memory-powered cards need a current memory profile: CRM, open the client, "What Agent Runway remembers", Build profile / Refresh. Editing the client marks the profile outdated until it is refreshed.
+4. Memory-powered cards need a current memory profile: CRM, open the client, Flight Crew tab, "What Agent Runway remembers", Build profile / Refresh. Editing the client marks the profile outdated until it is refreshed.
 
 **"Why does a card say Call instead of Draft Message?"**
 → The client's last deal closed more than 2 years before the message would go out. Under CASL, implied consent to email from a purchase lasts 2 years, so Flight Control suggests a call and never drafts an email for that client. Agent Runway does not record express email consent, so these cards stay call-only. This is general information about the rule, not legal advice.
@@ -814,7 +817,7 @@ Flight Control also includes a newsletter builder for mass updates (market repor
 → Both are written around the client's most recent closed deal. A collapsed deal doesn't count, and neither does one whose close date hasn't arrived yet. Add the closed deal to the client's record (or link the existing deal to them), then click again. For a client who hasn't bought or sold with the agent, Check In is the better fit. If Flight Control already drafted one for that deal (it drafts review requests about 3 weeks after closing and referral asks about 6 weeks after), clicking doesn't make a second copy: the existing draft is waiting in Flight Control.
 
 **"Why is there no Draft button on a 'going quiet' row?"**
-→ "Going quiet" means a client who's usually in regular contact has gone silent longer than their own rhythm. It shows up for leads and active buyers or sellers too, not just past clients, and every check-in draft is written to a past client. So there's no one-click draft on those rows. Reach out directly and log it, or open the client and use Check In if they're a past client.
+→ "Going quiet" means a client who's usually in regular contact has gone silent longer than their own rhythm. It shows up for leads and active buyers or sellers too, not just past clients, and every check-in draft is written to a past client. So there's no one-click draft on those rows. Reach out directly and log it, or open the client and use Check In (Flight Crew tab) if they're a past client.
 
 **"I clicked Draft Message and it said Flight Control can't draft this one"**
 → Some cards (condition dates, scheduled-date reminders) have no automated email template, and a card can change between scanning and clicking. Reach out directly and log it in the CRM.
