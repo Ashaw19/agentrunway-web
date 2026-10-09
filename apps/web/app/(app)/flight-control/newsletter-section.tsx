@@ -338,12 +338,14 @@ function NewsletterReviewDrawer({
   onSent,
   signature,
   lapsedPastClientNames,
+  optedOutClientNames,
 }: {
   item:      NewsletterQueue | null;
   onClose:   () => void;
   onSent:    (id: string) => void;
   signature: string;
   lapsedPastClientNames: string[];
+  optedOutClientNames:   string[];
 }) {
   const [editSubject, setEditSubject] = useState("");
   const [editBody,    setEditBody]    = useState("");
@@ -507,6 +509,24 @@ function NewsletterReviewDrawer({
                   </summary>
                   <p className="mt-1 max-h-24 overflow-y-auto">
                     {lapsedPastClientNames.join(", ")}
+                  </p>
+                </details>
+              </div>
+            )}
+            {optedOutClientNames.length > 0 && (
+              <div className="rounded-md border border-red-500/30 bg-red-500/5 px-2.5 py-2 space-y-1">
+                <p className="text-[11px] text-red-700 dark:text-red-400">
+                  {optedOutClientNames.length === 1
+                    ? "1 client unsubscribed"
+                    : `${optedOutClientNames.length} clients unsubscribed`}{" "}
+                  from your emails. Leave them off this list.
+                </p>
+                <details className="text-[11px] text-muted-foreground">
+                  <summary className="cursor-pointer select-none">
+                    {optedOutClientNames.length === 1 ? "Show name" : "Show names"}
+                  </summary>
+                  <p className="mt-1 max-h-24 overflow-y-auto">
+                    {optedOutClientNames.join(", ")}
                   </p>
                 </details>
               </div>
@@ -711,11 +731,14 @@ export function NewsletterSection({
   initialNewsletters,
   signature,
   lapsedPastClientNames,
+  optedOutClientNames = [],
 }: {
   initialNewsletters: NewsletterQueue[];
   signature:          string;
   /** Past clients whose CASL implied consent from a purchase has lapsed. */
   lapsedPastClientNames: string[];
+  /** Clients who unsubscribed from all email (00173). */
+  optedOutClientNames?: string[];
 }) {
   const [newsletters,  setNewsletters]  = useState<NewsletterQueue[]>(initialNewsletters);
   const [draftOpen,    setDraftOpen]    = useState(false);
@@ -803,6 +826,7 @@ export function NewsletterSection({
         onSent={handleSent}
         signature={signature}
         lapsedPastClientNames={lapsedPastClientNames}
+        optedOutClientNames={optedOutClientNames}
       />
     </>
   );

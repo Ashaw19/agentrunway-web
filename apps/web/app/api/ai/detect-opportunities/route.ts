@@ -831,7 +831,7 @@ export async function detectAndDraftForUser(
       .single(),
     supabase
       .from("clients")
-      .select("id, name, city, province_region, birthdate, communication_tone, first_contacted_at, last_contact_at, tags, notes, status, scheduled_for, scheduled_phrase")
+      .select("id, name, city, province_region, birthdate, communication_tone, first_contacted_at, last_contact_at, tags, notes, status, scheduled_for, scheduled_phrase, email_opt_out_at")
       .eq("user_id", userId)
       .is("archived_at", null),
     supabase
@@ -1254,12 +1254,19 @@ export async function detectAndDraftForUser(
   const lastCloseByClient = lastClosedDealByClient(
     withCoBuyerDeals(recordsRes.data ?? [], coPartiesRes.data ?? []),
   );
+  // Unsubscribed from all email (00173): never drafted, whatever their deals say.
+  const optedOut = new Set(
+    ((clientsRes.data ?? []) as { id: string; email_opt_out_at?: string | null }[])
+      .filter((c) => c.email_opt_out_at)
+      .map((c) => c.id),
+  );
   const emailable = inserts.filter((ins) => {
     const i = ins as { client_id: string; trigger_date: string };
+    if (optedOut.has(i.client_id)) return false;
     return outreachChannel(lastCloseByClient.get(i.client_id), i.trigger_date, atlanticNoon()) === "email";
   });
   if (emailable.length < inserts.length) {
-    console.log(`[detect-opportunities] CASL gate: ${inserts.length - emailable.length} opportunities left as call-only (implied consent lapsed)`);
+    console.log(`[detect-opportunities] CASL gate: ${inserts.length - emailable.length} opportunities left as call-only (implied consent lapsed or unsubscribed)`);
   }
   inserts.length = 0;
   inserts.push(...emailable);
@@ -2196,7 +2203,7 @@ export async function getTopOpportunities(
   const [clientsRes, recordsRes, memoryRes, sentRes, coPartiesRes, dismissedRes] = await Promise.all([
     supabase
       .from("clients")
-      .select("id, name, city, province_region, birthdate, communication_tone, first_contacted_at, last_contact_at, created_at, tags, notes, status, scheduled_for, scheduled_phrase")
+      .select("id, name, city, province_region, birthdate, communication_tone, first_contacted_at, last_contact_at, created_at, tags, notes, status, scheduled_for, scheduled_phrase, email_opt_out_at")
       .eq("user_id", userId)
       .is("archived_at", null),
     supabase
@@ -2555,7 +2562,9 @@ export async function getTopOpportunities(
     const clientNotes = (client?.notes as string | null) ?? null;
     const contextLevel = classifyClientContext(clientTags, clientNotes, typed.context);
     const callCopy = callCardCopy(typed.opportunity_type, typed.context);
-    const channel: "email" | "call" = CALL_FIRST_TYPES.has(typed.opportunity_type)
+    // Unsubscribed from all email (00173): a call card, whatever the type.
+    const optedOut = Boolean((client as { email_opt_out_at?: string | null } | undefined)?.email_opt_out_at);
+    const channel: "email" | "call" = optedOut || CALL_FIRST_TYPES.has(typed.opportunity_type)
       ? "call"
       : outreachChannel(lastCloseByClient.get(typed.client_id), typed.trigger_date, atlanticNoon());
 
@@ -2572,7 +2581,7 @@ export async function getTopOpportunities(
       suggested_angle:  callCopy?.angle ?? suggestAngle(typed.opportunity_type, facts, typed.context),
       context_level:    contextLevel,
       contact_channel:  channel,
-      call_reason:      callReasonFor(typed.opportunity_type, channel),
+      call_reason:      callReasonFor(typed.opportunity_type, channel, optedOut),
       client_record_id: typed.client_record_id ?? null,
       context:          typed.context,
       financial_impact: callCopy?.impact ?? buildFinancialImpact(

@@ -27,7 +27,7 @@ const QUIET_LEAD_BASE_SCORE      = 60; // ≥ 55 = strong signal in top-opportun
 
 export const CALL_FIRST_TYPES = new Set(["lead_going_quiet", "sphere_check_in"]);
 
-export type CallReason = "casl_lapsed" | "personal_check_in" | "sphere";
+export type CallReason = "casl_lapsed" | "personal_check_in" | "sphere" | "opted_out";
 
 const TIMEZONE = "America/Halifax";
 const DAY_MS = 86_400_000;
@@ -151,7 +151,8 @@ export function scanCallCardScore(type: string, ctx: Record<string, unknown>): n
 }
 
 /** Why a card offers a call instead of an email draft. */
-export function callReasonFor(type: string, channel: "email" | "call"): CallReason | null {
+export function callReasonFor(type: string, channel: "email" | "call", optedOut = false): CallReason | null {
+  if (optedOut) return "opted_out";
   if (type === "lead_going_quiet") return "personal_check_in";
   if (type === "sphere_check_in") return "sphere";
   return channel === "call" ? "casl_lapsed" : null;

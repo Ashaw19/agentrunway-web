@@ -142,3 +142,14 @@ export function emailConsentLapsedReason(clientName: string, lastClose: string):
   const when   = month && y ? `${month} ${y}` : lastClose;
   return `${clientName}'s last deal closed in ${when}. Under CASL, implied consent to email from a purchase lasts 2 years, and that window has closed by the time this message would go out, so Agent Runway won't draft an email. A phone call is the way to reconnect. Agent Runway doesn't record express email consent.`;
 }
+
+/**
+ * The refusal for a client who unsubscribed from all email (00173, set by
+ * Settings → Website leads when they stop every email from the agent's site).
+ * Checked before the CASL date rule: an opt-out wins whatever their deals say.
+ */
+export function emailOptOutReason(clientName: string, optOutAt: string): string {
+  const d = new Date(optOutAt);
+  const when = isNaN(d.getTime()) ? "" : ` on ${MONTHS[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
+  return `${clientName} unsubscribed from your emails${when}, so Agent Runway won't draft an email to them. A phone call is the way to reach them.`;
+}

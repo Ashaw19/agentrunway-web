@@ -53,6 +53,7 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { VoiceQuizModal } from "./voice-quiz-modal";
 import { DataExportCard } from "./data-export";
+import { WebsiteLeadsCard } from "./website-leads";
 import {
   SPECIALTY_OPTIONS,
   MARKET_TYPE_OPTIONS,
@@ -2691,6 +2692,9 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
         </CardContent>
       </Card>
       )}
+
+      {/* Card — Website leads (00173): the agent's own site posts into the CRM */}
+      <WebsiteLeadsCard />
 
       {/* Card 9 — Plan & Billing */}
       <PlanBillingCard settings={settings} isPro={isProProp} />

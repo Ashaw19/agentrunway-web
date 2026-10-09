@@ -120,6 +120,11 @@ describe("callReasonFor", () => {
     expect(callReasonFor("idle_client", "call")).toBe("casl_lapsed");
     expect(callReasonFor("idle_client", "email")).toBeNull();
   });
+
+  it("says they unsubscribed when they opted out of email, whatever the card", () => {
+    expect(callReasonFor("idle_client", "call", true)).toBe("opted_out");
+    expect(callReasonFor("lead_going_quiet", "call", true)).toBe("opted_out");
+  });
 });
 
 describe("callCardCopy", () => {

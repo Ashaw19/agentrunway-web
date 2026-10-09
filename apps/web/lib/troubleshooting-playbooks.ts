@@ -807,6 +807,15 @@ Flight Control also includes a newsletter builder for mass updates (market repor
 → From 2026-04-12 to 2026-10-06 every activity save failed because of a database bug, fixed 2026-10-06. If it still fails, the browser console shows the cause, logged under "[crm] contact_activities insert failed".
 4. Memory-powered cards need a current memory profile: CRM, open the client, Flight Crew tab, "What Agent Runway remembers", Build profile / Refresh. Editing the client marks the profile outdated until it is refreshed.
 
+**"How do I get leads from my website into Agent Runway?"**
+→ Settings → Website leads → Connect my website. Copy the key (it's shown once) and add it to your website's settings as AGENT_RUNWAY_INBOUND_KEY. From then on each sign-up, message and unsubscribe arrives as it happens: new people as clients tagged Website, what they did as a note on their Activity tab, and the ones worth a call on your Checklist. The card shows when the last event arrived. Making a new key replaces the old one, so the website stops sending until the new key is pasted in.
+
+**"A website sign-up didn't show up in my CRM"**
+→ Check Settings → Website leads: it should say Connected with a recent "last event". If it says Not connected or the last event is old, the website's key is missing or was replaced; make a new key and paste it into the website's settings. Someone already in your CRM with the same email isn't duplicated: look on their Activity tab for a "Website:" note.
+
+**"Why does a card say Call, don't email. They unsubscribed?"**
+→ They unsubscribed from all your website's emails, so Agent Runway won't draft an email to them anywhere (Flight Control, Flight Crew, Flight Plan templates). A note on their Activity tab shows when. If they sign up on your website again, that lifts it.
+
 **"Why does a card say Call instead of Draft Message?"**
 → The client's last deal closed more than 2 years before the message would go out. Under CASL, implied consent to email from a purchase lasts 2 years, so Flight Control suggests a call and never drafts an email for that client. Agent Runway does not record express email consent, so these cards stay call-only. This is general information about the rule, not legal advice.
 
