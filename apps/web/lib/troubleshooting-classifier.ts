@@ -319,6 +319,16 @@ const TOPIC_RULES: TopicRule[] = [
       "today's focus",
       "closing anniversary",
       "home anniversary",
+      // Clients page totals (Lifetime GCI, Total Deals, repeat rate, badges,
+      // closing-gift budget) read client_records, not transactions.
+      "lifetime gci",
+      "collapsed deal",
+      "total deals",
+      "repeat rate",
+      "gift budget",
+      "closing gift",
+      "first class badge",
+      "frequent flyer",
     ],
   },
   {

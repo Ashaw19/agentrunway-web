@@ -9,6 +9,7 @@
  * the logic is unit-testable (vitest only collects `lib/**`).
  */
 
+import { excludeCollapsedDeals } from "@agent-runway/core/types/database";
 import type { SparkPoint } from "@/lib/charts/sparkline-geometry";
 
 /** The minimal deal shape the spark reads — `ClientRecord` is assignable. */
@@ -26,8 +27,8 @@ export interface GciSparkDeal {
  */
 export function buildClientGciSpark(deals: GciSparkDeal[]): SparkPoint[] {
   const ds: { ym: string; gci: number }[] = [];
-  for (const d of deals) {
-    if (!d.close_date || d.condition_status === "collapsed") continue;
+  for (const d of excludeCollapsedDeals(deals)) {
+    if (!d.close_date) continue;
     ds.push({ ym: d.close_date.slice(0, 7), gci: d.gci ?? 0 });
   }
   if (ds.length === 0) return [];
