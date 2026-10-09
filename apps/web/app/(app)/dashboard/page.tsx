@@ -70,7 +70,7 @@ export default async function DashboardPage({
         .limit(10000),
       supabase
         .from("contact_tasks")
-        .select("*")
+        .select("*, clients(name)")
         .eq("user_id", user.id)
         .is("completed_at", null)
         .order("due_date", { ascending: true })

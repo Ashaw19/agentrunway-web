@@ -31,6 +31,7 @@ import { ACTIVITY_TYPE_LABELS, ACTIVITY_TYPE_ICONS, CLIENT_STATUS_LABELS } from 
 import { logClientContact } from "@/lib/crm/log-contact";
 import { dismissOpportunity, undismissOpportunity } from "@/lib/crm/dismissed-opportunities";
 import { markMemoryStaleClient } from "@/lib/ai/mark-memory-stale";
+import { AddToChecklistButton } from "@/components/checklist/add-to-checklist-button";
 import { useAiChat } from "@/lib/ai-chat-context";
 import { getOptimalSendTime, segmentForOutreachType } from "@/lib/engines/send-time-engine";
 import { NewsletterSection } from "./newsletter-section";
@@ -116,6 +117,8 @@ function OpportunityCard({
   onDraftMessage,
   onDismiss,
   onLogContact,
+  onChecklist,
+  onAddedToChecklist,
   draftedMessage,
   onReviewDraft,
   drafting,
@@ -125,6 +128,9 @@ function OpportunityCard({
   onDraftMessage: (opp: TopOpportunity) => void;
   onDismiss:      (opp: TopOpportunity) => void;
   onLogContact:   (opp: TopOpportunity, type: ActivityType, note: string) => Promise<boolean>;
+  /** The client already has an open Checklist item. */
+  onChecklist:    boolean;
+  onAddedToChecklist: (clientId: string) => void;
   draftedMessage: QueueItemWithClient | null;
   onReviewDraft:  (item: QueueItemWithClient) => void;
   drafting:       boolean;
@@ -302,6 +308,13 @@ function OpportunityCard({
             <CheckCircle2 className="h-3.5 w-3.5" />
             Log contact
           </Button>
+          <AddToChecklistButton
+            key={`${opportunity.client_id}:${onChecklist}`}
+            clientId={opportunity.client_id}
+            clientName={opportunity.client_name}
+            onList={onChecklist}
+            onAdded={() => onAddedToChecklist(opportunity.client_id)}
+          />
         </div>
         <div className="flex items-center gap-2">
           <Button
@@ -659,6 +672,8 @@ interface FlightControlContentProps {
   initialNewsletters:  NewsletterQueue[];
   /** Past clients whose CASL implied consent from a purchase has lapsed. */
   lapsedPastClientNames: string[];
+  /** Clients with an open Checklist item. */
+  checklistClientIds:  string[];
 }
 
 export function FlightControlContent({
@@ -668,7 +683,9 @@ export function FlightControlContent({
   initialVoiceGuide,
   initialNewsletters,
   lapsedPastClientNames,
+  checklistClientIds,
 }: FlightControlContentProps) {
+  const [onChecklist, setOnChecklist] = useState<Set<string>>(() => new Set(checklistClientIds));
   const { askQuestion } = useAiChat();
   const [activeTab, setActiveTab] = useState<Tab>("opportunities");
 
@@ -1126,6 +1143,8 @@ export function FlightControlContent({
                       onDraftMessage={handleDraftMessage}
                       onDismiss={handleDismiss}
                       onLogContact={handleLogContact}
+                      onChecklist={onChecklist.has(opp.client_id)}
+                      onAddedToChecklist={(id) => setOnChecklist((prev) => new Set([...prev, id]))}
                       draftedMessage={getDraftForOpp(opp)}
                       onReviewDraft={setReviewItem}
                       drafting={draftingFor === opp.client_id}

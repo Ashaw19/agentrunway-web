@@ -16,6 +16,7 @@ import {
   CircleUser,
   Sparkles,
   Users,
+  ListChecks,
   Share2,
   Layers,
   BarChart2,
@@ -87,6 +88,10 @@ const mobileNavEntries: MobileNavEntry[] = [
   },
   // ── CRM ────────────────────────────────────────────────────────
   { type: "header", label: "CRM" },
+  {
+    type: "item", label: "Checklist", href: "/checklist", icon: ListChecks,
+    iconActive: "text-lime-300", iconInactive: "text-lime-400/70", borderActive: "border-l-lime-400",
+  },
   {
     type: "item", label: "CRM", href: "/crm", icon: Users,
     iconActive: "text-teal-300", iconInactive: "text-teal-400/70", borderActive: "border-l-teal-400",

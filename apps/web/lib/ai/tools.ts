@@ -139,7 +139,7 @@ export const APPROVAL_DESCRIPTIONS: Record<string, (args: Record<string, unknown
   logContactActivity: (args) =>
     `Log ${args.type} with ${args.clientName}: "${String(args.description).slice(0, 80)}"`,
   createContactTask: (args) =>
-    `Create task for ${args.clientName}: "${args.title}" — due ${args.dueDate}`,
+    `Add to Checklist${args.clientName ? ` (${args.clientName})` : ""}: "${args.title}", due ${args.dueDate}`,
   // Expenses
   createRecurringExpense: (args) =>
     `Add recurring expense: ${args.vendor ?? args.description ?? "expense"} — $${args.amount}/mo`,
@@ -1073,10 +1073,10 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
 
     // ── CREATE CONTACT TASK ─────────────────────────────────────────────────
     createContactTask: tool({
-      description: "Create a follow-up task or reminder for a client. Use this when the agent says 'remind me to call X next week' or 'I need to follow up with X about Y'. Tasks appear in the CRM and can have a due date and priority.",
+      description: "Add an item to the agent's Checklist (/checklist): a follow-up with a client ('remind me to call X next week', 'I need to follow up with X about Y') or a general to-do with no client ('email the insurance broker Friday'). Items show on the Checklist page, the client's profile and the dashboard, with a due date and priority. For a client, look up clientId with searchClients first. For 'contact X' items use the title 'Contact <name>'.",
       inputSchema: z.object({
-        clientId: z.string().uuid().describe("The client UUID from searchClients"),
-        clientName: z.string().describe("Client name for confirmation message"),
+        clientId: z.string().uuid().optional().describe("The client UUID from searchClients. Omit for a general to-do."),
+        clientName: z.string().optional().describe("Client name for the confirmation message. Omit for a general to-do."),
         title: z.string().describe("Task title (e.g. 'Follow up on pre-approval', 'Send listing docs')"),
         dueDate: z.string().describe("Due date in YYYY-MM-DD format"),
         priority: z.enum(["low", "normal", "high"]).default("normal").describe("Task priority"),
@@ -1089,7 +1089,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
             .from("contact_tasks")
             .insert({
               user_id: userId,
-              client_id: clientId,
+              client_id: clientId ?? null,
               title,
               due_date: dueDate,
               priority: priority ?? "normal",
@@ -1099,7 +1099,9 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
           if (error) return `Failed to create task: ${error.message}`;
 
           const priorityLabel = priority === "high" ? " (⚡ high priority)" : priority === "low" ? " (low priority)" : "";
-          return `✓ Task created for ${clientName}: "${title}" — due ${dueDate}${priorityLabel}. You'll see this in their CRM profile at /crm.`;
+          return clientId
+            ? `✓ Added to your Checklist for ${clientName ?? "this client"}: "${title}", due ${dueDate}${priorityLabel}. It's on /checklist and their CRM profile.`
+            : `✓ Added to your Checklist: "${title}", due ${dueDate}${priorityLabel}. It's on /checklist.`;
         } catch {
           return "Failed to create task. Please try again.";
         }
@@ -1108,22 +1110,23 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
 
     // ── COMPLETE CONTACT TASK ────────────────────────────────────────────────
     completeContactTask: tool({
-      description: "Mark a contact task as completed. Use when the agent says they've done something that matches an existing task, or explicitly asks to check off a task.",
+      description: "Tick off a Checklist item (a contact task). Use when the agent says they've done something that matches an open item, or asks to check one off. If they reached a client (called, texted, emailed, met), log it on the client's profile with logContactActivity first, then call this with reachedVia set. If they tried but couldn't reach them, don't tick it off: log a note with logContactActivity and move the item with updateContactTask instead.",
       inputSchema: z.object({
         taskId: z.string().uuid().describe("The task UUID"),
         taskTitle: z.string().describe("Task title for confirmation message"),
+        reachedVia: z.enum(["call", "text", "email", "meeting"]).optional().describe("How they reached the client, when the item was a contact. Omit for anything else."),
       }),
-      execute: async ({ taskId, taskTitle }) => {
+      execute: async ({ taskId, taskTitle, reachedVia }) => {
         try {
           const { error } = await supabase
             .from("contact_tasks")
-            .update({ completed_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+            .update({ completed_at: new Date().toISOString(), completed_via: reachedVia ?? "done", updated_at: new Date().toISOString() })
             .eq("id", taskId)
             .eq("user_id", userId);
 
           if (error) return `Failed to complete task: ${error.message}`;
 
-          return `✓ Task completed: "${taskTitle}".`;
+          return `✓ Ticked off your Checklist: "${taskTitle}".`;
         } catch {
           return "Failed to complete task. Please try again.";
         }
@@ -1132,7 +1135,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
 
     // ── SEARCH CONTACT TASKS ─────────────────────────────────────────────────
     searchContactTasks: tool({
-      description: "Search for open tasks — optionally filtered by client. Use this to find task IDs before completing them, or to show the agent their upcoming to-dos.",
+      description: "Search the agent's Checklist (open contact tasks), optionally for one client. Use this to find item IDs before ticking them off, or to show the agent what's on their list.",
       inputSchema: z.object({
         clientId: z.string().uuid().optional().describe("Filter tasks for a specific client"),
         includeCompleted: z.boolean().default(false).describe("Include completed tasks (default: only open)"),

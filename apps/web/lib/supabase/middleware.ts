@@ -20,6 +20,7 @@ const PROTECTED_PREFIXES = [
   "/history",
   "/clients",
   "/crm",
+  "/checklist",
   "/forecast",
   "/expenses",
   "/mileage",

@@ -785,6 +785,12 @@ Flight Control also includes a newsletter builder for mass updates (market repor
 2. A contact with no closed deal, no birthdate and no first-contact date gives Flight Control nothing to work from. Adding birthdates or linking their deals brings them in.
 3. Anyone contacted in the last 14 days (a logged CRM activity, a "Log contact" from a Flight Control card, or a draft marked sent) is held back, so working through the list rotates new people in. Birthday and condition-date cards show regardless.
 
+**"Where's my checklist?" / "How do I tick something off and log it?"**
+→ Checklist is in the sidebar under CRM (/checklist). Tick the box next to an item. If the item has a client, a pop-up asks how it went: Save to their profile logs the call, text, email or meeting on their profile and ticks it off; Couldn't reach them notes the attempt on their profile and moves it to tomorrow; Just mark done ticks it off without logging anything. The same list shows on the client's profile (Checklist section) and the dashboard Checklist card.
+
+**"I ticked off a checklist item but the client still shows on Flight Control"**
+→ Only Save to their profile counts as contact. Just mark done and Couldn't reach them don't log contact, so Flight Control can still suggest them. Birthday and condition-date cards show regardless of recent contact.
+
 **"I logged a note but they still show as not contacted"**
 → Since 2026-10-07 a Note is an internal memo and doesn't count as contact: it doesn't change "last contacted" or "first contacted", so Flight Control, the going-quiet list and "days since contact" ignore it. Log a call, text, email, meeting or showing if you actually reached them. (The mobile quick-capture defaults to Note — pick the real type.)
 
