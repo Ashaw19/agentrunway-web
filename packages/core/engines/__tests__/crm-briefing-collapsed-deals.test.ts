@@ -293,3 +293,71 @@ describe("computeSourceFunnel: collapsed deals are not closings", () => {
     expect(row?.closedPct).toBe(50);
   });
 });
+
+describe("computeSourceFunnel: collapsed deals earned no GCI", () => {
+  it("a collapsed deal's GCI is not added to the source total", () => {
+    const client = makeClient({ id: "c1", name: "Pat Example", lead_source: "SOI" });
+    const records = [
+      makeRecord({ id: "r1", client_id: "c1", close_date: "2025-03-01", gci: 8_000 }),
+      makeRecord({
+        id: "r2",
+        client_id: "c1",
+        close_date: "2025-09-01",
+        gci: 12_000,
+        condition_status: "collapsed",
+      }),
+    ];
+
+    const row = computeSourceFunnel([client], records, []).rows.find((r) => r.source === "SOI");
+    expect(row?.totalGCI).toBe(8_000);
+    expect(row?.avgGCI).toBe(8_000);
+  });
+
+  it("a source whose only deal collapsed shows $0 and is not the highest-GCI source", () => {
+    const a = makeClient({ id: "a", name: "Client A", lead_source: "SOI" });
+    const b = makeClient({ id: "b", name: "Client B", lead_source: "Zillow" });
+    const records = [
+      makeRecord({ id: "ra", client_id: "a", close_date: "2025-03-01", gci: 5_000 }),
+      makeRecord({
+        id: "rb",
+        client_id: "b",
+        close_date: "2025-04-01",
+        gci: 50_000,
+        condition_status: "collapsed",
+      }),
+    ];
+
+    const result = computeSourceFunnel([a, b], records, []);
+    expect(result.rows.find((r) => r.source === "Zillow")?.totalGCI).toBe(0);
+    expect(result.highestGCI).toBe("SOI");
+  });
+});
+
+describe("computeSourceFunnel: an undated deal is a closed deal", () => {
+  // client_records only come from history imports; a null close_date means the
+  // source sheet had no date. It still closed, so the funnel counts it the same
+  // way the CRM's Lifetime GCI does (dashboard-integrity-champion, 2026-10-09).
+  it("a lead whose only deal has no close date is counted as closed, with its GCI", () => {
+    const client = makeClient({ id: "c1", name: "Pat Example", lead_source: "SOI" });
+    const record = { ...makeRecord({ id: "r1", client_id: "c1", close_date: "2024-01-01", gci: 7_000 }), close_date: null };
+
+    const row = computeSourceFunnel([client], [record], []).rows.find((r) => r.source === "SOI");
+    expect(row?.closed).toBe(1);
+    expect(row?.totalGCI).toBe(7_000);
+    expect(row?.avgGCI).toBe(7_000);
+  });
+
+  it("avg GCI is per closed client: every client whose GCI counts is in Closed", () => {
+    const a = makeClient({ id: "a", name: "Client A", lead_source: "SOI" });
+    const b = makeClient({ id: "b", name: "Client B", lead_source: "SOI" });
+    const records = [
+      makeRecord({ id: "a1", client_id: "a", close_date: "2024-01-01", gci: 6_000 }),
+      { ...makeRecord({ id: "b1", client_id: "b", close_date: "2024-01-01", gci: 4_000 }), close_date: null },
+    ];
+
+    const row = computeSourceFunnel([a, b], records, []).rows.find((r) => r.source === "SOI");
+    expect(row?.closed).toBe(2);
+    expect(row?.totalGCI).toBe(10_000);
+    expect(row?.avgGCI).toBe(5_000);
+  });
+});

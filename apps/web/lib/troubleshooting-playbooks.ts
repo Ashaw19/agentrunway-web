@@ -655,13 +655,16 @@ Each contact has a decayed engagement score based on recent activity history.
 5. A logged activity (call, email, text, etc.) resets the timer
 
 **"The briefing shows an anniversary, a mortgage renewal or 'past client' for a deal that fell through"** / **"Why is a renewal or anniversary reminder missing?"**
-→ The briefing ("Today's briefing" on the CRM tab, "Daily Briefing" on the dashboard, "Today's Focus" in the mobile app) reads closings from each client's Deal History. A deal set to Collapsed never closed, so it gives no closing anniversary, home anniversary or mortgage renewal reminder. A Cruising client whose only deal collapsed shows as a long-term contact, not a past client. If the client also has an older deal that did close, that one still counts: renewal reminders follow the most recent deal that closed, and a newer collapsed deal doesn't hide it. If a reminder is missing for a deal that did close, open the client's Deal History and check the deal has a close date and its condition status (next to the condition date) isn't Collapsed. The Closed column under Lead sources on the Insights tab counts the same way.
+→ The briefing ("Today's briefing" on the CRM tab, "Daily Briefing" on the dashboard, "Today's Focus" in the mobile app) reads closings from each client's Deal History. A deal set to Collapsed never closed, so it gives no closing anniversary, home anniversary or mortgage renewal reminder. A Cruising client whose only deal collapsed shows as a long-term contact, not a past client. If the client also has an older deal that did close, that one still counts: renewal reminders follow the most recent deal that closed, and a newer collapsed deal doesn't hide it. If a reminder is missing for a deal that did close, open the client's Deal History and check the deal has a close date and its condition status (next to the condition date) isn't Collapsed. The Lead sources table on the Insights tab also leaves collapsed deals out (Closed and GCI).
+
+**"My Lifetime GCI, Total Deals or repeat rate went down"** / **"Why doesn't a deal count toward a client's GCI, badges or gift budget?"**
+→ The Clients page totals count every deal in a client's Deal History except deals set to Collapsed. A collapsed deal never closed, so it adds no GCI and isn't counted as a deal. It's also left out of avg / deal, repeat rate, the client's own Lifetime GCI and Deals, top clients, concentration %, badges (High Yield, Frequent Flyer, Silver Wings, Tailwind Club, First Class), client tiers, the Lead sources table and the closing-gift budget. It stays in Deal History. If it was marked Collapsed by mistake, change its condition status back and the totals return. A deal with no close date still counts, because history imports don't always include one. It's left off only what needs a date: the last deal date, the GCI trend line on hover, and anniversaries. The dashboard's GCI comes from Transactions, not Deal History, so it isn't affected.
 
 **"Save button isn't working"**
 → The Save button commits first name, last name, and notes. Other fields (email, phone, etc.) may save differently. Ensure required fields aren't empty.
 
 **"Client tiers don't seem accurate"**
-→ Tiers recalculate based on all clients with transaction history. New clients with no deals start as Bronze. Tiers shift as deal data changes.
+→ Tiers recalculate based on all clients with transaction history. New clients with no deals start as Bronze. Tiers shift as deal data changes. Collapsed deals don't count toward a client's tier.
 
 **"How do relationships work?"**
 → Link clients together (spouse, referral source, etc.). Relationships are bidirectional. Useful for tracking referral chains.

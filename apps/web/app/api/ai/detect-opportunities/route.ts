@@ -1087,16 +1087,9 @@ export async function detectAndDraftForUser(
   }
 
   // ── 8. Seasonal campaigns (Batch 3) ───────────────────────────────────────
-  // Rank clients by lifetime GCI; limit to top SEASONAL_TOP_N
-  const clientLifetimeGCI = new Map<string, number>();
-  for (const rec of records) {
-    if (rec.client_id && rec.gci) {
-      clientLifetimeGCI.set(
-        rec.client_id,
-        (clientLifetimeGCI.get(rec.client_id) ?? 0) + (rec.gci as number),
-      );
-    }
-  }
+  // Rank clients by lifetime GCI; limit to top SEASONAL_TOP_N. Collapsed
+  // deals earned nothing (clientLifetimeGci, same as the Scan ranking).
+  const clientLifetimeGCI = clientLifetimeGci(records);
   const top25Ids = new Set(
     [...clientLifetimeGCI.entries()]
       .sort(([, a], [, b]) => b - a)
