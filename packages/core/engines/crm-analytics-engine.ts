@@ -4,13 +4,14 @@
 // speed-to-lead, and source funnel computations.
 // ============================================================================
 
-import type {
-  Client,
-  ClientRecord,
-  ContactActivity,
-  ActivityType,
-  ClientStatus,
-  ListingAppointment,
+import {
+  excludeCollapsedDeals,
+  type Client,
+  type ClientRecord,
+  type ContactActivity,
+  type ActivityType,
+  type ClientStatus,
+  type ListingAppointment,
 } from "../types/database";
 import { detectActivityDecay } from "./anomaly-engine";
 
@@ -395,11 +396,13 @@ export function computeSourceFunnel(
 
   const activeStatuses: ClientStatus[] = ["boarding", "scheduled", "in_flight"];
 
-  // A client is "closed" only if they have at least one ClientRecord with a close_date.
-  // Using status === "cruising" was wrong: auto-imported sphere contacts land in Cruising
-  // without ever transacting, inflating close rates per source.
+  // A client is "closed" only if they have at least one ClientRecord with a close_date
+  // that didn't collapse. Using status === "cruising" was wrong: auto-imported sphere
+  // contacts land in Cruising without ever transacting, inflating close rates per source.
   const closedClientIds = new Set(
-    records.filter((r) => r.client_id && r.close_date).map((r) => r.client_id as string),
+    excludeCollapsedDeals(records)
+      .filter((r) => r.client_id && r.close_date)
+      .map((r) => r.client_id as string),
   );
 
   // GCI by client
@@ -495,8 +498,11 @@ export function computeIntelligenceBriefing(
   }
 
   // ── Pre-compute closing dates by client (for anniversary detection) ────────
+  // Collapsed deals are skipped: they never closed, so they must not produce
+  // anniversaries, renewals, milestones or "past client", nor become the
+  // "most recent close" that hides an older real one from the renewal rule.
   const closeDatesByClient = new Map<string, Date[]>();
-  for (const r of records) {
+  for (const r of excludeCollapsedDeals(records)) {
     if (r.client_id && r.close_date) {
       if (!closeDatesByClient.has(r.client_id)) closeDatesByClient.set(r.client_id, []);
       closeDatesByClient.get(r.client_id)!.push(new Date(r.close_date + "T12:00:00"));

@@ -53,6 +53,7 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { useTranslation } from "react-i18next";
 import { validateSalePrice, validateCommissionPct, parsePercent, parseDollar } from "@agent-runway/core/validation/input-guards";
 import { PIPELINE_STAGE_DEFAULTS } from "@agent-runway/core/types/database";
+import { localISODate } from "@agent-runway/core/lib/local-date";
 
 type Tab = "pipeline" | "closed" | "pending";
 
@@ -1318,7 +1319,7 @@ function AddTransactionModal({
       status: "closed",
       client_name: null,
       notes: null,
-      date: new Date().toISOString().split("T")[0],
+      date: localISODate(),
     });
     setSaving(false);
     if (ok) {

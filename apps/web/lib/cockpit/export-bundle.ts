@@ -16,6 +16,7 @@
 
 import JSZip from "jszip";
 import { SupabaseClient } from "@supabase/supabase-js";
+import { atlanticISODate } from "@agent-runway/core/lib/local-date";
 
 // ── CSV helpers (mirrors lib/data-export.ts — no shared export to avoid
 //    coupling the cockpit lib to the customer-facing export) ──────────────────
@@ -81,7 +82,7 @@ export async function buildExportBundle(
   let resolutionCount = 0;
   let sredCount = 0;
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = atlanticISODate();
   const filenameBase = `AR-Inc-FY${year}-export-${today}`;
 
   // ── 1. Reporting views → reports/ ──────────────────────────────────────────

@@ -27,9 +27,18 @@ import { POST_CLOSE_OPPORTUNITY_CONFIGS as POST_CLOSE_CONFIGS } from "@agent-run
 import type { SupabaseClient }    from "@supabase/supabase-js";
 import type { ClientMemoryFacts } from "@/lib/ai/client-memory-engine";
 import { contactableRecords, excludeCollapsedDeals } from "@/lib/crm/contactable-records";
-import { lastClosedDealByClient, outreachChannel } from "@/lib/crm/outreach-consent";
+import { lastClosedDealByClient, outreachChannel, withCoBuyerDeals } from "@/lib/crm/outreach-consent";
 import { recentlyContactedClientIds, outreachSuppressionCutoff } from "@/lib/crm/recently-contacted";
 import { selectTopCandidates, clientLifetimeGci } from "@/lib/crm/top-opportunity-selection";
+import { withoutDismissed } from "@/lib/crm/dismissed-opportunities";
+import {
+  quietLeadCandidates,
+  sphereCandidates,
+  scanCallCardScore,
+  callReasonFor,
+  callCardCopy,
+  CALL_FIRST_TYPES,
+} from "@/lib/crm/scan-call-cards";
 import {
   type Tone,
   AGENT_RUNWAY_VOICE,
@@ -127,7 +136,7 @@ const STRONG_TIMING_TYPES = new Set([
   "birthday", "closing_anniversary", "post_close_3", "post_close_14",
   "post_close_90", "mortgage_renewal_due", "timeframe_approaching",
   "property_value_milestone", "new_client_welcome", "condition_firming",
-  "scheduled_date_approaching",
+  "scheduled_date_approaching", "lead_going_quiet",
 ]);
 
 /** Types that are relationship-maintenance (weaker signal, need support from data). */
@@ -822,7 +831,7 @@ export async function detectAndDraftForUser(
 ): Promise<{ detected: number; drafted: number; pinned: boolean }> {
   const { pin } = opts;
   // ── Fetch data ─────────────────────────────────────────────────────────────
-  const [settingsRes, clientsRes, recordsRes, memoryRes, sentRes] = await Promise.all([
+  const [settingsRes, clientsRes, recordsRes, memoryRes, sentRes, coPartiesRes, dismissedRes] = await Promise.all([
     supabase
       .from("user_settings")
       .select("display_name, email_signature, ai_voice_guide")
@@ -854,6 +863,17 @@ export async function detectAndDraftForUser(
       .eq("user_id", userId)
       .eq("status", "sent")
       .gte("sent_at", outreachSuppressionCutoff().toISOString()),
+    // Co-buyers on a couple's deal (#257): the CASL gate credits them the
+    // deal the other spouse holds. See withCoBuyerDeals.
+    supabase
+      .from("client_record_co_parties")
+      .select("client_record_id, co_client_id")
+      .eq("user_id", userId),
+    // Occurrences the agent dismissed in Flight Control — lib/crm/dismissed-opportunities.ts
+    supabase
+      .from("flight_control_dismissals")
+      .select("client_id, opportunity_type, trigger_date")
+      .eq("user_id", userId),
   ]);
 
   const agentFirst      = extractFirstName(settingsRes.data?.display_name ?? null, "");
@@ -1231,11 +1251,24 @@ export async function detectAndDraftForUser(
     }
   }
 
+  // ── Dismissed in Flight Control: never draft them ─────────────────────────
+  const notDismissed = withoutDismissed(
+    inserts as { client_id: string; opportunity_type: string; trigger_date: string }[],
+    dismissedRes.data ?? [],
+  );
+  inserts.length = 0;
+  inserts.push(...notDismissed);
+
   // ── CASL gate: no email drafts once implied consent has lapsed ────────────
   // A past client whose last deal closed two or more years before the send
   // date shows in Scan as a call card and is never drafted as an email. Same
   // helper as getTopOpportunities — see lib/crm/outreach-consent.ts.
-  const lastCloseByClient = lastClosedDealByClient(records);
+  // Built from the unfiltered deal rows plus co-buyers: a co-buyer's shared
+  // deal still counts when the spouse holding it is archived.
+  if (coPartiesRes.error) console.error("[detect-opportunities] co-party fetch failed:", coPartiesRes.error.message);
+  const lastCloseByClient = lastClosedDealByClient(
+    withCoBuyerDeals(recordsRes.data ?? [], coPartiesRes.data ?? []),
+  );
   const emailable = inserts.filter((ins) => {
     const i = ins as { client_id: string; trigger_date: string };
     return outreachChannel(lastCloseByClient.get(i.client_id), i.trigger_date) === "email";
@@ -2176,10 +2209,10 @@ export async function getTopOpportunities(
   supabase: SupabaseClient,
 ): Promise<TopOpportunity[]> {
   // ── Fetch data (same as detectAndDraftForUser) ─────────────────────────────
-  const [clientsRes, recordsRes, memoryRes, sentRes] = await Promise.all([
+  const [clientsRes, recordsRes, memoryRes, sentRes, coPartiesRes, dismissedRes] = await Promise.all([
     supabase
       .from("clients")
-      .select("id, name, city, province_region, birthdate, communication_tone, first_contacted_at, last_contact_at, tags, notes, status, scheduled_for, scheduled_phrase")
+      .select("id, name, city, province_region, birthdate, communication_tone, first_contacted_at, last_contact_at, created_at, tags, notes, status, scheduled_for, scheduled_phrase")
       .eq("user_id", userId)
       .is("archived_at", null),
     supabase
@@ -2198,6 +2231,17 @@ export async function getTopOpportunities(
       .eq("user_id", userId)
       .eq("status", "sent")
       .gte("sent_at", outreachSuppressionCutoff().toISOString()),
+    // Co-buyers on a couple's deal (#257): the CASL gate credits them the
+    // deal the other spouse holds. See withCoBuyerDeals.
+    supabase
+      .from("client_record_co_parties")
+      .select("client_record_id, co_client_id")
+      .eq("user_id", userId),
+    // Occurrences the agent dismissed in Flight Control — lib/crm/dismissed-opportunities.ts
+    supabase
+      .from("flight_control_dismissals")
+      .select("client_id, opportunity_type, trigger_date")
+      .eq("user_id", userId),
   ]);
 
   // A failed clients fetch would otherwise read as "no clients" and render
@@ -2438,6 +2482,19 @@ export async function getTopOpportunities(
     }
   }
 
+  // CASL channel + "has ever bought" — same inputs as the write path
+  // (unfiltered deals + co-buyers).
+  if (coPartiesRes.error) console.error("[detect-opportunities] co-party fetch failed:", coPartiesRes.error.message);
+  const lastCloseByClient = lastClosedDealByClient(
+    withCoBuyerDeals(recordsRes.data ?? [], coPartiesRes.data ?? []),
+  );
+
+  // Call cards (2026-10-07): active leads going quiet, and a capped sphere
+  // rotation for contacts Scan otherwise can't see. Scan-only, call-first;
+  // see lib/crm/scan-call-cards.ts.
+  inserts.push(...quietLeadCandidates(clients, recentlyContactedIds));
+  inserts.push(...sphereCandidates(clients, new Set(lastCloseByClient.keys()), recentlyContactedIds));
+
   // ── Score + filter ──────────────────────────────────────────────────────────
   for (const insert of inserts) {
     const ins = insert as { client_id: string; opportunity_type: string; context: Record<string, unknown> };
@@ -2449,18 +2506,22 @@ export async function getTopOpportunities(
     const clientData = _clientMap.get(ins.client_id);
     const clientTags = (clientData?.tags as string[] | null) ?? [];
     const clientNotes = (clientData?.notes as string | null) ?? null;
-    const score = scoreCandidate(ins.opportunity_type, facts, ins.context, clientTags, clientNotes);
+    const score = scanCallCardScore(ins.opportunity_type, ins.context)
+      ?? scoreCandidate(ins.opportunity_type, facts, ins.context, clientTags, clientNotes);
     ins.context = { ...ins.context, outreach_score: score };
   }
 
   // Strong signals first, then backfill (idle past clients, milestones) —
   // one card per client, lifetime GCI breaks ties. See
   // lib/crm/top-opportunity-selection.ts for why a hard 55 cutoff starved Scan.
+  // Dismissed occurrences drop out first, so their slots backfill.
   const topCandidates = selectTopCandidates(
-    inserts as { client_id: string; opportunity_type: string; trigger_date: string; context: Record<string, unknown> }[],
+    withoutDismissed(
+      inserts as { client_id: string; opportunity_type: string; trigger_date: string; context: Record<string, unknown> }[],
+      dismissedRes.data ?? [],
+    ),
     clientLifetimeGci(records),
   );
-  const lastCloseByClient = lastClosedDealByClient(records);
 
   // ── Compute portfolio-level stats for financial impact reasoning ──────────
   const allGcis = records
@@ -2509,6 +2570,10 @@ export async function getTopOpportunities(
     const clientTags = (client?.tags as string[] | null) ?? [];
     const clientNotes = (client?.notes as string | null) ?? null;
     const contextLevel = classifyClientContext(clientTags, clientNotes, typed.context);
+    const callCopy = callCardCopy(typed.opportunity_type, typed.context);
+    const channel: "email" | "call" = CALL_FIRST_TYPES.has(typed.opportunity_type)
+      ? "call"
+      : outreachChannel(lastCloseByClient.get(typed.client_id), typed.trigger_date);
 
     return {
       client_id:        typed.client_id,
@@ -2517,15 +2582,16 @@ export async function getTopOpportunities(
       opportunity_type: typed.opportunity_type as TopOpportunity["opportunity_type"],
       trigger_date:     typed.trigger_date,
       score:            (typed.context.outreach_score as number) ?? 0,
-      label:            buildTopLabel(typed.opportunity_type, typed.context, client?.city ?? null),
-      why_this_matters: buildWhyThisMatters(typed.opportunity_type, typed.context, facts),
-      why_now:          buildWhyNow(typed.opportunity_type, typed.context, typed.trigger_date),
-      suggested_angle:  suggestAngle(typed.opportunity_type, facts, typed.context),
+      label:            callCopy?.label ?? buildTopLabel(typed.opportunity_type, typed.context, client?.city ?? null),
+      why_this_matters: callCopy?.whyThisMatters ?? buildWhyThisMatters(typed.opportunity_type, typed.context, facts),
+      why_now:          callCopy?.whyNow ?? buildWhyNow(typed.opportunity_type, typed.context, typed.trigger_date),
+      suggested_angle:  callCopy?.angle ?? suggestAngle(typed.opportunity_type, facts, typed.context),
       context_level:    contextLevel,
-      contact_channel:  outreachChannel(lastCloseByClient.get(typed.client_id), typed.trigger_date),
+      contact_channel:  channel,
+      call_reason:      callReasonFor(typed.opportunity_type, channel),
       client_record_id: typed.client_record_id ?? null,
       context:          typed.context,
-      financial_impact: buildFinancialImpact(
+      financial_impact: callCopy?.impact ?? buildFinancialImpact(
         typed.opportunity_type,
         typed.context,
         facts,
@@ -2589,7 +2655,8 @@ export async function getTopOpportunities(
 
     const primary = results[primaryIdx];
     primary.is_primary = true;
-    primary.primary_reason = buildPrimaryReason(
+    const primaryCallCopy = callCardCopy(primary.opportunity_type, primary.context);
+    primary.primary_reason = primaryCallCopy?.primaryReason ?? buildPrimaryReason(
       primary.opportunity_type,
       primary.context,
       primary.trigger_date,
@@ -2599,7 +2666,7 @@ export async function getTopOpportunities(
       { activeClients, pipelineLight },
       agentState,
     );
-    primary.risk_if_ignored = buildRiskIfIgnored(
+    primary.risk_if_ignored = primaryCallCopy?.risk ?? buildRiskIfIgnored(
       primary.opportunity_type,
       primary.context,
       primary.trigger_date,

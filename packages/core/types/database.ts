@@ -701,7 +701,10 @@ export type OutreachOpportunityType =
   | "mortgage_renewal_finance"  // Mortgage context surfaced in memory + finance-relevant timing
   | "educational_value_inactive"// Idle client + known topic of interest — value-add touchpoint
   | "condition_firming"         // Pipeline deal moving from conditional to firm
-  | "scheduled_date_approaching"; // Client in Scheduled stage, future-intent date approaching (within 30d)
+  | "scheduled_date_approaching" // Client in Scheduled stage, future-intent date approaching (within 30d)
+  // Scan call cards (2026-10-07) — Scan-only, call-first, never drafted as email
+  | "lead_going_quiet"          // Boarding / In-Flight, 14+ days since last contact
+  | "sphere_check_in";          // Cruising, no deal ever, 90+ days since contact (max 2 per scan)
 export type OutreachStatus          = "draft" | "ready" | "sent" | "skipped";
 
 export interface OutreachQueueItem {
@@ -741,8 +744,10 @@ export interface TopOpportunity {
   why_now:           string;           // timing justification
   suggested_angle:   string;           // practical approach recommendation
   context_level:     "sensitive" | "sparse" | "rich";
-  /** "call" when CASL implied consent from the client's last deal has lapsed — no email draft. */
+  /** "call" = no email draft for this card; `call_reason` says why. */
   contact_channel:   "email" | "call";
+  /** Why a call card is call-only: CASL lapsed, a personal check-in on an active client, or a sphere contact. */
+  call_reason?:      "casl_lapsed" | "personal_check_in" | "sphere" | null;
   client_record_id:  string | null;
   context:           Record<string, unknown>; // pass-through for optional drafting
   financial_impact:  string;                  // 1-2 sentence business impact explanation
@@ -1069,9 +1074,14 @@ export interface ContactTask {
   priority:     TaskPriority;
   notes:        string | null;
   completed_at: string | null;  // null = pending
+  /** How it was done (00172): a contact method (also logged on the client) or "done". */
+  completed_via?: ChecklistCompletedVia | null;
   created_at:   string;
   updated_at:   string;
 }
+
+/** contact_tasks.completed_via (00172). */
+export type ChecklistCompletedVia = "call" | "text" | "email" | "meeting" | "done";
 
 export interface ClientNote {
   id:         string;
@@ -1513,6 +1523,20 @@ export function isActivePipelineDeal<T extends { stage: string }>(deal: T): bool
  */
 export function activePipelineDeals<T extends { stage: string }>(deals: readonly T[]): T[] {
   return deals.filter(isActivePipelineDeal);
+}
+
+/**
+ * Drop collapsed client_records deals. A collapsed deal never closed (nobody
+ * moved in, nothing sold), yet it can still carry a close_date: the date it
+ * was due to close. So `close_date` alone does not mean "closed". Anything
+ * that reads a closing (anniversaries, mortgage renewal, home-value
+ * milestones, "past client", closed counts) filters through this first.
+ * The fetch must select `condition_status`, or this is a no-op.
+ */
+export function excludeCollapsedDeals<T extends { condition_status?: string | null }>(
+  deals: readonly T[],
+): T[] {
+  return deals.filter((d) => d.condition_status !== "collapsed");
 }
 
 /** Get agent percentage from split preset */

@@ -70,6 +70,7 @@ import { GuideLink } from "@/components/guide-link";
 import { ScenariosContent } from "@/app/(app)/scenarios/scenarios-content";
 import type { ScenarioSeedData } from "@/app/(app)/scenarios/page";
 import { SlidersHorizontal } from "lucide-react";
+import { localISODate } from "@agent-runway/core/lib/local-date";
 
 // ── Tax Savings — icon map ─────────────────────────────────────────────────
 
@@ -641,7 +642,7 @@ export function OverheadContent({
         deals: transactions.map((tx) => ({ date: tx.date, gci: computeGCI(tx) })),
         windowStart: `${now.getFullYear()}-01-01`,
         windowEnd: `${now.getFullYear() + 1}-01-01`,
-        asOf: now.toISOString().slice(0, 10),
+        asOf: localISODate(now),
       })
     : null;
   const ytdAgentGross = ytdPlan?.shareBeforePlanFees ?? ytdGCI;
@@ -654,7 +655,7 @@ export function OverheadContent({
     if (!settings) return projectedGCI;
     const { grossAfterPlan } = computePlanGross(settings, projectedGCI, {
       dealCount: projectedDealCount,
-      asOf: now.toISOString().slice(0, 10),
+      asOf: localISODate(now),
     });
     const brokerageFeeAnnual = settings.monthly_brokerage_fee * 12;
     return grossAfterPlan - brokerageFeeAnnual;

@@ -67,6 +67,12 @@ import {
   computeAgentGoalsCompleted,
 } from "@agent-runway/core/agent-goals";
 import { cn } from "@/lib/utils";
+import {
+  type IncomeGoalRow,
+  incomeGoalCurrentYear,
+  goalYearOptions,
+  saveIncomeGoal,
+} from "@/lib/income-goals";
 
 type GoogleConnection = {
   id: string;
@@ -96,6 +102,8 @@ interface Props {
   plaidConfigured?: boolean;
   googleConnection?: GoogleConnection;
   emailConnections?: EmailConnection[];
+  /** income_goals rows (00169): one GCI goal per calendar year. */
+  incomeGoals?: IncomeGoalRow[];
   isPro?: boolean;
 }
 
@@ -118,7 +126,7 @@ function useSaved() {
   return { saved, flash };
 }
 
-export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], plaidConfigured = false, googleConnection = null, emailConnections: initialEmailConnections = [], isPro: isProProp = false }: Props) {
+export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], plaidConfigured = false, googleConnection = null, emailConnections: initialEmailConnections = [], incomeGoals: initialIncomeGoals = [], isPro: isProProp = false }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const supabase = useMemo(() => createClient(), []);
@@ -522,10 +530,25 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
   const [savingRunway, setSavingRunway] = useState(false);
   const runwaySaved = useSaved();
 
-  // ── Section 5: Annual Goal ───────────────────────────────────────────────
-  const [goalGCI, setGoalGCI] = useState(String(settings.goal_gci ?? 0));
+  // ── Section 5: Annual Goal (per calendar year, income_goals 00169) ───────
+  // The goal for each year is its own row; this year's drives every pace /
+  // projection surface via user_settings.goal_gci, which the DB keeps in sync.
+  const goalCurrentYear = incomeGoalCurrentYear();
+  const [incomeGoals, setIncomeGoals] = useState<IncomeGoalRow[]>(initialIncomeGoals);
+  const [goalYear, setGoalYear] = useState<number>(goalCurrentYear);
+  const goalRowFor = (year: number) => incomeGoals.find((r) => r.year === year);
+  const [goalGCI, setGoalGCI] = useState(() => {
+    const row = initialIncomeGoals.find((r) => r.year === goalCurrentYear);
+    return row ? String(Number(row.goal_gci)) : "";
+  });
   const [savingGoal, setSavingGoal] = useState(false);
   const goalSaved = useSaved();
+
+  function selectGoalYear(year: number) {
+    setGoalYear(year);
+    const row = goalRowFor(year);
+    setGoalGCI(row ? String(Number(row.goal_gci)) : "");
+  }
 
   // ── Section 7: Claiming (Home Office + Vehicle) ──────────────────────────
   const [vehiclePct, setVehiclePct] = useState<string>(
@@ -763,15 +786,24 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
   }
 
   async function saveGoal() {
+    const amount = goalGCI.trim() === "" ? 0 : Number(goalGCI);
+    if (!Number.isFinite(amount) || amount < 0) {
+      toast.error("Enter a goal of $0 or more.");
+      return;
+    }
     setSavingGoal(true);
-    const { error } = await supabase
-      .from("user_settings")
-      .update({ goal_gci: parseFloat(goalGCI) || 0 })
-      .eq("user_id", settings.user_id);
+    const { ok } = await saveIncomeGoal(supabase, settings.user_id, goalYear, amount);
     setSavingGoal(false);
-    if (error) { toast.error("Failed to save annual goal — please try again."); return; }
+    if (!ok) { toast.error("Failed to save the goal — please try again."); return; }
+    setIncomeGoals((prev) => [
+      ...prev.filter((r) => r.year !== goalYear),
+      { year: goalYear, goal_gci: amount },
+    ].sort((a, b) => a.year - b.year));
+    setGoalGCI(String(amount));
     goalSaved.flash();
-    toast.success("Annual goal updated ✓");
+    toast.success(amount > 0
+      ? `${goalYear} goal set to $${amount.toLocaleString("en-CA")} ✓`
+      : `${goalYear} set to no goal ✓`);
   }
 
   async function saveRunway() {
@@ -1798,27 +1830,61 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
         </CardContent>
       </Card>
 
-      {/* Card 5 — Annual Goal */}
+      {/* Card 5 — Annual Goal (per calendar year) */}
       <Card className="rounded-xl border-l-4 border-l-orange-500 shadow-sm">
         <CardHeader>
           <CardTitle>Annual Goal</CardTitle>
           <CardDescription>
-            Your target GCI for the year — drives pace tracking and dashboard forecasts.
+            Your target GCI for a calendar year. This year&apos;s goal drives pace tracking, goal progress and
+            dashboard forecasts; a goal for next year takes over on January 1.
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4">
-          <div className="grid gap-1.5 max-w-xs">
-            <Label>Annual GCI Target ($)</Label>
-            <Input
-              type="number"
-              placeholder="e.g. 100000"
-              value={goalGCI}
-              onChange={(e) => setGoalGCI(e.target.value)}
-            />
-            <p className="text-xs text-muted-foreground">
-              Used for pace scoring, goal progress, and projection benchmarks.
-            </p>
+          <div className="grid gap-4 sm:grid-cols-2 max-w-md">
+            <div className="grid gap-1.5">
+              <Label>Calendar year</Label>
+              <Select value={String(goalYear)} onValueChange={(v) => selectGoalYear(Number(v))}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {goalYearOptions(goalCurrentYear, incomeGoals).map((y) => (
+                    <SelectItem key={y} value={String(y)}>
+                      {y}{y === goalCurrentYear ? " (this year)" : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-1.5">
+              <Label>GCI target ($)</Label>
+              <Input
+                type="number"
+                min={0}
+                inputMode="numeric"
+                placeholder={goalRowFor(goalYear) ? "e.g. 100000" : "No goal set (e.g. 100000)"}
+                value={goalGCI}
+                onChange={(e) => setGoalGCI(e.target.value)}
+              />
+            </div>
           </div>
+          <p className="text-xs text-muted-foreground">
+            Each year&apos;s goal is separate. A year you haven&apos;t set has no goal; set 0 to mark a year as no goal on purpose.
+          </p>
+          {incomeGoals.some((r) => r.year >= goalCurrentYear) && (
+            <ul className="grid gap-1 text-sm">
+              {incomeGoals.filter((r) => r.year >= goalCurrentYear).map((r) => (
+                <li key={r.year} className="flex items-center gap-2">
+                  <span className="w-24 text-muted-foreground">
+                    {r.year}{r.year === goalCurrentYear ? " (this year)" : ""}
+                  </span>
+                  <span className="font-medium tabular-nums">
+                    {Number(r.goal_gci) > 0 ? `$${Number(r.goal_gci).toLocaleString("en-CA")}` : "No goal"}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
           <SaveRow
             saving={savingGoal}
             saved={goalSaved.saved}

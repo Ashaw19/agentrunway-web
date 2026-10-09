@@ -21,6 +21,9 @@ import { requirePro } from "@/lib/require-pro";
 import { computeGCI, computeWeightedGCI, activePipelineDeals } from "@/lib/types/database";
 import { computePlanGross, describeSplit } from "@/lib/engines/real-compensation-engine";
 import { fmtCurrency } from "@/lib/formatters";
+import { describeIncomeGoals, incomeGoalCurrentYear, goalForYear, hasGoalRow } from "@/lib/income-goals";
+import { pipelineLinedUpForYear } from "@agent-runway/core/engines/year-plan-engine";
+import { atlanticISODate } from "@agent-runway/core/lib/local-date";
 import {
   seasonalFractionElapsed,
   paceVsGoalPercent,
@@ -272,12 +275,12 @@ export async function POST(req: NextRequest) {
   let financialContext = "No user data available.";
   try {
     const currentYear = new Date().getFullYear();
-    const todayISO = new Date().toISOString().split("T")[0];
+    const todayISO = atlanticISODate();
     const ytdStart = `${new Date().getFullYear()}-01-01`;
     const settled = await Promise.allSettled([
         supabase.from("user_settings").select("*").eq("user_id", user.id).maybeSingle(),                                                                  // 0
         supabase.from("transactions").select("date, sale_price, commission_pct, team_split_pct, gci_override").eq("user_id", user.id).eq("status", "closed"), // 1
-        supabase.from("pipeline_deals").select("estimated_price, estimated_commission_pct, probability_override, stage").eq("user_id", user.id),       // 2
+        supabase.from("pipeline_deals").select("estimated_price, estimated_commission_pct, probability_override, stage, expected_close_date").eq("user_id", user.id), // 2
         supabase.from("expense_categories").select("key, expense_items(key, ytd_amount, monthly_recurring)").eq("user_id", user.id),                   // 3
         supabase.from("clients").select("id", { count: "exact", head: true }).eq("user_id", user.id).is("archived_at", null).in("status", ["boarding", "in_flight"]).lt("last_contact_at", new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()), // 4
         supabase.from("clients").select("id", { count: "exact", head: true }).eq("user_id", user.id).is("archived_at", null).in("status", ["boarding", "in_flight"]).lt("last_contact_at", new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString()), // 5
@@ -293,6 +296,7 @@ export async function POST(req: NextRequest) {
         supabase.from("t2125_cca_assets").select("description, cca_class, original_cost, opening_ucc").eq("user_id", user.id),                            // 14: CCA assets
         supabase.from("listing_appointments").select("id, property_address, status, appointment_date, client_id, estimated_list_price, estimated_commission_pct").eq("user_id", user.id).in("status", ["scheduled", "active"]).order("appointment_date", { ascending: true }).limit(10000), // 15: active listing appointments — feeds BOTH the display context (top rows) AND listing-weighted GCI for the projection (must match dashboard: no row cap, same status filter). limit 10000 mirrors dashboard/page.tsx.
         supabase.from("property_showings").select("id, property_address, showing_date, client_id, client_rating").eq("user_id", user.id).gte("showing_date", new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]).order("showing_date", { ascending: false }).limit(10), // 16: recent property showings
+        supabase.from("income_goals").select("year, goal_gci").eq("user_id", user.id),                                                     // 17: income goal per calendar year (00169)
       ]);
     // Safely extract results — individual query failures won't kill the entire chat
     const val = <T,>(r: PromiseSettledResult<T>, fallback: T): T =>
@@ -316,6 +320,7 @@ export async function POST(req: NextRequest) {
     const { data: ccaRows } = val(settled[14], emptyResult);
     const { data: listingApptRows } = val(settled[15], emptyResult);
     const { data: showingRows } = val(settled[16], emptyResult);
+    const { data: incomeGoalRows } = val(settled[17], emptyResult);
     const recurringExps = (recurringExpRows ?? []) as RecurringExpense[];
     const recurringExpMonthly = totalRecurringMonthly(recurringExps);
     const recurringExpYTDTotal = totalRecurringYTD(recurringExps);
@@ -396,7 +401,16 @@ export async function POST(req: NextRequest) {
         settings.monthly_brokerage_fee > 0 ? `Monthly Brokerage Fee: ${fmtCurrency(settings.monthly_brokerage_fee)}` : null,
         settings.tx_fee_rate_pct > 0 ? `Transaction Fee Rate: ${(settings.tx_fee_rate_pct * 100).toFixed(1)}%${settings.tx_fee_annual_cap > 0 ? ` (cap: ${fmtCurrency(settings.tx_fee_annual_cap)}/yr)` : ""}` : null,
         `Cash Reserve: ${fmtCurrency(settings.cash_reserve ?? 0)}`,
-        settings.goal_gci > 0 ? `Annual GCI Goal: ${fmtCurrency(settings.goal_gci)}` : "Annual GCI Goal: Not set",
+        settings.goal_gci > 0 ? `Annual GCI Goal (${incomeGoalCurrentYear()}): ${fmtCurrency(settings.goal_gci)}` : `Annual GCI Goal (${incomeGoalCurrentYear()}): Not set`,
+        // Goals are per calendar year (Settings → Annual Goal); future years included.
+        describeIncomeGoals(incomeGoalRows ?? [], incomeGoalCurrentYear()),
+        // Dashboard "next year plan" view (year-plan-engine): what's already lined up.
+        (() => {
+          const ny = incomeGoalCurrentYear() + 1;
+          const lined = pipelineLinedUpForYear(pipeline ?? [], ny);
+          const goal = hasGoalRow(incomeGoalRows ?? [], ny) ? goalForYear(incomeGoalRows ?? [], ny) : null;
+          return `Next-year plan (${ny}): goal ${goal == null ? "not set" : goal > 0 ? fmtCurrency(goal) : "none ($0)"}; ${fmtCurrency(lined.weightedGCI)} probability-weighted GCI already lined up from ${lined.dealCount} active deal(s) expected to close in ${ny}${lined.undatedCount > 0 ? ` (${lined.undatedCount} active deal(s) have no expected close date)` : ""}`;
+        })(),
         settings.experience_years != null ? `Years of Experience: ${settings.experience_years}` : null,
         expensesYTD > 0 ? `YTD Business Expenses: ${fmtCurrency(expensesYTD)}` : null,
         monthlyRecurring > 0 ? `Monthly Recurring Expenses: ${fmtCurrency(monthlyRecurring)}` : null,
@@ -408,7 +422,7 @@ export async function POST(req: NextRequest) {
           if (tasks.length === 0) return null;
           const overdue = tasks.filter(t => t.due_date < todayISO).length;
           const upcoming = tasks.slice(0, 3).map(t => `"${t.title}" (due ${t.due_date}${t.priority === "high" ? " ⚡" : ""})`).join(", ");
-          return `Open Tasks: ${tasks.length} open${overdue > 0 ? ` (${overdue} overdue)` : ""}. Next: ${upcoming}`;
+          return `Checklist (/checklist, open items): ${tasks.length} open${overdue > 0 ? ` (${overdue} overdue)` : ""}. Next: ${upcoming}`;
         })(),
         (() => {
           const items = (outreachRows ?? []) as { status: string }[];
@@ -624,7 +638,7 @@ export async function POST(req: NextRequest) {
           deals: ytdTx.map((tx: any) => ({ date: tx.date, gci: computeGCI(tx) })),
           windowStart: `${now.getFullYear()}-01-01`,
           windowEnd: `${now.getFullYear() + 1}-01-01`,
-          asOf: now.toISOString().slice(0, 10),
+          asOf: atlanticISODate(now),
         });
         const cpBrokerageFees = (settings.monthly_brokerage_fee ?? 0) * (now.getMonth() + 1);
         const cpYtdAgentNet = Math.max(0, cpGrossAfterPlan - cpBrokerageFees);

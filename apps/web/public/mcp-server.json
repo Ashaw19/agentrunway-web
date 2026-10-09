@@ -2,8 +2,8 @@
   "schema_version": "1.0",
   "server_name": "Agent Runway",
   "server_version": "1.0.0",
-  "display_name": "Agent Runway — Canadian Real Estate Analytics",
-  "description": "Connect your AI assistant to your Agent Runway real estate business data. Query transactions, pipeline deals, CRM clients, expenses, mileage, tax estimates, forecasts, and more — all through natural language.",
+  "display_name": "Agent Runway: Canadian Real Estate Analytics",
+  "description": "Connect your AI assistant to your Agent Runway real estate business data. 17 read tools cover transactions, pipeline deals, CRM clients, expenses, mileage, tax estimates and forecasts. 4 write tools create and update pipeline opportunities.",
   "homepage": "https://agentrunway.ca",
   "documentation_url": "https://agentrunway.ca/mcp",
   "logo_url": "https://agentrunway.ca/logo.png",
@@ -13,70 +13,121 @@
   },
   "authentication": {
     "type": "bearer",
-    "description": "Supabase JWT access token from an Agent Runway Pro account."
+    "description": "The Supabase access token (JWT) from a signed-in Agent Runway session on an account with Pro access, sent as 'Authorization: Bearer <token>'. It expires after about an hour. There are no API keys, and OAuth is not available."
   },
   "categories": ["real-estate", "analytics", "crm", "finance", "canadian-tax"],
   "tags": ["real-estate", "canada", "gci", "pipeline", "crm", "expenses", "tax", "mileage", "forecast"],
+  "tool_counts": {
+    "total": 21,
+    "read_only": 17,
+    "write": 4
+  },
   "tools": [
     {
       "name": "get_server_info",
-      "description": "Returns MCP server version and available tools list."
+      "description": "Returns MCP server version and available tools list.",
+      "read_only": true
     },
     {
       "name": "get_dashboard_kpis",
-      "description": "YTD GCI, transactions, expenses, pipeline value, goal progress."
+      "description": "YTD GCI, transactions, expenses, pipeline value, goal progress.",
+      "read_only": true
     },
     {
       "name": "get_runway_score",
-      "description": "0-100 composite business health grade (A+ to F)."
+      "description": "0-100 composite business health grade (A+ to F).",
+      "read_only": true
     },
     {
       "name": "get_forecast",
-      "description": "Projected year-end GCI based on pace + pipeline."
+      "description": "Projected year-end GCI based on pace and pipeline.",
+      "read_only": true
     },
     {
       "name": "get_tax_estimate",
-      "description": "Canadian income tax estimate with CPP, federal/provincial tax, quarterly installments."
+      "description": "Canadian income tax estimate with CPP, federal/provincial tax, quarterly instalments.",
+      "read_only": true
+    },
+    {
+      "name": "get_hst_status",
+      "description": "GST/HST estimate for the current year: collected, ITCs, net owing, next filing deadline.",
+      "read_only": true
     },
     {
       "name": "get_transactions",
-      "description": "Closed transactions with address, sale price, GCI, side, date."
+      "description": "Closed transactions with address, sale price, GCI, side, date.",
+      "read_only": true
     },
     {
       "name": "get_transaction_summary",
-      "description": "Aggregate GCI, deal count, volume by year."
+      "description": "Aggregate GCI, deal count, volume by year.",
+      "read_only": true
     },
     {
       "name": "get_pipeline",
-      "description": "Active pipeline deals with stage, probability, weighted GCI."
+      "description": "Active pipeline deals with stage, probability, weighted GCI.",
+      "read_only": true
     },
     {
       "name": "get_pipeline_forecast",
-      "description": "Stage-by-stage pipeline breakdown with goal coverage ratio."
+      "description": "Stage-by-stage pipeline breakdown with goal coverage ratio.",
+      "read_only": true
+    },
+    {
+      "name": "list_opportunities",
+      "description": "Listing appointments, buyer prospects and referrals, with conversion KPIs.",
+      "read_only": true
+    },
+    {
+      "name": "create_opportunity",
+      "description": "Logs a new listing appointment, buyer prospect or referral.",
+      "read_only": false
+    },
+    {
+      "name": "promote_opportunity",
+      "description": "Turns a listing appointment or referral into a pipeline deal.",
+      "read_only": false
+    },
+    {
+      "name": "advance_buyer_prospect_stage",
+      "description": "Moves a buyer prospect pipeline deal to offer, conditional or firm.",
+      "read_only": false
+    },
+    {
+      "name": "mark_opportunity_lost",
+      "description": "Marks an opportunity lost with a structured reason. Lost is a final status.",
+      "read_only": false,
+      "destructive": true
     },
     {
       "name": "get_clients",
-      "description": "CRM client list with flight status, contact info, property interest."
+      "description": "CRM client list with flight status, contact info, property interest.",
+      "read_only": true
     },
     {
       "name": "get_client_detail",
-      "description": "Detailed client profile with activities and linked pipeline deals."
+      "description": "Detailed client profile with activities and linked pipeline deals.",
+      "read_only": true
     },
     {
       "name": "get_expenses",
-      "description": "YTD expenses by category with monthly recurring totals."
+      "description": "YTD expenses by category with monthly recurring totals.",
+      "read_only": true
     },
     {
       "name": "get_mileage_summary",
-      "description": "Business mileage log with CRA deduction amount."
+      "description": "Business mileage log with CRA deduction amount.",
+      "read_only": true
     },
     {
       "name": "get_flight_control_priorities",
-      "description": "Outreach queue — clients needing follow-up with AI-drafted messages."
+      "description": "Outreach queue: clients due for follow-up, with drafted messages waiting for review.",
+      "read_only": true
     },
     {
       "name": "get_user_settings",
-      "description": "Agent profile, goals, business settings, subscription status."
+      "description": "Agent profile, goals, business settings, subscription status.",
+      "read_only": true
     }
   ],
   "requirements": {

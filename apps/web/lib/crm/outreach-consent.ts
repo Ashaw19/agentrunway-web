@@ -15,10 +15,13 @@
  * helper keeps them in lock-step, the same reason contactable-records.ts
  * exists.
  *
- * Scope: only clients with a closed deal on record are gated. For everyone
- * else the app has no view of their consent basis (an inquiry, an open-house
- * sign-up, express consent), so their behaviour is unchanged.
+ * Scope: only clients with a closed deal on record are gated, counting a
+ * co-buyer named on a couple's deal (withCoBuyerDeals; Andrew, 2026-10-06).
+ * For everyone else the app has no view of their consent basis (an inquiry,
+ * an open-house sign-up, express consent), so their behaviour is unchanged.
  */
+
+import { localISODate } from "@agent-runway/core/lib/local-date";
 
 /** CASL s.10(10)(a): implied consent from a purchase lasts two years. */
 export const CASL_IMPLIED_CONSENT_MONTHS = 24;
@@ -29,6 +32,37 @@ export interface DealForConsent {
   client_id?:        string | null;
   close_date?:       string | null;
   condition_status?: string | null;
+}
+
+/** A client_record_co_parties row: this deal also named this person (#257). */
+export interface CoPartyForConsent {
+  client_record_id?: string | null;
+  co_client_id?:     string | null;
+}
+
+/**
+ * `records` plus one entry per co-buyer, crediting them the deal they were
+ * named on. A couple's deal is ONE client_records row held by one spouse; the
+ * other spouse bought the home too, so their implied consent runs from the
+ * same close date.
+ *
+ * CONSENT ONLY. Never feed the result into GCI, repeat-client or valuation
+ * math: #257's invariant is exactly one client_records row per deal, and a
+ * co-party's GCI stays $0.
+ */
+export function withCoBuyerDeals(
+  records:   readonly (DealForConsent & { id?: string | null })[],
+  coParties: readonly CoPartyForConsent[],
+): DealForConsent[] {
+  const byId = new Map<string, DealForConsent>();
+  for (const r of records) if (r.id) byId.set(r.id, r);
+  const out: DealForConsent[] = [...records];
+  for (const cp of coParties) {
+    const deal = cp.client_record_id ? byId.get(cp.client_record_id) : undefined;
+    if (!deal || !cp.co_client_id) continue;
+    out.push({ client_id: cp.co_client_id, close_date: deal.close_date, condition_status: deal.condition_status });
+  }
+  return out;
 }
 
 /** Each client's most recent closed deal. Collapsed deals are not purchases. */
@@ -46,9 +80,7 @@ export function lastClosedDealByClient(
 }
 
 /** A Date as YYYY-MM-DD in local time (toISOString would give the UTC day). */
-export function localISODate(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
+export { localISODate };
 
 /**
  * How Flight Control should reach this client for an opportunity.

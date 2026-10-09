@@ -57,6 +57,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { OutreachOpportunityType, NewsletterTemplateType } from "@agent-runway/core/types/database";
 import { FIELD_LIMITS } from "@agent-runway/core/validation/input-guards";
 import { ACTIVE_PIPELINE_STAGES } from "@agent-runway/core/types/database";
+import { incomeGoalCurrentYear, saveIncomeGoal } from "@/lib/income-goals";
 import {
   draftOutreachForClient as draftOutreachForClientService,
   draftListingDescription as draftListingDescriptionService,
@@ -64,6 +65,7 @@ import {
   draftSocialPost as draftSocialPostService,
   type SocialPostTemplate,
 } from "@/lib/ai/draft-services";
+import { addDaysISO, atlanticISODate } from "@agent-runway/core/lib/local-date";
 import { hasClosedDeal } from "@/lib/crm/contactable-records";
 
 // ── Approval Gate ──────────────────────────────────────────────────────────
@@ -139,7 +141,7 @@ export const APPROVAL_DESCRIPTIONS: Record<string, (args: Record<string, unknown
   logContactActivity: (args) =>
     `Log ${args.type} with ${args.clientName}: "${String(args.description).slice(0, 80)}"`,
   createContactTask: (args) =>
-    `Create task for ${args.clientName}: "${args.title}" — due ${args.dueDate}`,
+    `Add to Checklist${args.clientName ? ` (${args.clientName})` : ""}: "${args.title}", due ${args.dueDate}`,
   // Expenses
   createRecurringExpense: (args) =>
     `Add recurring expense: ${args.vendor ?? args.description ?? "expense"} — $${args.amount}/mo`,
@@ -454,11 +456,11 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
 
     // ── LOG CONTACT ACTIVITY ─────────────────────────────────────────────────
     logContactActivity: tool({
-      description: "Log a contact activity (call, email, text, showing, meeting, offer, or note) for a client. Also automatically updates the client's last contact date. Use this whenever the agent mentions they contacted, met, or interacted with a client.",
+      description: "Log a contact activity (call, email, text, showing, meeting, offer, or note) for a client. Any type except note also updates the client's last contact date (a note is an internal memo, not contact, so it doesn't). Use this whenever the agent mentions they contacted, met, or interacted with a client, and pick the type that matches how they reached them; use note only for a memo when nobody was contacted.",
       inputSchema: z.object({
         clientId: z.string().uuid().describe("The client UUID from searchClients"),
         clientName: z.string().describe("Client name for confirmation message"),
-        type: z.enum(ACTIVITY_TYPES).describe("Type of activity"),
+        type: z.enum(ACTIVITY_TYPES).describe("Type of activity. 'note' = internal memo, doesn't count as contact"),
         description: z.string().describe("Brief description of the activity"),
         activityDate: z.string().optional().describe("ISO date string (YYYY-MM-DD) — defaults to today if not provided"),
       }),
@@ -466,7 +468,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
       execute: async ({ clientId, clientName, type, description, activityDate }) => {
         try {
           const now = new Date();
-          const dateStr = activityDate ?? now.toISOString().split("T")[0];
+          const dateStr = activityDate ?? atlanticISODate(now);
           const activityTimestamp = activityDate
             ? new Date(activityDate + "T12:00:00").toISOString()
             : now.toISOString();
@@ -752,20 +754,25 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
 
     // ── UPDATE GCI GOAL ───────────────────────────────────────────────────────
     updateGCIGoal: tool({
-      description: "Update the agent's annual GCI goal. Use this when the agent explicitly tells you they are revising their income goal for the year.",
+      description: "Set the agent's GCI (income) goal for a calendar year. Goals are per year: pass `year` when the agent names one (\"next year\", \"2027\"); omit it for this year. A goal of 0 means no goal that year (e.g. \"this year is a write-off\"). Use only when the agent explicitly sets or revises a goal.",
       inputSchema: z.object({
-        goalGCI: z.number().positive().describe("New annual GCI goal in dollars"),
+        goalGCI: z.number().min(0).describe("GCI goal in dollars for that year; 0 = no goal that year"),
+        year: z.number().int().optional().describe("Calendar year the goal applies to; omit for this year"),
       }),
-      execute: async ({ goalGCI }) => {
+      execute: async ({ goalGCI, year }) => {
         try {
-          const { error } = await supabase
-            .from("user_settings")
-            .update({ goal_gci: goalGCI, updated_at: new Date().toISOString() })
-            .eq("user_id", userId);
+          const thisYear = incomeGoalCurrentYear();
+          const target = year ?? thisYear;
+          if (target < thisYear || target > thisYear + 5) {
+            return `Goals can be set for ${thisYear} through ${thisYear + 5}.`;
+          }
+          const { ok } = await saveIncomeGoal(supabase, userId, target, goalGCI);
+          if (!ok) return "Failed to update the GCI goal. Please try again.";
 
-          if (error) return `Failed to update GCI goal: ${error.message}`;
-
-          return `✓ Annual GCI goal updated to $${goalGCI.toLocaleString()}. Your projections and pace metrics will reflect this immediately.`;
+          const amount = goalGCI > 0 ? `$${goalGCI.toLocaleString("en-CA")}` : "no goal";
+          return target === thisYear
+            ? `✓ ${target} GCI goal set to ${amount}. Pace and projection metrics reflect it now.`
+            : `✓ ${target} GCI goal set to ${amount}. It takes over on January 1, ${target}; this year's pace metrics are unchanged.`;
         } catch {
           return "Failed to update GCI goal. Please try again.";
         }
@@ -1068,10 +1075,10 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
 
     // ── CREATE CONTACT TASK ─────────────────────────────────────────────────
     createContactTask: tool({
-      description: "Create a follow-up task or reminder for a client. Use this when the agent says 'remind me to call X next week' or 'I need to follow up with X about Y'. Tasks appear in the CRM and can have a due date and priority.",
+      description: "Add an item to the agent's Checklist (/checklist): a follow-up with a client ('remind me to call X next week', 'I need to follow up with X about Y') or a general to-do with no client ('email the insurance broker Friday'). Items show on the Checklist page, the client's profile and the dashboard, with a due date and priority. For a client, look up clientId with searchClients first. For 'contact X' items use the title 'Contact <name>'.",
       inputSchema: z.object({
-        clientId: z.string().uuid().describe("The client UUID from searchClients"),
-        clientName: z.string().describe("Client name for confirmation message"),
+        clientId: z.string().uuid().optional().describe("The client UUID from searchClients. Omit for a general to-do."),
+        clientName: z.string().optional().describe("Client name for the confirmation message. Omit for a general to-do."),
         title: z.string().describe("Task title (e.g. 'Follow up on pre-approval', 'Send listing docs')"),
         dueDate: z.string().describe("Due date in YYYY-MM-DD format"),
         priority: z.enum(["low", "normal", "high"]).default("normal").describe("Task priority"),
@@ -1084,7 +1091,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
             .from("contact_tasks")
             .insert({
               user_id: userId,
-              client_id: clientId,
+              client_id: clientId ?? null,
               title,
               due_date: dueDate,
               priority: priority ?? "normal",
@@ -1094,7 +1101,9 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
           if (error) return `Failed to create task: ${error.message}`;
 
           const priorityLabel = priority === "high" ? " (⚡ high priority)" : priority === "low" ? " (low priority)" : "";
-          return `✓ Task created for ${clientName}: "${title}" — due ${dueDate}${priorityLabel}. You'll see this in their CRM profile at /crm.`;
+          return clientId
+            ? `✓ Added to your Checklist for ${clientName ?? "this client"}: "${title}", due ${dueDate}${priorityLabel}. It's on /checklist and their CRM profile.`
+            : `✓ Added to your Checklist: "${title}", due ${dueDate}${priorityLabel}. It's on /checklist.`;
         } catch {
           return "Failed to create task. Please try again.";
         }
@@ -1103,22 +1112,23 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
 
     // ── COMPLETE CONTACT TASK ────────────────────────────────────────────────
     completeContactTask: tool({
-      description: "Mark a contact task as completed. Use when the agent says they've done something that matches an existing task, or explicitly asks to check off a task.",
+      description: "Tick off a Checklist item (a contact task). Use when the agent says they've done something that matches an open item, or asks to check one off. If they reached a client (called, texted, emailed, met), log it on the client's profile with logContactActivity first, then call this with reachedVia set. If they tried but couldn't reach them, don't tick it off: log a note with logContactActivity and move the item with updateContactTask instead.",
       inputSchema: z.object({
         taskId: z.string().uuid().describe("The task UUID"),
         taskTitle: z.string().describe("Task title for confirmation message"),
+        reachedVia: z.enum(["call", "text", "email", "meeting"]).optional().describe("How they reached the client, when the item was a contact. Omit for anything else."),
       }),
-      execute: async ({ taskId, taskTitle }) => {
+      execute: async ({ taskId, taskTitle, reachedVia }) => {
         try {
           const { error } = await supabase
             .from("contact_tasks")
-            .update({ completed_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+            .update({ completed_at: new Date().toISOString(), completed_via: reachedVia ?? "done", updated_at: new Date().toISOString() })
             .eq("id", taskId)
             .eq("user_id", userId);
 
           if (error) return `Failed to complete task: ${error.message}`;
 
-          return `✓ Task completed: "${taskTitle}".`;
+          return `✓ Ticked off your Checklist: "${taskTitle}".`;
         } catch {
           return "Failed to complete task. Please try again.";
         }
@@ -1127,7 +1137,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
 
     // ── SEARCH CONTACT TASKS ─────────────────────────────────────────────────
     searchContactTasks: tool({
-      description: "Search for open tasks — optionally filtered by client. Use this to find task IDs before completing them, or to show the agent their upcoming to-dos.",
+      description: "Search the agent's Checklist (open contact tasks), optionally for one client. Use this to find item IDs before ticking them off, or to show the agent what's on their list.",
       inputSchema: z.object({
         clientId: z.string().uuid().optional().describe("Filter tasks for a specific client"),
         includeCompleted: z.boolean().default(false).describe("Include completed tasks (default: only open)"),
@@ -1250,7 +1260,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
         commissionSplit: z.enum(["p70_30", "p75_25", "p80_20", "p85_15", "p90_10", "p95_5", "p100_0"]).optional().describe("Commission split preset (e.g. p80_20 = 80% agent / 20% brokerage)"),
         brokerageName: z.string().optional().describe("Brokerage/office name"),
         province: z.enum(["AB", "BC", "MB", "NB", "NL", "NS", "NT", "NU", "ON", "PE", "QC", "SK", "YT"]).optional().describe("Agent's province code"),
-        goalGCI: z.number().positive().optional().describe("Annual GCI goal in dollars"),
+        goalGCI: z.number().positive().optional().describe("This calendar year's GCI goal in dollars. For a different year, use updateGCIGoal with `year`."),
         goalTransactions: z.number().positive().optional().describe("Annual transaction count goal"),
         cashReserve: z.number().min(0).optional().describe("Manual cash reserve amount in dollars"),
         monthlyBrokerageFee: z.number().min(0).optional().describe("Monthly desk/brokerage fee in dollars"),
@@ -1401,8 +1411,8 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
       inputSchema: z.object({}),
       execute: async () => {
         try {
-          const todayStr = new Date().toISOString().split("T")[0];
-          const weekAhead = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+          const todayStr = atlanticISODate();
+          const weekAhead = addDaysISO(todayStr, 7);
 
           const [tasksRes, outreachRes, staleRes] = await Promise.all([
             supabase.from("contact_tasks").select("title, due_date, priority, client_id").eq("user_id", userId).is("completed_at", null).order("due_date", { ascending: true }).limit(10),
@@ -1585,7 +1595,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
               estimated_value: estimatedValue ?? null,
               status: "active",
               notes: notes ?? null,
-              referral_date: new Date().toISOString().split("T")[0],
+              referral_date: atlanticISODate(),
             });
 
           if (error) return `Failed to record referral: ${error.message}`;
@@ -1673,7 +1683,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
       }),
       execute: async ({ clientId, clientName, propertyAddress, showingDate, clientRating, listingPrice, notes }) => {
         try {
-          const dateStr = showingDate ?? new Date().toISOString().split("T")[0];
+          const dateStr = showingDate ?? atlanticISODate();
 
           const { error } = await supabase
             .from("property_showings")
@@ -2890,7 +2900,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
         try {
           const currentYear = new Date().getFullYear();
           const ytdStart = `${currentYear}-01-01`;
-          const todayISO = new Date().toISOString().split("T")[0];
+          const todayISO = atlanticISODate();
 
           switch (stat) {
             case "active_clients": {

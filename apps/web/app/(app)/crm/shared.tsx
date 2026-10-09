@@ -196,12 +196,18 @@ export function fmtMonthYear(iso: string): string {
   }
 }
 
+/** Today as YYYY-MM-DD in the user's time zone. (toISOString gives the UTC
+ *  day, which is already tomorrow after 8 pm Atlantic: tasks due today read as
+ *  overdue and new tasks defaulted to tomorrow on the CRM tab.) */
 export function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
+/** Now as a local datetime-local value (YYYY-MM-DDTHH:mm). */
 export function nowIso(): string {
-  return new Date().toISOString().slice(0, 16);
+  const d = new Date();
+  return `${todayIso()}T${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
 // ── Style Constants ─────────────────────────────────────────────────────────

@@ -54,6 +54,7 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import type { PropertyShowing, BuyerDNA } from "@/lib/types/database";
+import { localISODate } from "@agent-runway/core/lib/local-date";
 
 // ── Props ────────────────────────────────────────────────────────────────────
 
@@ -92,9 +93,7 @@ export function ShowingsSection({ clientId, clientName, showings, onShowingsChan
   // Add form fields
   const [address, setAddress] = useState("");
   const [city, setCity] = useState("");
-  const [showingDate, setShowingDate] = useState(
-    new Date().toISOString().split("T")[0],
-  );
+  const [showingDate, setShowingDate] = useState(localISODate);
   const [listingPrice, setListingPrice] = useState("");
   const [propertyType, setPropertyType] = useState("detached");
   const [bedrooms, setBedrooms] = useState("");
@@ -126,7 +125,7 @@ export function ShowingsSection({ clientId, clientName, showings, onShowingsChan
   const resetForm = useCallback(() => {
     setAddress("");
     setCity("");
-    setShowingDate(new Date().toISOString().split("T")[0]);
+    setShowingDate(localISODate());
     setListingPrice("");
     setPropertyType("detached");
     setBedrooms("");

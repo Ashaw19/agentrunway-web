@@ -51,7 +51,7 @@ export function fakeSupabase(tables: Record<string, Row[]>) {
         return builder;
       },
       eq(k: string, v: unknown) { rows = rows.filter((r) => r[k] === v); return builder; },
-      in(k: string, vs: unknown[]) { rows = rows.filter((r) => vs.includes(r[k])); return builder; },
+      in(k: string, vs: readonly unknown[]) { rows = rows.filter((r) => vs.includes(r[k])); return builder; },
       gte(k: string, v: unknown) { rows = rows.filter((r) => String(r[k]) >= String(v)); return builder; },
       lt(k: string, v: unknown) { rows = rows.filter((r) => String(r[k]) < String(v)); return builder; },
       limit(n: number) { rows = rows.slice(0, n); return builder; },

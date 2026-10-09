@@ -39,6 +39,7 @@ import { fmtCurrency } from "@/lib/formatters";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import Link from "next/link";
+import { localISODate } from "@agent-runway/core/lib/local-date";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -147,7 +148,7 @@ const EMPTY_FORM: ReferralForm = {
   client_name: "",
   client_email: "",
   client_phone: "",
-  referral_date: new Date().toISOString().slice(0, 10),
+  referral_date: localISODate(),
   status: "pending" as const,
   property_address: "",
   transaction_type: "buy" as const,
@@ -229,9 +230,7 @@ export function ReferralsContent({
 
   function openNew() {
     setEditingId(null);
-    const d = new Date();
-    const todayLocal = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
-    setForm({ ...EMPTY_FORM, referral_date: todayLocal });
+    setForm({ ...EMPTY_FORM, referral_date: localISODate() });
     setDialogOpen(true);
   }
 

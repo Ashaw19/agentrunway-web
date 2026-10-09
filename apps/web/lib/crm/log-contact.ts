@@ -13,7 +13,7 @@
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { ActivityType } from "@agent-runway/core/types/database";
+import type { ActivityType, ContactActivity } from "@agent-runway/core/types/database";
 
 export interface LogContactInput {
   clientId:      string;
@@ -27,6 +27,8 @@ export interface LogContactResult {
   ok:          boolean;
   priorStatus: string | null;
   newStatus:   string | null;
+  /** The saved row, so a screen can show it without a reload. */
+  activity?:   ContactActivity;
 }
 
 export async function logClientContact(
@@ -48,13 +50,13 @@ export async function logClientContact(
   if (!before) return fail;
   const priorStatus = (before.status as string | null) ?? null;
 
-  const { error } = await supabase.from("contact_activities").insert({
+  const { data: activity, error } = await supabase.from("contact_activities").insert({
     user_id:       user.id,
     client_id:     input.clientId,
     type:          input.type,
     description:   input.description,
     activity_date: input.activityDate ?? new Date().toISOString(),
-  });
+  }).select().single();
   if (error) {
     console.error("[log-contact] contact_activities insert failed:", error.code ?? "", error.message);
     return { ...fail, priorStatus };
@@ -71,5 +73,5 @@ export async function logClientContact(
     newStatus = (after?.status as string | null) ?? priorStatus;
   }
 
-  return { ok: true, priorStatus, newStatus };
+  return { ok: true, priorStatus, newStatus, activity: activity as ContactActivity };
 }

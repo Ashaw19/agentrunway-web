@@ -25,6 +25,7 @@ import {
   Send, Sparkles, Users,
 } from "lucide-react";
 import type { NewsletterQueue } from "@/lib/types/database";
+import { localISODate } from "@agent-runway/core/lib/local-date";
 
 // ── Template config ───────────────────────────────────────────────────────────
 
@@ -66,9 +67,7 @@ function DraftNewsletterDrawer({
   // boc_rate_change fields
   const [oldRate,       setOldRate]       = useState("");
   const [newRate,       setNewRate]       = useState("");
-  const [effectiveDate, setEffectiveDate] = useState(
-    new Date().toISOString().slice(0, 10),
-  );
+  const [effectiveDate, setEffectiveDate] = useState(localISODate);
 
   // custom fields
   const [topic, setTopic] = useState("");
@@ -82,7 +81,7 @@ function DraftNewsletterDrawer({
       setTemplateType("boc_rate_change");
       setOldRate("");
       setNewRate("");
-      setEffectiveDate(new Date().toISOString().slice(0, 10));
+      setEffectiveDate(localISODate());
       setTopic("");
       setNotes("");
       setDrafting(false);

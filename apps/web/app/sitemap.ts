@@ -48,14 +48,11 @@ export default function sitemap(): MetadataRoute.Sitemap {
 
     // ── Trust & security ────────────────────────────────────────────────
     { url: `${BASE_URL}/security`,                            lastModified: now, changeFrequency: "monthly", priority: 0.6 },
-    { url: `${BASE_URL}/subprocessors`,                       lastModified: now, changeFrequency: "monthly", priority: 0.5 },
 
-    // ── Legal ──────────────────────────────────────────────────────────
-    { url: `${BASE_URL}/privacy`,                             lastModified: now, changeFrequency: "yearly",  priority: 0.3 },
-    { url: `${BASE_URL}/terms`,                               lastModified: now, changeFrequency: "yearly",  priority: 0.3 },
-    { url: `${BASE_URL}/cookie-policy`,                       lastModified: now, changeFrequency: "yearly",  priority: 0.2 },
-    { url: `${BASE_URL}/ai-disclaimer`,                       lastModified: now, changeFrequency: "yearly",  priority: 0.2 },
-    { url: `${BASE_URL}/acceptable-use`,                      lastModified: now, changeFrequency: "yearly",  priority: 0.2 },
+    // Legal pages (privacy, terms, cookie-policy, ai-disclaimer,
+    // acceptable-use, subprocessors) are noindex by design, so they are NOT
+    // listed: a sitemap entry for a noindex page is a contradictory signal
+    // Search Console reports. lib/__tests__/sitemap-seo.test.ts enforces it.
 
     // ── Metrics hub + per-metric pages ─────────────────────────────────
     { url: `${BASE_URL}/real-estate-metrics`,                 lastModified: now, changeFrequency: "monthly", priority: 0.8 },
@@ -90,9 +87,8 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${BASE_URL}/real-estate-agent-tools-canada`,                    lastModified: now, changeFrequency: "monthly", priority: 0.8 },
 
     // ── Lead-gen funnel templates (Phase 1.2) ─────────────────────────
-    // noindex in metadata — included here so internal tools can discover them.
-    { url: `${BASE_URL}/open-house`,                                   lastModified: now, changeFrequency: "monthly", priority: 0.5 },
-    { url: `${BASE_URL}/listing-inquiry`,                              lastModified: now, changeFrequency: "monthly", priority: 0.5 },
+    // /open-house and /listing-inquiry are noindex, so they are not listed
+    // (nothing internal reads the sitemap; only crawlers do).
 
     // ── Branded agent open house pages (Phase 1.3) ────────────────────
     // Dynamic routes (/open-house/[slug]) are agent-generated and noindex'd;

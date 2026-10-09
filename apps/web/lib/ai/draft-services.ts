@@ -49,10 +49,12 @@ import {
 } from "@/lib/newsletter-prompts";
 import { excludeCollapsedDeals } from "@/lib/crm/contactable-records";
 import {
+  type DealForConsent,
   emailConsentLapsedReason,
   lastClosedDealByClient,
   localISODate,
   outreachChannel,
+  withCoBuyerDeals,
 } from "@/lib/crm/outreach-consent";
 import type {
   OutreachOpportunityType,
@@ -291,6 +293,40 @@ const BANNED_PHRASES = [
   "your real estate journey",
 ];
 
+// ─── CASL: deals a client co-bought ──────────────────────────────────────────
+
+/**
+ * Deals this client was named on as a co-buyer (client_record_co_parties).
+ * A couple's deal is one client_records row held by the other spouse (#257),
+ * so the client's own client_records query never sees it. Feeds the CASL
+ * gate only. A failed lookup is logged and treated as no co-bought deals.
+ */
+async function coBoughtDeals(
+  supabase: SupabaseClient,
+  userId: string,
+  clientId: string,
+): Promise<DealForConsent[]> {
+  const { data: links, error: linkError } = await supabase
+    .from("client_record_co_parties")
+    .select("client_record_id, co_client_id")
+    .eq("co_client_id", clientId)
+    .eq("user_id", userId);
+  if (linkError) console.error("[draft-services/casl] co-party lookup failed:", linkError.message);
+  const recordIds = (links ?? [])
+    .map((l) => l.client_record_id)
+    .filter((id): id is string => typeof id === "string");
+  if (recordIds.length === 0) return [];
+
+  const { data: deals, error: dealError } = await supabase
+    .from("client_records")
+    .select("id, client_id, close_date, condition_status")
+    .in("id", recordIds)
+    .eq("user_id", userId)
+    .not("close_date", "is", null);
+  if (dealError) console.error("[draft-services/casl] co-bought deal lookup failed:", dealError.message);
+  return withCoBuyerDeals(deals ?? [], links ?? []).filter((d) => d.client_id === clientId);
+}
+
 // ─── Outreach: main service ───────────────────────────────────────────────────
 
 /**
@@ -342,8 +378,8 @@ export async function draftOutreachForClient(input: {
     .trim();
   const clientDisplayName = trimmedName || composedName || "this client";
 
-  // ── Fetch settings + most recent closed record in parallel ──────────────
-  const [settingsRes, recordsRes] = await Promise.all([
+  // ── Fetch settings + closed records + co-bought deals in parallel ────────
+  const [settingsRes, recordsRes, coBought] = await Promise.all([
     supabase
       .from("user_settings")
       .select("display_name, email_signature, ai_voice_guide")
@@ -358,6 +394,7 @@ export async function draftOutreachForClient(input: {
       .eq("user_id", userId)
       .not("close_date", "is", null)
       .order("close_date", { ascending: false }),
+    coBoughtDeals(supabase, userId, clientId),
   ]);
 
   const agentFirst = extractFirstName(settingsRes.data?.display_name ?? null);
@@ -577,8 +614,8 @@ export async function draftOutreachForClient(input: {
   // ── CASL: no email draft once purchase-based implied consent has lapsed ──
   // Same rule and helper as Flight Control Scan (lib/crm/outreach-consent.ts).
   // Checked before the existing-draft lookup so a lapsed client is never
-  // pointed at an old draft either.
-  const lastClose = lastClosedDealByClient(records).get(clientId);
+  // pointed at an old draft either. A co-buyer's shared deal counts too.
+  const lastClose = lastClosedDealByClient([...records, ...coBought]).get(clientId);
   if (lastClose && outreachChannel(lastClose, triggerDate) === "call") {
     return {
       status: "call_only",
@@ -1295,8 +1332,8 @@ export async function draftWorkflowMessage(
   const clientDisplayName = trimmedName || composedName || "this client";
   const clientFirstName = client.first_name?.trim() || clientDisplayName.split(/\s+/)[0] || "there";
 
-  // ── Load agent settings + the client's closed deals in parallel ─────────
-  const [{ data: settings }, recordsRes] = await Promise.all([
+  // ── Load agent settings + the client's closed + co-bought deals ─────────
+  const [{ data: settings }, recordsRes, coBought] = await Promise.all([
     supabase
       .from("user_settings")
       .select("display_name, email_signature, ai_voice_guide")
@@ -1308,12 +1345,13 @@ export async function draftWorkflowMessage(
       .eq("client_id", clientId)
       .eq("user_id", userId)
       .not("close_date", "is", null),
+    coBoughtDeals(supabase, userId, clientId),
   ]);
 
   // ── CASL: no email draft once purchase-based implied consent has lapsed ──
   // A workflow draft goes out today. Same rule and helper as Flight Control
-  // Scan (lib/crm/outreach-consent.ts).
-  const lastClose = lastClosedDealByClient(recordsRes.data ?? []).get(clientId);
+  // Scan (lib/crm/outreach-consent.ts). A co-buyer's shared deal counts too.
+  const lastClose = lastClosedDealByClient([...(recordsRes.data ?? []), ...coBought]).get(clientId);
   if (lastClose && outreachChannel(lastClose, localISODate(new Date())) === "call") {
     return {
       status: "call_only",

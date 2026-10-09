@@ -52,13 +52,18 @@ begin
 end;
 $$;
 
-create trigger trg_corp_resolutions_number
+-- Names corrected 2026-10-06 to match what prod actually has (singular
+-- "resolution": trg_corp_resolution_number, trg_corp_resolution_updated_at,
+-- set_corp_resolution_updated_at). This file had the plural forms, so a
+-- fresh replay failed at 00160, which ALTERs the prod name. Prod unchanged.
+
+create trigger trg_corp_resolution_number
   before insert on corp_resolutions
   for each row execute function assign_corp_resolution_number();
 
 -- ── updated_at trigger ────────────────────────────────────────────────────────
 
-create or replace function set_corp_resolutions_updated_at()
+create or replace function set_corp_resolution_updated_at()
 returns trigger
 language plpgsql
 as $$
@@ -68,9 +73,9 @@ begin
 end;
 $$;
 
-create trigger trg_corp_resolutions_updated_at
+create trigger trg_corp_resolution_updated_at
   before update on corp_resolutions
-  for each row execute function set_corp_resolutions_updated_at();
+  for each row execute function set_corp_resolution_updated_at();
 
 -- ── Indexes ───────────────────────────────────────────────────────────────────
 

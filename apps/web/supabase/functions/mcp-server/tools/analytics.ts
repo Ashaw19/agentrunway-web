@@ -19,6 +19,7 @@ import {
   seasonalFractionElapsed,
 } from "../lib/projection-engine.ts";
 import { CANONICAL_TAX_DISCLAIMER } from "../lib/constants.ts";
+import { atlanticISODate } from "../../_shared/core/lib/local-date.ts";
 
 // Canonical stage probabilities — mirrors packages/core/types/database.ts
 // PIPELINE_STAGE_DEFAULTS. `lost: 0.0` was added there by migration 00154 and
@@ -86,7 +87,7 @@ export function getAnalyticsTools(supabase: SupabaseClient, userId: string): Mcp
       },
       handler: async () => {
         const yearStart = new Date(new Date().getFullYear(), 0, 1).toISOString().split("T")[0];
-        const today = new Date().toISOString().split("T")[0];
+        const today = atlanticISODate();
 
         const [settingsRes, txRes, pipelineRes, expenseRes, listingRes, historyRes] = await Promise.all([
           supabase
@@ -267,7 +268,7 @@ export function getAnalyticsTools(supabase: SupabaseClient, userId: string): Mcp
       },
       handler: async () => {
         const yearStart = new Date(new Date().getFullYear(), 0, 1).toISOString().split("T")[0];
-        const today = new Date().toISOString().split("T")[0];
+        const today = atlanticISODate();
 
         const [settingsRes, txRes, pipelineRes, listingRes, historyRes] = await Promise.all([
           supabase
@@ -396,7 +397,7 @@ export function getAnalyticsTools(supabase: SupabaseClient, userId: string): Mcp
       handler: async (args) => {
         const overrideIncome = (args as { override_income?: number }).override_income;
         const yearStart = new Date(new Date().getFullYear(), 0, 1).toISOString().split("T")[0];
-        const today = new Date().toISOString().split("T")[0];
+        const today = atlanticISODate();
 
         const [settingsRes, txRes, expenseRes, pipelineRes, listingRes, historyRes] = await Promise.all([
           supabase
@@ -604,7 +605,7 @@ export function getAnalyticsTools(supabase: SupabaseClient, userId: string): Mcp
         const now = new Date();
         const year = now.getFullYear();
         const yearStart = `${year}-01-01`;
-        const today = now.toISOString().split("T")[0];
+        const today = atlanticISODate(now);
 
         const [settingsRes, txRes] = await Promise.all([
           supabase
@@ -741,8 +742,8 @@ function getNextFilingDeadline(
   frequency: "monthly" | "quarterly" | "annual",
   now: Date,
 ): { label: string; period_start: string; period_end: string; deadline: string } {
-  const year = now.getFullYear();
-  const todayISO = now.toISOString().split("T")[0];
+  const todayISO = atlanticISODate(now);
+  const year = Number(todayISO.slice(0, 4));
 
   const periods = buildFilingPeriods(frequency, year);
   // First period whose deadline is still in the future.

@@ -12,6 +12,7 @@ import { createClient } from "@/lib/supabase/server";
 import { ORG_PUBLIC_COLUMNS } from "@/lib/org-context";
 import { computeGCI, computeWeightedGCI, activePipelineDeals } from "@/lib/types/database";
 import { fmtCurrency } from "@/lib/formatters";
+import { describeIncomeGoals, incomeGoalCurrentYear } from "@/lib/income-goals";
 import type { OrgContext, Organization, OrganizationMember } from "@/lib/types/organizations";
 import { PolicyUpdateBanner } from "@/components/policy-update-banner";
 import {
@@ -65,6 +66,7 @@ export default async function AppLayout({
       { data: memberships },
       { count: staleClientCount },
       { data: policyAcceptances },
+      { data: incomeGoalRows },
     ] = await Promise.all([
       supabase
         .from("user_settings")
@@ -109,6 +111,11 @@ export default async function AppLayout({
         .eq("user_id", user.id)
         .order("accepted_at", { ascending: false })
         .limit(50),
+      // Income goal per calendar year (00169) — AI context below.
+      supabase
+        .from("income_goals")
+        .select("year, goal_gci")
+        .eq("user_id", user.id),
     ]);
 
     // ── Onboarding guard — redirect if user hasn't completed setup ──────────
@@ -262,8 +269,10 @@ export default async function AppLayout({
             : null,
           `Cash Reserve: ${fmtCurrency(settings.cash_reserve ?? 0)}`,
           settings.goal_gci > 0
-            ? `Annual GCI Goal: ${fmtCurrency(settings.goal_gci)}`
-            : "Annual GCI Goal: Not set",
+            ? `Annual GCI Goal (${incomeGoalCurrentYear()}): ${fmtCurrency(settings.goal_gci)}`
+            : `Annual GCI Goal (${incomeGoalCurrentYear()}): Not set`,
+          // Goals are per calendar year (Settings → Annual Goal); future years included.
+          describeIncomeGoals(incomeGoalRows ?? [], incomeGoalCurrentYear()),
           settings.experience_years != null
             ? `Years of Experience: ${settings.experience_years}`
             : null,

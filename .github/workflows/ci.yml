@@ -103,6 +103,44 @@ jobs:
         if: steps.lockfile.outputs.changed == 'true'
         run: cd apps/web && npx tsc --noEmit
 
+  db-functions:
+    # Replays every migration into a throwaway Supabase Postgres (same version
+    # as prod) and runs plpgsql_check over every public plpgsql function.
+    # Fails when a function references a column or table that doesn't exist.
+    # plpgsql only resolves those at run time, so this bug class otherwise
+    # ships silently: 00112 broke every activity insert for every user from
+    # 2026-04-12 to 2026-10-06 (fixed in 00166).
+    #
+    # No secrets; never touches prod. On PRs it only does the work when a
+    # migration or the check scripts changed; on main it always runs.
+    # Run locally: bash scripts/db/check-functions.sh
+    #
+    # Source: memory/findings/crm_activity_logging_outage_2026-10-06.md
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Detect migration changes
+        id: changes
+        run: |
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          elif git diff --name-only "origin/${{ github.base_ref }}...HEAD" | grep -qE '^(apps/web/supabase/migrations/|scripts/db/|\.github/workflows/ci\.yml$)'; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            echo "Migrations or check scripts changed — running plpgsql_check."
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "No migration changes in this PR — skipping plpgsql_check."
+          fi
+
+      - name: Replay migrations + plpgsql_check
+        if: steps.changes.outputs.run == 'true'
+        run: bash scripts/db/check-functions.sh
+
   e2e:
     runs-on: ubuntu-latest
     timeout-minutes: 10

@@ -6,6 +6,8 @@ import { computeIntelligenceBriefing, type BriefingItem } from "@/lib/engines/cr
 import { totalRecurringMonthly, totalRecurringYTD } from "@agent-runway/core/engines/recurring-expense-engine";
 import type { RecurringExpense } from "@/lib/types/database";
 import { computeIsPro } from "@/lib/compute-is-pro";
+import type { IncomeGoalRow } from "@/lib/income-goals";
+import { addDaysISO, atlanticISODate } from "@agent-runway/core/lib/local-date";
 
 
 export default async function DashboardPage({
@@ -69,7 +71,7 @@ export default async function DashboardPage({
         .limit(10000),
       supabase
         .from("contact_tasks")
-        .select("*")
+        .select("*, clients(name)")
         .eq("user_id", user.id)
         .is("completed_at", null)
         .order("due_date", { ascending: true })
@@ -127,18 +129,23 @@ export default async function DashboardPage({
         .eq("user_id", user.id)
         .order("captured_on", { ascending: false })
         .limit(12),
+      // Income goal per calendar year (00169/00170) — year switch + next-year plan.
+      supabase
+        .from("income_goals")
+        .select("year, goal_gci")
+        .eq("user_id", user.id),
     ]);
 
   // Extract results — failed queries return empty data instead of crashing the page
   const unwrap = <T,>(r: PromiseSettledResult<T>): T =>
     r.status === "fulfilled" ? r.value : ({ data: null, count: null, error: r.reason } as T);
-  const [txResult, pipelineResult, expCatResult, expItemResult, historyResult, receiptTotalsResult, tasksResult, mileageResult, ccaResult, activeClientsResult, recentActivitiesResult, briefingClientsResult, briefingActivitiesResult, briefingRecordsResult, listingResult, recurringExpResult, scoreHistoryResult] = [
+  const [txResult, pipelineResult, expCatResult, expItemResult, historyResult, receiptTotalsResult, tasksResult, mileageResult, ccaResult, activeClientsResult, recentActivitiesResult, briefingClientsResult, briefingActivitiesResult, briefingRecordsResult, listingResult, recurringExpResult, scoreHistoryResult, incomeGoalsResult] = [
     unwrap(settledResults[0]), unwrap(settledResults[1]), unwrap(settledResults[2]),
     unwrap(settledResults[3]), unwrap(settledResults[4]), unwrap(settledResults[5]),
     unwrap(settledResults[6]), unwrap(settledResults[7]), unwrap(settledResults[8]),
     unwrap(settledResults[9]), unwrap(settledResults[10]), unwrap(settledResults[11]),
     unwrap(settledResults[12]), unwrap(settledResults[13]), unwrap(settledResults[14]),
-    unwrap(settledResults[15]), unwrap(settledResults[16]),
+    unwrap(settledResults[15]), unwrap(settledResults[16]), unwrap(settledResults[17]),
   ];
 
   const recurringExpenses = (recurringExpResult.data ?? []) as RecurringExpense[];
@@ -193,8 +200,8 @@ export default async function DashboardPage({
     : [];
 
   // ── Upcoming condition dates (next 14 days, pending only) ──────────────
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const twoWeeksStr = new Date(Date.now() + 14 * 86_400_000).toISOString().slice(0, 10);
+  const todayStr = atlanticISODate();
+  const twoWeeksStr = addDaysISO(todayStr, 14);
   const clientRecordsAll = briefingRecordsResult.data ?? [];
   const clientsAll = briefingClientsResult.data ?? [];
   const clientNameMap = new Map(clientsAll.map((c: Client) => [c.id, c.name ?? "Unknown"]));
@@ -283,6 +290,7 @@ export default async function DashboardPage({
       recurringExpYTD={recurringExpYTD}
       dataAsOf={new Date().toISOString()}
       scoreHistory={scoreHistory}
+      incomeGoals={(incomeGoalsResult.data ?? []) as IncomeGoalRow[]}
     />
   );
 }

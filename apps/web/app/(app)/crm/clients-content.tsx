@@ -174,6 +174,8 @@ import { useVoiceDraft } from "@/lib/voice/voice-draft-context";
 import type { VoiceDraft } from "@/lib/voice/types";
 import { toast } from "sonner";
 import { markMemoryStaleClient } from "@/lib/ai/mark-memory-stale";
+import { CompleteItemDialog } from "@/components/checklist/complete-item-dialog";
+import { AddToChecklistButton } from "@/components/checklist/add-to-checklist-button";
 import { validateClient, FIELD_LIMITS } from "@agent-runway/core/validation/input-guards";
 import { parseMoneyLoose } from "@/lib/import/normalizers/normalize-money";
 import { normalizeDateFormats } from "@/lib/import/normalizers/normalize-dates";
@@ -204,6 +206,8 @@ interface Props {
   listingAppointments: ListingAppointment[];
   /** User ID — required for all client-side Supabase operations */
   userId: string;
+  /** Open this client's profile on load (/crm?client=<id>, e.g. from the Checklist). */
+  openClientId?: string | null;
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -1141,6 +1145,7 @@ export function ClientsContent({
   showings: initialShowings,
   listingAppointments: initialListingAppointments,
   userId,
+  openClientId = null,
 }: Props) {
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
@@ -1150,6 +1155,8 @@ export function ClientsContent({
   const [localActivities, setLocalActivities] =
     useState<ContactActivity[]>(initialActivities);
   const [localTasks, setLocalTasks] = useState<ContactTask[]>(initialTasks);
+  // Checklist item being ticked off (opens CompleteItemDialog).
+  const [tickingTask, setTickingTask] = useState<ContactTask | null>(null);
   const [clientNotes, setClientNotes] = useState<ClientNote[]>([]);
   const [newNoteText, setNewNoteText] = useState("");
   const [localClients, setLocalClients] = useState<Client[]>(initialClients);
@@ -1795,14 +1802,18 @@ export function ClientsContent({
 
       if (!error && data) {
         setLocalActivities((prev) => [data as ContactActivity, ...prev]);
-        // Keep last_contact_at in sync so the CRM card reflects the new activity immediately
-        setLocalClients((prev) =>
-          prev.map((c) =>
-            c.id === clientId
-              ? { ...c, last_contact_at: activityDate }
-              : c
-          )
-        );
+        // Keep last_contact_at in sync so the CRM card reflects the new activity
+        // immediately. A note is not contact (00171): the DB leaves the date
+        // alone, so the local copy must too.
+        if (type !== "note") {
+          setLocalClients((prev) =>
+            prev.map((c) =>
+              c.id === clientId
+                ? { ...c, last_contact_at: activityDate }
+                : c
+            )
+          );
+        }
         markMemoryStaleClient(clientId);
 
         // Detect auto-promotion. Only re-fetch when prior status was one the
@@ -1885,7 +1896,7 @@ export function ClientsContent({
     });
     const { error } = await supabase
       .from("contact_tasks")
-      .update({ completed_at: new Date().toISOString() })
+      .update({ completed_at: new Date().toISOString(), completed_via: "done" })
       .eq("id", taskId)
       .eq("user_id", userId!);
     if (error) {
@@ -1899,6 +1910,45 @@ export function ClientsContent({
       markMemoryStaleClient(removedTask.client_id);
     }
   }, []);
+
+  // Ticking a client's item asks how it went (CompleteItemDialog); a general
+  // item is just marked done.
+  const tickTask = useCallback(async (taskId: string) => {
+    const task = localTasks.find((t) => t.id === taskId);
+    if (task?.client_id) setTickingTask(task);
+    else await completeTask(taskId);
+  }, [localTasks, completeTask]);
+
+  // A checklist outcome logged an activity: show it, and keep last contact
+  // and stage in step with the DB triggers (a note is not contact, 00171).
+  const applyChecklistOutcome = useCallback((
+    taskId: string,
+    change: Partial<ContactTask>,
+    extra?: { activity?: ContactActivity; newStatus?: string | null },
+  ) => {
+    if (change.completed_at) setLocalTasks((prev) => prev.filter((t) => t.id !== taskId));
+    else setLocalTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, ...change } : t)));
+    const a = extra?.activity;
+    if (!a) return;
+    setLocalActivities((prev) => [a, ...prev]);
+    setLocalClients((prev) => prev.map((c) => {
+      if (c.id !== a.client_id) return c;
+      return {
+        ...c,
+        ...(a.type !== "note" ? { last_contact_at: a.activity_date } : {}),
+        ...(extra?.newStatus ? { status: extra.newStatus as typeof c.status } : {}),
+      };
+    }));
+  }, []);
+
+  // Deep link (/crm?client=<id>): open that client's profile once it's loaded.
+  const openedFromLink = useRef(false);
+  useEffect(() => {
+    if (!openClientId || openedFromLink.current) return;
+    if (!localClients.some((c) => c.id === openClientId)) return;
+    openedFromLink.current = true;
+    openDetailPanel(openClientId);
+  }, [openClientId, localClients]);
 
   // Tracks which (clientId, planId) pairs have already fired this session to
   // prevent duplicate tasks/emails when a status is toggled back and forth.
@@ -4099,7 +4149,7 @@ export function ClientsContent({
           clientById={clientById}
           onLogActivity={logActivity}
           onAddTask={addTask}
-          onCompleteTask={completeTask}
+          onCompleteTask={tickTask}
           onOpenDetailPanel={openDetailPanel}
         />
       )}
@@ -4409,6 +4459,14 @@ export function ClientsContent({
                             Last contact: {relativeDate(selectedClient.last_contact_at)}
                           </span>
                         )}
+                        <AddToChecklistButton
+                          key={`${selectedClient.id}:${clientTasks.length > 0}`}
+                          clientId={selectedClient.id}
+                          clientName={selectedClient.name}
+                          onList={clientTasks.length > 0}
+                          onAdded={(task) => setLocalTasks((prev) => [...prev, task])}
+                          className="h-6 px-2 text-[11px]"
+                        />
                       </div>
                       <Button
                         size="sm"
@@ -5340,6 +5398,11 @@ export function ClientsContent({
                             ))}
                           </SelectContent>
                         </Select>
+                        {logType === "note" && (
+                          <p className="text-[11px] text-muted-foreground">
+                            Notes don&apos;t count as contact. Log a call, text, email or meeting if you spoke with them.
+                          </p>
+                        )}
                       </div>
                       <div className="space-y-1">
                         <Label className="text-xs">Description</Label>
@@ -5378,7 +5441,7 @@ export function ClientsContent({
                       <div className={CRM_SECTION_ICON_CHIP}>
                         <ListTodo className="h-3 w-3" />
                       </div>
-                      Tasks
+                      Checklist
                     </h3>
                     <Button
                       variant="outline"
@@ -5391,7 +5454,7 @@ export function ClientsContent({
                       }}
                     >
                       <Plus className="h-3 w-3" />
-                      Add Task
+                      Add item
                     </Button>
                   </div>
 
@@ -5430,14 +5493,14 @@ export function ClientsContent({
                   )}
 
                   {clientTasks.length === 0 ? (
-                    <p className="text-xs text-muted-foreground py-3 text-center">No tasks for this client.</p>
+                    <p className="text-xs text-muted-foreground py-3 text-center">Nothing on your checklist for this client.</p>
                   ) : (
                     <div className="space-y-1">
                       {clientTasks.map((task) => {
                         const isOverdue = task.due_date < todayIso();
                         return (
                           <div key={task.id} className="flex items-start gap-2.5 py-2 px-1 rounded-lg hover:bg-muted/30 transition-colors">
-                            <button onClick={() => completeTask(task.id)} className="mt-0.5 text-muted-foreground hover:text-emerald-600 transition-colors shrink-0" title="Mark complete">
+                            <button onClick={() => setTickingTask(task)} className="mt-0.5 text-muted-foreground hover:text-emerald-600 transition-colors shrink-0" title="Tick off" aria-label={`Tick off "${task.title}"`}>
                               <Square className="h-4 w-4" />
                             </button>
                             <div className="flex-1 min-w-0">
@@ -5997,6 +6060,14 @@ export function ClientsContent({
           )}
         </SheetContent>
       </Sheet>
+
+      <CompleteItemDialog
+        task={tickingTask}
+        clientName={tickingTask?.client_id ? clientById.get(tickingTask.client_id)?.name ?? "" : ""}
+        onClose={() => setTickingTask(null)}
+        onCompleted={(task, change, activity, newStatus) => applyChecklistOutcome(task.id, change, { activity, newStatus })}
+        onRescheduled={(task, dueDate, activity) => applyChecklistOutcome(task.id, { due_date: dueDate }, { activity })}
+      />
 
       {/* ══════════════════════════════════════════════════════════════════ */}
       {/* ADD CLIENT DIALOG                                                   */}

@@ -36,6 +36,7 @@ export const PAGE_TO_TOPICS: Record<string, TroubleshootingTopic[]> = {
   "/mileage":      ["mileage", "expenses"],
   "/forecast":     ["forecast", "tax"],
   "/crm":          ["crm"],
+  "/checklist":    ["crm"],
   "/clients":      ["crm"],
   "/reports":      ["tax", "benchmark"],
   "/settings":     ["settings", "bank-sync"],
@@ -87,7 +88,8 @@ export const TOPIC_ACTION_LINKS: Record<TroubleshootingTopic, { label: string; h
   ],
   crm: [
     { label: "Clients (CRM)", href: "/crm" },
-    { label: "Flight Control", href: "/crm" },
+    { label: "Checklist", href: "/checklist" },
+    { label: "Flight Control", href: "/flight-control" },
   ],
   "flight-control": [
     { label: "Clients (CRM)", href: "/crm" },
@@ -280,9 +282,10 @@ const TOPIC_RULES: TopicRule[] = [
   },
   {
     topic: "crm",
-    primary: ["client", "crm", "contact", "boarding", "scheduled", "in-flight", "in_flight", "cruising", "archive", "hangar", "engagement score"],
-    secondary: ["lead", "relationship", "birthday", "tag", "activity", "phone", "email", "note", "showing", "listing appointment", "dormant"],
+    primary: ["client", "crm", "contact", "boarding", "scheduled", "in-flight", "in_flight", "cruising", "archive", "hangar", "engagement score", "checklist"],
+    secondary: ["lead", "relationship", "birthday", "tag", "activity", "phone", "email", "note", "showing", "listing appointment", "dormant", "task", "to-do"],
     phrases: [
+      "tick off",
       "add client",
       "client status",
       "flight status",
@@ -310,6 +313,12 @@ const TOPIC_RULES: TopicRule[] = [
       "mortgage renewal alert",
       "renewal window",
       "renewal due",
+      // Briefing: CRM tab "Today's briefing", dashboard "Daily Briefing",
+      // mobile "Today's Focus"
+      "briefing",
+      "today's focus",
+      "closing anniversary",
+      "home anniversary",
     ],
   },
   {

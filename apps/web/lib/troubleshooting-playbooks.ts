@@ -128,6 +128,10 @@ Identify the weakest component and prioritize:
 **Edge Cases:**
 - January 1–15: Seasonal fraction is tiny → pace calculation swings wildly → tell user to wait 2–3 weeks
 - No goal set: Pace score defaults to 50 (neutral) — recommend setting a goal
+- Goals are per calendar year (Settings → Annual Goal → pick the year). A year set to $0 is a deliberate "no goal / write-off" year: Pace stays neutral and you should NOT push them to set one. Their future-year goals are in the "Income goals by calendar year" context line; next year's goal takes over on January 1.
+
+**"How do I set my goal for next year?"**
+→ Settings → Annual Goal → choose the calendar year → enter the GCI target → Save. Or ask me ("set my 2027 goal to $80,000"). Setting a future year doesn't change this year's pace or projections; it takes over on January 1. Each year is separate: a year nobody set has no goal (nothing carries forward), so from October 1 the dashboard prompts for next year's goal. The dashboard's year switch (this year | next year) shows next year as a plan: goal, pipeline already expected to close that year, deals still needed, monthly targets, and estimated take-home at goal.
 - Zero GCI: Expense score defaults to 50 (neutral)
 - Cash reserve = $0 or not set: Survival score = 35 (incomplete data penalty — not 50)
 `,
@@ -650,6 +654,9 @@ Each contact has a decayed engagement score based on recent activity history.
 4. Cruising clients are NOT stale — they're past clients with light-touch expected
 5. A logged activity (call, email, text, etc.) resets the timer
 
+**"The briefing shows an anniversary, a mortgage renewal or 'past client' for a deal that fell through"** / **"Why is a renewal or anniversary reminder missing?"**
+→ The briefing ("Today's briefing" on the CRM tab, "Daily Briefing" on the dashboard, "Today's Focus" in the mobile app) reads closings from each client's Deal History. A deal set to Collapsed never closed, so it gives no closing anniversary, home anniversary or mortgage renewal reminder. A Cruising client whose only deal collapsed shows as a long-term contact, not a past client. If the client also has an older deal that did close, that one still counts: renewal reminders follow the most recent deal that closed, and a newer collapsed deal doesn't hide it. If a reminder is missing for a deal that did close, open the client's Deal History and check the deal has a close date and its condition status (next to the condition date) isn't Collapsed. The Closed column under Lead sources on the Insights tab counts the same way.
+
 **"Save button isn't working"**
 → The Save button commits first name, last name, and notes. Other fields (email, phone, etc.) may save differently. Ensure required fields aren't empty.
 
@@ -745,7 +752,7 @@ Flight Control uses a 3-tier system to suggest when to send outreach:
 If a user asks "when should I send?" → Tuesday–Thursday mornings are industry-optimal for real estate outreach.
 
 ### Newsletter Section
-Flight Control also includes a newsletter builder for mass updates (market reports, seasonal messages). Agent Runway doesn't pick the recipients: the agent pastes their own list into their email tool. The Recipients note on each newsletter lists past clients whose last deal closed more than 2 years ago, because CASL implied consent from a purchase no longer covers them.
+Flight Control also includes a newsletter builder for mass updates (market reports, seasonal messages). Agent Runway doesn't pick the recipients: the agent pastes their own list into their email tool. The Recipients note on each newsletter lists past clients (including co-buyers on a couple's deal) whose last deal closed more than 2 years ago, because CASL implied consent from a purchase no longer covers them.
 
 ### Common Problems & Diagnostics
 
@@ -760,7 +767,10 @@ Flight Control also includes a newsletter builder for mass updates (market repor
 → Check AI Voice Guide in Settings. If empty, the AI uses generic tone. Write a detailed guide for better results.
 
 **"Client keeps getting messages"**
-→ Check suppression: If an outreach is dismissed (not sent), it may regenerate next cycle. Sending or permanently dismissing prevents regeneration.
+→ Check suppression: a client contacted in the last 14 days (logged activity, "Log contact", or a draft marked sent) is held back. Dismissing a card stops that reminder from coming back or being drafted. A later reminder (next month's check-in, next year's anniversary) can still appear.
+
+**"I dismissed someone and they came back"**
+→ Dismiss is saved (since 2026-10-06) and survives refreshes and other devices. It covers that one reminder: an idle check-in is dismissed until next month's, an anniversary until next year's. Use "Log contact" if you've actually reached them. The toast after dismissing has an Undo button.
 
 **"How do I write a good AI Voice Guide?"**
 → Include: preferred length, opening style, closing style, phrases to use, phrases to avoid, formality level, whether to reference market data. More detail = better drafts.
@@ -771,9 +781,18 @@ Flight Control also includes a newsletter builder for mass updates (market repor
 3. Cron may not have run yet today — check timing
 
 **"Scan only shows a few opportunities" / "Why won't other contacts pop up?"**
-1. Scan Now shows up to 5 cards, one per client. Dated signals come first (birthdays, closing anniversaries, post-close follow-ups, condition dates). Idle past clients (no deal in 18+ months) and repeat-client milestones fill the remaining slots.
+1. Scan Now shows up to 5 cards, one per client. Dated signals and active leads/clients going quiet (Boarding or In-Flight, 14+ days since contact) come first. Idle past clients (no deal in 18+ months) and repeat-client milestones fill the remaining slots, then up to 2 sphere check-ins (Cruising contacts with no deal, 90+ days since contact). Quiet-lead and sphere cards are call cards: no email draft. Dismissing a quiet lead hides it for the week; dismissing a sphere contact hides it for the quarter.
 2. A contact with no closed deal, no birthdate and no first-contact date gives Flight Control nothing to work from. Adding birthdates or linking their deals brings them in.
 3. Anyone contacted in the last 14 days (a logged CRM activity, a "Log contact" from a Flight Control card, or a draft marked sent) is held back, so working through the list rotates new people in. Birthday and condition-date cards show regardless.
+
+**"Where's my checklist?" / "How do I tick something off and log it?"**
+→ Checklist is in the sidebar under CRM (/checklist). Tick the box next to an item. If the item has a client, a pop-up asks how it went: Save to their profile logs the call, text, email or meeting on their profile and ticks it off; Couldn't reach them notes the attempt on their profile and moves it to tomorrow; Just mark done ticks it off without logging anything. The same list shows on the client's profile (Checklist section) and the dashboard Checklist card.
+
+**"I ticked off a checklist item but the client still shows on Flight Control"**
+→ Only Save to their profile counts as contact. Just mark done and Couldn't reach them don't log contact, so Flight Control can still suggest them. Birthday and condition-date cards show regardless of recent contact.
+
+**"I logged a note but they still show as not contacted"**
+→ Since 2026-10-07 a Note is an internal memo and doesn't count as contact: it doesn't change "last contacted" or "first contacted", so Flight Control, the going-quiet list and "days since contact" ignore it. Log a call, text, email, meeting or showing if you actually reached them. (The mobile quick-capture defaults to Note — pick the real type.)
 
 **"I already called/texted them — how do I get them off Flight Control?"**
 → Click "Log contact" on their card, pick Call / Text / Email / Meeting, add an optional note, Save. It logs the activity in the CRM, removes the card, brings in the next person, and holds that client back from Scan for 14 days. If the client was Cruising or Scheduled, logging a real touchpoint moves them to Boarding.
@@ -786,7 +805,7 @@ Flight Control also includes a newsletter builder for mass updates (market repor
 → The client's last deal closed more than 2 years before the message would go out. Under CASL, implied consent to email from a purchase lasts 2 years, so Flight Control suggests a call and never drafts an email for that client. Agent Runway does not record express email consent, so these cards stay call-only. This is general information about the rule, not legal advice.
 
 **"It said 'Call instead of email'" / "Flight Crew won't draft an email for this client" / "A Flight Plan template won't draft"**
-→ Same rule as the Call cards in Scan, applied to every AI email drafter: the CRM briefing's Draft button, the client panel's AI Actions (Ask for Referral, Check In, Request Review, Anniversary Note), Flight Crew chat, and Flight Plan templates. The client's most recent closed deal (collapsed deals don't count) is 2+ years old by the time the message would go out, so no email is drafted and nothing is saved. A newer closed deal on their record restarts the 2 years. Clients with no closed deal on record aren't affected. Agent Runway doesn't record express email consent. A call is the way to reconnect, and Flight Crew can help with talking points. Do not write the email for the user in chat instead. This is general information about the rule, not legal advice.
+→ Same rule as the Call cards in Scan, applied to every AI email drafter: the CRM briefing's Draft button, the client panel's AI Actions (Ask for Referral, Check In, Request Review, Anniversary Note), Flight Crew chat, and Flight Plan templates. The client's most recent closed deal (collapsed deals don't count) is 2+ years old by the time the message would go out, so no email is drafted and nothing is saved. A newer closed deal on their record restarts the 2 years. A co-buyer named on a couple's deal is treated the same as the spouse who holds the deal record: they bought the home too. Clients with no closed deal on record, their own or co-bought, aren't affected. Agent Runway doesn't record express email consent. A call is the way to reconnect, and Flight Crew can help with talking points. Do not write the email for the user in chat instead. This is general information about the rule, not legal advice.
 
 **"Who do I send the newsletter to?" / "Why are some past clients listed under Recipients?"**
 → Agent Runway doesn't build or send to a recipient list. The agent pastes their own list into their email tool's To or BCC field. The Recipients note lists past clients whose last deal closed more than 2 years ago: under CASL, implied consent from a purchase lasts 2 years, so it no longer covers them. Agent Runway doesn't record express consent, so it can't tell who else has given it. This is general information about the rule, not legal advice.

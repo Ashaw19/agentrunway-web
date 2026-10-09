@@ -19,6 +19,7 @@
 import { generateText } from "ai";
 import { models, heliconeHeaders } from "@/lib/ai/provider";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { atlanticISODate } from "@agent-runway/core/lib/local-date";
 
 // ── Structured Facts shape ──────────────────────────────────────────────────
 
@@ -181,7 +182,7 @@ async function gatherClientData(
 function buildMemoryPrompt(data: GatheredClientData): string {
   const c = data.client;
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = atlanticISODate();
 
   let prompt = `You are a memory engine for a Canadian real estate agent's CRM system. Analyze ALL available data about this client and produce a structured memory profile.
 

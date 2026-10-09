@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { CorpDocument, CorpDocumentType } from "@agent-runway/core/types/database";
+import { localISODate } from "@agent-runway/core/lib/local-date";
 
 const DOC_TYPE_LABELS: Record<CorpDocumentType, string> = {
   minutes:        "Minutes",
@@ -47,7 +48,7 @@ function UploadForm({ onUploaded }: UploadFormProps) {
   const [file, setFile] = useState<File | null>(null);
   const [title, setTitle] = useState("");
   const [docType, setDocType] = useState<CorpDocumentType>("minutes");
-  const [docDate, setDocDate] = useState(new Date().toISOString().slice(0, 10));
+  const [docDate, setDocDate] = useState(localISODate);
   const [description, setDescription] = useState("");
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);

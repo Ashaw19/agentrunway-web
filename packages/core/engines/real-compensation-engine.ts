@@ -58,6 +58,7 @@ import {
   type CompPlan,
   type UserSettings,
 } from "../types/database";
+import { localISODate } from "../lib/local-date";
 
 // ── Inputs ────────────────────────────────────────────────────────────────────
 
@@ -545,7 +546,7 @@ export function computePlanGross(
     };
   }
 
-  const asOf = opts.asOf ?? new Date().toISOString().slice(0, 10);
+  const asOf = opts.asOf ?? localISODate();
 
   if (opts.deals && opts.deals.length > 0) {
     // Exact path: run the waterfall over real deals.

@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
+import { CompleteItemDialog } from "@/components/checklist/complete-item-dialog";
 import {
   DndContext,
   closestCenter,
@@ -139,6 +140,15 @@ import { survivalResult, riskColorBand, type SurvivalResult, type RiskColorBand 
 import { computeCashPosition, type CashPositionResult } from "@/lib/engines/cash-position-engine";
 import { compute as computeRunwayScore, SCORE_VERSION, bandColorHexForScore, type BusinessHealthReport, type RunwayScoreResult, type ScoreComponent } from "@/lib/engines/runway-score-engine";
 import { RunwayGauge } from "./runway-gauge";
+import { DashboardYearSwitch, NextYearGoalPrompt, NextYearPlan, type DashboardYearView } from "./next-year-plan";
+import {
+  type IncomeGoalRow,
+  incomeGoalCurrentYear,
+  goalForYear,
+  hasGoalRow,
+  saveIncomeGoal,
+  shouldPromptNextYearGoal,
+} from "@/lib/income-goals";
 import { generateInsights, type Insight } from "@/lib/engines/insights-engine";
 import { buildHealthReport } from "@/lib/engines/health-report";
 import {
@@ -166,6 +176,10 @@ import { GuideLink } from "@/components/guide-link";
 import { AiProfilePrompt } from "./ai-profile-prompt";
 import { ClosingDayPrompt } from "./closing-day-prompt";
 import type { CommunicationProfile, BusinessIdentity } from "@/lib/types/database";
+import { localISODate } from "@agent-runway/core/lib/local-date";
+
+/** Open checklist item with its client's name (dashboard/page.tsx joins clients(name)). */
+type TaskWithClient = ContactTask & { clients?: { name: string } | null };
 
 function MetricInfo({ tip }: { tip: string }) {
   return (
@@ -217,6 +231,8 @@ interface Props {
   recurringExpYTD?: number;
   /** ISO timestamp the server loaded this data — drives the freshness line. */
   dataAsOf?: string;
+  /** income_goals rows (00169/00170): one goal per calendar year. */
+  incomeGoals?: IncomeGoalRow[];
 }
 
 function getTimeGreeting(): { greeting: string; emoji: string } {
@@ -321,9 +337,30 @@ export function DashboardContent({
   recurringExpMonthly = 0,
   recurringExpYTD = 0,
   dataAsOf,
+  incomeGoals: initialIncomeGoals = [],
 }: Props) {
   const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
+
+  // ── Year switch (this year | next year plan) ─────────────────────────
+  // Opens on this year every time; next year is a planning view built by
+  // next-year-plan.tsx from core/engines/year-plan-engine.
+  const goalCurrentYear = incomeGoalCurrentYear();
+  const [viewYear, setViewYear] = useState<DashboardYearView>("current");
+  const [incomeGoals, setIncomeGoals] = useState<IncomeGoalRow[]>(initialIncomeGoals);
+
+  async function saveNextYearGoal(amount: number): Promise<boolean> {
+    if (!settings?.user_id) return false;
+    const year = goalCurrentYear + 1;
+    const { ok } = await saveIncomeGoal(supabase, settings.user_id, year, amount);
+    if (!ok) {
+      toast.error("Couldn't save the goal. Try again.");
+      return false;
+    }
+    setIncomeGoals((prev) => [...prev.filter((r) => r.year !== year), { year, goal_gci: amount }]);
+    toast.success(amount > 0 ? `${year} goal set to ${fmtCurrency(amount)}` : `${year} set to no goal`);
+    return true;
+  }
 
   // Re-sync server data when the user returns to the tab — no polling cost, so a
   // deal logged on mobile or in another tab reflects here on focus instead of
@@ -380,6 +417,8 @@ export function DashboardContent({
   const [showAnnualReview, setShowAnnualReview] = useState(false);
   // ── CRM task widget state ───────────────────────────────────────────────
   const [localTasks, setLocalTasks] = useState<ContactTask[]>(openTasks);
+  // Client items open the Checklist tick-off pop-up; general items are marked done.
+  const [tickingTask, setTickingTask] = useState<ContactTask | null>(null);
   async function completeTaskFromDashboard(taskId: string) {
     // Optimistic removal — use functional updater so we can reverse just this task
     // even if multiple completions are in-flight simultaneously (no stale closure).
@@ -395,7 +434,7 @@ export function DashboardContent({
     }
     const { error } = await supabase
       .from("contact_tasks")
-      .update({ completed_at: new Date().toISOString() })
+      .update({ completed_at: new Date().toISOString(), completed_via: "done" })
       .eq("id", taskId)
       .eq("user_id", user.id);
     if (error) {
@@ -665,7 +704,7 @@ export function DashboardContent({
         deals: planDeals,
         windowStart: `${now.getFullYear()}-01-01`,
         windowEnd: `${now.getFullYear() + 1}-01-01`,
-        asOf: now.toISOString().slice(0, 10),
+        asOf: localISODate(now),
       });
       const brokerageFees = settings.monthly_brokerage_fee * (now.getMonth() + 1);
       return Math.max(0, grossAfterPlan - brokerageFees);
@@ -1147,7 +1186,7 @@ export function DashboardContent({
         deals: planDeals,
         windowStart: `${now.getFullYear()}-01-01`,
         windowEnd: `${now.getFullYear() + 1}-01-01`,
-        asOf: now.toISOString().slice(0, 10),
+        asOf: localISODate(now),
       })
     : null;
   const ytdAgentGross = ytdPlanGross?.shareBeforePlanFees ?? ytdGCI;
@@ -1908,10 +1947,10 @@ export function DashboardContent({
           <div className="flex items-center justify-between">
             <CardTitle className="text-sm font-semibold text-slate-800 flex items-center gap-2">
               <CheckSquare className="h-4 w-4 text-slate-500" />
-              Follow-up Tasks
+              Checklist
             </CardTitle>
-            <Link href="/crm" className="text-xs text-slate-500 hover:text-slate-800 hover:underline font-medium">
-              View all →
+            <Link href="/checklist" className="text-xs text-slate-500 hover:text-slate-800 hover:underline font-medium">
+              Open checklist →
             </Link>
           </div>
           {(overdue.length > 0 || staleLeadCount > 0) && (
@@ -1941,9 +1980,10 @@ export function DashboardContent({
             return (
               <div key={task.id} className="flex items-center gap-2.5 rounded-lg bg-white/60 px-3 py-2">
                 <button
-                  onClick={() => completeTaskFromDashboard(task.id)}
+                  onClick={() => task.client_id ? setTickingTask(task) : completeTaskFromDashboard(task.id)}
                   className="text-muted-foreground hover:text-emerald-600 transition-colors shrink-0"
-                  title="Mark complete"
+                  title="Tick off"
+                  aria-label={`Tick off "${task.title}"`}
                 >
                   <Square className="h-4 w-4" />
                 </button>
@@ -1966,8 +2006,8 @@ export function DashboardContent({
           })}
           {localTasks.length > 5 && (
             <p className="text-xs text-slate-500 text-center pt-1">
-              +{localTasks.length - 5} more tasks.{" "}
-              <Link href="/crm" className="underline font-medium text-slate-700">View all in CRM</Link>
+              +{localTasks.length - 5} more.{" "}
+              <Link href="/checklist" className="underline font-medium text-slate-700">See your whole checklist</Link>
             </p>
           )}
           {localTasks.length === 0 && staleLeadCount > 0 && (
@@ -1977,6 +2017,13 @@ export function DashboardContent({
             </div>
           )}
         </CardContent>
+        <CompleteItemDialog
+          task={tickingTask}
+          clientName={(tickingTask as TaskWithClient | null)?.clients?.name ?? ""}
+          onClose={() => setTickingTask(null)}
+          onCompleted={(task) => setLocalTasks((prev) => prev.filter((t) => t.id !== task.id))}
+          onRescheduled={(task, dueDate) => setLocalTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, due_date: dueDate } : t)))}
+        />
       </Card>
     );
   })();
@@ -2465,6 +2512,30 @@ export function DashboardContent({
 
   return (
     <div className="space-y-6">
+      {settings && (
+        <DashboardYearSwitch view={viewYear} onChange={setViewYear} currentYear={goalCurrentYear} />
+      )}
+
+      {viewYear === "next" && settings ? (
+        <NextYearPlan
+          year={goalCurrentYear + 1}
+          currentYear={goalCurrentYear}
+          goal={hasGoalRow(incomeGoals, goalCurrentYear + 1) ? goalForYear(incomeGoals, goalCurrentYear + 1) : null}
+          onSaveGoal={saveNextYearGoal}
+          pipelineDeals={pipelineDeals}
+          historyItems={historyItems}
+          ytdGCI={ytdGCI}
+          ytdDealCount={ytdDealCount}
+          seasonalWeights={seasonalWeights}
+          seasonalSource={seasonalSource}
+          settings={settings}
+          monthlyRecurring={monthlyRecurring}
+        />
+      ) : (
+      <>
+      {settings && shouldPromptNextYearGoal(incomeGoals) && (
+        <NextYearGoalPrompt year={goalCurrentYear + 1} onOpen={() => setViewYear("next")} />
+      )}
       {/* Annual Review Modal */}
       {showAnnualReview && (
         <AnnualReview
@@ -2990,6 +3061,9 @@ export function DashboardContent({
           .filter((t) => t.status === "closed")
           .map((t) => ({ sale_price: t.sale_price, commission_pct: t.commission_pct, date: t.date }))}
       />
+
+      </>
+      )}
 
       {/* AI Profile floating prompt */}
       {settings?.user_id && (
@@ -3872,7 +3946,7 @@ function computeProjectedNet(
   // effective-cash.ts:projectedAgentNet exactly.
   const { grossAfterPlan } = computePlanGross(settings, projectedGCI, {
     dealCount: projectedDealCount,
-    asOf: new Date().toISOString().slice(0, 10),
+    asOf: localISODate(),
   });
   const brokerageFeeAnnual = settings.monthly_brokerage_fee * 12;
   return grossAfterPlan - brokerageFeeAnnual;

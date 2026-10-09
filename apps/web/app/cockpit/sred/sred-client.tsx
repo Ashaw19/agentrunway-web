@@ -18,6 +18,7 @@ import type {
   SredWeight,
 } from "@agent-runway/core/types/database";
 import { SRED_WEIGHT_FACTORS } from "@agent-runway/core/types/database";
+import { localISODate } from "@agent-runway/core/lib/local-date";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -42,7 +43,7 @@ const WEIGHT_COLORS: Record<SredWeight, string> = {
   none:   "bg-muted/40 text-muted-foreground border-muted/40",
 };
 
-const today = new Date().toISOString().slice(0, 10);
+const today = localISODate();
 const thisYear = new Date().getFullYear();
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

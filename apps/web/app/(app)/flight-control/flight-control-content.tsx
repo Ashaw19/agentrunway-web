@@ -24,12 +24,14 @@ import {
   Handshake, Heart, Repeat2,
   Flower2, Leaf, PartyPopper, Receipt,
   RefreshCw, Timer, Lightbulb, ArrowRight,
-  AlertTriangle, Brain, Zap, Phone,
+  AlertTriangle, Brain, Zap, Phone, PhoneCall,
 } from "lucide-react";
 import type { OutreachQueueItem, OutreachOpportunityType, TopOpportunity, NewsletterQueue, ActivityType, ClientStatus } from "@/lib/types/database";
 import { ACTIVITY_TYPE_LABELS, ACTIVITY_TYPE_ICONS, CLIENT_STATUS_LABELS } from "@/lib/types/database";
 import { logClientContact } from "@/lib/crm/log-contact";
+import { dismissOpportunity, undismissOpportunity } from "@/lib/crm/dismissed-opportunities";
 import { markMemoryStaleClient } from "@/lib/ai/mark-memory-stale";
+import { AddToChecklistButton } from "@/components/checklist/add-to-checklist-button";
 import { useAiChat } from "@/lib/ai-chat-context";
 import { getOptimalSendTime, segmentForOutreachType } from "@/lib/engines/send-time-engine";
 import { NewsletterSection } from "./newsletter-section";
@@ -65,6 +67,9 @@ const OPTYPE_ICON: Record<OutreachOpportunityType, React.ElementType> = {
   educational_value_inactive: Lightbulb,
   condition_firming:      CheckCircle2,
   scheduled_date_approaching: Timer,
+  // Scan call cards (2026-10-07)
+  lead_going_quiet:       PhoneCall,
+  sphere_check_in:        Users,
 };
 
 // Opportunity score is a HEALTH/magnitude number — it follows the §9.1 score
@@ -112,6 +117,8 @@ function OpportunityCard({
   onDraftMessage,
   onDismiss,
   onLogContact,
+  onChecklist,
+  onAddedToChecklist,
   draftedMessage,
   onReviewDraft,
   drafting,
@@ -121,6 +128,9 @@ function OpportunityCard({
   onDraftMessage: (opp: TopOpportunity) => void;
   onDismiss:      (opp: TopOpportunity) => void;
   onLogContact:   (opp: TopOpportunity, type: ActivityType, note: string) => Promise<boolean>;
+  /** The client already has an open Checklist item. */
+  onChecklist:    boolean;
+  onAddedToChecklist: (clientId: string) => void;
   draftedMessage: QueueItemWithClient | null;
   onReviewDraft:  (item: QueueItemWithClient) => void;
   drafting:       boolean;
@@ -238,12 +248,16 @@ function OpportunityCard({
         </p>
       </div>
 
-      {/* Call-only — CASL implied consent for email has lapsed */}
+      {/* Call-only card — reason from call_reason (CASL lapsed / active client / sphere) */}
       {isCallOnly && (
         <div className="flex items-start gap-2 pl-0.5">
           <Phone className="h-3.5 w-3.5 mt-0.5 shrink-0 text-muted-foreground" />
           <p className="text-[12px] text-muted-foreground leading-relaxed">
-            Call, don&apos;t email. Their last deal closed over 2 years ago, so CASL implied consent for email has lapsed.
+            {opportunity.call_reason === "personal_check_in"
+              ? "Call or text. A personal check-in works better than an email for an active client."
+              : opportunity.call_reason === "sphere"
+                ? "Call. You haven't done a deal together, so there's no email consent on record."
+                : "Call, don't email. Their last deal closed over 2 years ago, so CASL implied consent for email has lapsed."}
           </p>
         </div>
       )}
@@ -294,6 +308,13 @@ function OpportunityCard({
             <CheckCircle2 className="h-3.5 w-3.5" />
             Log contact
           </Button>
+          <AddToChecklistButton
+            key={`${opportunity.client_id}:${onChecklist}`}
+            clientId={opportunity.client_id}
+            clientName={opportunity.client_name}
+            onList={onChecklist}
+            onAdded={() => onAddedToChecklist(opportunity.client_id)}
+          />
         </div>
         <div className="flex items-center gap-2">
           <Button
@@ -651,6 +672,8 @@ interface FlightControlContentProps {
   initialNewsletters:  NewsletterQueue[];
   /** Past clients whose CASL implied consent from a purchase has lapsed. */
   lapsedPastClientNames: string[];
+  /** Clients with an open Checklist item. */
+  checklistClientIds:  string[];
 }
 
 export function FlightControlContent({
@@ -660,7 +683,9 @@ export function FlightControlContent({
   initialVoiceGuide,
   initialNewsletters,
   lapsedPastClientNames,
+  checklistClientIds,
 }: FlightControlContentProps) {
+  const [onChecklist, setOnChecklist] = useState<Set<string>>(() => new Set(checklistClientIds));
   const { askQuestion } = useAiChat();
   const [activeTab, setActiveTab] = useState<Tab>("opportunities");
 
@@ -771,9 +796,40 @@ export function FlightControlContent({
   }, []);
 
   // ── Dismiss opportunity ──────────────────────────────────────────────────
-  const handleDismiss = useCallback((opp: TopOpportunity) => {
-    setDismissedIds((prev) => new Set([...prev, `${opp.client_id}:${opp.opportunity_type}`]));
-  }, []);
+  // Persisted per occurrence (flight_control_dismissals), so a refresh, another
+  // device or tonight's drafter won't bring it back. Hidden immediately; a
+  // quiet re-scan backfills the slot.
+  const handleDismiss = useCallback(async (opp: TopOpportunity) => {
+    const localKey = `${opp.client_id}:${opp.opportunity_type}`;
+    setDismissedIds((prev) => new Set([...prev, localKey]));
+
+    const saved = await dismissOpportunity(createClient(), opp);
+    if (!saved.ok) {
+      toast.error("Couldn't save that dismissal. It may come back after a refresh.");
+      return;
+    }
+    void loadOpportunities({ refill: true });
+
+    toast(`Dismissed ${opp.client_name}.`, {
+      description: "Hidden until there's a new reason to reach out.",
+      action: {
+        label: "Undo",
+        onClick: async () => {
+          const undone = await undismissOpportunity(createClient(), opp);
+          if (!undone.ok) {
+            toast.error("Couldn't undo. Try again.");
+            return;
+          }
+          setDismissedIds((prev) => {
+            const next = new Set(prev);
+            next.delete(localKey);
+            return next;
+          });
+          void loadOpportunities({ refill: true });
+        },
+      },
+    });
+  }, [loadOpportunities]);
 
   // ── Log contact: reached them another way, take them off the list ────────
   // The activity moves last_contact_at, so Scan holds them back for 14 days.
@@ -1087,6 +1143,8 @@ export function FlightControlContent({
                       onDraftMessage={handleDraftMessage}
                       onDismiss={handleDismiss}
                       onLogContact={handleLogContact}
+                      onChecklist={onChecklist.has(opp.client_id)}
+                      onAddedToChecklist={(id) => setOnChecklist((prev) => new Set([...prev, id]))}
                       draftedMessage={getDraftForOpp(opp)}
                       onReviewDraft={setReviewItem}
                       drafting={draftingFor === opp.client_id}
