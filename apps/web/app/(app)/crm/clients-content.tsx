@@ -109,6 +109,7 @@ import { toNameSearch } from "@/lib/crm/client-identity";
 import { clusterDuplicateClients } from "@/lib/crm/duplicate-detection";
 import { computeHouseholdActivityIds } from "@/lib/crm/resolve-deal-clients";
 import { CLIENT_PANEL_DRAFT_TYPES } from "@/lib/crm/outreach-draft-actions";
+import { hasClosedDeal } from "@/lib/crm/contactable-records";
 import { DuplicateReviewDialog } from "./duplicate-review-dialog";
 import type {
   Client,
@@ -5243,7 +5244,7 @@ export function ClientsContent({
                   clientId={selectedClient.id}
                   clientName={selectedClient.name}
                   flightStatus={selectedClient.status}
-                  hasClosedRecord={clientDeals.some((d) => d.close_date)}
+                  hasClosedRecord={hasClosedDeal(clientDeals)}
                 />
 
                 {/* Message History — Phase 2.4 (HML gap closure):
