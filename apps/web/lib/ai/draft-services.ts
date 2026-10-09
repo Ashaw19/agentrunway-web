@@ -48,13 +48,7 @@ import {
   buildCustomNewsletterPrompt,
 } from "@/lib/newsletter-prompts";
 import { excludeCollapsedDeals } from "@/lib/crm/contactable-records";
-import {
-  type DealForConsent,
-  emailConsentLapsedReason,
-  lastClosedDealByClient,
-  outreachChannel,
-  withCoBuyerDeals,
-} from "@/lib/crm/outreach-consent";
+import { type DealForConsent, emailConsentLapsedReason, lastClosedDealByClient, outreachChannel, withCoBuyerDeals, emailOptOutReason } from "@/lib/crm/outreach-consent";
 import { APP_TIME_ZONE, atlanticISODate, atlanticNoon } from "@agent-runway/core/lib/local-date";
 import { nextBirthdayDate } from "@/lib/crm/next-birthday";
 import type {
@@ -346,7 +340,7 @@ export async function draftOutreachForClient(input: {
   const { data: client, error: clientError } = await supabase
     .from("clients")
     .select(
-      "id, name, first_name, last_name, city, province_region, birthdate, communication_tone, status, timeframe, property_interest, property_interest_type, notes, tags, last_contact_at",
+      "id, name, first_name, last_name, city, province_region, birthdate, communication_tone, status, timeframe, property_interest, property_interest_type, notes, tags, last_contact_at, email_opt_out_at",
     )
     .eq("id", clientId)
     .eq("user_id", userId)
@@ -368,6 +362,16 @@ export async function draftOutreachForClient(input: {
     .join(" ")
     .trim();
   const clientDisplayName = trimmedName || composedName || "this client";
+
+  // ── Unsubscribed from all email (00173): call only, before anything else ──
+  if (client.email_opt_out_at) {
+    return {
+      status: "call_only",
+      queueItemId: "",
+      reason: emailOptOutReason(clientDisplayName, client.email_opt_out_at),
+      clientName: clientDisplayName,
+    };
+  }
 
   // ── Fetch settings + closed records + co-bought deals in parallel ────────
   const [settingsRes, recordsRes, coBought] = await Promise.all([
@@ -1305,7 +1309,7 @@ export async function draftWorkflowMessage(
   // ── Load client (ownership enforced via user_id match) ────────────────
   const { data: client, error: clientError } = await supabase
     .from("clients")
-    .select("id, name, first_name, last_name, communication_tone, tags, notes")
+    .select("id, name, first_name, last_name, communication_tone, tags, notes, email_opt_out_at")
     .eq("id", clientId)
     .eq("user_id", userId)
     .is("archived_at", null)
@@ -1322,6 +1326,15 @@ export async function draftWorkflowMessage(
     .trim();
   const clientDisplayName = trimmedName || composedName || "this client";
   const clientFirstName = client.first_name?.trim() || clientDisplayName.split(/\s+/)[0] || "there";
+
+  // ── Unsubscribed from all email (00173): call only ─────────────────────
+  if (client.email_opt_out_at) {
+    return {
+      status: "call_only",
+      reason: emailOptOutReason(clientDisplayName, client.email_opt_out_at),
+      clientName: clientDisplayName,
+    };
+  }
 
   // ── Load agent settings + the client's closed + co-bought deals ─────────
   const [{ data: settings }, recordsRes, coBought] = await Promise.all([

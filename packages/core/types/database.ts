@@ -747,7 +747,7 @@ export interface TopOpportunity {
   /** "call" = no email draft for this card; `call_reason` says why. */
   contact_channel:   "email" | "call";
   /** Why a call card is call-only: CASL lapsed, a personal check-in on an active client, or a sphere contact. */
-  call_reason?:      "casl_lapsed" | "personal_check_in" | "sphere" | null;
+  call_reason?:      "casl_lapsed" | "personal_check_in" | "sphere" | "opted_out" | null;
   client_record_id:  string | null;
   context:           Record<string, unknown>; // pass-through for optional drafting
   financial_impact:  string;                  // 1-2 sentence business impact explanation
@@ -1158,6 +1158,9 @@ export interface Client {
   // precompute-briefings cron via packages/core/engines/engagement-engine.ts)
   engagement_score:      number;         // time-decayed weighted score, default 0
   engagement_updated_at: string | null;  // last nightly refresh
+  /** Unsubscribed from all email (00173): every drafter treats them as call-only. */
+  email_opt_out_at?:     string | null;
+  email_opt_out_source?: string | null;
 
   created_at: string;
   updated_at: string;

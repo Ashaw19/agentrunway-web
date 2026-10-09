@@ -253,7 +253,9 @@ function OpportunityCard({
         <div className="flex items-start gap-2 pl-0.5">
           <Phone className="h-3.5 w-3.5 mt-0.5 shrink-0 text-muted-foreground" />
           <p className="text-[12px] text-muted-foreground leading-relaxed">
-            {opportunity.call_reason === "personal_check_in"
+            {opportunity.call_reason === "opted_out"
+              ? "Call, don't email. They unsubscribed from your emails."
+              : opportunity.call_reason === "personal_check_in"
               ? "Call or text. A personal check-in works better than an email for an active client."
               : opportunity.call_reason === "sphere"
                 ? "Call. You haven't done a deal together, so there's no email consent on record."
@@ -672,6 +674,8 @@ interface FlightControlContentProps {
   initialNewsletters:  NewsletterQueue[];
   /** Past clients whose CASL implied consent from a purchase has lapsed. */
   lapsedPastClientNames: string[];
+  /** Clients who unsubscribed from all email (00173). */
+  optedOutClientNames: string[];
   /** Clients with an open Checklist item. */
   checklistClientIds:  string[];
 }
@@ -683,6 +687,7 @@ export function FlightControlContent({
   initialVoiceGuide,
   initialNewsletters,
   lapsedPastClientNames,
+  optedOutClientNames,
   checklistClientIds,
 }: FlightControlContentProps) {
   const [onChecklist, setOnChecklist] = useState<Set<string>>(() => new Set(checklistClientIds));
@@ -1116,6 +1121,7 @@ export function FlightControlContent({
               initialNewsletters={initialNewsletters}
               signature={signature}
               lapsedPastClientNames={lapsedPastClientNames}
+              optedOutClientNames={optedOutClientNames}
             />
           ) : !loaded ? (
             <div className="flex flex-col items-center justify-center py-20 gap-3">

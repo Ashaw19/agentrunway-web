@@ -277,3 +277,34 @@ describe("draftWorkflowMessage — CASL gate", () => {
     expect(result.status).toBe("created");
   });
 });
+
+/**
+ * Unsubscribed from all email (00173, website leads): clients.email_opt_out_at
+ * makes both drafters call-only, even for a client whose deal is recent. The
+ * fake returns only selected columns, so a drafter that forgets to select
+ * email_opt_out_at can't see the opt-out and these fail.
+ */
+describe("email opt-out", () => {
+  const optedOut = (records: Row[]) =>
+    fakeSupabase({ ...tables(records), clients: [clientRow({ email_opt_out_at: "2026-09-15T13:00:00+00:00" })] });
+
+  it("draftOutreachForClient refuses, inside the two-year window too", async () => {
+    const { client, writes } = optedOut([deal("2025-06-01")]);
+    const result = await draftOutreachForClient({
+      supabase: client, userId: USER, clientId: CLIENT, opportunityType: "past_client_check_in",
+    });
+    expect(result.status).toBe("call_only");
+    expect(result.reason).toContain("unsubscribed from your emails on September 15, 2026");
+    expect(result.reason).not.toContain("—");
+    expect(writes).toEqual([]);
+    expect(mockGenerate).not.toHaveBeenCalled();
+  });
+
+  it("draftWorkflowMessage refuses", async () => {
+    const { client, writes } = optedOut([]);
+    const result = await draftWorkflowMessage({ supabase: client, userId: USER, clientId: CLIENT, template });
+    expect(result.status).toBe("call_only");
+    expect(result.reason).toContain("unsubscribed");
+    expect(writes).toEqual([]);
+  });
+});

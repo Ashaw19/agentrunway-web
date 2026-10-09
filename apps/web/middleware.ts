@@ -21,7 +21,8 @@ export const config = {
      * - public files (svg, png, jpg, etc.)
      * - r/* (phone receipt-upload raw HTML — unauthenticated, must be instant)
      * - api/receipts/mobile-upload/* (phone file POST — unauthenticated)
+     * - api/inbound/website (server-to-server from the agent's website; key auth, no cookie)
      */
-    "/((?!_next/static|_next/image|favicon.ico|r/|api/receipts/mobile-upload/|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|r/|api/receipts/mobile-upload/|api/inbound/website|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };

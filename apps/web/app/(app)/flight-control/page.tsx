@@ -99,6 +99,19 @@ export default async function FlightControlPage() {
     .map((c) => (c.name as string | null)?.trim() || "Unnamed client")
     .sort((a, b) => a.localeCompare(b));
 
+  // Unsubscribed from all email (00173): flagged in the newsletter Recipients note.
+  const { data: optedOutClients, error: optedOutError } = await supabase
+    .from("clients")
+    .select("name")
+    .eq("user_id", user.id)
+    .is("archived_at", null)
+    .not("email_opt_out_at", "is", null)
+    .limit(1000);
+  if (optedOutError) console.error("[flight-control] opted-out names fetch failed:", optedOutError.message);
+  const optedOutClientNames = (optedOutClients ?? [])
+    .map((c) => (c.name as string | null)?.trim() || "Unnamed client")
+    .sort((a, b) => a.localeCompare(b));
+
   return (
     <FlightControlContent
       initialQueue={(queue ?? []) as (OutreachQueueItem & { clients: { name: string; city: string | null; province_region: string | null; email: string | null } | null })[]}
@@ -107,6 +120,7 @@ export default async function FlightControlPage() {
       initialVoiceGuide={(settingsRow?.ai_voice_guide as string | null) ?? ""}
       initialNewsletters={(newslettersRes.data ?? []) as NewsletterQueue[]}
       lapsedPastClientNames={lapsedPastClientNames}
+      optedOutClientNames={optedOutClientNames}
       checklistClientIds={[...new Set((checklistRes.data ?? []).map((r) => r.client_id as string))]}
     />
   );

@@ -286,6 +286,7 @@ const TOPIC_RULES: TopicRule[] = [
     secondary: ["lead", "relationship", "birthday", "tag", "activity", "phone", "email", "note", "showing", "listing appointment", "dormant", "task", "to-do"],
     phrases: [
       "tick off",
+      "website lead", "website sign-up", "website signup", "connect my website", "unsubscribed",
       "add client",
       "client status",
       "flight status",
