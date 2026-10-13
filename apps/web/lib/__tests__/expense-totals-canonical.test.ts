@@ -69,7 +69,10 @@
  *      recurring expense has dates: a year costs the charge dates that fall
  *      in it (`totalRecurringInYear`). Next year's figure is
  *      `ytdExpenseTotals(...).expensesNextYear`, and the plan
- *      (year-plan-engine `planTakeHome`) is handed it
+ *      (year-plan-engine `planTakeHome`) is handed it. The footer under the
+ *      Recurring Expenses list was the last one ("Annual total", its
+ *      "Monthly avg" × 12): it is this year's charges, labelled with the
+ *      year (`recurringListFooter`, lib/expenses/recurring-list-footer)
  *
  * A regex can't prove a total is right, only that it didn't bypass the
  * engine. The numbers are tested in
@@ -118,12 +121,8 @@ const MONTHLY_TIMES_MONTHS_LEFT =
 const MONTHLY_TIMES_TWELVE =
   /\b(?:monthlyRecurring|monthlyRecurringExpenses|recurringExpMonthly|recurringMonthly|recurringListMonthly|monthlyTotal)\)?\s*\*\s*12\b|\b(?:totalRecurringMonthly|recurringMonthlyRunRate|recurringMonthlyEquivalent|recurringMonthlyForCategory)\s*\((?:[^()]|\([^()]*\))*\)\s*\*\s*12\b/g;
 
-const ALLOWED_MONTHLY_TIMES_TWELVE: Record<string, { count: number; why: string }> = {
-  "apps/web/app/(app)/expenses/expenses-content.tsx": {
-    count: 1,
-    why: "Footer of the Recurring Expenses list: \"Annual total\" beside \"Monthly avg\", the list's monthly figure as charged, annualised. It names no year and feeds no other figure.",
-  },
-};
+/** Empty: nothing multiplies a monthly recurring figure into a year. An entry here needs a reason. */
+const ALLOWED_MONTHLY_TIMES_TWELVE: Record<string, { count: number; why: string }> = {};
 
 /** Engines that project the year too (effective-cash, advisor-engine). */
 const CORE_ENGINES = "packages/core/engines";
@@ -583,6 +582,13 @@ describe("REGRESSION — expense totals are net of ITCs through expense-totals-e
     const mcp = codeOnly(read("apps/web/supabase/functions/mcp-server/tools/expenses.ts"));
     expect(mcp).toContain("total: round2(totals.expensesNextYear),");
     expect(mcp).not.toContain("projected_annual_recurring");
+
+    // The footer under the Recurring Expenses list: this year's charges from
+    // the one helper, under a label that names the year. Not "Annual total".
+    const expensesPage = codeOnly(read("apps/web/app/(app)/expenses/expenses-content.tsx"));
+    expect(expensesPage).toContain("recurringListFooter(recurringExpenses, thisYear, now)");
+    expect(expensesPage).toMatch(/\{thisYear\} total\{gstHstRegistered \? " as charged" : ""\}: <strong[^>]*>\{fmtCurrency\(recurringFooter\.yearTotal\)\}/);
+    expect(expensesPage).not.toContain("Annual total");
   });
 
   it("the regexes catch the hand-rolled shapes and spare the canonical ones", () => {

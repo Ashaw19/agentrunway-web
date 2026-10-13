@@ -109,8 +109,9 @@ import {
 } from "@agent-runway/core/engines/filing-period-engine";
 import { computeGST34 } from "@agent-runway/core/engines/gst34-engine";
 import { buildGST34Worksheet } from "@agent-runway/core/engines/gst34-worksheet";
-import { recurringHSTDetailForPeriod, recurringHSTEntriesForPeriod, recurringMonthlyRunRate } from "@agent-runway/core/engines/recurring-expense-engine";
+import { recurringHSTDetailForPeriod, recurringHSTEntriesForPeriod } from "@agent-runway/core/engines/recurring-expense-engine";
 import { recurringEndDateError, recurringEndStatus } from "@/lib/expenses/recurring-end-date";
+import { recurringListFooter } from "@/lib/expenses/recurring-list-footer";
 import { localISODate } from "@agent-runway/core/lib/local-date";
 import { gstHstLabel } from "@agent-runway/core/engines/canadian-tax-engine";
 import { reconcileDeals, type ReconciliationResult, type ImportedDeal } from "@agent-runway/core/engines/reconciliation-engine";
@@ -881,10 +882,12 @@ export function ExpensesContent({
   const now = new Date();
 
   // The footer under the Recurring Expenses list: its entries as entered
-  // (GST/HST included, like the rows above it), for those that have not
-  // ended. A list footer, not an expense total: those are `expenseTotals`,
-  // net of ITCs.
-  const recurringListMonthly = recurringExpenses.reduce((sum, re) => sum + recurringMonthlyRunRate(re, now), 0);
+  // (GST/HST included, like the rows above it). The monthly figure is for
+  // those that have not ended; the year's figure is the charges dated in
+  // `thisYear`, so an entry with an end date or a start date in the year
+  // counts between them. A list footer, not an expense total: those are
+  // `expenseTotals`, net of ITCs.
+  const recurringFooter = recurringListFooter(recurringExpenses, thisYear, now);
 
   // ── YTD expenses ──────────────────────────────────────────────────────
   // Every line the engine tracked: receipts (or the per-item monthly figure
@@ -2719,10 +2722,10 @@ export function ExpensesContent({
           )}
           <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
             <span>
-              Monthly avg{gstHstRegistered ? " as charged" : ""}: <strong className="text-foreground">{fmtCurrency(recurringListMonthly)}</strong>
+              Monthly avg{gstHstRegistered ? " as charged" : ""}: <strong className="text-foreground">{fmtCurrency(recurringFooter.monthly)}</strong>
             </span>
-            <span>
-              Annual total{gstHstRegistered ? " as charged" : ""}: <strong className="text-foreground">{fmtCurrency(recurringListMonthly * 12)}</strong>
+            <span title={`Every charge dated in ${thisYear}, from each entry's start date to its end date.`}>
+              {thisYear} total{gstHstRegistered ? " as charged" : ""}: <strong className="text-foreground">{fmtCurrency(recurringFooter.yearTotal)}</strong>
             </span>
           </div>
         </CardContent>
