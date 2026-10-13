@@ -106,8 +106,8 @@ export function validateExtractedDeal(
     // If GCI is more than 25% of the reported sale price, the wrong column was used
     if (gci > 0 && gci > sale_price * THRESHOLDS.GCI_MAX_FRACTION_OF_SP) {
       issues.push(
-        `GCI ($${gci.toLocaleString()}) is ${((gci / sale_price) * 100).toFixed(1)}% of sale price ` +
-        `— commission income should typically be 1–5% of the property price`,
+        `GCI ($${gci.toLocaleString()}) is ${((gci / sale_price) * 100).toFixed(1)}% of sale price. ` +
+        `Agent Runway flags GCI above ${THRESHOLDS.GCI_MAX_FRACTION_OF_SP * 100}% of the sale price as a likely column mix-up`,
       );
       overrides.gci        = "low";
       overrides.sale_price = "low";

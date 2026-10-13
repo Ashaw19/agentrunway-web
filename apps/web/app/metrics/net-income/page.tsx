@@ -69,7 +69,7 @@ export default function NetIncomeMetricPage() {
             {/* Key stat pills */}
             <div className="mt-10 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
               {[
-                { value: "~37%", label: "of GCI after all deductions (typical Ontario agent)" },
+                { value: "~37%", label: "of GCI left after tax in the worked example below (Ontario)" },
                 { value: "5 layers", label: "of deductions between GCI and take-home" },
                 { value: "$0", label: "tax owed on money you don't realise you earned" },
               ].map((s) => (

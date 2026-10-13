@@ -661,7 +661,7 @@ export default function GstHstQuickMethodRealEstateAgentsCanadaPage() {
               <p>
                 The split matters for the math because most agents&apos;
                 input HST is concentrated in operating expenses, not
-                capital. A typical year might involve $4,000–$7,000 of HST
+                capital. As an illustration, a year might involve $4,000–$7,000 of HST
                 on operating expenses (vehicle operating costs, marketing,
                 meals, dues, supplies) and $0–$1,500 of HST on capital
                 property (a one-time monitor purchase, a desk, occasional

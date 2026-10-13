@@ -295,7 +295,8 @@ export function ExpensesMileageTab({ mileageLogs, year, settings }: Props) {
       {/* Business-use % comparison banner */}
       {(() => {
         const claimedPct = settings?.vehicle_business_use_pct ?? 0;
-        // Estimate total annual km: Canadian average ~20,000 km/yr, prorated by months elapsed
+        // Assumed total driving: 20,000 km a year, prorated by months elapsed.
+        // Agent Runway's placeholder, not a published average.
         const estTotalAnnualKm = 20_000;
         const monthsElapsed = Math.max(1, new Date().getMonth() + 1);
         const estTotalKmSoFar = (estTotalAnnualKm / 12) * monthsElapsed;
@@ -321,11 +322,13 @@ export function ExpensesMileageTab({ mileageLogs, year, settings }: Props) {
                       Your Settings claim <strong>{Math.round(claimedPct * 100)}% business use</strong>, but
                       your logged trips so far ({totalKm.toLocaleString()} km across {logs.length} trips) suggest
                       roughly <strong>{Math.round(loggedPct * 100)}%</strong> of estimated total driving.
-                      Keep logging business trips to close this gap — a CRA auditor would compare these numbers.
+                      CRA&apos;s motor vehicle rules base the business share on kilometres driven to earn
+                      income against total kilometres driven in the year.
                     </p>
                     <p className="text-[10px] text-amber-700/80">
-                      Estimate based on ~{estTotalAnnualKm.toLocaleString()} km/yr Canadian average.
-                      Your actual total driving may differ.
+                      Estimate assumes about {estTotalAnnualKm.toLocaleString()} km of total driving a year.
+                      That is Agent Runway&apos;s placeholder, not a published average. Your actual total
+                      may differ.
                     </p>
                   </div>
                 </CardContent>

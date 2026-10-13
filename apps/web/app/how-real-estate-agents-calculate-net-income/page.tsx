@@ -146,12 +146,13 @@ export default function HowRealEstateAgentsCalculateNetIncomePage() {
                 </li>
                 <li>
                   <strong>Less: brokerage commission split</strong> — the percentage
-                  your brokerage retains (commonly 20–30% of GCI, though structures vary
-                  widely)
+                  your brokerage retains, as set by your brokerage agreement (the
+                  example below uses 30%)
                 </li>
                 <li>
                   <strong>Less: transaction fees</strong> — per-deal fees charged by
-                  your brokerage, often $200–$600 per transaction or more
+                  your brokerage, at the amount in your agreement (the example below
+                  uses $400)
                 </li>
                 <li>
                   <strong>Less: monthly desk or franchise fees</strong> — recurring fixed
@@ -234,9 +235,9 @@ export default function HowRealEstateAgentsCalculateNetIncomePage() {
               <h3>Step 2: Deduct transaction and brokerage fees</h3>
 
               <p>
-                Most brokerages charge a per-transaction fee in addition to the
-                commission split. At an average of $400 per transaction on 20 closed
-                deals per year, the total is $8,000.
+                A brokerage may charge a per-transaction fee in addition to the
+                commission split. In this example the fee is $400 per transaction, so
+                20 closed deals in the year come to $8,000.
               </p>
 
               <ul>

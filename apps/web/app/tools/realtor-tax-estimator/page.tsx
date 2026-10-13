@@ -271,7 +271,7 @@ export default function RealtorTaxEstimatorPage() {
                 <strong>brokerage desk fees, MLS dues, licensing, vehicle expenses,
                 marketing, home office, phone, software, professional development</strong>, and
                 more. The CRA requires expenses to be incurred for the purpose of earning commission
-                income. Typical agents deduct 20% to 35% of gross commission as expenses.
+                income.
               </p>
               <p className="mt-4">
                 Vehicle expenses are the most commonly audited — the CRA requires a detailed mileage log

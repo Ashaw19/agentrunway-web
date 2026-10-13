@@ -24,6 +24,14 @@ import {
   isExpenseRatioAboveTarget,
 } from "./expense-ratio-bands";
 
+/**
+ * The split the "Negotiate Your Split" card measures against: the agent
+ * keeps 85%. It is Agent Runway's comparison point for the card's arithmetic.
+ * No source says what split a given level of production earns, so the card
+ * does not say so either.
+ */
+export const SPLIT_COMPARISON_AGENT_PCT = 0.85;
+
 // ── Advisor Card Model ──────────────────────────────────────────────────────
 
 export type AdvisorCategory =
@@ -104,14 +112,16 @@ export function generateAdvisory(input: AdvisorInput, limit: number = 5): Adviso
 
   // 1. Split Optimization
   const agentPct = getAgentPct(input.splitPreset);
-  if (agentPct > 0 && agentPct < 0.85 && ytdGCI > 50_000) {
-    const potentialGain = ytdGCI * (0.85 - agentPct);
+  if (agentPct > 0 && agentPct < SPLIT_COMPARISON_AGENT_PCT && ytdGCI > 50_000) {
+    const potentialGain = ytdGCI * (SPLIT_COMPARISON_AGENT_PCT - agentPct);
+    const comparisonSplit = `${Math.round(SPLIT_COMPARISON_AGENT_PCT * 100)}/${Math.round((1 - SPLIT_COMPARISON_AGENT_PCT) * 100)}`;
     cards.push({
       id: nextId(), category: "splitOptimization", icon: "arrow-left-right",
       title: "Negotiate Your Split",
       evidence: [
         `Current split: ${Math.round(agentPct * 100)}/${Math.round((1 - agentPct) * 100)}`,
-        `Your production (${fmtCurrency(ytdGCI)} YTD) typically commands 80–90%`,
+        `Compared with an ${comparisonSplit} split on ${fmtCurrency(ytdGCI)} YTD`,
+        `${comparisonSplit} is Agent Runway's comparison point, not a market rate`,
       ],
       action: "Prepare a production summary for your next brokerage review meeting.",
       estimatedImpact: `+${fmtCurrency(potentialGain)}/yr`,

@@ -360,7 +360,8 @@ export function TransactionsContent({ initialTransactions, initialPipelineDeals,
   const buyerCount  = ytdClosed.filter((t) => t.side === "buyer").length;
   const sellerCount = ytdClosed.filter((t) => t.side === "seller").length;
   const bothCount   = ytdClosed.filter((t) => t.side === "both").length;
-  // Insight: flag if ≥65% buyer-side with ≥3 deals — listings typically net more per deal
+  // Insight: flag if ≥65% buyer-side with ≥3 deals. States the mix only: the
+  // badge used to claim listings net 1.5–2× per deal, which had no source.
   const showListingInsight = ytdCount >= 3 && buyerCount / ytdCount >= 0.65;
 
   return (
@@ -502,7 +503,7 @@ export function TransactionsContent({ initialTransactions, initialPipelineDeals,
                 </span>
                 {showListingInsight && (
                   <span className="rounded-full border border-amber-200 bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
-                    Add listings — typically 1.5–2× net per deal
+                    Mostly buyer-side this year
                   </span>
                 )}
               </div>

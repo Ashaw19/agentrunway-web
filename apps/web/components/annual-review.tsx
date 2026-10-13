@@ -229,7 +229,7 @@ export function AnnualReview({
               </p>
               <h3 className="mt-4 text-2xl font-bold">Set a goal for {year + 1}.</h3>
               <p className="mt-3 text-base text-white/70">
-                Agents with a clear annual GCI target close 23% more deals on average. Set yours in Settings.
+                With a goal set, Agent Runway tracks your pace against it all year. Set yours in Settings.
               </p>
             </>
           )}
