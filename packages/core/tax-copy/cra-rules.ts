@@ -91,6 +91,44 @@ export function gstHstReportNote(input: GstHstReportNoteInput): TaxCopy {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
+// "Does your brokerage withhold HST?" (Settings and onboarding)
+// ─────────────────────────────────────────────────────────────────────────
+
+/**
+ * The question and its two answers, worded once for every screen that asks.
+ * The answer is saved as `user_settings.brokerage_withholds_hst`.
+ */
+export const BROKERAGE_HST_WITHHOLDING = {
+  question: asTaxCopy("Does your brokerage withhold HST from your commission cheques?"),
+  no: asTaxCopy("No, I receive the full amount"),
+  yes: asTaxCopy("Yes, they hold and remit it"),
+} as const;
+
+/**
+ * The line under the answers. It says what the app does with the answer and
+ * nothing about what the agent does with the money.
+ *
+ *   yes → `computeHSTCollected` (hst-engine) returns 0, so the dashboard,
+ *         forecast, reports, deal-close screen, Flight Crew and MCP count no
+ *         HST collected by the agent, and the cash position
+ *         (cash-position-engine) takes none off.
+ *   no  → HST rate × GCI, and only for a registrant (`gst_hst_registered`).
+ *         A non-registrant gets 0 either way.
+ *
+ * The HST return (gst34-engine) and the T2125's GST/HST section
+ * (t2125-engine) do not read the setting: both show the tax on commissions
+ * whatever the answer. The "yes" line says so, because a reader who has just
+ * been told the app counts none will see an amount there.
+ */
+export function brokerageHstWithholdingHint(withholds: boolean): TaxCopy {
+  return asTaxCopy(
+    withholds
+      ? "The app counts no HST in your hands, because your brokerage remits it to CRA. The HST return and T2125 views do not use this answer."
+      : "If your account is marked GST/HST registered, the app estimates the HST on your commissions as collected by you.",
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────
 // Income tax instalment due dates
 // ─────────────────────────────────────────────────────────────────────────
 
