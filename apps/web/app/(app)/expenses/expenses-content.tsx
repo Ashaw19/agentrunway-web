@@ -21,7 +21,9 @@ import { ChevronDown, ChevronRight, Plus, Check, X, Trash2, Info, ExternalLink, 
 import { fmtCurrency, fmtPct } from "@/lib/formatters";
 import {
   aggregateReceiptTotals,
+  recurringExpensesNetOfItc,
   recurringNetOfItc,
+  remainingYearExpenses,
   type ReceiptTotalsRow,
 } from "@agent-runway/core/engines/expense-totals-engine";
 import {
@@ -104,7 +106,7 @@ import {
   deadlineUrgency,
 } from "@agent-runway/core/engines/filing-period-engine";
 import { computeGST34 } from "@agent-runway/core/engines/gst34-engine";
-import { recurringHSTEntriesForPeriod, recurringMonthlyEquivalent } from "@agent-runway/core/engines/recurring-expense-engine";
+import { recurringHSTEntriesForPeriod, recurringMonthlyEquivalent, totalRecurringRemaining } from "@agent-runway/core/engines/recurring-expense-engine";
 import { gstHstLabel } from "@agent-runway/core/engines/canadian-tax-engine";
 import { reconcileDeals, type ReconciliationResult, type ImportedDeal } from "@agent-runway/core/engines/reconciliation-engine";
 import { selectTaxTips, TIP_CATEGORY_LABELS } from "@agent-runway/core/engines/tax-iq-engine";
@@ -965,6 +967,14 @@ export function ExpensesContent({
   const expensesProjectedDeals = projectedYearEndTransactions(
     transactions.length, liveExpensesPipelineDeals.length, expensesFraction,
   );
+  // Still to come this year, as on the dashboard: the per-item monthly
+  // figure for the months after this one, and the Recurring Expenses
+  // list's charges after today (net of ITC).
+  const expensesRemaining = remainingYearExpenses(
+    categories.reduce((sum, cat) => sum + cat.items.reduce((s, item) => s + Number(item.monthly_recurring), 0), 0),
+    totalRecurringRemaining(recurringExpensesNetOfItc(recurringExpenses, expenseTaxCtx), now),
+    now,
+  );
   const survival = settings
     ? survivalResult(
         settings.monthly_brokerage_fee ?? 0,
@@ -973,7 +983,7 @@ export function ExpensesContent({
           settings,
           ytdGCI,
           expensesYTD: effectiveTotal,
-          monthlyRecurring: monthlyTotal,
+          expensesRemaining,
           projectedGCI: expensesProjectedGCI,
           projectedDealCount: expensesProjectedDeals,
           fraction: expensesFraction,

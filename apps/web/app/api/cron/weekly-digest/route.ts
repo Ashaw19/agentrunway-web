@@ -28,8 +28,8 @@ import { compare as benchmarkCompare } from "@agent-runway/core/engines/benchmar
 import { survivalResult } from "@agent-runway/core/engines/survival-engine";
 import { computeEffectiveCashForSurvival, computePipelineMonthlyIncome } from "@agent-runway/core/engines/effective-cash";
 import { projectedYearEndTransactions } from "@agent-runway/core/engines/projection-engine";
-import { totalRecurringMonthly, totalRecurringYTD } from "@agent-runway/core/engines/recurring-expense-engine";
-import { aggregateReceiptTotals, expenseTaxContext, recurringExpensesNetOfItc } from "@agent-runway/core/engines/expense-totals-engine";
+import { totalRecurringMonthly, totalRecurringRemaining, totalRecurringYTD } from "@agent-runway/core/engines/recurring-expense-engine";
+import { aggregateReceiptTotals, expenseTaxContext, recurringExpensesNetOfItc, remainingYearExpenses } from "@agent-runway/core/engines/expense-totals-engine";
 import { atlanticNoon } from "@agent-runway/core/lib/local-date";
 import type { RecurringExpense } from "@/lib/types/database";
 import { generateText } from "ai";
@@ -325,6 +325,12 @@ export async function GET(req: NextRequest) {
       // Until 2026-10-13 the table was left out here, so the digest's
       // survival months and tax projection ran on a lower monthly figure.
       const monthlyRecurring = legacyMonthlyRecurring + totalRecurringMonthly(recurringNet);
+      // Still to come this year: with expensesYTD, the dashboard's annualExpenses.
+      const expensesRemaining = remainingYearExpenses(
+        legacyMonthlyRecurring,
+        totalRecurringRemaining(recurringNet, today),
+        today,
+      );
 
       // Health report (canonical 3 sub-scores: pace, pipeline, expenses)
       const healthReport = buildHealthReport(
@@ -351,7 +357,7 @@ export async function GET(req: NextRequest) {
         settings: user as UserSettings,
         ytdGCI,
         expensesYTD,
-        monthlyRecurring,
+        expensesRemaining,
         projectedGCI,
         projectedDealCount,
         fraction,

@@ -58,6 +58,7 @@ import { itcForExpense } from "./gst34-engine";
 import {
   recurringHSTEntriesForPeriod,
   totalRecurringMonthly,
+  totalRecurringRemaining,
   totalRecurringYTD,
 } from "./recurring-expense-engine";
 import { isHomeOfficeKey } from "./t2125-engine";
@@ -270,7 +271,7 @@ export function recurringNetOfItc(
 /**
  * Copies of the recurring expenses with `amount` net of ITC, to pass to the
  * recurring-expense-engine totals (totalRecurringMonthly, totalRecurringYTD,
- * projectedAnnualRecurring). FOR TOTALS ONLY: a list that shows the user
+ * totalRecurringRemaining). FOR TOTALS ONLY: a list that shows the user
  * what they entered, and anything that reads `hst_amount` for ITCs, takes
  * the original rows.
  */
@@ -296,6 +297,21 @@ export function recurringExpensesNetOfItc<T extends RecurringExpense>(
 //                     counted once.
 //
 //   expensesYTD = max(receipts, legacy estimate) + recurring
+//
+// The year's expenses (the income-tax estimate, the forecast, Flight Crew)
+// are that plus what is still to come:
+//
+//   expensesRemaining = legacy monthly figure × the whole months after this
+//                       one + the recurring list's charges after today
+//   annual expenses   = expensesYTD + expensesRemaining
+//
+// A recurring expense counts by its charge dates on both sides, so each
+// charge of the year is in exactly one of them. Until 2026-10-13 "still to
+// come" was the monthly-equivalent figure × whole months left for every
+// source. That only added up while the current month counted from the 1st:
+// once year to date waited for the charge day, the current month's charge
+// was in neither until that day, and an annual fee was a twelfth per month
+// left whether it had been charged or not.
 //
 // `expense_items.ytd_amount` is NOT an input: nothing in the app has written
 // it since receipts replaced it, so it holds 0 or a stale figure.
@@ -329,6 +345,26 @@ export interface YtdExpenseTotals {
   monthlyRecurring: number;
   /** The dashboard's `expensesYTD`. */
   expensesYTD: number;
+  /** Active recurring expenses' charges after today, through Dec 31, net. */
+  recurringRemaining: number;
+  /** The dashboard's `expensesRemaining`: expensesYTD + this = the year's expenses. */
+  expensesRemaining: number;
+}
+
+/**
+ * Expenses still to come this calendar year, after `now`'s day. The legacy
+ * monthly figure has no charge day and counts the current month in year to
+ * date, so what is left of it is the whole months after this one. The
+ * recurring list is its charges after today (`totalRecurringRemaining` on
+ * the net-of-ITC copies).
+ */
+export function remainingYearExpenses(
+  legacyMonthlyRecurring: number,
+  recurringRemaining: number,
+  now: Date,
+): number {
+  const monthsLeft = Math.max(0, 12 - (now.getMonth() + 1));
+  return legacyMonthlyRecurring * monthsLeft + recurringRemaining;
 }
 
 export function ytdExpenseTotals(inputs: YtdExpenseInputs): YtdExpenseTotals {
@@ -340,6 +376,7 @@ export function ytdExpenseTotals(inputs: YtdExpenseInputs): YtdExpenseTotals {
   const recurringNet = recurringExpensesNetOfItc(inputs.recurring, ctx);
   const recurringMonthly = totalRecurringMonthly(recurringNet);
   const recurringYTD = totalRecurringYTD(recurringNet, now);
+  const recurringRemaining = totalRecurringRemaining(recurringNet, now);
 
   const legacyMonthlyRecurring = (inputs.legacyItems ?? []).reduce(
     (sum, item) => sum + toNumber(item.monthly_recurring),
@@ -359,6 +396,8 @@ export function ytdExpenseTotals(inputs: YtdExpenseInputs): YtdExpenseTotals {
     recurringYTD,
     monthlyRecurring: legacyMonthlyRecurring + recurringMonthly,
     expensesYTD: Math.max(receiptYTD, legacyRecurringYTDEstimate) + recurringYTD,
+    recurringRemaining,
+    expensesRemaining: remainingYearExpenses(legacyMonthlyRecurring, recurringRemaining, now),
   };
 }
 

@@ -24,6 +24,7 @@ import {
   inputTaxCreditsForPeriod,
   recurringExpensesNetOfItc,
   recurringNetOfItc,
+  remainingYearExpenses,
   ytdExpenseTotals,
 } from "../expense-totals-engine";
 import { computeGST34 } from "../gst34-engine";
@@ -454,6 +455,65 @@ describe("ytdExpenseTotals — the dashboard's year-to-date expenses", () => {
     expect(t.legacyMonthlyRecurring).toBe(12.5);
     expect(t.expensesYTD).toBe(125);
     expect(ytdExpenseTotals({ receipts: null, recurring: null, legacyItems: null, ctx: REGISTRANT, now: NOW }).expensesYTD).toBe(0);
+  });
+});
+
+// The year's expenses are what has been counted to date plus what is still to
+// come. Recurring expenses count by charge date (2026-10-13), so "still to
+// come" has to be the charges after today, not a monthly figure × whole
+// months left: on the 13th that drops a charge due on the 20th from the year.
+describe("ytdExpenseTotals — what is still to come this year", () => {
+  const at = (month: number, day: number) => new Date(2026, month - 1, day, 12);
+  // $575 a month on the 20th, net 500 for a registrant.
+  const lease = recurring({
+    id: "lease", name: "Lease", amount: 575, hst_amount: 75, day_of_month: 20,
+    category_key: "vehicle_payment", vehicle_pct_applicable: true, start_date: "2026-01-01",
+  });
+  const legacyItems = [{ monthly_recurring: 20 }];
+  const totals = (now: Date, rows = [lease]) =>
+    ytdExpenseTotals({ receipts: [], recurring: rows, legacyItems, ctx: REGISTRANT, now });
+
+  it("before this month's charge day: nine charges to date, three still to come", () => {
+    const t = totals(at(10, 13));
+    expect(t.recurringYTD).toBe(4500);
+    expect(t.recurringRemaining).toBe(1500);
+    // Legacy monthly figure: the two whole months after this one.
+    expect(t.expensesRemaining).toBe(1500 + 20 * 2);
+  });
+
+  it("on the charge day it moves to year to date, and the year's total does not change", () => {
+    const before = totals(at(10, 13));
+    const after = totals(at(10, 20));
+    expect(after.recurringYTD).toBe(5000);
+    expect(after.recurringRemaining).toBe(1000);
+    expect(after.expensesYTD + after.expensesRemaining).toBe(before.expensesYTD + before.expensesRemaining);
+  });
+
+  it("year to date plus still to come is twelve charges on any day of the year", () => {
+    for (const day of [at(1, 1), at(1, 20), at(6, 30), at(10, 13), at(10, 20), at(12, 31)]) {
+      const t = totals(day);
+      expect(t.recurringYTD + t.recurringRemaining, day.toDateString()).toBe(6000);
+    }
+  });
+
+  it("an annual fee still ahead is all of it, not a twelfth per month left", () => {
+    const annual = recurring({ id: "annual", frequency: "annual", month_of_year: 12, day_of_month: 15, amount: 1200, hst_amount: 0 });
+    const t = totals(at(10, 13), [annual]);
+    expect(t.recurringYTD).toBe(0);
+    expect(t.recurringRemaining).toBe(1200);
+  });
+
+  it("an annual fee already charged adds nothing more", () => {
+    const annual = recurring({ id: "annual", frequency: "annual", month_of_year: 3, day_of_month: 10, amount: 1200, hst_amount: 0 });
+    const t = totals(at(10, 13), [annual]);
+    expect(t.recurringYTD).toBe(1200);
+    expect(t.recurringRemaining).toBe(0);
+  });
+
+  it("remainingYearExpenses: the legacy figure for the months after this one, plus the recurring charges left", () => {
+    expect(remainingYearExpenses(100, 250, at(10, 13))).toBe(100 * 2 + 250);
+    expect(remainingYearExpenses(100, 0, at(1, 31))).toBe(1100);
+    expect(remainingYearExpenses(100, 250, at(12, 1))).toBe(250);
   });
 });
 

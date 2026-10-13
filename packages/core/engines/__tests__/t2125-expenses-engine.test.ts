@@ -269,6 +269,36 @@ describe("buildT2125Expenses — recurring expenses reach the T2125", () => {
     expect(december.deductibleTotal).toBe(1000);
   });
 
+  it("this month's charge is not on the line before its day, and is on it from that day", () => {
+    // Monthly on the 20th: Jan 20 to May 20 have happened by 15 June.
+    const onThe20th = recurring({ day_of_month: 20 });
+    expect(build([onThe20th], NOT_REGISTERED).lines[0].rawAmount).toBe(5 * 115);
+    expect(build([onThe20th], NOT_REGISTERED, { now: new Date(2026, 5, 20, 12) }).lines[0].rawAmount).toBe(6 * 115);
+  });
+
+  it("an expense that ended in March keeps January to March and adds nothing after", () => {
+    const r = build([recurring({ end_date: "2026-03-31" })], NOT_REGISTERED);
+    expect(r.lines[0].rawAmount).toBe(3 * 115);
+    expect(r.deductibleTotal).toBe(3 * 115);
+  });
+
+  it("the line and the GST34 ITC count the same charges (registrant, charge day still ahead)", () => {
+    const onThe20th = recurring({ day_of_month: 20 });
+    const line = build([onThe20th], REGISTRANT).lines[0];
+    const [itc] = recurringHSTEntriesForPeriod([onThe20th], "2026-01-01", "2026-06-15");
+    // $100 net and $15 HST a charge: five of each.
+    expect(line.rawAmount).toBe(500);
+    expect(itc.tax_amount).toBe(75);
+  });
+
+  it("a home bill's whole cost behind line 9945 counts the same charges as its share", () => {
+    const internet = recurring({ id: "re-net", category_key: "home_internet", day_of_month: 20 });
+    const r = build([internet], REGISTRANT);
+    // Five charges of $100 before HST: the costs whole, the line at 15%.
+    expect(r.homeOfficeCosts).toEqual({ home_internet: 500 });
+    expect(r.lines[0].rawAmount).toBeCloseTo(75, 10);
+  });
+
   it("a recurring expense that starts later this year adds nothing yet", () => {
     const r = build([recurring({ start_date: "2026-11-01" })], NOT_REGISTERED);
     expect(r.lines[0].rawAmount).toBe(0);

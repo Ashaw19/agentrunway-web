@@ -56,9 +56,9 @@ import {
   deviationPromptFragment,
 } from "@agent-runway/core/engines/deviation-engine";
 import { generateInsights, type Insight } from "@agent-runway/core/engines/insights-engine";
-import { totalRecurringMonthly, totalRecurringYTD, recurringHSTEntriesForPeriod } from "@agent-runway/core/engines/recurring-expense-engine";
+import { totalRecurringMonthly, totalRecurringRemaining, totalRecurringYTD, recurringHSTEntriesForPeriod } from "@agent-runway/core/engines/recurring-expense-engine";
 import { itcForExpense } from "@agent-runway/core/engines/gst34-engine";
-import { aggregateReceiptTotals, expenseTaxContext, recurringExpensesNetOfItc } from "@agent-runway/core/engines/expense-totals-engine";
+import { aggregateReceiptTotals, expenseTaxContext, recurringExpensesNetOfItc, remainingYearExpenses } from "@agent-runway/core/engines/expense-totals-engine";
 import { getCurrentFilingPeriod, deadlineUrgency } from "@agent-runway/core/engines/filing-period-engine";
 
 import type { RecurringExpense, FilingFrequency } from "@/lib/types/database";
@@ -337,6 +337,7 @@ export async function POST(req: NextRequest) {
     const recurringExpsNet = recurringExpensesNetOfItc(recurringExps, expenseTaxCtx);
     const recurringExpMonthly = totalRecurringMonthly(recurringExpsNet);
     const recurringExpYTDTotal = totalRecurringYTD(recurringExpsNet, today);
+    const recurringExpRemaining = totalRecurringRemaining(recurringExpsNet, today);
 
     if (settings && transactions) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -376,6 +377,8 @@ export async function POST(req: NextRequest) {
       const expMonthsElapsed = today.getMonth() + 1;
       const legacyRecurringYTDEstimate = legacyMonthlyRecurring * expMonthsElapsed;
       const expensesYTD = Math.max(receiptTotal, legacyRecurringYTDEstimate) + recurringExpYTDTotal;
+      // Still to come this year: with expensesYTD, the dashboard's annualExpenses.
+      const expensesRemaining = remainingYearExpenses(legacyMonthlyRecurring, recurringExpRemaining, today);
       // What was actually paid, GST/HST included: context only, so Flight Crew
       // can explain why a registrant's expense total is below their receipts.
       const expensesPaidYTD = Math.max(receiptTotals.paid, legacyRecurringYTDEstimate) + totalRecurringYTD(recurringExps, today);
@@ -607,7 +610,7 @@ export async function POST(req: NextRequest) {
         const projectedNetIncome = computeProjectedNetForTax({
           projectedGCI: projGCI,
           expensesYTD,
-          monthlyRecurring,
+          expensesRemaining,
           settings,
           projectedDealCount: projDeals,
           now: today,

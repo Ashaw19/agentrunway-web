@@ -69,6 +69,7 @@ import { ExplainButton } from "@/components/explain-button";
 import { GuideLink } from "@/components/guide-link";
 import { ScenariosContent } from "@/app/(app)/scenarios/scenarios-content";
 import type { ScenarioSeedData } from "@/app/(app)/scenarios/page";
+import { remainingYearExpenses } from "@agent-runway/core/engines/expense-totals-engine";
 import { SlidersHorizontal } from "lucide-react";
 import { localISODate } from "@agent-runway/core/lib/local-date";
 
@@ -512,6 +513,8 @@ interface Props {
   scenarioSeed?: ScenarioSeedData | null;
   recurringExpMonthly?: number;
   recurringExpYTD?: number;
+  /** Pre-computed: what the recurring_expenses table is still to charge this year */
+  recurringExpRemaining: number;
 }
 
 type OverheadTab = "overview" | "scenarios";
@@ -575,6 +578,7 @@ export function OverheadContent({
   scenarioSeed = null,
   recurringExpMonthly = 0,
   recurringExpYTD = 0,
+  recurringExpRemaining,
 }: Props) {
   const [activeTab, setActiveTab] = useState<OverheadTab>("overview");
   const now = new Date();
@@ -633,8 +637,9 @@ export function OverheadContent({
   const legacyRecurringYTDEstimate = legacyMonthlyRecurring * expMonthsElapsed;
   const expensesYTD = Math.max(receiptTotal, legacyRecurringYTDEstimate) + recurringExpYTD;
 
-  const expRemainingMonths = Math.max(0, 12 - (now.getMonth() + 1));
-  const annualExpenses = expensesYTD + monthlyRecurring * expRemainingMonths;
+  // The year's expenses: to date + what is still to come (matches the dashboard).
+  const expensesRemaining = remainingYearExpenses(legacyMonthlyRecurring, recurringExpRemaining, now);
+  const annualExpenses = expensesYTD + expensesRemaining;
 
   // ── Agent net (after split/fees) — plan-aware (REAL waterfall or legacy) ──
   const ytdPlan = settings

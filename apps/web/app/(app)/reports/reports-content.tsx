@@ -95,6 +95,7 @@ import { compare, COHORT_LABELS } from "@/lib/engines/benchmark-engine";
 import { calculateCorporateTax } from "@/lib/engines/corporate-tax-engine";
 import { survivalResult, riskColorBand, type RiskLevel, type RiskColorBand } from "@/lib/engines/survival-engine";
 import { computeEffectiveCashForSurvival, computePipelineMonthlyIncome } from "@/lib/engines/effective-cash";
+import { remainingYearExpenses } from "@agent-runway/core/engines/expense-totals-engine";
 import {
   compute as computeRunwayScore,
 } from "@/lib/engines/runway-score-engine";
@@ -131,6 +132,8 @@ interface Props {
   referralSummary?: { inboundCount: number; outboundCount: number; feesEarned: number; feesPaid: number };
   recurringExpMonthly?: number;
   recurringExpYTD?: number;
+  /** Pre-computed: what the recurring_expenses table is still to charge this year */
+  recurringExpRemaining: number;
 }
 
 // ── buildHealthReport imported from @/lib/engines/health-report ──────────────
@@ -246,6 +249,7 @@ export function ReportsContent({
   referralSummary,
   recurringExpMonthly = 0,
   recurringExpYTD = 0,
+  recurringExpRemaining,
 }: Props) {
   const [downloading, setDownloading] = useState(false);
   const [histReportOpen, setHistReportOpen] = useState(false);
@@ -355,8 +359,9 @@ export function ReportsContent({
   const expenseRatio = ytdGCI > 0 ? (expensesYTD / ytdGCI) * 100 : 0;
 
   // ── Tax ───────────────────────────────────────────────────────────────────────
-  const expRemainingMonths = Math.max(0, 12 - (now.getMonth() + 1));
-  const annualExpenses = expensesYTD + monthlyRecurring * expRemainingMonths;
+  // The year's expenses: to date + what is still to come (matches the dashboard).
+  const expensesRemaining = remainingYearExpenses(legacyMonthlyRecurring, recurringExpRemaining, now);
+  const annualExpenses = expensesYTD + expensesRemaining;
   const projectedNet = computeProjectedNet(projectedGCI, settings, projectedDeals);
   const netForTax = Math.max(0, projectedNet - annualExpenses);
   const personalTaxResult = calculateTax(netForTax, settings.province, Math.max(projectedDeals, 1));
@@ -394,7 +399,7 @@ export function ReportsContent({
     settings,
     ytdGCI,
     expensesYTD,
-    monthlyRecurring,
+    expensesRemaining,
     projectedGCI,
     projectedDealCount: projectedDeals,
     fraction,
@@ -451,7 +456,7 @@ export function ReportsContent({
     splitPreset: settings.split_preset,
     seasonalWeights,
     expensesYTD,
-    monthlyRecurringExpenses: monthlyRecurring,
+    expensesRemaining,
     projectedYearEndGCI: projectedGCI,
     marketYoYGrowth: (settings.market_yoy_growth_pct ?? 0) / 100,
     benchmarkPercentile: benchmark.percentile,
