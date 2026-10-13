@@ -70,7 +70,7 @@ import {
   draftSocialPost as draftSocialPostService,
   type SocialPostTemplate,
 } from "@/lib/ai/draft-services";
-import { addDaysISO, atlanticISODate, atlanticNoon, atlanticYear } from "@agent-runway/core/lib/local-date";
+import { APP_TIME_ZONE, addDaysISO, atlanticISODate, atlanticNoon, atlanticYear } from "@agent-runway/core/lib/local-date";
 import { hasClosedDeal } from "@/lib/crm/contactable-records";
 
 // ── Approval Gate ──────────────────────────────────────────────────────────
@@ -276,7 +276,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
           if (!data || data.length === 0) return `No clients found matching "${query}". Ask the user to confirm the name.`;
 
           return data.map((c: { id: string; name: string; status: string; last_contact_at: string | null }) =>
-            `${c.name} (ID: ${c.id}, Status: ${c.status}, Last contact: ${c.last_contact_at ? new Date(c.last_contact_at).toLocaleDateString("en-CA") : "never"})`
+            `${c.name} (ID: ${c.id}, Status: ${c.status}, Last contact: ${c.last_contact_at ? new Date(c.last_contact_at).toLocaleDateString("en-CA", { timeZone: APP_TIME_ZONE }) : "never"})`
           ).join("\n");
         } catch {
           return "Client search temporarily unavailable.";
@@ -1356,7 +1356,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
 
           // Profile
           parts.push(`── ${clientName} ──`);
-          parts.push(`Status: ${c.status} | Since: ${new Date(c.created_at).toLocaleDateString("en-CA")}`);
+          parts.push(`Status: ${c.status} | Since: ${new Date(c.created_at).toLocaleDateString("en-CA", { timeZone: APP_TIME_ZONE })}`);
           if (c.email) parts.push(`Email: ${c.email}`);
           if (c.phone) parts.push(`Phone: ${c.phone}`);
           if (c.city) parts.push(`Home City: ${c.city}`);
@@ -1367,7 +1367,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
           if (c.timeframe) parts.push(`Timeframe: ${c.timeframe.replace(/_/g, " ")}`);
           if (c.preferred_contact) parts.push(`Preferred Contact: ${c.preferred_contact}`);
           if (c.buyer_pre_approved) parts.push(`Pre-Approved: $${Number(c.buyer_pre_approval_amount ?? 0).toLocaleString()}`);
-          if (c.last_contact_at) parts.push(`Last Contact: ${new Date(c.last_contact_at).toLocaleDateString("en-CA")}`);
+          if (c.last_contact_at) parts.push(`Last Contact: ${new Date(c.last_contact_at).toLocaleDateString("en-CA", { timeZone: APP_TIME_ZONE })}`);
           if (c.notes) parts.push(`Notes: ${c.notes.slice(0, 200)}${c.notes.length > 200 ? "..." : ""}`);
 
           // Recent activities
@@ -1375,7 +1375,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
           if (activities.length > 0) {
             parts.push(`\nRecent Activity (${activities.length}):`);
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            activities.forEach((a: any) => parts.push(`  ${a.type} on ${new Date(a.activity_date).toLocaleDateString("en-CA")} — ${a.description}`));
+            activities.forEach((a: any) => parts.push(`  ${a.type} on ${new Date(a.activity_date).toLocaleDateString("en-CA", { timeZone: APP_TIME_ZONE })} — ${a.description}`));
           } else {
             parts.push("\nNo recent activity logged.");
           }
@@ -2138,7 +2138,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
 
           const header = `Found ${data.length} client${data.length === 1 ? "" : "s"}:`;
           const list = data.map((c: { name: string; status: string; communication_tone: string; tags: string[] | null; last_contact_at: string | null }) =>
-            `• ${c.name} — ${c.status}${c.tags?.length ? ` [${c.tags.join(", ")}]` : ""}${c.communication_tone !== "friendly" ? ` (${c.communication_tone} tone)` : ""} — last contact: ${c.last_contact_at ? new Date(c.last_contact_at).toLocaleDateString("en-CA") : "never"}`
+            `• ${c.name} — ${c.status}${c.tags?.length ? ` [${c.tags.join(", ")}]` : ""}${c.communication_tone !== "friendly" ? ` (${c.communication_tone} tone)` : ""} — last contact: ${c.last_contact_at ? new Date(c.last_contact_at).toLocaleDateString("en-CA", { timeZone: APP_TIME_ZONE }) : "never"}`
           ).join("\n");
 
           return `${header}\n${list}`;
@@ -2181,7 +2181,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
           const list = data.map((a: Record<string, unknown>) => {
             const clientInfo = a.clients as { name: string } | { name: string }[] | null;
             const clientName = clientInfo ? (Array.isArray(clientInfo) ? clientInfo[0]?.name : clientInfo.name) : null;
-            return `• ${new Date(a.activity_date as string).toLocaleDateString("en-CA")} — ${a.type}${clientName ? ` with ${clientName}` : ""}: ${(a.description as string) || "(no description)"}`;
+            return `• ${new Date(a.activity_date as string).toLocaleDateString("en-CA", { timeZone: APP_TIME_ZONE })} — ${a.type}${clientName ? ` with ${clientName}` : ""}: ${(a.description as string) || "(no description)"}`;
           }).join("\n");
 
           return `${header}\n${list}`;
@@ -3237,7 +3237,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
 
           return `Found ${data.length} archived client${data.length === 1 ? "" : "s"} in the Hangar:\n` +
             data.map((c: Record<string, unknown>) =>
-              `• ${c.name} (ID: ${c.id}) — archived ${c.archived_at ? new Date(c.archived_at as string).toLocaleDateString("en-CA") : "unknown"}${c.archive_reason ? ` — reason: ${c.archive_reason}` : ""}`
+              `• ${c.name} (ID: ${c.id}) — archived ${c.archived_at ? new Date(c.archived_at as string).toLocaleDateString("en-CA", { timeZone: APP_TIME_ZONE }) : "unknown"}${c.archive_reason ? ` — reason: ${c.archive_reason}` : ""}`
             ).join("\n");
         } catch { return "Archived client search temporarily unavailable."; }
       },

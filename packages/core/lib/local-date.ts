@@ -32,6 +32,10 @@
  *
  * Timestamps (timestamptz columns such as contact_activities.activity_date,
  * created_at, last_contact_at) are instants, not days: keep toISOString().
+ * To print one as a day on the server (AI tool output, emails), name the
+ * zone: `toLocaleDateString("en-CA", { timeZone: APP_TIME_ZONE })` or
+ * `atlanticISODate(new Date(ts))`. Without it the server prints the UTC
+ * date, and so does `ts.slice(0, 10)`.
  */
 
 export const APP_TIME_ZONE = "America/Halifax";

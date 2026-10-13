@@ -191,6 +191,7 @@ export default async function DashboardPage({
         briefingActivitiesResult.data as ContactActivity[],
         briefingRecordsResult.data as ClientRecord[],
         (listingResult.data ?? []) as ListingAppointment[],
+        atlanticNoon(), // birthdays and anniversaries count from the Atlantic day
       )
     : null;
   const topBriefingItems: BriefingItem[] = briefingResult
