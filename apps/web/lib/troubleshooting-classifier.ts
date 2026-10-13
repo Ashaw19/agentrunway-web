@@ -173,7 +173,14 @@ export const TOPIC_ACTION_LINKS: Record<TroubleshootingTopic, { label: string; h
 const TOPIC_RULES: TopicRule[] = [
   {
     topic: "runway-score",
-    primary: ["runway score", "health score", "score grade", "my score", "my grade"],
+    // The component names with "score" are here so a question about one
+    // component ("my Pipeline score is green on my phone and blue on the
+    // dashboard") reaches this playbook as well as the component's own.
+    primary: [
+      "runway score", "health score", "score grade", "my score", "my grade",
+      "score breakdown", "sub-score", "pace score", "pipeline score",
+      "expense score", "expenses score", "survival score", "benchmark score",
+    ],
     secondary: ["score", "grade", "a+", "a ", "b ", "c ", "d ", "f ", "composite", "health"],
     phrases: [
       "why is my score",

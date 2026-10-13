@@ -41,7 +41,7 @@ import {
   type RiskLevel,
   type RiskColorBand,
 } from "@/lib/engines/survival-engine";
-import type { RunwayScoreResult } from "@/lib/engines/runway-score-engine";
+import { bandColorHexForScore, type RunwayScoreResult } from "@/lib/engines/runway-score-engine";
 import type { AdvisorCard } from "@/lib/engines/advisor-engine";
 import {
   EXPENSE_RATIO_COPY,
@@ -111,13 +111,6 @@ const RISK_BAND_BOX: Record<RiskColorBand, { bg: string; border: string }> = {
 
 function riskColor(level: RiskLevel): string {
   return RISK_BAND_HEX[riskColorBand(level)];
-}
-
-function scoreColor(score: number): string {
-  if (score >= 80) return C.emerald;
-  if (score >= 60) return C.blue;
-  if (score >= 40) return C.amber;
-  return C.rose;
 }
 
 function ord(n: number): string {
@@ -1915,7 +1908,8 @@ export function BusinessReportPDF({
           </View>
         </View>
 
-        {/* Component bars */}
+        {/* Component bars. A component's score takes the Runway Score engine's
+            bands, as the dashboard's bars do: no ladder of the PDF's own. */}
         <Text style={s.sectionTitle}>Score Breakdown</Text>
         {runwayScore.components.map((comp) => (
           <View key={comp.label} style={s.componentRow}>
@@ -1926,7 +1920,7 @@ export function BusinessReportPDF({
                   s.componentFill,
                   {
                     width: `${comp.score}%`,
-                    backgroundColor: scoreColor(comp.score),
+                    backgroundColor: bandColorHexForScore(comp.score),
                   },
                 ]}
               />

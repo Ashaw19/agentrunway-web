@@ -34,6 +34,9 @@
  *     action required", "Consider increasing your reserve") and called a
  *     12-month runway "within the recommended 4–6+ month safety buffer". It
  *     now states the survival engine's bands, in the engine's words.
+ *   - The business report's Score Breakdown bars were coloured on a ladder of
+ *     the PDF's own (80 / 60 / 40). They take the Runway Score engine's bands,
+ *     as the dashboard's do.
  */
 import { beforeAll, describe, expect, it } from "vitest";
 import { createElement, isValidElement, type ReactNode } from "react";
@@ -58,7 +61,7 @@ import {
   type SurvivalResult,
 } from "@agent-runway/core/engines/survival-engine";
 import { buildHealthReport } from "@agent-runway/core/engines/health-report";
-import { compute as computeRunwayScore } from "@agent-runway/core/engines/runway-score-engine";
+import { bandColorHexForScore, compute as computeRunwayScore } from "@agent-runway/core/engines/runway-score-engine";
 import { computeT2125 } from "@agent-runway/core/engines/t2125-engine";
 import { createTestSettings, TEST_TRANSACTIONS, TEST_YEAR } from "@agent-runway/core/engines/__tests__/test-data";
 import type { CcaAsset } from "@agent-runway/core/types/database";
@@ -357,6 +360,72 @@ describe("business report PDF: a bar's figure is the one its label gives", () =>
     const bar = barOf(blocksOf(BusinessReportPDF, reportProps({ ytdGCI })), "Annual GCI Goal Progress ·");
     expect(bar.label).toContain("of $200,000");
     expect(bar.figure).toBe(figure);
+  });
+});
+
+// ── Score Breakdown bars ────────────────────────────────────────────────────
+// The element tree again, this time for a colour. Each row of the Score
+// Breakdown is a label, a track holding the fill, and the score.
+
+type Host = { type: unknown; props: Record<string, unknown> & { children?: ReactNode } };
+
+/** Every View and Text in a document's tree, with function components called through. */
+function hostElements(node: ReactNode, out: Host[] = []): Host[] {
+  if (Array.isArray(node)) {
+    for (const child of node) hostElements(child, out);
+    return out;
+  }
+  if (!isValidElement(node)) return out;
+  const el = node as unknown as Host;
+  if (typeof el.type === "function") return hostElements((el.type as (p: unknown) => ReactNode)(el.props), out);
+  out.push(el);
+  return hostElements(el.props.children, out);
+}
+
+/** A style prop as one object: react-pdf takes an object or an array of them. */
+const styleOf = (el: Host): Record<string, unknown> => Object.assign({}, ...[el.props.style ?? {}].flat(2));
+
+function scoreBars(props: ReturnType<typeof reportProps>) {
+  const names = props.runwayScore.components.map((c) => c.label);
+  const bars: { label: string; score: number; colour: unknown }[] = [];
+  for (const row of hostElements(createElement(BusinessReportPDF, props))) {
+    const kids = row.props.children;
+    if (!Array.isArray(kids) || kids.length !== 3) continue;
+    const [label, track, score] = kids;
+    if (!isValidElement(label) || label.type !== Text || !names.includes(flatten(label))) continue;
+    const fill = hostElements(track).find((el) => /%$/.test(String(styleOf(el).width)));
+    if (fill) bars.push({ label: flatten(label), score: Number(flatten(score)), colour: styleOf(fill).backgroundColor });
+  }
+  return bars;
+}
+
+describe("business report PDF: a score component's bar is the colour the dashboard gives that score", () => {
+  // The PDF drew these bars on a ladder of its own: 80 / 60 / 40, in its own
+  // blue and red. The dashboard draws them on the engine's bands (81 / 61 /
+  // 41), so the two disagreed at 80, 60 and 40, and on the shade below that.
+  const real = reportProps().runwayScore;
+  const SCORES = [81, 80, 61, 60, 40];
+  const runwayScore = { ...real, components: real.components.map((c, i) => ({ ...c, score: SCORES[i] })) };
+  const bars = scoreBars(reportProps({ runwayScore }));
+
+  it("draws a bar for each of the five components", () => {
+    expect(bars.map((bar) => bar.label)).toEqual(real.components.map((c) => c.label));
+    expect(bars.map((bar) => bar.score)).toEqual(SCORES);
+  });
+
+  it("80 is blue, 60 is amber and 40 is red", () => {
+    expect(bars.map((bar) => bar.colour)).toEqual(["#10B981", "#3B5EF6", "#3B5EF6", "#F59E0B", "#EF4444"]);
+  });
+
+  it("takes each colour from the engine", () => {
+    for (const bar of bars) {
+      expect(bar.colour, `${bar.label} at ${bar.score}`).toBe(bandColorHexForScore(bar.score));
+    }
+  });
+
+  it("renders to a PDF", async () => {
+    const pdf = await renders(BusinessReportPDF, reportProps({ runwayScore }));
+    expect(pdf.subarray(0, 5).toString()).toBe("%PDF-");
   });
 });
 
