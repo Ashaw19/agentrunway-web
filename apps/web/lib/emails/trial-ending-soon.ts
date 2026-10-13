@@ -108,7 +108,7 @@ export function trialEndingSoonEmail({
                     ["🏆", "Runway Score", "Your A–F business health grade"],
                     ["🤖", "AI Business Assistant", "GPT-powered Q&A about your numbers"],
                     ["📊", "Probability Forecast", "P10–P90 income bands"],
-                    ["💰", "Tax Estimates", "Quarterly instalments + per-deal set-aside"],
+                    ["💰", "Tax Estimates", "Quarterly instalments + per-deal tax portion"],
                     ["📈", "5-Year Growth Plan", "Long-range projections"],
                     ["🎯", "Business Insights", "Ranked action items with impact scores"],
                   ].map(([icon, title, desc]) => `
@@ -181,7 +181,7 @@ After your trial, you'll lose access to:
 • Runway Score — A–F health grade
 • AI Business Assistant — GPT-powered Q&A
 • Probability Forecast — P10–P90 income bands
-• Tax Estimates — quarterly instalments + per-deal set-aside
+• Tax Estimates — quarterly instalments + per-deal tax portion
 • 5-Year Growth Plan — long-range projections
 • Business Insights — ranked action items
 

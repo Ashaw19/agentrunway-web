@@ -94,7 +94,7 @@ const TOOLS_FAQS = [
   {
     question: "Are more calculators planned?",
     answer:
-      "Yes. Upcoming free tools include a per-deal tax set-aside calculator, a runway months calculator, an HST instalment schedule, and a PREC vs. sole proprietor break-even analyzer.",
+      "Yes. Upcoming free tools include a per-deal tax portion calculator, a runway months calculator, an HST instalment schedule, and a PREC vs. sole proprietor break-even analyzer.",
   },
 ];
 
@@ -173,7 +173,7 @@ export default function ToolsIndexPage() {
             {/* Coming soon teaser — signals more tools are on the way */}
             <div className="mt-6 rounded-2xl border border-dashed border-slate-700 bg-slate-900/30 p-6 text-center">
               <p className="text-sm text-slate-400">
-                More calculators coming: per-deal tax set-aside, runway months, HST instalment schedule,
+                More calculators coming: per-deal tax portion, runway months, HST instalment schedule,
                 PREC vs. sole proprietor break-even.
               </p>
             </div>
@@ -191,7 +191,7 @@ export default function ToolsIndexPage() {
                   {
                     href: "/how-much-should-real-estate-agents-save-for-taxes-canada",
                     title: "How much should you save for taxes?",
-                    description: "Province-by-province tax-save percentages with CPP, GST/HST, and quarterly instalments.",
+                    description: "The CRA rules on income tax, CPP, and GST/HST, and the tax engine's estimate by province.",
                   },
                   {
                     href: "/t2125-guide-real-estate-agents-canada",

@@ -15,6 +15,7 @@ import { GuideLink } from "@/components/guide-link";
 import { Separator } from "@/components/ui/separator";
 import { fmtCurrency, fmtCompact, fmtPct } from "@/lib/formatters";
 import { CANONICAL_TAX_DISCLAIMER_SHORT } from "@/lib/flight-crew/constants";
+import { GST_HST_TRUST_RULE } from "@agent-runway/core/tax-copy";
 import {
   computeGCI,
   computeWeightedGCI,
@@ -918,7 +919,7 @@ export function ForecastContent({
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium">{taxLabel} collected YTD</p>
-                  <p className="text-xs text-muted-foreground">Set this aside — it&apos;s the government&apos;s, not yours</p>
+                  <p className="text-xs text-muted-foreground">Estimate, before input tax credits. {GST_HST_TRUST_RULE}</p>
                 </div>
                 <p className="text-lg font-bold tabular-nums">{fmtCurrency(gstHstCollectedYTD)}</p>
               </div>

@@ -461,7 +461,7 @@ export default function HowRealEstateAgentsTrackGCIPage() {
                   {
                     icon: Layers,
                     title: "Tax planning built in",
-                    body: "Federal and provincial tax obligations estimated for all 13 provinces and territories, including CPP and Quebec QPP. Shows your estimated quarterly instalment and per-deal set-aside amount.",
+                    body: "Federal and provincial tax obligations estimated for all 13 provinces and territories, including CPP and Quebec QPP. Shows your estimated quarterly instalment and per-deal tax portion.",
                   },
                   {
                     icon: Rocket,

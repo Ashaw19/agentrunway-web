@@ -986,11 +986,9 @@ export default function FirstYearTaxFilingRealEstateAgentsCanadaPage() {
                 The published-rules framing matters for the verbs an
                 agent uses around it. The estimator indicates a number;
                 what an agent does with that number is the agent&apos;s
-                decision, made with their accountant. For the more
-                detailed mechanic of using the estimator&apos;s number
-                to anchor an in-year reserve, including the rate-of-
-                income-set-against-tax that current CRA brackets imply,
-                see the{" "}
+                decision, made with their accountant. For the CRA rules
+                on instalments and what the tax engine estimates by
+                province, see the{" "}
                 <Link
                   href="/how-much-should-real-estate-agents-save-for-taxes-canada"
                   className="font-semibold text-blue-600 underline underline-offset-2"

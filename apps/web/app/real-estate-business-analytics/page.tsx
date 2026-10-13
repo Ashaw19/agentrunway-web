@@ -115,7 +115,7 @@ const FEATURES = [
       "Insights tied to your actual numbers — not generic tips",
       "Insight cards ranked by potential impact",
       "Built-in AI chat assistant for business Q&A",
-      "Tax estimates: quarterly instalments and per-deal set-asides",
+      "Tax estimates: quarterly instalments and a per-deal tax portion",
     ],
   },
 ];

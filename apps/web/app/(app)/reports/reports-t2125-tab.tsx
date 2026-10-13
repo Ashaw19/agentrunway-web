@@ -206,11 +206,11 @@ export function ReportsT2125Tab({
     .reduce((sum, l) => sum + l.deductibleAmount, 0);
 
   // A home cost with bills logged under Home Office (Expenses page) uses
-  // those bills; the estimate typed here is set aside for that cost.
+  // those bills; the estimate typed here is not used for that cost.
   const hasLoggedHomeBills = Object.keys(homeOfficeCosts ?? {}).length > 0;
   const loggedHomeNote = (type: HomeOfficeCostType, amount: number): string | undefined =>
     result?.homeOffice.loggedCostTypes.includes(type)
-      ? `Using ${fmtCurrency(amount)} from the bills you logged under Home Office. This estimate is set aside.`
+      ? `Using ${fmtCurrency(amount)} from the bills you logged under Home Office. This estimate is not used.`
       : undefined;
 
   // ── Save settings changes to Supabase ────────────────────────────────────────
