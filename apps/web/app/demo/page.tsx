@@ -245,7 +245,7 @@ const SECTIONS = [
     tag: "Reports",
     tagClass: "bg-rose-100 text-rose-700",
     heading: "Exportable analytics for your whole business",
-    hint: "This is what you should be setting aside for taxes — and sharing with your accountant",
+    hint: "Your projected tax breakdown, in a form your accountant can check",
     explanation:
       "Agent Runway's reports section brings your P&L summary, projected tax breakdown, expense analysis, monthly performance trends, and full transaction log into one printable view. Export a polished PDF to share with your accountant, advisor, or brokerage.",
     bullets: [
@@ -328,9 +328,8 @@ export default function DemoPage() {
               </p>
               <p className="text-sm leading-relaxed text-slate-600">
                 Based on these numbers, this agent is on pace to exceed their
-                annual goal — but their tax reserve is underfunded. If they
-                don&apos;t adjust, they could face a significant tax gap at
-                year-end.
+                annual goal. The projected tax for the year rises with that
+                income, and the Reports view shows the estimate as it changes.
               </p>
               <p className="mt-3 text-xs font-medium text-blue-600">
                 This is what Agent Runway does automatically.

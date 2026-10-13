@@ -601,7 +601,7 @@ export default function RealEstateTaxDeadlinesPage() {
                   icon: FileText,
                   title: "How Much to Save for Taxes",
                   description:
-                    "Province-by-province tax-save percentages with CPP, HST, and quarterly instalments.",
+                    "The CRA rules on income tax, CPP, and HST, and the tax engine's estimate by province.",
                 },
                 {
                   href: "/real-estate-agent-tax-planning-canada",

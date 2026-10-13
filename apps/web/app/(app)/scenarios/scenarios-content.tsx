@@ -430,7 +430,7 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
             {/* 2. Deal Count */}
             <div className="space-y-2">
               <label className="text-sm font-medium text-slate-600">Deal Count</label>
-              <span className="block text-[10px] text-slate-400 -mt-1">Only changes per-deal set-aside — total tax stays the same</span>
+              <span className="block text-[10px] text-slate-400 -mt-1">Only changes the per-deal tax portion. Total tax stays the same</span>
               <div className="flex items-center gap-3">
                 <button
                   type="button"
@@ -671,7 +671,7 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
                     value={fmtCurrency(current.quarterlyInstalment)}
                   />
                   <MetricRow
-                    label="Per-Deal Set-Aside"
+                    label="Per-Deal Tax Portion"
                     value={fmtCurrency(current.perDealSetAside)}
                   />
                 </div>
@@ -729,7 +729,7 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
                     value={fmtCurrency(scenario.quarterlyInstalment)}
                   />
                   <MetricRow
-                    label="Per-Deal Set-Aside"
+                    label="Per-Deal Tax Portion"
                     value={fmtCurrency(scenario.perDealSetAside)}
                   />
                 </div>

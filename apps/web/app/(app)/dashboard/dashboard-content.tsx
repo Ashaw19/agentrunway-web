@@ -708,7 +708,7 @@ export function DashboardContent({
 
   // ── Cash Position (implied from YTD data) ─────────────────────────────
   // Computes what *should* be in the agent's business account based on
-  // income earned minus expenses, tax set-aside, and HST owing.
+  // income earned minus expenses, estimated tax to date, and HST owing.
   // D-4 fix (Audit 1 2026-04-22): canonical HST helper respects
   // `brokerageWithholdsHst`. Prior inline formula treated brokerage-withholding
   // agents as still having YTD HST collected, which disagreed with the
@@ -2803,7 +2803,7 @@ export function DashboardContent({
               <div className="flex items-center gap-1">
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Cash Runway</p>
                 <MetricInfo tip={cashPosition.source === "implied"
-                  ? `Based on your YTD income (${fmtCurrency(cashPosition.breakdown.ytdAgentNet)}) minus expenses (${fmtCurrency(cashPosition.breakdown.ytdExpenses)}), tax set-aside (${fmtCurrency(cashPosition.breakdown.ytdTaxSetAside)})${cashPosition.breakdown.ytdHstOwing > 0 ? `, HST owing (${fmtCurrency(cashPosition.breakdown.ytdHstOwing)})` : ""}${cashPosition.manualReserve > 0 ? ` + starting reserve (${fmtCurrency(cashPosition.manualReserve)})` : ""}. Effective cash: ${fmtCurrency(cashPosition.effectiveCash)}.`
+                  ? `Based on your YTD income (${fmtCurrency(cashPosition.breakdown.ytdAgentNet)}) minus expenses (${fmtCurrency(cashPosition.breakdown.ytdExpenses)}), estimated tax to date (${fmtCurrency(cashPosition.breakdown.ytdTaxSetAside)})${cashPosition.breakdown.ytdHstOwing > 0 ? `, HST owing (${fmtCurrency(cashPosition.breakdown.ytdHstOwing)})` : ""}${cashPosition.manualReserve > 0 ? ` + starting reserve (${fmtCurrency(cashPosition.manualReserve)})` : ""}. Effective cash: ${fmtCurrency(cashPosition.effectiveCash)}.`
                   : "How many months your cash reserve covers your monthly costs (brokerage fee and recurring expenses), after the monthly income estimated from your pipeline. Update your cash reserve in Settings."
                 } />
                 <GuideLink anchor="cash-runway" label="Cash Runway explained in Guide" />

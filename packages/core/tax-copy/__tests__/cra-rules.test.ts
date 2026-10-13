@@ -19,6 +19,10 @@
  *      does with the answer. It used to read "We won't include HST in your
  *      set-aside recommendations" and "We'll remind you to set it aside for
  *      CRA".
+ *   6. The instalment rules carry both halves of CRA's test (this year, and
+ *      either of the two before it), the Quebec limit, and interest on late or
+ *      insufficient payments. Public pages used to say instalments apply to
+ *      anyone who "expects to owe more than $3,000 in tax for a given year".
  */
 
 import { describe, it, expect } from "vitest";
@@ -27,6 +31,14 @@ import {
   SMALL_SUPPLIER_RULE,
   SMALL_SUPPLIER_RULE_SHORT,
   INCOME_TAX_INSTALMENT_DUE_DATES,
+  INSTALMENT_DUE_DATES_RULE,
+  INSTALMENT_NET_TAX_OWING_LIMIT,
+  INSTALMENT_NET_TAX_OWING_LIMIT_QUEBEC,
+  INSTALMENT_REQUIREMENT_RULE,
+  INSTALMENT_WITHHOLDING_RULE,
+  INSTALMENT_INTEREST_RULE,
+  CRA_INSTALMENT_SOURCES,
+  GST_HST_TRUST_RULE,
   BROKERAGE_HST_WITHHOLDING,
   brokerageHstWithholdingHint,
   gstHstReportNote,
@@ -188,5 +200,63 @@ describe("income tax instalment due dates", () => {
   it("are not the GST/HST quarterly filing dates", () => {
     const all = INCOME_TAX_INSTALMENT_DUE_DATES.map((d) => `${d.long} ${d.short}`).join(" ");
     expect(all).not.toMatch(/April 30|July 31|October 31|January 31|Apr 30|Jul 31|Oct 31|Jan 31/);
+  });
+});
+
+describe("income tax instalments: who pays, when, and interest", () => {
+  it("the limits are CRA's: $3,000, and $1,800 for Quebec residents", () => {
+    expect(INSTALMENT_NET_TAX_OWING_LIMIT).toBe(3_000);
+    expect(INSTALMENT_NET_TAX_OWING_LIMIT_QUEBEC).toBe(1_800);
+  });
+
+  it("the requirement names both halves of CRA's test and both limits", () => {
+    expect(INSTALMENT_REQUIREMENT_RULE).toContain("net tax owing is more than $3,000");
+    expect(INSTALMENT_REQUIREMENT_RULE).toContain("$1,800 for Quebec residents");
+    expect(INSTALMENT_REQUIREMENT_RULE).toMatch(/in that year and in either of the two years before it/);
+  });
+
+  it("the due dates sentence prints the four dates in the table, in order", () => {
+    const at = INCOME_TAX_INSTALMENT_DUE_DATES.map((d) => INSTALMENT_DUE_DATES_RULE.indexOf(d.long));
+    expect(at.every((i) => i > 0)).toBe(true);
+    expect([...at].sort((a, b) => a - b)).toEqual(at);
+  });
+
+  it("interest is on late or insufficient payments, at the prescribed rate", () => {
+    expect(INSTALMENT_INTEREST_RULE).toMatch(/late or insufficient instalment payments/);
+    expect(INSTALMENT_INTEREST_RULE).toMatch(/compounded daily at the prescribed interest rate/);
+  });
+
+  it("withholding: instalments may apply to self-employment income, with no claim that they do", () => {
+    expect(INSTALMENT_WITHHOLDING_RULE).toMatch(/may apply/);
+    expect(INSTALMENT_WITHHOLDING_RULE).toMatch(/self-employment income/);
+  });
+
+  it.each([
+    ["requirement", INSTALMENT_REQUIREMENT_RULE],
+    ["withholding", INSTALMENT_WITHHOLDING_RULE],
+    ["due dates", INSTALMENT_DUE_DATES_RULE],
+    ["interest", INSTALMENT_INTEREST_RULE],
+  ])("%s: attributed to CRA, no advice wording, no em dash", (_name, rule) => {
+    expect(rule).toMatch(/^Per CRA, /);
+    expect(errorsIn(rule)).toEqual([]);
+    expect(rule).not.toContain("—");
+  });
+
+  it("each rule has a canada.ca page to cite", () => {
+    for (const source of Object.values(CRA_INSTALMENT_SOURCES)) {
+      expect(source.url).toMatch(
+        /^https:\/\/www\.canada\.ca\/en\/revenue-agency\/services\/payments\/payments-cra\/individual-payments\/income-tax-instalments\/[a-z-]+\.html$/,
+      );
+      expect(source.label).toMatch(/^CRA: /);
+    }
+  });
+});
+
+describe("GST/HST collected is held in trust", () => {
+  it("cites the section of the Excise Tax Act and states the trust, with no instruction", () => {
+    expect(GST_HST_TRUST_RULE).toMatch(/^Per the Excise Tax Act, s\. 222\(1\), /);
+    expect(GST_HST_TRUST_RULE).toMatch(/deemed held in trust for the Crown until it is remitted/);
+    expect(errorsIn(GST_HST_TRUST_RULE)).toEqual([]);
+    expect(GST_HST_TRUST_RULE).not.toMatch(/\b(?:yours|aside)\b/i);
   });
 });

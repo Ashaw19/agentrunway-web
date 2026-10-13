@@ -4,6 +4,15 @@ import { ArrowRight, BookOpen } from "lucide-react";
 import { MarketingNav } from "@/components/marketing-nav";
 import { MarketingFooter } from "@/components/marketing-footer";
 import { articleSchema, breadcrumbSchema } from "@/lib/schema";
+import {
+  CANONICAL_TAX_DISCLAIMER,
+  CRA_INSTALMENT_SOURCES,
+  INSTALMENT_DUE_DATES_RULE,
+  INSTALMENT_INTEREST_RULE,
+  INSTALMENT_REQUIREMENT_RULE,
+  INSTALMENT_WITHHOLDING_RULE,
+  TAX_ENGINE_ESTIMATE,
+} from "@agent-runway/core/tax-copy";
 
 export const metadata: Metadata = {
   title: "How Real Estate Agents Calculate Net Income",
@@ -33,6 +42,33 @@ const breadcrumb = breadcrumbSchema([
   { name: "Home", url: "/" },
   { name: "How Agents Calculate Net Income", url: "/how-real-estate-agents-calculate-net-income" },
 ]);
+
+// ── CRA primary-source registry (self-contained per article) ────────────────
+//
+// The rules cited here are worded in @agent-runway/core/tax-copy (cra-rules.ts),
+// which also holds the page each one was read from.
+
+const CRA_SOURCES = [
+  { id: 1, ...CRA_INSTALMENT_SOURCES.whoPays },
+  { id: 2, ...CRA_INSTALMENT_SOURCES.dueDates },
+  { id: 3, ...CRA_INSTALMENT_SOURCES.interest },
+] as const;
+
+function CRACite({ id }: { id: number }) {
+  const src = CRA_SOURCES.find((s) => s.id === id);
+  if (!src) return null;
+  return (
+    <a
+      href={src.url}
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label={`Source: ${src.label}`}
+      className="ml-0.5 align-super text-[0.65em] font-semibold text-blue-600 no-underline hover:underline"
+    >
+      [{id}]
+    </a>
+  );
+}
 
 // ── Table of contents entries ─────────────────────────────────────────────────
 
@@ -320,41 +356,46 @@ export default function HowRealEstateAgentsCalculateNetIncomePage() {
                 commission cheque — or sees a deposit that reflects their post-split
                 amount — it is tempting to think of that as earnings. But the business
                 expenses still outstanding, and the tax liability that just grew, are
-                not visible in that moment. An agent who closes a $15,000 commission
-                cheque in October and spends freely through November may discover in
-                February that the tax bill consumes a third of what felt like a strong
-                close to the year.
+                not visible in that moment. An agent who receives a $15,000 commission
+                cheque in October and spends it through November may find at filing
+                time that part of that cheque was tax.
               </p>
 
               <p>
-                The discipline required is to immediately discount every commission
-                received by a realistic estimate of the effective tax and expense rate.
-                Until that mental accounting is automatic, agents will consistently
-                overestimate how much they can spend.
+                A commission deposit shows the amount after the brokerage split. It
+                does not show the business expenses still to be paid out of it, or the
+                income tax and CPP that the year&apos;s income carries. Net income is
+                what is left after those.
               </p>
 
-              <h3>Mistake 2: Forgetting that quarterly instalments accumulate</h3>
+              <h3>Mistake 2: Counting the tax on a commission as income</h3>
 
               <p>
-                Self-employed Canadians who expect to owe more than $3,000 in tax for
-                a given year are required by the CRA to pay in quarterly instalments —
-                in March, June, September, and December. A full breakdown of how these
-                work is covered in the guide to{" "}
+                No income tax is deducted from a commission before it is paid to a
+                self-employed agent. {INSTALMENT_WITHHOLDING_RULE}
+                <CRACite id={1} /> {INSTALMENT_REQUIREMENT_RULE}
+                <CRACite id={1} /> {INSTALMENT_DUE_DATES_RULE}
+                <CRACite id={2} /> {INSTALMENT_INTEREST_RULE}
+                <CRACite id={3} /> How instalments are calculated is covered in the
+                guide to{" "}
                 <Link href="/real-estate-agent-tax-planning-canada">
                   real estate agent tax planning in Canada
                 </Link>
-                . Agents who do not set money
-                aside throughout the year find themselves in a compounding bind: not
-                only do they owe a large amount at tax time, but they may also have
-                missed instalment payments and face interest charges on top.
+                .
               </p>
 
               <p>
-                The agents who handle this best treat each commission deposit as
-                partially belonging to the CRA before they receive it. Setting aside
-                30–35% of every payment into a dedicated tax account — untouchable
-                until instalment dates — eliminates year-end surprises entirely.
+                How much of one commission is tax has no fixed answer.{" "}
+                {TAX_ENGINE_ESTIMATE.what} {TAX_ENGINE_ESTIMATE.varies}{" "}
+                {TAX_ENGINE_ESTIMATE.perDeal} The tax planning guide shows the
+                engine&apos;s estimate at several income levels, and the{" "}
+                <Link href="/tools/realtor-tax-estimator">
+                  free Canadian Realtor Tax Estimator
+                </Link>{" "}
+                runs the same engine on your own numbers.
               </p>
+
+              <p className="text-sm text-slate-500">{CANONICAL_TAX_DISCLAIMER}</p>
 
               <h3>Mistake 3: Not tracking expenses throughout the year</h3>
 
@@ -416,9 +457,10 @@ export default function HowRealEstateAgentsCalculateNetIncomePage() {
                 Agent Runway&apos;s built-in tax engine calculates your estimated federal
                 income tax, provincial income tax for your province, and CPP contributions
                 (or QPP if you are in Quebec) using current Canadian rate tables. It shows
-                your estimated quarterly instalment amount, the per-deal tax set-aside
-                that keeps you on track, and your projected effective tax rate — all
-                updated automatically as your income and expenses change through the year.
+                your estimated quarterly instalment amount, the per-deal tax portion
+                (the yearly estimate divided by your projected deals), and your
+                projected effective tax rate. All three update as your income and
+                expenses change through the year.
               </p>
 
               <p>
@@ -438,6 +480,34 @@ export default function HowRealEstateAgentsCalculateNetIncomePage() {
               </p>
 
             </article>
+
+            {/* Sources */}
+            <section
+              aria-labelledby="sources"
+              className="mt-12 border-t border-slate-200 pt-8"
+            >
+              <h2 id="sources" className="text-base font-semibold text-slate-800">
+                Sources
+              </h2>
+              <ol className="mt-4 space-y-2 text-xs text-slate-500">
+                {CRA_SOURCES.map((s) => (
+                  <li key={s.id} className="flex gap-2 leading-relaxed">
+                    <span className="font-mono text-slate-400">[{s.id}]</span>
+                    <a
+                      href={s.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline underline-offset-2 hover:text-slate-700"
+                    >
+                      {s.label}
+                    </a>
+                  </li>
+                ))}
+              </ol>
+              <p className="mt-6 text-xs leading-relaxed text-slate-400">
+                {CANONICAL_TAX_DISCLAIMER}
+              </p>
+            </section>
 
           </div>
         </section>

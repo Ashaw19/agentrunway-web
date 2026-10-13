@@ -91,6 +91,24 @@ export function gstHstReportNote(input: GstHstReportNoteInput): TaxCopy {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
+// GST/HST collected is held in trust
+// ─────────────────────────────────────────────────────────────────────────
+
+/**
+ * Source: Excise Tax Act, s. 222(1), "Trust for amounts collected"
+ *   laws-lois.justice.gc.ca/eng/acts/E-15/section-222.html
+ *   (Act current to 2026-09-21, read 2026-10-13)
+ *
+ * A person who collects an amount as or on account of GST/HST "is deemed" to
+ * hold it in trust for the Crown until it is remitted, or withdrawn under
+ * s. 222(2). The Forecast page used to put this as an instruction: "it's the
+ * government's, not yours".
+ */
+export const GST_HST_TRUST_RULE: TaxCopy = asTaxCopy(
+  "Per the Excise Tax Act, s. 222(1), GST/HST collected is deemed held in trust for the Crown until it is remitted.",
+);
+
+// ─────────────────────────────────────────────────────────────────────────
 // "Does your brokerage withhold HST?" (Settings and onboarding)
 // ─────────────────────────────────────────────────────────────────────────
 
@@ -150,3 +168,74 @@ export const INCOME_TAX_INSTALMENT_DUE_DATES = [
   { quarter: 3, long: "September 15", short: "Sep 15" },
   { quarter: 4, long: "December 15", short: "Dec 15" },
 ] as const;
+
+const [Q1_DUE, Q2_DUE, Q3_DUE, Q4_DUE] = INCOME_TAX_INSTALMENT_DUE_DATES;
+
+/** One sentence carrying the four dates above. */
+export const INSTALMENT_DUE_DATES_RULE: TaxCopy = asTaxCopy(
+  `Per CRA, instalment payments for individuals are due ${Q1_DUE.long}, ${Q2_DUE.long}, ${Q3_DUE.long} and ${Q4_DUE.long}.`,
+);
+
+// ─────────────────────────────────────────────────────────────────────────
+// Income tax instalments: who pays, and interest
+// ─────────────────────────────────────────────────────────────────────────
+
+/**
+ * CRA's net tax owing limits for instalments.
+ *
+ * Source: canada.ca, "Who has to pay tax instalments"
+ *   canada.ca/en/revenue-agency/services/payments/payments-cra/individual-payments/income-tax-instalments/who-pays-instalments.html
+ *   (page dated 2026-01-20, read 2026-10-13)
+ *
+ * CRA's test has two parts and both have to hold: "You have to pay your
+ * income tax by instalments for 2026 if both apply", net tax owing over the
+ * limit in 2026, and over it in either 2025 or 2024. Over the limit in one
+ * year alone does not meet it. The province is the one lived in on
+ * December 31.
+ */
+export const INSTALMENT_NET_TAX_OWING_LIMIT = 3_000;
+export const INSTALMENT_NET_TAX_OWING_LIMIT_QUEBEC = 1_800;
+
+/** Who pays by instalments. */
+export const INSTALMENT_REQUIREMENT_RULE: TaxCopy = asTaxCopy(
+  `Per CRA, income tax is paid by instalments for a year when net tax owing is more than ${fmtCurrency(INSTALMENT_NET_TAX_OWING_LIMIT)} (${fmtCurrency(INSTALMENT_NET_TAX_OWING_LIMIT_QUEBEC)} for Quebec residents) in that year and in either of the two years before it.`,
+);
+
+/**
+ * Why instalments reach a self-employed agent. Same CRA page: "You may have
+ * to pay tax by instalments if your income does not have enough tax
+ * withheld", with self-employment first on its list.
+ */
+export const INSTALMENT_WITHHOLDING_RULE: TaxCopy = asTaxCopy(
+  "Per CRA, tax instalments may apply when income does not have enough tax withheld, as with self-employment income.",
+);
+
+/**
+ * Source: canada.ca, "Interest and penalty charges" (tax instalments)
+ *   canada.ca/en/revenue-agency/services/payments/payments-cra/individual-payments/income-tax-instalments/interest-penalty-charges.html
+ *   (page dated 2026-01-20, read 2026-10-13)
+ *
+ * CRA: "The CRA charges instalment interest on all late or insufficient
+ * instalment payments." "Instalment interest is compounded daily at the
+ * prescribed interest rate". A penalty is separate and applies only when the
+ * instalment interest for the year is more than $1,000.
+ */
+export const INSTALMENT_INTEREST_RULE: TaxCopy = asTaxCopy(
+  "Per CRA, instalment interest is charged on all late or insufficient instalment payments, compounded daily at the prescribed interest rate.",
+);
+
+/** The CRA pages the instalment rules above come from, for a citation or a link. */
+export const CRA_INSTALMENT_SOURCES = {
+  whoPays: {
+    label: "CRA: Required tax instalments for individuals, who has to pay",
+    url: "https://www.canada.ca/en/revenue-agency/services/payments/payments-cra/individual-payments/income-tax-instalments/who-pays-instalments.html",
+  },
+  dueDates: {
+    label: "CRA: Required tax instalments for individuals, payment due dates",
+    url: "https://www.canada.ca/en/revenue-agency/services/payments/payments-cra/individual-payments/income-tax-instalments/due-dates.html",
+  },
+  interest: {
+    label: "CRA: Required tax instalments for individuals, interest and penalty charges",
+    url: "https://www.canada.ca/en/revenue-agency/services/payments/payments-cra/individual-payments/income-tax-instalments/interest-penalty-charges.html",
+  },
+} as const;

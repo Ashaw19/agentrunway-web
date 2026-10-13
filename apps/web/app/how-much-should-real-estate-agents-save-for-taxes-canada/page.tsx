@@ -5,16 +5,25 @@ import { MarketingNav } from "@/components/marketing-nav";
 import { MarketingFooter } from "@/components/marketing-footer";
 import { ScrollRevealSection } from "@/components/scroll-reveal-section";
 import { EmailCapture } from "@/components/email-capture";
+import { TaxEngineEstimateTable } from "@/components/tax-engine-estimate-table";
 import { articleSchema } from "@/lib/schema";
+import {
+  CRA_INSTALMENT_SOURCES,
+  INSTALMENT_DUE_DATES_RULE,
+  INSTALMENT_INTEREST_RULE,
+  INSTALMENT_REQUIREMENT_RULE,
+  TAX_ENGINE_ESTIMATE,
+  taxEstimateSpreadSentence,
+} from "@agent-runway/core/tax-copy";
 
 export const metadata: Metadata = {
   title: "How Much Should Real Estate Agents Save for Taxes in Canada?",
   description:
-    "A practical guide for Canadian real estate agents on the typical tax-portion estimate for federal tax, provincial tax, CPP, and HST/GST — with a free 2025 tax estimator tool.",
+    "The CRA rules behind income tax, CPP, and HST/GST on commission income, what Agent Runway's tax engine estimates by province, and a free tax estimator for your own numbers.",
   openGraph: {
     title: "How Much Should Real Estate Agents Save for Taxes in Canada?",
     description:
-      "Practical guide for Canadian real estate agents. Federal tax, provincial tax, CPP, and HST/GST tax-portion estimates — plus a free 2025 tax estimator.",
+      "Guide for Canadian real estate agents. The CRA rules on income tax, CPP, and HST/GST, the tax engine's estimate by province, and a free tax estimator.",
     url: "https://agentrunway.ca/how-much-should-real-estate-agents-save-for-taxes-canada",
     images: [{ url: "/og-image-v2.png", width: 1200, height: 630 }],
   },
@@ -56,6 +65,7 @@ const CRA_SOURCES = [
     label: "CRA — Required tax instalments: due dates",
     url: "https://www.canada.ca/en/revenue-agency/services/payments/payments-cra/individual-payments/income-tax-instalments/due-dates.html",
   },
+  { id: 7, ...CRA_INSTALMENT_SOURCES.interest },
 ] as const;
 
 function CRACite({ id }: { id: number }) {
@@ -74,12 +84,23 @@ function CRACite({ id }: { id: number }) {
   );
 }
 
+// ── Answers printed twice: in the FAQ schema and on the page ─────────────────
+//
+// The first used to be a typed range of percentages. It is now the tax
+// engine's own estimate, worked out when the page is built.
+
+const HOW_MUCH_ANSWER = `The CRA sets no percentage of a commission to save. ${TAX_ENGINE_ESTIMATE.what} ${taxEstimateSpreadSentence(100_000)} ${TAX_ENGINE_ESTIMATE.varies} HST/GST collected on commissions is separate from this estimate.`;
+
+const HST_FILING_FREQUENCY = "HST/GST is typically filed annually or quarterly depending on revenue.";
+
+const HOW_OFTEN_ANSWER = `${INSTALMENT_REQUIREMENT_RULE} ${INSTALMENT_DUE_DATES_RULE} ${INSTALMENT_INTEREST_RULE} ${HST_FILING_FREQUENCY}`;
+
 // ── JSON-LD structured data ──────────────────────────────────────────────────
 
 const JSON_LD_ARTICLE = articleSchema({
   headline: "How Much Should Real Estate Agents Save for Taxes in Canada?",
   description:
-    "A practical guide for Canadian real estate agents on the typical tax-portion estimate for every commission cheque — with a free tax estimator tool.",
+    "The CRA rules behind the tax on commission income, what Agent Runway's tax engine estimates by province, and a free tax estimator tool.",
   url: "/how-much-should-real-estate-agents-save-for-taxes-canada",
   datePublished: "2025-03-01",
   dateModified: "2026-05-10",
@@ -94,7 +115,7 @@ const JSON_LD_FAQ = {
       name: "How much should a real estate agent save for taxes in Canada?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "For Canadian real estate agents, a typical estimate of the total tax portion lands between 25% and 40% of net business income, depending on province and total income. This estimate covers federal income tax, provincial income tax, CPP contributions, and HST/GST remittances.",
+        text: HOW_MUCH_ANSWER,
       },
     },
     {
@@ -118,7 +139,7 @@ const JSON_LD_FAQ = {
       name: "How often do self-employed agents pay taxes in Canada?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "CRA requires quarterly instalment payments (March 15, June 15, September 15, December 15) when net tax owing exceeds $3,000 in the current year and in either of the two preceding years ($1,800 in Quebec). HST/GST is typically filed annually or quarterly depending on revenue.",
+        text: HOW_OFTEN_ANSWER,
       },
     },
   ],
@@ -156,10 +177,10 @@ export default function TaxSavingsGuidePage() {
               How Much Should Real Estate Agents Save for Taxes in Canada?
             </h1>
             <p className="mx-auto mt-5 max-w-2xl text-base leading-relaxed text-slate-400 sm:text-lg">
-              Most agents know a tax portion of every cheque has to come off the
-              top. Few know exactly how much. This guide explains the typical
-              estimated percentage, why it varies by province, and what CRA rules
-              apply — plus a free tax estimator to plug in your own numbers.
+              No tax is deducted from a commission before it is paid, so the
+              tax on it is worked out later. This guide covers the CRA rules
+              that apply, what Agent Runway&apos;s tax engine estimates by
+              province, and a free tax estimator for your own numbers.
             </p>
           </div>
         </section>
@@ -209,21 +230,21 @@ export default function TaxSavingsGuidePage() {
           <div className="mx-auto max-w-3xl">
             <ScrollRevealSection>
               <h2 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
-                The short answer: 25% to 40%
+                The short answer: it depends on province and income
               </h2>
               <div className="mt-6 space-y-5 text-base leading-relaxed text-slate-600">
                 <p>
-                  For most Canadian real estate agents earning between $80,000
-                  and $300,000 in gross commission income, the typical estimate
-                  of the total tax portion lands between 25% and 40% of net
-                  business income. (This 25%–40% range is an Agent Runway
-                  composite estimate of federal + provincial + CPP, not a CRA
-                  figure — actual rates depend on province, brokerage split,
-                  deductible expenses, and whether the agent operates through a
-                  personal corporation (PREC).)
+                  The CRA sets income tax by bracket on taxable income for the
+                  year<CRACite id={2} />, not as a percentage of a commission.{" "}
+                  {TAX_ENGINE_ESTIMATE.what} {TAX_ENGINE_ESTIMATE.varies} The
+                  figures below are for a sole proprietor. An agent who operates
+                  through a personal real estate corporation (PREC) is taxed
+                  differently.
                 </p>
+                <TaxEngineEstimateTable />
                 <p>
-                  The breakdown typically includes four components:
+                  The engine&apos;s estimate has three parts. HST/GST is a
+                  fourth amount, separate from the estimate:
                 </p>
                 <ul className="ml-4 space-y-2 list-disc list-outside">
                   <li>
@@ -278,18 +299,13 @@ export default function TaxSavingsGuidePage() {
                 <p>
                   This creates a common pattern: agents spend commission income
                   as it arrives, underestimate their tax liability, and face a
-                  painful bill at filing time. The CRA may also charge interest
-                  on missed quarterly instalments — even if you eventually pay
-                  the full amount.
+                  painful bill at filing time.
                 </p>
                 <p>
-                  One framing many agents use: estimate the tax portion of each
-                  commission cheque ahead of time, and reconcile it against
-                  CRA&apos;s published quarterly instalment dates of March 15,
-                  June 15, September 15, and December 15<CRACite id={6} />.
-                  Whether instalments apply in a given year depends on the
-                  $3,000 net-tax-owing threshold described in CRA&apos;s
-                  instalment rules<CRACite id={5} />. The{" "}
+                  {INSTALMENT_REQUIREMENT_RULE}
+                  <CRACite id={5} /> {INSTALMENT_DUE_DATES_RULE}
+                  <CRACite id={6} /> {INSTALMENT_INTEREST_RULE}
+                  <CRACite id={7} /> The{" "}
                   <Link
                     href="/tools/realtor-tax-estimator"
                     className="text-blue-600 underline underline-offset-2 hover:text-blue-500"
@@ -340,13 +356,7 @@ export default function TaxSavingsGuidePage() {
                     How much should a real estate agent save for taxes in Canada?
                   </h3>
                   <p className="mt-2 text-base leading-relaxed text-slate-600">
-                    For Canadian real estate agents, a typical estimate of the
-                    total tax portion lands between 25% and 40% of net business
-                    income. That estimate covers federal income tax
-                    <CRACite id={2} />, provincial income tax<CRACite id={2} />,
-                    CPP contributions<CRACite id={1} />, and HST/GST remittances
-                    <CRACite id={4} />. The exact percentage depends on
-                    province, total income, and deductible expenses.
+                    {HOW_MUCH_ANSWER}
                   </p>
                 </div>
                 <div>
@@ -379,13 +389,10 @@ export default function TaxSavingsGuidePage() {
                     How often do self-employed agents pay taxes in Canada?
                   </h3>
                   <p className="mt-2 text-base leading-relaxed text-slate-600">
-                    CRA requires quarterly instalment payments (March 15, June
-                    15, September 15, December 15)<CRACite id={6} /> when net
-                    tax owing exceeds $3,000 in the current year and in either
-                    of the two preceding years ($1,800 in Quebec)
-                    <CRACite id={5} />. HST/GST is typically filed annually or
-                    quarterly depending on revenue. Missing instalments can
-                    result in interest charges.
+                    {INSTALMENT_REQUIREMENT_RULE}
+                    <CRACite id={5} /> {INSTALMENT_DUE_DATES_RULE}
+                    <CRACite id={6} /> {INSTALMENT_INTEREST_RULE}
+                    <CRACite id={7} /> {HST_FILING_FREQUENCY}
                   </p>
                 </div>
               </div>

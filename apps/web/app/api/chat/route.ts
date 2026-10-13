@@ -852,7 +852,7 @@ export async function POST(req: NextRequest) {
           `  - Projected Net Self-Employment Income: ${fmtCurrency(projectedNetIncome)}`,
           `  - Effective Rate: ${(taxResult.effectiveRate * 100).toFixed(1)}%`,
           `  - Total Tax + CPP Burden: ${fmtCurrency(taxResult.totalBurden)}`,
-          projDeals > 0 ? `  - Per-Deal Set-Aside: ${fmtCurrency(taxResult.perDealSetAside)}` : null,
+          projDeals > 0 ? `  - Per-Deal Tax Portion (estimate): ${fmtCurrency(taxResult.perDealSetAside)}` : null,
           `  - Quarterly Instalment: ${fmtCurrency(taxResult.quarterlyEstimate)}`,
           "",
           `Benchmark: ${benchmark.percentile}th percentile in ${COHORT_LABELS[benchmark.cohort]} cohort${settings.experience_years != null ? ` (${settings.experience_years} years experience)` : ""}`,
@@ -1019,7 +1019,7 @@ export async function POST(req: NextRequest) {
           }),
         );
 
-        // 7. Seasonal Tax Set-Aside Adjustments
+        // 7. Seasonal tax estimate adjustments
         // A heavy quarter — agent earning disproportionately. The quarter is
         // derived from `today` inside the helper (0-based index, 1-based label).
         taxIntelLines.push(
@@ -1088,7 +1088,7 @@ export async function POST(req: NextRequest) {
           // earlier self-contradiction. HST is charged on the full commission
           // invoiced to the client, not on the agent's split portion. Examples
           // now compute HST on the $10,000 invoiced commission. Also softened
-          // "recommend / set aside" wording per
+          // "recommend" and money-handling wording per
           // memory/feedback_tax_information_not_advice.md — forbidden verbs.
           // Math below uses a canonical perDealGCI = $10,000 illustrative.
           const exampleGCI = 10_000;
@@ -1121,7 +1121,7 @@ export async function POST(req: NextRequest) {
             allocLines.push(
               `[ALLOCATION MODEL — AGENT HANDLES HST] The agent receives the full commission including ${hstLabel} on their split portion (the ${hstLabel} portion is collected for CRA — it does not belong to the agent). ` +
               `At the agent's projected marginal rate of ~${(marginalRate * 100).toFixed(0)}%, income tax on the pre-${hstLabel} commission is approximately that percentage of the agent's split. ` +
-              `Illustrative example: $${exampleGCI.toLocaleString()} gross commission at ${(agentPct * 100).toFixed(0)}% split — ${hstLabel} on the full invoiced commission is ~$${exampleHST.toFixed(0)} (belongs to CRA), agent's split portion is $${exampleAgentGross.toFixed(0)}. ` +
+              `Illustrative example: $${exampleGCI.toLocaleString()} gross commission at ${(agentPct * 100).toFixed(0)}% split — ${hstLabel} on the full invoiced commission is ~$${exampleHST.toFixed(0)} (collected for CRA), agent's split portion is $${exampleAgentGross.toFixed(0)}. ` +
               `At ~${(marginalRate * 100).toFixed(0)}% marginal rate, income tax portion of the agent's split ~$${exampleTaxReserve.toFixed(0)}; remainder after income tax ~$${exampleTakeHomeAgentHandled.toFixed(0)}. ` +
               `Note: ${hstLabel} is calculated on the invoiced commission, not on the agent's split — the agent/brokerage split affects who keeps what, not the ${hstLabel} base. ` +
               `The ${hstLabel} portion represents trust funds collected on CRA's behalf; under the Excise Tax Act s.222, amounts collected are deemed held in trust for the Crown. ` +
@@ -1131,7 +1131,7 @@ export async function POST(req: NextRequest) {
 
           allocLines.push(
             `[GUIDANCE TONE] When discussing paycheque allocation, state specific dollar amounts from the agent's actual commission amount, split, and province. ` +
-            `Distinguish between the portion that belongs to the agent post-tax and the portion earmarked for CRA (income tax + HST trust funds). ` +
+            `Distinguish between the portion that belongs to the agent post-tax and the estimated income tax and HST collected for CRA. ` +
             `For basic allocation math the engine covers, state the math directly. ` +
             `End tax-emitting responses with the canonical tax disclaimer: ${CANONICAL_TAX_DISCLAIMER}`
           );

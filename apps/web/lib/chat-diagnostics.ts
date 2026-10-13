@@ -503,7 +503,7 @@ Total Burden (tax + CPP): ${fmtCurrency(taxResult.totalBurden)}
 Effective Rate: ${(taxResult.effectiveRate * 100).toFixed(1)}%
 Quarterly Instalment: ${fmtCurrency(taxResult.quarterlyEstimate)}
 Projected Deal Count: ~${Math.round(projDeals)}
-Per-Deal Set-Aside: ${fmtCurrency(taxResult.perDealSetAside)}`;
+Per-Deal Tax Portion (estimate): ${fmtCurrency(taxResult.perDealSetAside)}`;
 }
 
 /**

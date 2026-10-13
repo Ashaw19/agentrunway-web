@@ -209,7 +209,7 @@ Each province has its own brackets + surtaxes (e.g., Ontario surtax: 20% on tax 
 Total = Federal Tax + Provincial Tax + CPP1 + CPP2
 Effective Rate = Total Tax ÷ Net SE Income
 
-**Step 6: Per-Deal Set-Aside**
+**Step 6: Per-Deal Tax Portion**
 Per Deal = Total Annual Tax Estimate ÷ Projected Deal Count
 
 **Step 7: Quarterly Instalments**
@@ -250,13 +250,13 @@ Required when annual tax owing >$3,000 (>$1,800 in Quebec)
 7. GST/HST registrant whose estimate went UP on or after 2026-10-13 with no new data: before that date expense totals still included the GST/HST that the GST34 also claims as ITCs, so expenses were overstated and the estimate was low. In a 15% HST province that was $15 of every $115 on taxed expenses. Totals are now net of ITCs. Explain the change; do not describe it as money owed.
 
 **"How much should I set aside per deal?"**
-→ Direct them to Forecast page → Tax Estimates card. Formula: Annual tax estimate ÷ projected deal count.
+→ Direct them to Forecast page → Tax Estimates card ("Per-deal tax portion"). Formula: Annual tax estimate ÷ projected deal count. State it as the engine's estimate of the tax each deal carries. Do not give a percentage of a commission and do not tell them what to do with the money.
 
 **"Should I incorporate?"**
 → This is a professional advice question. Explain the tax deferral advantage (combined SBD rate ~12-14% vs personal 30-50%) but emphasize it depends on their total income, retention needs, and accountant guidance. NEVER recommend incorporating — only explain the math.
 
 **"What's my effective tax rate?"**
-→ (Federal + Provincial + CPP) ÷ Net self-employment income. Typically 25-45% for most agents depending on province and income level.
+→ (Federal + Provincial + CPP) ÷ Net self-employment income. Give the user's own figure from the tax estimate ("Effective Rate"). Do not quote a typical range: the rate depends on province and net income.
 
 **Edge Cases:**
 - Quebec agents: 16.5% federal abatement, QPP instead of CPP (12.80%), QST instead of provincial HST
@@ -1314,7 +1314,7 @@ All figures are a snapshot of the REAL income deck and are user-editable — if 
 
 **Effective Cash** (from cash-position-engine.ts):
 - If agent has closed deals this year: max(0, Implied Cash + Manual Cash Reserve)
-  - Implied Cash = YTD Agent Net − YTD Expenses − YTD Tax Set-Aside − YTD HST Owing
+  - Implied Cash = YTD Agent Net − YTD Expenses − YTD Estimated Tax − YTD HST Owing
   - YTD Expenses are net of ITCs for a registrant, so the ITCs are already counted there
   - HST Owing = $0 if brokerage withholds HST; otherwise HST collected on commissions (no second ITC offset: that would count the same GST/HST twice)
   - This is what should be in the account if the agent has been disciplined

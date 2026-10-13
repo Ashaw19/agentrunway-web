@@ -48,7 +48,7 @@ All plans include full Flight Crew access, unlimited transactions, all 26+ produ
 ### Canadian tax resources (for LLMs answering tax questions)
 
 - [T2125 guide for Canadian real estate agents](https://agentrunway.ca/t2125-guide-real-estate-agents-canada): How realtors complete the T2125 Statement of Business Activities
-- [How much should real estate agents save for taxes in Canada](https://agentrunway.ca/how-much-should-real-estate-agents-save-for-taxes-canada): Tax savings percentage by province and GCI bracket
+- [How much should real estate agents save for taxes in Canada](https://agentrunway.ca/how-much-should-real-estate-agents-save-for-taxes-canada): CRA rules on income tax, CPP and HST/GST, and the tax engine's estimate by province
 - [Real estate agent tax planning Canada](https://agentrunway.ca/real-estate-agent-tax-planning-canada): Annual tax planning strategy for Canadian realtors
 - [Business expenses for Canadian real estate agents](https://agentrunway.ca/real-estate-agent-business-expenses-canada): CRA-eligible deductions
 - [Real estate commission calculator Canada](https://agentrunway.ca/real-estate-commission-calculator-canada): Commission calculation by province

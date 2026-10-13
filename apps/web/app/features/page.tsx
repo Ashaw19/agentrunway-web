@@ -134,7 +134,7 @@ const FEATURES = [
     bullets: [
       "AI chat assistant that understands your GCI, pipeline, expenses, and runway",
       "Contextual insight cards ranked by potential business impact",
-      "Tax estimates: quarterly instalment amounts and per-deal set-asides",
+      "Tax estimates: quarterly instalment amounts and a per-deal tax portion",
       "Benchmark comparison against industry national cohort data",
     ],
     bg: "bg-slate-50",

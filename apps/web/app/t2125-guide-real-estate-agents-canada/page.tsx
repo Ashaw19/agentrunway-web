@@ -750,7 +750,7 @@ export default function T2125GuidePage() {
                 {[
                   {
                     href: "/how-much-should-real-estate-agents-save-for-taxes-canada",
-                    label: "Calculate your tax set-aside",
+                    label: "See the tax engine's estimate by province",
                   },
                   {
                     href: "/real-estate-agent-business-expenses-canada",
