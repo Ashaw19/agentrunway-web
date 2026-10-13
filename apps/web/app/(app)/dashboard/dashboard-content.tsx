@@ -159,7 +159,7 @@ import {
 } from "@/lib/engines/deviation-engine";
 import { calculate as calculateTax, marginalRate } from "@/lib/engines/canadian-tax-engine";
 import { calculateCorporateTax, type CorporateTaxResult } from "@/lib/engines/corporate-tax-engine";
-import { generateTaxOptimizations, type TaxOptimizationCard } from "@/lib/engines/tax-optimization-engine";
+import { generateTaxOptimizations, type DeductionTrackingFlags, type TaxOptimizationCard } from "@/lib/engines/tax-optimization-engine";
 import { computeTimeValue } from "@/lib/engines/time-value";
 import {
   Tooltip,
@@ -201,8 +201,14 @@ interface Props {
   pipelineDeals: PipelineDeal[];
   settings: UserSettings | null;
   expenseCategories: ExpenseCategoryWithItems[];
-  /** Current-year YTD total from receipt_expenses (replaces ytd_amount sum) */
+  /** Current-year YTD total from receipt_expenses, net of ITCs (expense-totals-engine). */
   receiptYTD?: number;
+  /**
+   * Which commonly missed expense categories the agent already tracks
+   * (`deductionTrackingFlags`, from receipts, the per-item monthly figure and
+   * the Recurring Expenses list). Computed by the page.
+   */
+  deductionTracking: DeductionTrackingFlags;
   historyItems?: HistoryItem[];
   initialDashboardView?: string;
   isPro?: boolean;
@@ -313,6 +319,7 @@ export function DashboardContent({
   settings,
   expenseCategories,
   receiptYTD = 0,
+  deductionTracking,
   historyItems = [],
   initialDashboardView: _initialDashboardView,
   isPro: isPro = false,
@@ -907,11 +914,6 @@ export function DashboardContent({
       : null;
 
   // ── Tax Optimization Engine (top 3 for dashboard) ───────────────────
-  const hasExpensesInCategory = (key: string) =>
-    expenseCategories.some(
-      (cat) => cat.key === key && cat.items.some((i) => Number(i.ytd_amount) > 0 || Number(i.monthly_recurring) > 0),
-    );
-
   const taxOptResult = settings
     ? generateTaxOptimizations({
         netIncome: netForTax,
@@ -948,13 +950,7 @@ export function DashboardContent({
           settings.tax_instalment_paid_q3 +
           settings.tax_instalment_paid_q4,
         cppInstalmentPaidYTD: settings.cpp_instalment_paid_ytd,
-        hasProfDevExpenses: hasExpensesInCategory("education"),
-        hasMarketingExpenses: hasExpensesInCategory("marketing"),
-        hasClientGiftExpenses: expenseCategories.some(
-          (cat) => cat.key === "marketing" && cat.items.some((i) => i.key === "marketing_gifts" && (Number(i.ytd_amount) > 0 || Number(i.monthly_recurring) > 0)),
-        ),
-        hasMealExpenses: hasExpensesInCategory("meals"),
-        hasLicensingExpenses: hasExpensesInCategory("professional"),
+        ...deductionTracking,
         ccaAssetCount,
         dismissed: (settings.tax_opt_dismissed as string[]) ?? [],
       }, 3)

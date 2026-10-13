@@ -5,6 +5,8 @@ import type { HistoryItem, ContactTask, Client, ContactActivity, ClientRecord, L
 import { computeIntelligenceBriefing, type BriefingItem } from "@/lib/engines/crm-analytics-engine";
 import { totalRecurringMonthly, totalRecurringYTD } from "@agent-runway/core/engines/recurring-expense-engine";
 import { aggregateReceiptTotals, expenseTaxContext, recurringExpensesNetOfItc } from "@agent-runway/core/engines/expense-totals-engine";
+import { buildT2125Expenses } from "@agent-runway/core/engines/t2125-expenses-engine";
+import { deductionTrackingFlags } from "@agent-runway/core/engines/tax-optimization-engine";
 import type { RecurringExpense } from "@/lib/types/database";
 import { computeIsPro } from "@/lib/compute-is-pro";
 import type { IncomeGoalRow } from "@/lib/income-goals";
@@ -177,7 +179,22 @@ export default async function DashboardPage({
     items: (expItemResult.data ?? []).filter((i) => i.category_id === cat.id),
   }));
 
-  const receiptYTD = aggregateReceiptTotals(receiptTotalsResult.data, taxCtx).total;
+  const receiptTotals = aggregateReceiptTotals(receiptTotalsResult.data, taxCtx);
+  const receiptYTD = receiptTotals.total;
+
+  // Which expense categories the agent tracks, for the tax cards. From the
+  // same lines as the Expenses page and the T2125 (t2125-expenses-engine):
+  // receipts, the per-item monthly figure and the Recurring Expenses list.
+  const deductionTracking = deductionTrackingFlags(
+    buildT2125Expenses({
+      receiptTotals,
+      expenseItems: expItemResult.data,
+      recurringExpenses: (recurringExpResult.data ?? []) as RecurringExpense[],
+      ctx: taxCtx,
+      now: today,
+    }).lines,
+    expenseCategories,
+  );
 
   const mileageKmTotal = (mileageResult.data ?? []).reduce(
     (sum, r) => sum + Number(r.km ?? 0),
@@ -270,6 +287,7 @@ export default async function DashboardPage({
       settings={settingsRow}
       expenseCategories={expenseCategories}
       receiptYTD={receiptYTD}
+      deductionTracking={deductionTracking}
       historyItems={(historyResult.data ?? []) as HistoryItem[]}
       initialDashboardView={settingsRow?.dashboard_view ?? "standard"}
       isPro={isPro}

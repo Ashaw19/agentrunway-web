@@ -565,6 +565,12 @@ If a user asks "what are these tips?" or "why is Agent Runway showing me this?" 
 1. Check for "/mo" figures on expense items alongside receipts on other items. The Expenses page counts the larger of the two item by item; the dashboard compares the two totals. See "Known difference left in place" above.
 2. Check for the same bill entered twice: a "/mo" figure on an item and an entry in the Recurring Expenses list both count. Clearing the "/mo" box leaves the Recurring Expenses entry as the one record of it.
 
+**"The tax card says I'm not tracking marketing / licensing / meals, but I have receipts" / "Commonly Missed Deductions lists a category I log"**
+1. Since 2026-10-13 the "Commonly Missed Deductions" card (the tax cards on the Dashboard, Forecast and Overhead pages, and in the T2125 PDF) treats a category as tracked when any of these is filed under it this year: a receipt, a "/mo" figure on one of its items, or an active entry in the Recurring Expenses list (counted before its first charge of the year too). Before that date receipts and Recurring Expenses entries were not counted on the three pages, which was a bug: only a "/mo" figure was.
+2. The five things it looks for: Education (professional development), Professional Fees (licensing, MLS and board fees), Marketing, the Client Gifts item, and Meals or Entertainment (one T2125 line, 8523).
+3. A receipt saved with no category counts for none of them. Editing the receipt and choosing an item files it.
+4. Source: deductionTrackingFlags in tax-optimization-engine.ts, from the same lines as the Expenses page (t2125-expenses-engine.ts). The card lists categories with nothing recorded; it does not say an expense exists to record.
+
 **"Receipt scan didn't capture correctly"**
 → OCR works best with clear photos, good lighting, and flat receipts. Crumpled/faded receipts may need manual entry.
 
@@ -1663,7 +1669,7 @@ Pricing: $149/mo team leader + $55/mo per member seat. The Ellis Realty beta has
 1. **Pipeline Health** — Team pipeline value, agents with no pipeline despite deals, coverage ratio
 2. **Transactions in Flight** — Pending deals, total value, nearest close dates
 3. **CRM Consistency** — Average touchpoints per agent, outlier detection (low/high activity)
-4. **Tax Responsibility** — Which agents are missing expense logs, receipts, or categories (aggregate, no amounts)
+4. **Tax Responsibility** — Which agents are missing expense logs, receipts, or categories (aggregate, no amounts). "Hasn't logged expenses this quarter" means none of: a receipt dated in the quarter, an active Recurring Expenses entry, a "/mo" figure on an expense item. "Hasn't uploaded receipts" means no receipt dated in the quarter. Quarters follow the Atlantic calendar.
 5. **Forecasting** — Pace vs goal per agent, who's ahead/behind, team average pace
 
 ### Team Insights Engine (Org Dashboard)
