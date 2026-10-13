@@ -15,6 +15,7 @@
  */
 
 import { computeGCI, type Transaction, type ContactActivity } from "../types/database";
+import { atlanticISODate } from "../lib/local-date";
 
 /** Parse "YYYY-MM-DD" directly to avoid Date constructor timezone issues. */
 function yearMonth(dateStr: string): number | null {
@@ -89,7 +90,12 @@ export function computeBaselines(
   const monthlyTouchpoints: Map<number, number> = new Map();
 
   for (const act of activities) {
-    const actMonth = yearMonth(act.activity_date.slice(0, 10));
+    // activity_date is a timestamp: its month is the Atlantic one. The first
+    // ten characters are the UTC date, which put a call on the last evening
+    // of a month into the next month.
+    const at = new Date(act.activity_date);
+    if (Number.isNaN(at.getTime())) continue;
+    const actMonth = yearMonth(atlanticISODate(at));
     if (actMonth == null) continue;
     if (actMonth >= currentMonth) continue;
     if (actMonth < currentMonth - 12) continue;

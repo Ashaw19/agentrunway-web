@@ -163,7 +163,6 @@ async function seedDefaultCategories(
           key: item.key,
           title: item.title,
           sort_order: item.sort_order,
-          ytd_amount: 0,
           monthly_recurring: 0,
         })),
       );

@@ -25,76 +25,14 @@ export function totalRecurringMonthly(expenses: RecurringExpense[]): number {
     .reduce((sum, re) => sum + recurringMonthlyEquivalent(re), 0);
 }
 
-// ── YTD calculation ───────────────────────────────────────────────────────
+// ── Occurrences ───────────────────────────────────────────────────────────
 //
-// `now` is the calendar anchor: the year to total and the day to total up
-// to. Browser callers take the default; server callers pass atlanticNoon()
-// (the server's own clock is UTC, already next year from 8 pm Atlantic on
-// Dec 31, which totals one month of a monthly expense instead of twelve).
-
-/** YTD amount for a single recurring expense based on frequency and start_date */
-export function recurringYTD(re: RecurringExpense, now: Date = new Date()): number {
-  const thisYear = now.getFullYear();
-  const freq = re.frequency ?? "monthly";
-  const amt = Number(re.amount);
-  const startDate = re.start_date
-    ? new Date(re.start_date + "T00:00:00")
-    : new Date(thisYear, 0, 1);
-  const yearStart = new Date(thisYear, 0, 1);
-  const effectiveStart = startDate > yearStart ? startDate : yearStart;
-
-  if (effectiveStart > now) return 0;
-
-  if (freq === "annual") {
-    const chargeMonth = (re.month_of_year ?? 1) - 1;
-    const chargeDate = new Date(thisYear, chargeMonth, re.day_of_month);
-    return chargeDate >= effectiveStart && chargeDate <= now ? amt : 0;
-  }
-
-  if (freq === "quarterly") {
-    const startMonth = (re.month_of_year ?? 1) - 1;
-    let count = 0;
-    for (let q = 0; q < 4; q++) {
-      const m = (startMonth + q * 3) % 12;
-      const occDate = new Date(thisYear, m, Math.min(re.day_of_month, 28));
-      if (occDate >= effectiveStart && occDate <= now) count++;
-    }
-    return count * amt;
-  }
-
-  // Monthly
-  const startM = effectiveStart.getMonth();
-  const nowM = now.getMonth();
-  const months = Math.max(
-    0,
-    nowM - startM + (now.getDate() >= effectiveStart.getDate() ? 1 : 0),
-  );
-  return months * amt;
-}
-
-/** Total YTD across all active recurring expenses */
-export function totalRecurringYTD(
-  expenses: RecurringExpense[],
-  now: Date = new Date(),
-): number {
-  return expenses
-    .filter((re) => re.is_active)
-    .reduce((sum, re) => sum + recurringYTD(re, now), 0);
-}
-
-/** Project annual total: YTD actuals + remaining monthly recurring */
-export function projectedAnnualRecurring(
-  expenses: RecurringExpense[],
-  now: Date = new Date(),
-): number {
-  const ytd = totalRecurringYTD(expenses, now);
-  const monthly = totalRecurringMonthly(expenses);
-  const monthsElapsed = now.getMonth() + now.getDate() / 30;
-  const remainingMonths = Math.max(0, 12 - Math.ceil(monthsElapsed));
-  return ytd + monthly * remainingMonths;
-}
-
-// ── HST / ITC helpers ────────────────────────────────────────────────────
+// One count for everything dated: the year-to-date expense, what is still to
+// come this year, and the GST/HST behind the GST34 input tax credits. An
+// occurrence is a charge date: `day_of_month` of each month (monthly), of
+// every third month from `month_of_year` (quarterly), or of `month_of_year`
+// (annual). It counts when it falls on or after `start_date` and on or
+// before `end_date`.
 
 /**
  * Count how many times a recurring expense fires within [start, end] inclusive.
@@ -137,6 +75,70 @@ function occurrencesInRange(re: RecurringExpense, start: Date, end: Date): numbe
 
   return count;
 }
+
+// ── YTD calculation ───────────────────────────────────────────────────────
+//
+// `now` is the calendar anchor: the year to total and the day to total up
+// to. Browser callers take the default; server callers pass atlanticNoon()
+// (the server's own clock is UTC, already next year from 8 pm Atlantic on
+// Dec 31, which totals one month of a monthly expense instead of twelve).
+//
+// Year to date is Jan 1 through `now`'s day; still to come is the day after
+// through Dec 31. Every charge date of the year is in exactly one of them, so
+// the two always add up to the year.
+
+const startOfYear = (now: Date) => new Date(now.getFullYear(), 0, 1);
+const endOfDay = (now: Date) => new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+const startOfNextDay = (now: Date) => new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+const endOfYear = (now: Date) => new Date(now.getFullYear(), 11, 31, 23, 59, 59);
+
+/**
+ * YTD amount for a single recurring expense: the charges that have happened
+ * this year, through `now`'s day. This month's charge counts from its
+ * `day_of_month`, not from the 1st. The same occurrences as
+ * `totalRecurringHSTYTD`, so the expense and its ITC can't differ by one.
+ */
+export function recurringYTD(re: RecurringExpense, now: Date = new Date()): number {
+  return Number(re.amount) * occurrencesInRange(re, startOfYear(now), endOfDay(now));
+}
+
+/** Total YTD across all active recurring expenses */
+export function totalRecurringYTD(
+  expenses: RecurringExpense[],
+  now: Date = new Date(),
+): number {
+  return expenses
+    .filter((re) => re.is_active)
+    .reduce((sum, re) => sum + recurringYTD(re, now), 0);
+}
+
+/**
+ * What a single recurring expense is still to charge this year, after
+ * `now`'s day: recurringYTD + this = the year's charges, on any day.
+ */
+export function recurringRemainingThisYear(re: RecurringExpense, now: Date = new Date()): number {
+  return Number(re.amount) * occurrencesInRange(re, startOfNextDay(now), endOfYear(now));
+}
+
+/** Total still to come this year across all active recurring expenses */
+export function totalRecurringRemaining(
+  expenses: RecurringExpense[],
+  now: Date = new Date(),
+): number {
+  return expenses
+    .filter((re) => re.is_active)
+    .reduce((sum, re) => sum + recurringRemainingThisYear(re, now), 0);
+}
+
+/** Project annual total: YTD charges + the charges still to come this year */
+export function projectedAnnualRecurring(
+  expenses: RecurringExpense[],
+  now: Date = new Date(),
+): number {
+  return totalRecurringYTD(expenses, now) + totalRecurringRemaining(expenses, now);
+}
+
+// ── HST / ITC helpers ────────────────────────────────────────────────────
 
 /**
  * Total HST from active recurring expenses with occurrences in [startDate, endDate].

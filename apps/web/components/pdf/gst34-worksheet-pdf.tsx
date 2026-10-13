@@ -224,10 +224,10 @@ export function Gst34WorksheetPdf({
         <Text style={S.sectionTitle}>Before you file</Text>
         <View>
           <Text style={S.bullet}>
-            • Lines marked "You enter" are typed into CRA's return. CRA's online return works out lines 105, 108, 109 and the refund or amount owing from them.
+            {`• Lines marked "You enter" are typed into CRA's return. CRA's online return works out lines 105, 108, 109 and the refund or amount owing from them.`}
           </Text>
           <Text style={S.bullet}>
-            • Lines 104, 107, 111, 205 and 405 are $0 here because Agent Runway has no information for them. Each one's note says when it applies.
+            {`• Lines 104, 107, 111, 205 and 405 are $0 here because Agent Runway has no information for them. Each one's note says when it applies.`}
           </Text>
           {worksheet.noTaxRecorded.count > 0 && (
             <Text style={S.bullet}>

@@ -578,6 +578,12 @@ export interface ExpenseItem {
 
   key: string;
   title: string;
+  /**
+   * DEAD COLUMN. Nothing has written it since receipts replaced it, so it is
+   * 0 or a figure typed before then. Never read it: expense amounts come from
+   * expense-totals-engine and t2125-expenses-engine
+   * (apps/web/lib/__tests__/dead-ytd-amount.test.ts fails on any use).
+   */
   ytd_amount: number;
   monthly_recurring: number;
   sort_order: number;

@@ -31,6 +31,15 @@
  *   - The Intelligence Briefing engine counts calendar days from a `today`
  *     anchor that defaults to the runtime's day. Server callers pass
  *     atlanticNoon().
+ *
+ * And the same clock in the database (2026-10-13). Postgres runs in UTC too,
+ * so a timestamptz compared with a bare `2026-10-09` or `2026-10-09T00:00:00`
+ * is compared with 9 pm Atlantic the evening before. "What did I do on
+ * Oct 9" lost that evening's calls and took the evening of Oct 8. A bound on
+ * a timestamp column is an instant: `.toISOString()` on a Date, or
+ * `atlanticDayStart(day)` for a calendar day. This one is scanned in browser
+ * and mobile code as well: the database reads the bound the same way
+ * whoever sends it.
  */
 import { describe, expect, it } from "vitest";
 import { readdirSync, readFileSync, statSync } from "node:fs";
@@ -170,6 +179,10 @@ describe("REGRESSION — server code prints a timestamp on its Atlantic day, not
       count: 1,
       why: "doneLabel weekday; only the checklist page's client component calls it",
     },
+    "apps/web/lib/crm/relative-date.ts": {
+      count: 1,
+      why: "relativeDate's \"Oct 6\" past six days; only the CRM tab's client components call it",
+    },
   };
 
   it("no inline timestamp formatting without a timeZone outside the allowlist", () => {
@@ -240,6 +253,68 @@ describe("REGRESSION — server code prints a timestamp on its Atlantic day, not
     expect(offenders).toEqual([]);
   });
 
+  /** A timestamp column interpolated into text as is: `${a.activity_date}`. */
+  const RAW_IN_TEXT = /\$\{\s*(?:[\w$]+\??\.)*(?:\w+_at|activity_date)\s*(?:\?\?[^}]*)?\}/g;
+
+  /** A timestamp column returned under its own name: `sent_at: item.sent_at`. */
+  const RAW_IN_RESULT = /\b(\w+_at|activity_date)\s*:\s*(?:[\w$]+\??\.)+\1\b(?!\s*[)\]])/g;
+
+  /** Raw timestamps that never reach the model. */
+  const NOT_SHOWN: Record<string, { count: number; why: string }> = {
+    "apps/web/supabase/functions/mcp-server/tools/opportunities.ts": {
+      count: 1,
+      why: "updated_at feeds computeOpportunityKpis (elapsed time); the rows returned to the model leave it out",
+    },
+  };
+
+  it("AI surfaces never hand the model a raw timestamp", () => {
+    const offenders: string[] = [];
+    const allowedSeen: Record<string, number> = {};
+    for (const file of AI_ROOTS.flatMap(sourceFiles)) {
+      const rel = path.relative(REPO_ROOT, file).split(path.sep).join("/");
+      const src = readFileSync(file, "utf8");
+      const inResult = rel.includes("/mcp-server/tools/") ? [...src.matchAll(RAW_IN_RESULT)] : [];
+      for (const m of [...src.matchAll(RAW_IN_TEXT), ...inResult]) {
+        if (NOT_SHOWN[rel]) {
+          allowedSeen[rel] = (allowedSeen[rel] ?? 0) + 1;
+          continue;
+        }
+        offenders.push(`${rel}:${src.slice(0, m.index).split("\n").length} ${m[0]}`);
+      }
+    }
+    expect(offenders).toEqual([]);
+    for (const [rel, { count }] of Object.entries(NOT_SHOWN)) {
+      expect({ file: rel, matches: allowedSeen[rel] ?? 0 }).toEqual({ file: rel, matches: count });
+    }
+  });
+
+  it("the regexes catch a raw timestamp and spare a converted one", () => {
+    const badText = [
+      "`- [${a.activity_date}] ${a.type}`",
+      "`- Last Contact: ${c.last_contact_at ?? \"never\"}`",
+      "`- [${o.created_at}] ${o.opportunity_type}`",
+      "`sent ${item?.sent_at}`",
+    ];
+    const goodText = [
+      "`- [${atlanticDay(a.activity_date)}] ${a.type}`",
+      "`- Last Contact: ${c.last_contact_at ? atlanticDay(c.last_contact_at) : \"never\"}`",
+      "`- [${s.showing_date}] ${s.property_address}`",
+      "`${new Date(c.last_contact_at).toLocaleDateString(\"en-CA\", { timeZone: APP_TIME_ZONE })}`",
+    ];
+    for (const s of badText) expect([...s.matchAll(RAW_IN_TEXT)], s).toHaveLength(1);
+    for (const s of goodText) expect([...s.matchAll(RAW_IN_TEXT)], s).toHaveLength(0);
+
+    const badResult = [`sent_at: item.sent_at,`, `updated_at: r.updated_at,`, `activity_date: a?.activity_date,`];
+    const goodResult = [
+      `sent_at: atlanticDay(item.sent_at),`,
+      `created_at: atlanticDay(clientData.created_at as string),`,
+      `trigger_date: item.trigger_date,`,
+      `expected_close_date: r.expected_close_date,`,
+    ];
+    for (const s of badResult) expect([...s.matchAll(RAW_IN_RESULT)], s).toHaveLength(1);
+    for (const s of goodResult) expect([...s.matchAll(RAW_IN_RESULT)], s).toHaveLength(0);
+  });
+
   it("the regex catches a cut timestamp and spares date-only columns", () => {
     const bad = [
       "`- [${n.created_at.slice(0, 10)}] ${n.content}`",
@@ -255,6 +330,170 @@ describe("REGRESSION — server code prints a timestamp on its Atlantic day, not
     ];
     for (const s of bad) expect([...s.matchAll(TIMESTAMP_CUT)], s).toHaveLength(1);
     for (const s of good) expect([...s.matchAll(TIMESTAMP_CUT)], s).toHaveLength(0);
+  });
+});
+
+describe("REGRESSION — a timestamp column is never range-filtered with a bare date", () => {
+  // Every app that talks to the database, client components included.
+  const QUERY_ROOTS = [...SERVER_ROOTS, "apps/mobile/app", "apps/mobile/stores", "apps/mobile/lib", "apps/mobile/components", "apps/mobile/hooks"] as const;
+
+  /** Balanced call arguments, two levels of nested parentheses. */
+  const ARGS2 = String.raw`[^()]*(?:\((?:[^()]|\([^()]*\))*\)[^()]*)*`;
+
+  /** `.gte("activity_date", <bound>)` and friends on a timestamptz column. */
+  const RANGE_FILTER = new RegExp(
+    String.raw`\.(?:gte|gt|lte|lt)\(\s*["'](?:\w+_at|activity_date|window_start|last_calendar_sync|subscription_current_period_end|last_modified|google_updated)["']\s*,\s*(${ARGS2})\)`,
+    "g",
+  );
+
+  /** Visibly an instant: ends in toISOString(), or is an Atlantic day's start. */
+  const INSTANT = /\.toISOString\(\)\s*$|\batlanticDayStart\(/;
+
+  /** A bound is an instant on its face, or a local built as one in the same file. */
+  function isInstant(bound: string, src: string): boolean {
+    const b = bound.trim();
+    if (INSTANT.test(b)) return true;
+    if (!/^[A-Za-z_$][\w$]*$/.test(b)) return false;
+    const decls = [...src.matchAll(new RegExp(String.raw`\b(?:const|let)\s+${b}\s*=\s*([\s\S]*?);`, "g"))];
+    return decls.length > 0 && decls.every(([, init]) => INSTANT.test(init.trim()));
+  }
+
+  /** Bounds that are instants but don't show it at the call site. Reviewed by hand. */
+  const REVIEWED: Record<string, { bounds: string[]; why: string }> = {
+    "apps/web/lib/ai/tools.ts": {
+      bounds: ["days.from", "days.to"],
+      why: "atlanticDays(): atlanticDayStart instants for the period's first and last day",
+    },
+    "apps/web/lib/ai/briefing-metrics.ts": {
+      bounds: ["dates.fourteenDaysAgo"],
+      why: "briefingDateRanges(): now minus 14 days, toISOString()",
+    },
+    "apps/web/lib/actions/calendar-actions.ts": {
+      bounds: ["options.from", "options.to"],
+      why: "caller-supplied; no caller passes a range today",
+    },
+  };
+
+  it("every bound on a timestamp column is an instant", () => {
+    const offenders: string[] = [];
+    const reviewedSeen: Record<string, Set<string>> = {};
+    const files = QUERY_ROOTS.flatMap(sourceFiles);
+    expect(files.some((f) => f.endsWith(path.join("ai", "tools.ts")))).toBe(true);
+    expect(files.some((f) => f.endsWith(path.join("stores", "data-store.ts")))).toBe(true);
+    for (const file of files) {
+      const rel = path.relative(REPO_ROOT, file).split(path.sep).join("/");
+      const src = readFileSync(file, "utf8");
+      for (const m of src.matchAll(RANGE_FILTER)) {
+        const bound = m[1].trim();
+        if (isInstant(bound, src)) continue;
+        if (REVIEWED[rel]?.bounds.includes(bound)) {
+          (reviewedSeen[rel] ??= new Set()).add(bound);
+          continue;
+        }
+        offenders.push(`${rel}:${src.slice(0, m.index).split("\n").length} ${bound.replace(/\s+/g, " ")}`);
+      }
+    }
+    expect(offenders).toEqual([]);
+    for (const [rel, { bounds }] of Object.entries(REVIEWED)) {
+      expect({ file: rel, bounds: [...(reviewedSeen[rel] ?? [])].sort() }).toEqual({ file: rel, bounds: [...bounds].sort() });
+    }
+  });
+
+  it("the check catches bare dates and spares instants", () => {
+    const bounds = (src: string) => [...src.matchAll(RANGE_FILTER)].map((m) => isInstant(m[1], src));
+    const bad = [
+      'query.gte("activity_date", `${startDate}T00:00:00`)',
+      'query.lte("activity_date", `${endDate}T23:59:59`)',
+      '.gte("activity_date", new Date(Date.now() - 14 * 86_400_000).toISOString().slice(0, 10))',
+      'const monthStart = `${atlanticISODate().slice(0, 7)}-01`;\nq.gte("sent_at", monthStart)',
+      'const cutoff = d.toISOString().slice(0, 10);\nq.gte("created_at", cutoff)',
+      '.lt("last_contact_at", dates.fourteenDaysAgo)',
+      '.gte("created_at", since)',
+    ];
+    const good = [
+      '.gte("activity_date", atlanticDayStart(startDate).toISOString())',
+      '.lt("activity_date", atlanticDayStart(addDaysISO(endDate, 1)).toISOString())',
+      '.lt("last_contact_at", new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())',
+      '.gte("sent_at", outreachSuppressionCutoff().toISOString())',
+      'const since = new Date(\n  Date.now() - 7 * 86_400_000,\n).toISOString();\nq.gte("received_at", since)',
+    ];
+    for (const s of bad) expect(bounds(s), s).toEqual([false]);
+    for (const s of good) expect(bounds(s), s).toEqual([true]);
+    // Date columns are not timestamps: a bare date is right for them.
+    expect(bounds('.gte("date", yearStart).lte("expense_date", `${year}-12-31`)')).toEqual([]);
+  });
+});
+
+describe("REGRESSION — a datetime-local value is saved as an instant", () => {
+  // `<input type="datetime-local">` yields `2026-10-09T21:30`, the agent's
+  // wall clock with no offset. Inserted as is, the database reads it as UTC
+  // and stores the activity three or four hours early. The form converts it
+  // with localDateTimeToInstant (lib/crm/local-datetime.ts) before saving.
+  it("every file with a datetime-local input converts its value", () => {
+    const withInput = SERVER_ROOTS.flatMap(sourceFiles)
+      .filter((f) => f.endsWith(".tsx") && /type=["']datetime-local["']/.test(readFileSync(f, "utf8")))
+      .map((f) => path.relative(REPO_ROOT, f).split(path.sep).join("/"));
+    expect(withInput).toEqual(["apps/web/app/(app)/crm/clients-content.tsx"]);
+    for (const rel of withInput) {
+      const src = readFileSync(path.join(REPO_ROOT, rel), "utf8");
+      expect(src, rel).toContain("localDateTimeToInstant(");
+      // The value the form holds is never the value inserted.
+      expect(src, rel).not.toMatch(/activity_date:\s*activityDate\b/);
+    }
+  });
+});
+
+describe("REGRESSION — the mobile app reads days off the device's calendar", () => {
+  // On the phone the local day is the user's own. Three ways the app read
+  // the UTC day instead, all in the offline briefing and activity counters:
+  //   - `new Date(birthdate)`: a date-only value parsed as UTC midnight, the
+  //     evening before in Atlantic time. Birthdays use nextYearlyDate().
+  //   - `new Date().toISOString().split("T")[0]` as "today": tomorrow from
+  //     9 pm. The device's day is localISODate().
+  //   - `activity_date.startsWith(today)` / `.split("T")[0]`: the UTC date of
+  //     a timestamp. Its day is localISODate(new Date(activity_date)).
+  const MOBILE_ROOTS = ["apps/mobile/app", "apps/mobile/stores", "apps/mobile/lib", "apps/mobile/components", "apps/mobile/hooks"] as const;
+
+  const UTC_DAY = [
+    /new Date\(\s*[\w.?]*birthdate\s*\)/g,
+    /toISOString\(\)\s*\.\s*(?:split\(\s*["']T["']\s*\)\s*\[0\]|slice\(0,\s*10\))/g,
+    /\b(?:\w+_at|activity_date)\b\s*\.\s*(?:startsWith\(|split\(\s*["']T["']\s*\)|slice\(0,\s*10\))/g,
+  ];
+
+  it("no UTC-day idiom in the mobile app", () => {
+    const files = MOBILE_ROOTS.flatMap(sourceFiles);
+    expect(files.some((f) => f.endsWith(path.join("stores", "data-store.ts")))).toBe(true);
+    const offenders: string[] = [];
+    for (const file of files) {
+      const rel = path.relative(REPO_ROOT, file).split(path.sep).join("/");
+      const src = readFileSync(file, "utf8");
+      for (const re of UTC_DAY) {
+        for (const m of src.matchAll(re)) {
+          offenders.push(`${rel}:${src.slice(0, m.index).split("\n").length} ${m[0]}`);
+        }
+      }
+    }
+    expect(offenders.sort()).toEqual([]);
+  });
+
+  it("the regexes catch the UTC-day idioms and spare the local ones", () => {
+    const hits = (s: string) => UTC_DAY.reduce((n, re) => n + [...s.matchAll(re)].length, 0);
+    const bad = [
+      `const bday = new Date(cl.birthdate);`,
+      `const todayStr = new Date().toISOString().split("T")[0];`,
+      `const yesterday = new Date(Date.now() - 86400000)\n  .toISOString()\n  .split("T")[0];`,
+      `a.activity_date.startsWith(todayStr)`,
+      `allActivities.map((a) => a.activity_date.split("T")[0])`,
+    ];
+    const good = [
+      `const next = nextYearlyDate(cl.birthdate);`,
+      `const todayStr = localISODate();`,
+      `localISODate(new Date(a.activity_date))`,
+      `t.due_date.startsWith(todayStr)`,
+      `activity_date: new Date().toISOString(),`,
+    ];
+    for (const s of bad) expect(hits(s), s).toBe(1);
+    for (const s of good) expect(hits(s), s).toBe(0);
   });
 });
 

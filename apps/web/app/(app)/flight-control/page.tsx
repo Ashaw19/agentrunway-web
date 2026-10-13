@@ -3,7 +3,7 @@ import { redirect }        from "next/navigation";
 import { FlightControlContent } from "./flight-control-content";
 import type { OutreachQueueItem, NewsletterQueue } from "@/lib/types/database";
 import { lapsedPastClients, withCoBuyerDeals } from "@/lib/crm/outreach-consent";
-import { atlanticISODate, atlanticNoon } from "@agent-runway/core/lib/local-date";
+import { atlanticDayStart, atlanticISODate, atlanticNoon } from "@agent-runway/core/lib/local-date";
 
 
 export const dynamic = "force-dynamic";
@@ -31,8 +31,10 @@ export default async function FlightControlPage() {
     .order("trigger_date", { ascending: true });
 
   // Count messages sent this month for the stats strip
-  // Atlantic month, not the server's UTC clock (local-date.ts).
-  const monthStart = `${atlanticISODate().slice(0, 7)}-01`;
+  // Atlantic month, not the server's UTC clock (local-date.ts). sent_at is a
+  // timestamp, so the bound is the instant the month begins in Atlantic
+  // time: a bare `2026-10-01` is read as 9 pm on Sep 30.
+  const monthStart = atlanticDayStart(`${atlanticISODate().slice(0, 7)}-01`).toISOString();
 
   const [sentCountRes, newslettersRes, closedDealsRes, coPartiesRes, checklistRes] = await Promise.all([
     supabase

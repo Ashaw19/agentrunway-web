@@ -20,7 +20,7 @@ import { PROVINCE_LABELS, CCA_CLASSES } from "@/lib/types/database";
 import type { UserSettings, Transaction, CcaAsset } from "@/lib/types/database";
 import { computeT2125, t2125LineForExpenseKey, T2125_OTHER_EXPENSES } from "@/lib/engines/t2125-engine";
 import type { HomeOfficeCostType, T2125ExpenseEntry, T2125Result } from "@/lib/engines/t2125-engine";
-import { generateTaxOptimizations } from "@/lib/engines/tax-optimization-engine";
+import { generateTaxOptimizations, type DeductionTrackingFlags } from "@/lib/engines/tax-optimization-engine";
 import { T2125Pdf } from "@/components/pdf/t2125-pdf";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
@@ -36,10 +36,12 @@ interface MileageLogRow {
 interface Props {
   settings: UserSettings | null;
   transactions: Transaction[];
-  /** Expenses to date for the T2125 lines: buildT2125Expenses(...).entries. */
+  /** Expenses to date for the T2125 lines: ytdExpenseTotals(...).tracked.entries. */
   expenses: T2125ExpenseEntry[];
   /** Home Office bills by key, in full (before the home office share). */
   homeOfficeCosts?: Record<string, number>;
+  /** Which commonly missed expense categories are already tracked (`deductionTrackingFlags`). */
+  deductionTracking: DeductionTrackingFlags;
   ccaAssets: CcaAsset[];
   mileageLogs: MileageLogRow[];
   taxYear: number;
@@ -153,6 +155,7 @@ export function ReportsT2125Tab({
   transactions,
   expenses,
   homeOfficeCosts,
+  deductionTracking,
   ccaAssets: initialCcaAssets,
   mileageLogs,
   taxYear,
@@ -300,8 +303,6 @@ export function ReportsT2125Tab({
       } : undefined;
 
       // Compute tax optimization cards
-      const hasExpenseKey = (matches: (key: string) => boolean) =>
-        result.expenseLines.some((l) => l.rawAmount > 0 && l.key != null && matches(l.key));
       const projectedGCI = result.totalGrossIncome;
       const totalExpenses = result.line9369_totalExpenses + result.line9936_totalCca + result.line9945_homeOfficeDeduction;
       const netIncome = result.line8270_netBusinessIncome;
@@ -341,14 +342,9 @@ export function ReportsT2125Tab({
         gstHstRemitted: gstRemitted,
         taxInstalmentsPaid: taxInstalments,
         cppInstalmentPaidYTD: localSettings.cpp_instalment_paid_ytd ?? 0,
-        // From the computed lines. These used to look up keys no expense
-        // has ever carried ("professional_development", "licenses_dues"...),
-        // so every one was false whatever had been logged.
-        hasProfDevExpenses: hasExpenseKey((k) => k.startsWith("edu_") || k === "education"),
-        hasMarketingExpenses: hasExpenseKey((k) => k.startsWith("marketing")),
-        hasClientGiftExpenses: hasExpenseKey((k) => k === "marketing_gifts"),
-        hasMealExpenses: result.line8523_mealsEntertainmentGross > 0,
-        hasLicensingExpenses: hasExpenseKey((k) => k.startsWith("prof_") || k === "professional"),
+        // The same flags the Dashboard, Forecast and Overhead tax cards
+        // use (deductionTrackingFlags), from the tracked expense lines.
+        ...deductionTracking,
         ccaAssetCount: ccaAssets.length,
         dismissed: [],
       });

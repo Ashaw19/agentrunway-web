@@ -179,7 +179,16 @@ import { describeSupabaseError } from "@/lib/supabase-errors";
 import { CrmDashboardTab } from "./tabs/crm-dashboard-tab";
 import { InsightsTab } from "./tabs/insights-tab";
 import { FlightPlansTab } from "./tabs/flight-plans-tab";
-import { TagPicker, getCountryLabels, FlightStatusStrip } from "./shared";
+import {
+  TagPicker,
+  getCountryLabels,
+  FlightStatusStrip,
+  relativeDate,
+  fmtDate,
+  fmtMonthYear,
+  todayIso,
+  nowIso,
+} from "./shared";
 import { PipelineTab } from "./tabs/pipeline-tab";
 import { useVoiceDraft } from "@/lib/voice/voice-draft-context";
 import type { VoiceDraft } from "@/lib/voice/types";
@@ -195,6 +204,7 @@ import { WorkflowSuggestionsPanel } from "@/components/workflow-suggestions-pane
 import { ClientConversationPanel } from "@/components/client-conversation-panel";
 import { CockpitStrip, CockpitStat, ScoreDial, SEMANTIC, GOLD, magnitudePct, FlightLog, type FlightLogItem, CRM_SECTION_CARD, CRM_SECTION_HEADER, CRM_SECTION_ICON_CHIP } from "@/components/cockpit-ui";
 import { activityDirection } from "@/lib/crm/activity-direction";
+import { localDateTimeToInstant } from "@/lib/crm/local-datetime";
 import { ClientMemoryPanel } from "./components/client-memory-panel";
 import { tierFromScore } from "@/lib/engines/engagement-engine";
 import { Sparkline } from "@/components/sparkline";
@@ -245,33 +255,7 @@ type ImportStep = "upload" | "map" | "confirm" | "done";
 
 // ── Date helpers ──────────────────────────────────────────────────────────────
 
-function relativeDate(isoStr: string): string {
-  const d = new Date(isoStr);
-  const now = new Date();
-  const diffDays = Math.floor((now.getTime() - d.getTime()) / 86400000);
-  if (diffDays === 0) return "Today";
-  if (diffDays === 1) return "Yesterday";
-  if (diffDays < 7) return `${diffDays} days ago`;
-  return d.toLocaleDateString("en-CA", { month: "short", day: "numeric" });
-}
-
-function fmtDate(iso: string): string {
-  return new Date(iso + "T12:00:00").toLocaleDateString("en-CA", {
-    month: "short",
-    day: "numeric",
-  });
-}
-
-function fmtMonthYear(iso: string): string {
-  try {
-    return new Date(iso + "T12:00:00").toLocaleDateString("en-CA", {
-      month: "short",
-      year: "numeric",
-    });
-  } catch {
-    return iso;
-  }
-}
+// relativeDate, fmtDate, fmtMonthYear, todayIso and nowIso come from ./shared.
 
 function monthsAgo(iso: string): number {
   const d = new Date(iso + "T12:00:00");
@@ -301,16 +285,6 @@ function recencyAccent(iso: string | null): string {
 // date text too double-encoded it and added a third colour channel per row.
 function recencyTextClass(_iso: string | null): string {
   return "text-muted-foreground";
-}
-
-function todayIso(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
-function nowIso(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}T${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
 
@@ -1690,6 +1664,11 @@ export function ClientsContent({
       const priorStatus = beforeRow?.status as string | undefined;
       const priorName = (beforeRow?.name as string | undefined) ?? "Client";
 
+      // The form's value is the agent's wall clock with no offset. Sent as
+      // is, the database reads it as UTC and files the activity 3-4 hours
+      // early (lib/crm/local-datetime.ts).
+      const activityInstant = localDateTimeToInstant(activityDate);
+
       const { data, error } = await supabase
         .from("contact_activities")
         .insert({
@@ -1697,7 +1676,7 @@ export function ClientsContent({
           client_id: clientId,
           type,
           description,
-          activity_date: activityDate,
+          activity_date: activityInstant,
         })
         .select()
         .single();
@@ -1711,7 +1690,7 @@ export function ClientsContent({
           setLocalClients((prev) =>
             prev.map((c) =>
               c.id === clientId
-                ? { ...c, last_contact_at: activityDate }
+                ? { ...c, last_contact_at: activityInstant }
                 : c
             )
           );

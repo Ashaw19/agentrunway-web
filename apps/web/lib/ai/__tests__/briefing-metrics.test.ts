@@ -271,3 +271,19 @@ describe("briefingDateRanges — Atlantic year (2026-10-09)", () => {
     expect(briefingDateRanges(new Date("2027-01-01T04:00:00Z")).yearStart).toBe("2027-01-01");
   });
 });
+
+describe("briefingDateRanges — the 14-day follow-up cutoff is an instant (2026-10-13)", () => {
+  // last_contact_at is a timestamptz. The cutoff was the UTC date 14 days
+  // back, which Postgres reads as that day's UTC midnight: up to a day more
+  // than 14 days, so the briefing's overdue count could disagree with the
+  // chat context's, which measures 14 days to the minute.
+  it("is exactly 14 days before now", () => {
+    const r = briefingDateRanges(new Date("2026-10-25T15:00:00Z"));
+    expect(r.fourteenDaysAgo).toBe("2026-10-11T15:00:00.000Z");
+  });
+
+  it("does not move to the next UTC day from 9 pm Atlantic", () => {
+    const r = briefingDateRanges(new Date("2026-10-10T01:00:00Z")); // Oct 9, 22:00 ADT
+    expect(r.fourteenDaysAgo).toBe("2026-09-26T01:00:00.000Z");
+  });
+});

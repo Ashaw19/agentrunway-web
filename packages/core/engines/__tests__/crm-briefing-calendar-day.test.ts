@@ -36,6 +36,7 @@ const OCT9_NOON = "2026-10-09T15:00:00Z"; // Oct 9, 12:00 ADT
 const OCT9_MORNING = "2026-10-09T11:00:00Z"; // Oct 9, 08:00 ADT
 const OCT9_EVENING = "2026-10-10T01:00:00Z"; // Oct 9, 22:00 ADT (UTC is Oct 10)
 const DEC31_EVENING = "2027-01-01T02:00:00Z"; // Dec 31 2026, 22:00 AST (UTC is 2027)
+const DEC25_NOON = "2026-12-25T16:00:00Z"; // Dec 25 2026, 12:00 AST
 
 const HOUR = 3_600_000;
 const DAY = 24 * HOUR;
@@ -266,9 +267,32 @@ describe("computeIntelligenceBriefing: closing anniversaries by calendar day", (
     const [item] = anniversaryAt(DEC31_EVENING, "2026-01-01");
     expect(item.title).toBe("Pat Example: 1-year closing anniversary tomorrow");
   });
+
+  // The first anniversary of a deal closed this calendar year falls in the
+  // next one: found from the date, not from this year minus the close year.
+  it("a Jan 5 closing this year is a 1-year anniversary in 11 days on Dec 25", () => {
+    const [item, ...rest] = anniversaryAt(DEC25_NOON, "2026-01-05");
+    expect(rest).toHaveLength(0);
+    expect(item.title).toBe("Pat Example: 1-year closing anniversary in 11 days");
+    expect(item.detail).toBe("January 5");
+  });
+
+  it("a Jan 15 closing this year is a 1-year milestone in 21 days on Dec 25", () => {
+    const [item] = ofType(
+      serverBriefingAt(DEC25_NOON, { closeDates: ["2026-01-15"] }),
+      "property_value_milestone",
+    );
+    expect(item.title).toBe("Pat Example: 1-year home anniversary in 21 days");
+  });
 });
 
 describe("computeIntelligenceBriefing: other date-only countdowns", () => {
+  it("a Jan 5 birthday is in 11 days on Dec 25", () => {
+    const [item] = birthdayAt(DEC25_NOON, "1985-01-05");
+    expect(item.title).toBe("Pat Example: birthday in 11 days");
+    expect(item.detail).toBe("January 5");
+  });
+
   it("the 14-day anniversary window hands off to the 15-30 day milestone window", () => {
     // 1-year mark 14 days out: closing anniversary, no milestone yet.
     const day14 = serverBriefingAt(OCT9_EVENING, { closeDates: ["2025-10-23"] });

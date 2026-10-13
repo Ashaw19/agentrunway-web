@@ -26,7 +26,10 @@ import { atlanticNoon } from "../../lib/local-date";
 
 function makeTx(monthsAgo: number, salePrice: number, overrides: Partial<Transaction> = {}): Transaction {
   const d = new Date();
-  d.setDate(1); // avoid month-rollover issues (e.g. Mar 31 - 1 month = Mar 3)
+  // Mid-month at noon: avoids month rollover (Mar 31 - 1 month = Mar 3) and
+  // is the same month in UTC, where toISOString() reads it.
+  d.setDate(15);
+  d.setHours(12, 0, 0, 0);
   d.setMonth(d.getMonth() - monthsAgo);
   return {
     id: `tx-${Math.random()}`,
@@ -47,8 +50,11 @@ function makeTx(monthsAgo: number, salePrice: number, overrides: Partial<Transac
 }
 
 function makeActivity(monthsAgo: number): ContactActivity {
+  // Mid-month at noon: the same month in the runtime's zone and in Atlantic
+  // time, whenever the suite runs.
   const d = new Date();
-  d.setDate(1);
+  d.setDate(15);
+  d.setHours(12, 0, 0, 0);
   d.setMonth(d.getMonth() - monthsAgo);
   return {
     id: `act-${Math.random()}`,
@@ -399,5 +405,46 @@ describe("Prompt Fragment", () => {
     expect(deviationPromptFragment(deviations, "early")).toContain("Normalize");
     expect(deviationPromptFragment(deviations, "mid")).toContain("direct");
     expect(deviationPromptFragment(deviations, "established")).toContain("unusual");
+  });
+});
+
+describe("computeBaselines — an activity is counted in its Atlantic month (2026-10-13)", () => {
+  // activity_date is a timestamp. Its first ten characters are the UTC date,
+  // so a call on the last evening of a month was counted in the next month.
+  const at = (activity_date: string): ContactActivity => ({ ...makeActivity(1), activity_date });
+  const OCT15_NOON = new Date(2026, 9, 15, 12);
+
+  it("keeps Sep 30 at 10 pm in September, a completed month", () => {
+    const baselines = computeBaselines(
+      [],
+      [
+        at("2026-07-15T15:00:00+00:00"),
+        at("2026-08-15T15:00:00+00:00"),
+        at("2026-10-01T01:00:00+00:00"), // Wed Sep 30, 22:00 ADT
+      ],
+      0,
+      0,
+      OCT15_NOON,
+    );
+    // UTC put the third call in October, the month in progress, which is
+    // left out: two months of data and no baseline.
+    expect(baselines.monthsOfData).toBe(3);
+    expect(baselines.monthlyTouchpoints).toBe(1);
+  });
+
+  it("keeps Dec 31 at 10 pm in December of its own year", () => {
+    const baselines = computeBaselines(
+      [],
+      [
+        at("2026-10-15T15:00:00+00:00"),
+        at("2026-11-15T16:00:00+00:00"),
+        at("2027-01-01T02:00:00+00:00"), // Thu Dec 31 2026, 22:00 AST
+      ],
+      0,
+      0,
+      new Date(2027, 0, 15, 12),
+    );
+    expect(baselines.monthsOfData).toBe(3);
+    expect(baselines.monthlyTouchpoints).toBe(1);
   });
 });

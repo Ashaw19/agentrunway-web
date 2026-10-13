@@ -16,10 +16,37 @@ export interface Write {
   payload: unknown;
 }
 
-export function fakeSupabase(tables: Record<string, Row[]>) {
+/**
+ * Order two column values the way Postgres does. Timestamps compare as
+ * instants, and one written without an offset is read as UTC (the database
+ * session zone), so a bare `2026-10-09T00:00:00` bound means 9 pm Atlantic
+ * the evening before, as it does in production. Everything else compares as
+ * text.
+ */
+function compare(a: unknown, b: unknown): number {
+  const [x, y] = [String(a), String(b)];
+  const instant = (v: string) => {
+    if (!/^\d{4}-\d{2}-\d{2}/.test(v)) return NaN;
+    if (v.length === 10) return Date.parse(`${v}T00:00:00Z`);
+    return Date.parse(/(?:Z|[+-]\d{2}:?\d{2})$/.test(v) ? v : `${v}Z`);
+  };
+  if (x.length > 10 || y.length > 10) {
+    const [tx, ty] = [instant(x), instant(y)];
+    if (!Number.isNaN(tx) && !Number.isNaN(ty)) return tx - ty;
+  }
+  return x < y ? -1 : x > y ? 1 : 0;
+}
+
+export interface FakeSupabaseOptions {
+  /** Tables whose every query throws, as when the request never gets there. */
+  unreachable?: readonly string[];
+}
+
+export function fakeSupabase(tables: Record<string, Row[]>, options: FakeSupabaseOptions = {}) {
   const writes: Write[] = [];
 
   function from(table: string) {
+    if (options.unreachable?.includes(table)) throw new Error(`${table} is unreachable`);
     let rows: Row[] = [...(tables[table] ?? [])];
     let columns: string[] | null = null;
     let counting: { head: boolean } | null = null;
@@ -52,9 +79,9 @@ export function fakeSupabase(tables: Record<string, Row[]>) {
       },
       eq(k: string, v: unknown) { rows = rows.filter((r) => r[k] === v); return builder; },
       in(k: string, vs: readonly unknown[]) { rows = rows.filter((r) => vs.includes(r[k])); return builder; },
-      gte(k: string, v: unknown) { rows = rows.filter((r) => String(r[k]) >= String(v)); return builder; },
-      lt(k: string, v: unknown) { rows = rows.filter((r) => String(r[k]) < String(v)); return builder; },
-      lte(k: string, v: unknown) { rows = rows.filter((r) => String(r[k]) <= String(v)); return builder; },
+      gte(k: string, v: unknown) { rows = rows.filter((r) => compare(r[k], v) >= 0); return builder; },
+      lt(k: string, v: unknown) { rows = rows.filter((r) => compare(r[k], v) < 0); return builder; },
+      lte(k: string, v: unknown) { rows = rows.filter((r) => compare(r[k], v) <= 0); return builder; },
       // "%sam%" style patterns only: a case-insensitive substring match.
       ilike(k: string, pattern: string) {
         const needle = pattern.replace(/%/g, "").toLowerCase();

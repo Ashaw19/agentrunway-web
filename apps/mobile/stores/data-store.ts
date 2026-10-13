@@ -10,9 +10,9 @@ import { supabase } from "../lib/supabase";
 import { storage } from "../lib/mmkv";
 import { useToastStore } from "./toast-store";
 import { useOfflineQueueStore } from "./offline-queue";
-import { safeDateMs } from "../lib/safe-date";
+import { safeDateMs, safeParseDate } from "../lib/safe-date";
 import { isExpectedAuthBootstrapError } from "../lib/auth-context";
-import { localISODate } from "@agent-runway/core/lib/local-date";
+import { addDaysISO, localISODate, nextYearlyDate } from "@agent-runway/core/lib/local-date";
 // Score is read directly from the web dashboard's snapshot in user_settings.
 // No local recomputation needed — guarantees exact parity.
 
@@ -497,6 +497,16 @@ const FETCH_TIMEOUT_MS = 15_000; // 15-second network timeout
  * one per type. Unknown types fall back to a neutral "Review" label so
  * future engine additions don't crash the UI.
  */
+/**
+ * The phone's calendar day an activity fell on, as YYYY-MM-DD.
+ * activity_date is a UTC timestamp: its first ten characters are the UTC
+ * date, which is the next day for anything logged from 9 pm Atlantic.
+ */
+function activityDay(a: { activity_date: string }): string | null {
+  const at = safeParseDate(a.activity_date);
+  return at ? localISODate(at) : null;
+}
+
 function actionLabelForType(type: string): string {
   switch (type) {
     case "vip_overdue":
@@ -1457,22 +1467,18 @@ export const useDataStore = create<DataStore>((set, get) => {
       }
 
       // 5. Birthdays this week
-      const nowDate = new Date();
-      const thisYear = nowDate.getFullYear();
+      // Whole calendar days on the phone's own day, the same count the
+      // server briefing uses (nextYearlyDate). Parsing the date-only
+      // birthdate as a Date gives UTC midnight, the evening before here, and
+      // flooring the hours left dropped a birthday on the day itself.
       let bdayCount = 0;
       for (const cl of state.clients) {
         if (bdayCount >= 2) break;
         if (!cl.birthdate) continue;
-        const bday = new Date(cl.birthdate);
-        const bdayThisYear = new Date(
-          thisYear,
-          bday.getMonth(),
-          bday.getDate()
-        );
-        const daysUntil = Math.floor(
-          (bdayThisYear.getTime() - nowDate.getTime()) / DAY
-        );
-        if (daysUntil >= 0 && daysUntil <= 7) {
+        const birthday = nextYearlyDate(cl.birthdate);
+        if (!birthday) continue;
+        const { daysUntil } = birthday;
+        if (daysUntil <= 7) {
           items.push({
             id: `bday_${cl.id}`,
             type: "birthday_soon",
@@ -1572,12 +1578,14 @@ export const useDataStore = create<DataStore>((set, get) => {
 
     // ── Activity Tracking ───────────────────────────────────────────────────
 
+    // activity_date is a UTC timestamp. Its day is the phone's calendar day
+    // (activityDay), and so is "today". On the UTC day the count restarted
+    // at 9 pm Atlantic and the streak filed an evening's activity under the
+    // next day.
     todayActivityCount: () => {
-      const todayStr = new Date().toISOString().split("T")[0];
+      const todayStr = localISODate();
       const allActivities = Object.values(get().clientActivities).flat();
-      return allActivities.filter((a) =>
-        a.activity_date.startsWith(todayStr)
-      ).length;
+      return allActivities.filter((a) => activityDay(a) === todayStr).length;
     },
 
     contactStreak: () => {
@@ -1587,17 +1595,17 @@ export const useDataStore = create<DataStore>((set, get) => {
       // Get unique dates with activity (sorted newest first)
       const dates = [
         ...new Set(
-          allActivities.map((a) => a.activity_date.split("T")[0])
+          allActivities
+            .map(activityDay)
+            .filter((day): day is string => day !== null)
         ),
       ].sort((a, b) => b.localeCompare(a));
 
       if (dates.length === 0) return 0;
 
       // Check if today or yesterday has activity (streak must be current)
-      const today = new Date().toISOString().split("T")[0];
-      const yesterday = new Date(Date.now() - 86400000)
-        .toISOString()
-        .split("T")[0];
+      const today = localISODate();
+      const yesterday = addDaysISO(today, -1);
       if (dates[0] !== today && dates[0] !== yesterday) return 0;
 
       let streak = 1;

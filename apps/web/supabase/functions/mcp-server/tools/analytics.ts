@@ -21,7 +21,7 @@ import {
 import { CANONICAL_TAX_DISCLAIMER } from "../lib/constants.ts";
 import { loadExpenseInputs } from "../lib/expense-inputs.ts";
 import { getFilingPeriods } from "../../_shared/core/engines/filing-period-engine.ts";
-import { atlanticISODate, atlanticNoon, atlanticYear } from "../../_shared/core/lib/local-date.ts";
+import { atlanticISODate, atlanticYear } from "../../_shared/core/lib/local-date.ts";
 
 // Canonical stage probabilities — mirrors packages/core/types/database.ts
 // PIPELINE_STAGE_DEFAULTS. `lost: 0.0` was added there by migration 00154 and
@@ -154,7 +154,7 @@ export function getAnalyticsTools(supabase: SupabaseClient, userId: string): Mcp
         const listingWeighted = computeListingWeightedGCI(listings);
 
         // YTD expenses: the dashboard's `expensesYTD`, net of the GST/HST a
-        // registrant claims as ITCs (ytdExpenseTotals, expense-totals-engine).
+        // registrant claims as ITCs (ytdExpenseTotals, t2125-expenses-engine).
         const ytdExpenses = expenseInputs.totals.expensesYTD;
 
         const goalGCI = settings?.goal_gci ?? 0;
@@ -460,12 +460,12 @@ export function getAnalyticsTools(supabase: SupabaseClient, userId: string): Mcp
             : raw);
         }, 0);
 
-        // The dashboard's `expensesYTD` and `monthlyRecurring` (legacy monthly
+        // The dashboard's `expensesYTD` and `expensesRemaining` (legacy monthly
         // estimate + recurring_expenses), both net of the GST/HST a registrant
         // claims as ITCs. They feed annualExpenses = expensesYTD +
-        // monthlyRecurring × months left, as on the dashboard.
+        // expensesRemaining (what is still to come this year), as on the dashboard.
         const ytdExpenses = expenseInputs.totals.expensesYTD;
-        const monthlyRecurring = expenseInputs.totals.monthlyRecurring;
+        const expensesRemaining = expenseInputs.totals.expensesRemaining;
 
         // Pipeline + listing weighted GCI for the projection (matches dashboard).
         const pipelineWeighted = deals.reduce((sum, deal) => {
@@ -533,10 +533,8 @@ export function getAnalyticsTools(supabase: SupabaseClient, userId: string): Mcp
           netIncome = computeProjectedNetForTax({
             projectedGCI,
             expensesYTD: ytdExpenses,
-            monthlyRecurring,
+            expensesRemaining,
             settings: settingsSlice,
-            // Calendar anchor for remaining-months math: the Atlantic day.
-            now: atlanticNoon(now),
           });
         } else {
           // Missing settings — fall back to the simple YTD net.

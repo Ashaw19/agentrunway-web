@@ -5,15 +5,15 @@
  * D-2 fix (Audit 1, 2026-04-22):
  *
  *   - computePipelineMonthlyIncome(pipelineWeightedGCI, fraction)
- *   - computeProjectedNetForTax({ projectedGCI, expensesYTD, monthlyRecurring,
+ *   - computeProjectedNetForTax({ projectedGCI, expensesYTD, expensesRemaining,
  *                                 settings, now })
  *
  * These were introduced to eliminate 6 + 3 divergent open-coded copies across
  * the app. Tests here guard the formulas against regression.
  *
- * Tests use fake timers pinned to an arbitrary mid-year date so the
- * "remaining months" math is deterministic. Each test sets its own date
- * where needed.
+ * `expensesRemaining` is what is still to come this year
+ * (`remainingYearExpenses` in expense-totals-engine): the helper adds it to
+ * the year to date and does no month counting of its own.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
@@ -21,7 +21,9 @@ import {
   computePipelineMonthlyIncome,
   computeProjectedNetForTax,
 } from "../effective-cash";
+import { ytdExpenseTotals } from "../t2125-expenses-engine";
 import { createTestSettings } from "./test-data";
+import type { RecurringExpense } from "../../types/database";
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -109,45 +111,45 @@ describe("computeProjectedNetForTax", () => {
     // brokerageFeeAnnual: $500 × 12 = $6_000
     // projectedNet = $175_000 - $3_000 - $6_000 = $166_000
     //
-    // expensesYTD = $20_000, monthlyRecurring = $1_000, remainingMonths = 6
-    // annualExpenses = $20_000 + $1_000 × 6 = $26_000
+    // expensesYTD = $20_000, still to come = $6_000
+    // annualExpenses = $20_000 + $6_000 = $26_000
     // netForTax = max(0, $166_000 - $26_000) = $140_000
     const result = computeProjectedNetForTax({
       projectedGCI: 200_000,
       expensesYTD: 20_000,
-      monthlyRecurring: 1_000,
+      expensesRemaining: 6_000,
       settings: baseSettings,
     });
     expect(result).toBe(140_000);
   });
 
-  it("early year (Feb): remaining months = 10, annualExpenses larger", () => {
+  it("early year (Feb): more still to come, annualExpenses larger", () => {
     vi.setSystemTime(new Date(2026, 1, 15)); // Feb 15, getMonth()+1 = 2
 
     // Same $200K projected GCI → projectedNet = $166_000
-    // expensesYTD = $5_000, monthlyRecurring = $1_000, remainingMonths = 10
-    // annualExpenses = $5_000 + $1_000 × 10 = $15_000
+    // expensesYTD = $5_000, still to come = $10_000
+    // annualExpenses = $5_000 + $10_000 = $15_000
     // netForTax = $166_000 - $15_000 = $151_000
     const result = computeProjectedNetForTax({
       projectedGCI: 200_000,
       expensesYTD: 5_000,
-      monthlyRecurring: 1_000,
+      expensesRemaining: 10_000,
       settings: baseSettings,
     });
     expect(result).toBe(151_000);
   });
 
-  it("late year (Nov): remaining months = 1, most expenses already YTD", () => {
+  it("late year (Nov): little still to come, most expenses already YTD", () => {
     vi.setSystemTime(new Date(2026, 10, 15)); // Nov 15, getMonth()+1 = 11
 
     // projectedNet = $166_000
-    // expensesYTD = $60_000, monthlyRecurring = $1_000, remainingMonths = 1
+    // expensesYTD = $60_000, still to come = $1_000
     // annualExpenses = $60_000 + $1_000 = $61_000
     // netForTax = $166_000 - $61_000 = $105_000
     const result = computeProjectedNetForTax({
       projectedGCI: 200_000,
       expensesYTD: 60_000,
-      monthlyRecurring: 1_000,
+      expensesRemaining: 1_000,
       settings: baseSettings,
     });
     expect(result).toBe(105_000);
@@ -157,19 +159,19 @@ describe("computeProjectedNetForTax", () => {
     vi.setSystemTime(new Date(2026, 5, 15));
 
     // projectedGCI = $0 → agentGross = 0, txFees = 0, brokerage = $6_000 → projectedNet = -$6_000
-    // expensesYTD = $2_000, monthlyRecurring = $500, remainingMonths = 6
-    // annualExpenses = $2_000 + $500 × 6 = $5_000
+    // expensesYTD = $2_000, still to come = $3_000
+    // annualExpenses = $2_000 + $3_000 = $5_000
     // netForTax = max(0, -$6_000 - $5_000) = 0
     const result = computeProjectedNetForTax({
       projectedGCI: 0,
       expensesYTD: 2_000,
-      monthlyRecurring: 500,
+      expensesRemaining: 3_000,
       settings: baseSettings,
     });
     expect(result).toBe(0);
   });
 
-  it("zero expenses / zero monthly recurring: result equals projectedNet", () => {
+  it("zero expenses, none still to come: result equals projectedNet", () => {
     vi.setSystemTime(new Date(2026, 5, 15));
 
     // projectedGCI = $120_000 → pre-cap $100K × 0.8 = $80_000, post-cap $20K × 0.95 = $19_000
@@ -181,7 +183,7 @@ describe("computeProjectedNetForTax", () => {
     const result = computeProjectedNetForTax({
       projectedGCI: 120_000,
       expensesYTD: 0,
-      monthlyRecurring: 0,
+      expensesRemaining: 0,
       settings: baseSettings,
     });
     expect(result).toBe(90_600);
@@ -208,7 +210,7 @@ describe("computeProjectedNetForTax", () => {
     const result = computeProjectedNetForTax({
       projectedGCI: 100_000,
       expensesYTD: 0,
-      monthlyRecurring: 0,
+      expensesRemaining: 0,
       settings: s,
     });
     expect(result).toBe(62_000);
@@ -235,28 +237,54 @@ describe("computeProjectedNetForTax", () => {
     const result = computeProjectedNetForTax({
       projectedGCI: 100_000,
       expensesYTD: 0,
-      monthlyRecurring: 0,
+      expensesRemaining: 0,
       settings: s,
     });
     expect(result).toBe(98_000);
   });
 
-  it("respects injected `now` (December edge case)", () => {
-    // Dec 31 of any year: getMonth()+1 = 12, remainingMonths = max(0, 12-12) = 0
-    // So monthlyRecurring is ignored; annualExpenses = expensesYTD only.
+  it("Dec 31: nothing still to come, annualExpenses = expensesYTD", () => {
     const decEnd = new Date(2026, 11, 31);
 
     // projectedGCI = $200_000 → projectedNet = $166_000 (same as mid-year case)
-    // annualExpenses = $50_000 + $1_000 × 0 = $50_000
+    // annualExpenses = $50_000 + $0 = $50_000
     // netForTax = $166_000 - $50_000 = $116_000
     const result = computeProjectedNetForTax({
       projectedGCI: 200_000,
       expensesYTD: 50_000,
-      monthlyRecurring: 1_000,
+      expensesRemaining: 0,
       settings: baseSettings,
       now: decEnd,
     });
     expect(result).toBe(116_000);
+  });
+
+  it("a monthly expense charged on the 20th is in the year once, before and after its day", () => {
+    // $1,000 a month on the 20th, no GST/HST. The year holds twelve charges
+    // whichever side of the 20th today is. Counting year to date by charge
+    // date while projecting "monthly figure × whole months left" dropped
+    // October's charge from the year until the 20th.
+    const lease: RecurringExpense = {
+      id: "lease", user_id: "u1", name: "Lease", amount: 1_000, category_key: "vehicle_payment",
+      frequency: "monthly", day_of_month: 20, month_of_year: null, hst_included: false, hst_amount: 0,
+      vehicle_pct_applicable: false, notes: "", start_date: "2025-01-01", end_date: null, is_active: true,
+      created_at: "2025-01-01T12:00:00Z", updated_at: "2025-01-01T12:00:00Z",
+    };
+    const ctx = { gstHstRegistered: false, vehicleBusinessUsePct: 0.8, homeOfficeBusinessUsePct: 0 };
+    const netForTaxOn = (now: Date) => {
+      const t = ytdExpenseTotals({ receipts: [], recurring: [lease], expenseItems: [], ctx, now });
+      return computeProjectedNetForTax({
+        projectedGCI: 200_000,
+        expensesYTD: t.expensesYTD,
+        expensesRemaining: t.expensesRemaining,
+        settings: baseSettings,
+        now,
+      });
+    };
+    // projectedNet $166_000 less twelve charges.
+    expect(netForTaxOn(new Date(2026, 9, 13, 12))).toBe(154_000);
+    expect(netForTaxOn(new Date(2026, 9, 20, 12))).toBe(154_000);
+    expect(netForTaxOn(new Date(2026, 0, 5, 12))).toBe(154_000);
   });
 
   it("regression: canonical formula != pre-fix chat formula for split agents", () => {
@@ -271,7 +299,7 @@ describe("computeProjectedNetForTax", () => {
     const canonical = computeProjectedNetForTax({
       projectedGCI: 200_000,
       expensesYTD: 20_000,
-      monthlyRecurring: 1_000,
+      expensesRemaining: 6_000,
       settings: baseSettings,
     });
     const oldChatFormula = 200_000 * 0.8 - 20_000 / 0.5;

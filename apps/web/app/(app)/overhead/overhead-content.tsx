@@ -46,7 +46,6 @@ import {
   type Transaction,
   type PipelineDeal,
   type UserSettings,
-  type ExpenseCategoryWithItems,
   type HistoryItem,
 } from "@/lib/types/database";
 import { computePlanGross } from "@/lib/engines/real-compensation-engine";
@@ -57,7 +56,7 @@ import {
 } from "@/lib/engines/projection-engine";
 import { calculate as calculateTax, marginalRate } from "@/lib/engines/canadian-tax-engine";
 import { calculateCorporateTax, type CorporateTaxResult } from "@/lib/engines/corporate-tax-engine";
-import { generateTaxOptimizations, type TaxOptimizationCard } from "@/lib/engines/tax-optimization-engine";
+import { generateTaxOptimizations, type DeductionTrackingFlags, type TaxOptimizationCard } from "@/lib/engines/tax-optimization-engine";
 import { computeTimeValue } from "@/lib/engines/time-value";
 import {
   Tooltip,
@@ -502,16 +501,22 @@ function MetricInfo({ tip }: { tip: string }) {
 interface Props {
   transactions: Transaction[];
   settings: UserSettings | null;
-  expenseCategories: ExpenseCategoryWithItems[];
-  receiptYTD?: number;
+  /** Year-to-date expenses: ytdExpenseTotals(...).expensesYTD (t2125-expenses-engine), the Expenses page's total. */
+  expensesYTD?: number;
+  /**
+   * Which commonly missed expense categories the agent already tracks
+   * (`deductionTrackingFlags`, from receipts, the per-item monthly figure and
+   * the Recurring Expenses list). Computed by the page.
+   */
+  deductionTracking: DeductionTrackingFlags;
   mileageKmTotal?: number;
   ccaAssetCount?: number;
   historyItems?: HistoryItem[];
   pipelineDeals?: PipelineDeal[];
   isPro?: boolean;
   scenarioSeed?: ScenarioSeedData | null;
-  recurringExpMonthly?: number;
-  recurringExpYTD?: number;
+  /** Still to come this year: ytdExpenseTotals(...).expensesRemaining. expensesYTD + this = the year's expenses. */
+  expensesRemaining: number;
 }
 
 type OverheadTab = "overview" | "scenarios";
@@ -565,16 +570,15 @@ function OverheadBanner() {
 export function OverheadContent({
   transactions,
   settings,
-  expenseCategories,
-  receiptYTD = 0,
+  expensesYTD = 0,
+  deductionTracking,
   mileageKmTotal = 0,
   ccaAssetCount = 0,
   historyItems = [],
   pipelineDeals = [],
   isPro: isPro = false,
   scenarioSeed = null,
-  recurringExpMonthly = 0,
-  recurringExpYTD = 0,
+  expensesRemaining,
 }: Props) {
   const [activeTab, setActiveTab] = useState<OverheadTab>("overview");
   const now = new Date();
@@ -619,22 +623,13 @@ export function OverheadContent({
   const projectedDealCount = projectedYearEndTransactions(ytdDealCount, pipelineCount, fraction);
 
   // ── Expenses ───────────────────────────────────────────────────────────
-  // Includes both legacy expense_items.monthly_recurring AND new recurring_expenses table
-  const receiptTotal = receiptYTD;
-  const legacyMonthlyRecurring = expenseCategories.reduce(
-    (sum, cat) =>
-      sum + cat.items.reduce((s, i) => s + Number(i.monthly_recurring), 0),
-    0,
-  );
-  const monthlyRecurring = legacyMonthlyRecurring + recurringExpMonthly;
-  // Integer months elapsed (1-12) — matches the dashboard. See
-  // dashboard_metric_divergence_fix_2026-06-26.md.
-  const expMonthsElapsed = now.getMonth() + 1;
-  const legacyRecurringYTDEstimate = legacyMonthlyRecurring * expMonthsElapsed;
-  const expensesYTD = Math.max(receiptTotal, legacyRecurringYTDEstimate) + recurringExpYTD;
+  // `expensesYTD` and `expensesRemaining` arrive from the page's one engine
+  // call (ytdExpenseTotals, t2125-expenses-engine): receipts, the per-item
+  // monthly figures and the Recurring Expenses list. Nothing here combines
+  // them, so this is the dashboard's and the Expenses page's figure.
 
-  const expRemainingMonths = Math.max(0, 12 - (now.getMonth() + 1));
-  const annualExpenses = expensesYTD + monthlyRecurring * expRemainingMonths;
+  // The year's expenses: to date + what is still to come (matches the dashboard).
+  const annualExpenses = expensesYTD + expensesRemaining;
 
   // ── Agent net (after split/fees) — plan-aware (REAL waterfall or legacy) ──
   const ytdPlan = settings
@@ -734,11 +729,6 @@ export function OverheadContent({
       : null;
 
   // ── Tax savings opportunities ──────────────────────────────────────────
-  const hasExpensesInCategory = (key: string) =>
-    expenseCategories.some(
-      (cat) => cat.key === key && cat.items.some((i) => Number(i.ytd_amount) > 0 || Number(i.monthly_recurring) > 0),
-    );
-
   const taxOptResult = settings
     ? generateTaxOptimizations({
         netIncome: netForTax,
@@ -775,13 +765,7 @@ export function OverheadContent({
           settings.tax_instalment_paid_q3 +
           settings.tax_instalment_paid_q4,
         cppInstalmentPaidYTD: settings.cpp_instalment_paid_ytd,
-        hasProfDevExpenses: hasExpensesInCategory("education"),
-        hasMarketingExpenses: hasExpensesInCategory("marketing"),
-        hasClientGiftExpenses: expenseCategories.some(
-          (cat) => cat.key === "marketing" && cat.items.some((i) => i.key === "marketing_gifts" && (Number(i.ytd_amount) > 0 || Number(i.monthly_recurring) > 0)),
-        ),
-        hasMealExpenses: hasExpensesInCategory("meals"),
-        hasLicensingExpenses: hasExpensesInCategory("professional"),
+        ...deductionTracking,
         ccaAssetCount,
         dismissed: (settings.tax_opt_dismissed as string[]) ?? [],
       }, 3)
