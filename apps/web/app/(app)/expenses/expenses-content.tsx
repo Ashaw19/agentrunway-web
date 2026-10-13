@@ -24,6 +24,13 @@ import {
   recurringNetOfItc,
   type ReceiptTotalsRow,
 } from "@agent-runway/core/engines/expense-totals-engine";
+import {
+  RECEIPT_LIST_COLUMNS,
+  RECEIPT_LIST_PAGE,
+  receiptListDateFilter,
+  receiptsForYear,
+  receiptsInPeriod,
+} from "@/lib/expenses/receipt-list";
 import { KpiCard } from "@/components/kpi-card";
 import {
   computeGCI,
@@ -110,13 +117,19 @@ interface ExpenseCategoryForPlaid {
   id: string; key: string; title: string; sort_order: number;
 }
 
+/** A receipt totals row with its date, so it can be placed in a filing period. */
+type ReceiptTotalDatedRow = ReceiptTotalsRow & { expense_date?: string | null };
+
 interface Props {
   initialCategories: ExpenseCategoryWithItems[];
   settings: UserSettings | null;
   transactions: Transaction[];
   initialReceipts?: ReceiptExpense[];
-  /** Current-year receipts (category_key, total_amount, tax_amount) for the YTD totals. */
-  receiptTotalRows: ReceiptTotalsRow[];
+  /**
+   * Every current-year receipt (category_key, total_amount, tax_amount,
+   * expense_date): the YTD totals and the GST34 summary are built on these.
+   */
+  receiptTotalRows: ReceiptTotalDatedRow[];
   /** Prior year history for YoY comparison (up to 4 years) */
   priorYearHistory?: PriorYearRow[];
   currentYear?: number;
@@ -196,7 +209,7 @@ export function ExpensesContent({
   // GST/HST registrant it is net of the ITCs the GST34 summary claims, so the
   // same tax isn't counted as both an ITC and an expense. The vehicle % in
   // the context is the editable one above, the same figure the GST34 uses.
-  const [receiptTotalRows, setReceiptTotalRows] = useState<ReceiptTotalsRow[]>(receiptTotalRowsSeed);
+  const [receiptTotalRows, setReceiptTotalRows] = useState<ReceiptTotalDatedRow[]>(receiptTotalRowsSeed);
   const gstHstRegistered = settings?.gst_hst_registered === true;
   const expenseTaxCtx = useMemo(
     () => ({ gstHstRegistered, vehicleBusinessUsePct: vehiclePct, homeOfficeBusinessUsePct: homePct }),
@@ -226,14 +239,12 @@ export function ExpensesContent({
   const activePeriod: FilingPeriod | null =
     selectedPeriodIdx !== "all" ? allPeriods[parseInt(selectedPeriodIdx)] ?? null : null;
 
-  const filteredReceipts = useMemo(() => {
-    if (!activePeriod) return receipts;
-    return receipts.filter((r) => {
-      const d = r.expense_date;
-      if (!d) return false;
-      return d >= activePeriod.startDate && d <= activePeriod.endDate;
-    });
-  }, [receipts, activePeriod]);
+  // The on-screen receipt log for the selected period. DISPLAY ONLY: every
+  // number comes from `receiptTotalRows` (all of the year's receipts), never
+  // from this list. See lib/expenses/receipt-list.ts.
+  const filteredReceipts = useMemo(() => receiptsInPeriod(receipts, activePeriod), [receipts, activePeriod]);
+  const [showAllReceipts, setShowAllReceipts] = useState(false);
+  const visibleReceipts = showAllReceipts ? filteredReceipts : filteredReceipts.slice(0, RECEIPT_LIST_PAGE);
 
   // ── Recurring expenses ──────────────────────────────────────────────────
   // Seeded server-side so Survival/Runway metrics render with full data on first paint.
@@ -262,10 +273,11 @@ export function ExpensesContent({
       frequency: filingFreq,
       periodTransactions: periodTx.map((tx) => ({ gci: computeGCI(tx) })),
       periodReceipts: [
-        ...filteredReceipts.map((r) => ({
-          total_amount: r.total_amount,
-          tax_amount: r.tax_amount,
-          category_key: r.category_key,
+        // Every receipt dated in the period, from the full current-year rows.
+        ...receiptsInPeriod(receiptTotalRows, activePeriod).map((r) => ({
+          total_amount: r.total_amount == null ? null : Number(r.total_amount),
+          tax_amount: r.tax_amount == null ? null : Number(r.tax_amount),
+          category_key: r.category_key ?? null,
         })),
         // Include HST paid on recurring expenses as ITCs (total_amount null
         // marks them as not-a-receipt for the line 106 note)
@@ -275,7 +287,7 @@ export function ExpensesContent({
       vehicleBusinessUsePct: vehiclePct,
       homeOfficeBusinessUsePct: homePct,
     });
-  }, [activePeriod, settings, transactions, filteredReceipts, filingFreq, recurringExpenses, vehiclePct, homePct]);
+  }, [activePeriod, settings, transactions, receiptTotalRows, filingFreq, recurringExpenses, vehiclePct, homePct]);
 
   // ── Current period deadline alert ──────────────────────────────────────
   const currentDeadline = useMemo(() => {
@@ -712,23 +724,25 @@ export function ExpensesContent({
     const { data: { user: authUser } } = await supabase.auth.getUser();
     if (!authUser) return;
 
-    // Refresh receipt display log
+    // Refresh the receipt list (same query as the page: every receipt dated
+    // this year or last, not a "last 50")
     const { data: logData } = await supabase
       .from("receipt_expenses")
-      .select("*")
+      .select(RECEIPT_LIST_COLUMNS)
       .eq("user_id", authUser.id)
+      .or(receiptListDateFilter(year))
       .order("expense_date", { ascending: false })
       .order("created_at", { ascending: false })
-      .limit(50);
+      .limit(10000);
     if (logData) setReceipts(logData as ReceiptExpense[]);
 
     // Refresh YTD totals — re-aggregate from all current-year receipts
     const { data: totalsData } = await supabase
       .from("receipt_expenses")
-      .select("category_key, total_amount, tax_amount")
+      .select("category_key, total_amount, tax_amount, expense_date")
       .eq("user_id", authUser.id)
       .gte("expense_date", `${year}-01-01`);
-    if (totalsData) setReceiptTotalRows(totalsData as ReceiptTotalsRow[]);
+    if (totalsData) setReceiptTotalRows(totalsData as ReceiptTotalDatedRow[]);
   };
 
   // Auto-expand all categories on first visit (no receipts yet and no monthly recurring)
@@ -1148,12 +1162,12 @@ export function ExpensesContent({
     if (!authUser) return;
     const { data, error } = await supabase
       .from("receipt_expenses")
-      .select("category_key, total_amount, tax_amount")
+      .select("category_key, total_amount, tax_amount, expense_date")
       .eq("user_id", authUser.id)
       .gte("expense_date", `${year}-01-01`);
     if (error) { console.error("[expenses] receipt totals refresh failed:", error); return; }
     if (!data) return;
-    setReceiptTotalRows(data as ReceiptTotalsRow[]);
+    setReceiptTotalRows(data as ReceiptTotalDatedRow[]);
   }
 
   function handleReceiptUpdated(updated: ReceiptExpense) {
@@ -1203,12 +1217,15 @@ export function ExpensesContent({
   // ── Export helpers ────────────────────────────────────────────────────────
   const [exporting, setExporting] = useState<"csv" | "pdf" | null>(null);
   const year = new Date().getFullYear();
+  // Both exports are named for the year, so they carry every receipt of that
+  // year (the list also holds last year's).
+  const exportReceipts = useMemo(() => receiptsForYear(receipts, year), [receipts, year]);
 
   function downloadCsv() {
     setExporting("csv");
     const rows = [
       ["Vendor", "Date", "Category", "Total (CAD)", "Tax / HST (CAD)", "Notes"],
-      ...receipts
+      ...exportReceipts
         .slice()
         .sort((a, b) => (b.expense_date ?? "").localeCompare(a.expense_date ?? ""))
         .map((r) => [
@@ -1248,7 +1265,7 @@ export function ExpensesContent({
           categories={categories}
           receiptTotals={receiptTotals}
           vehiclePct={vehiclePct}
-          receipts={receipts}
+          receipts={exportReceipts}
           totalDeductible={totalDeductible}
           deductFull={deductBreakdown.full}
           deductMeals={deductBreakdown.meals}
@@ -1298,9 +1315,9 @@ export function ExpensesContent({
             variant="outline"
             size="sm"
             onClick={downloadCsv}
-            disabled={exporting !== null || receipts.length === 0}
+            disabled={exporting !== null || exportReceipts.length === 0}
             className="gap-1.5"
-            title={receipts.length === 0 ? "No receipts to export" : "Download CSV for spreadsheet / accountant"}
+            title={exportReceipts.length === 0 ? "No receipts to export" : `Download all ${exportReceipts.length} receipts for ${year} as CSV`}
           >
             {exporting === "csv"
               ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
@@ -1313,9 +1330,9 @@ export function ExpensesContent({
             variant="outline"
             size="sm"
             onClick={downloadPdf}
-            disabled={exporting !== null || receipts.length === 0}
+            disabled={exporting !== null || exportReceipts.length === 0}
             className="gap-1.5"
-            title={receipts.length === 0 ? "No receipts to export" : "Download accountant-ready PDF expense report"}
+            title={exportReceipts.length === 0 ? "No receipts to export" : "Download accountant-ready PDF expense report"}
           >
             {exporting === "pdf"
               ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
@@ -2627,7 +2644,7 @@ export function ExpensesContent({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredReceipts.map((r) => (
+                  {visibleReceipts.map((r) => (
                     <TableRow
                       key={r.id}
                       className="cursor-pointer hover:bg-muted/60 group"
@@ -2687,6 +2704,22 @@ export function ExpensesContent({
                   ))}
                 </TableBody>
               </Table>
+              {filteredReceipts.length > RECEIPT_LIST_PAGE && (
+                <div className="flex items-center justify-between gap-3 border-t px-2 pt-3 text-xs text-muted-foreground">
+                  <span>
+                    Showing {visibleReceipts.length} of {filteredReceipts.length} receipts
+                    {activePeriod ? ` in ${activePeriod.label}` : ""}. Totals and exports include all of them.
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 text-xs"
+                    onClick={() => setShowAllReceipts((v) => !v)}
+                  >
+                    {showAllReceipts ? `Show the latest ${RECEIPT_LIST_PAGE}` : `Show all ${filteredReceipts.length}`}
+                  </Button>
+                </div>
+              )}
             </div>
           )}
         </CardContent>

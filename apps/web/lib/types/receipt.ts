@@ -136,7 +136,8 @@ export interface ReceiptExpense {
   notes:          string | null;
   receipt_path:   string | null;
   ocr_confidence: number | null;
-  ocr_raw:        OcrExtraction | null;
+  /** Not loaded by the receipt list (RECEIPT_LIST_COLUMNS leaves it out). */
+  ocr_raw?:       OcrExtraction | null;
   created_at:     string;
   updated_at:     string;
 }
