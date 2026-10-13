@@ -791,10 +791,12 @@ export function ReportsContent({
               <div className="mt-1 text-xs font-semibold text-slate-400">{gradeLabel}</div>
             </div>
           </div>
-          {/* Component sub-scores — §9.1 magnitude bars, band colour per score. */}
+          {/* Component sub-scores — §9.1 magnitude bars, band colour per score,
+              as on the dashboard. Gold is the composite's, on the dial beside
+              these, and never a component's. */}
           <div className="flex-1 grid sm:grid-cols-2 gap-x-8 gap-y-4 w-full">
             {runwayScore.components.map((comp) => {
-              const band = scoreBand(comp.score);
+              const { hex } = scoreBand(comp.score);
               return (
                 <div key={comp.label}>
                   <div className="flex justify-between mb-1.5 text-xs">
@@ -808,7 +810,7 @@ export function ReportsContent({
                       className="h-full rounded-full transition-all"
                       style={{
                         width: `${magnitudePct(comp.score, 100)}%`,
-                        backgroundColor: band.isStrong ? "#F0A800" : band.hex,
+                        backgroundColor: hex,
                       }}
                     />
                   </div>

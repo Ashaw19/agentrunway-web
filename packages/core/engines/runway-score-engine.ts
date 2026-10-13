@@ -69,6 +69,12 @@ export interface RunwayScoreResult {
  * — and are exported for any surface (mobile, PDF, email) that needs a color
  * alongside the label.
  *
+ * A component sub-score (Goal Pace, Pipeline, Expenses, Benchmark, Survival,
+ * each 0–100) is coloured on the same `stateLabel` bands, through
+ * `bandColorHexForScore()`. Components have no second scheme, and no surface
+ * writes a ladder of its own: decided 2026-10-13 (spec §7 question 1), held
+ * by apps/web/lib/__tests__/runway-sub-score-colour-canonical.test.ts.
+ *
  * Spec: memory/spec_runway_score_canonical_bands.md §3.1.
  */
 export const RUNWAY_SCORE_BANDS = {
@@ -144,10 +150,11 @@ export function stateLabel(score: number): RunwayStateLabel {
 }
 
 /**
- * Canonical band color (hex) for a Runway Score. Aligns with the `stateLabel`
- * band — i.e. color follows the prose label, not the academic grade. Mobile,
- * PDF, and email surfaces import this directly; web (dashboard pill) uses
- * Tailwind tokens but the semantic mapping is identical.
+ * Canonical band color (hex) for a Runway Score, and for each of its component
+ * sub-scores. Aligns with the `stateLabel` band — i.e. color follows the prose
+ * label, not the academic grade. Mobile, PDF, and email surfaces import this
+ * directly; web (dashboard pill) uses Tailwind tokens but the semantic mapping
+ * is identical.
  *
  * Non-finite scores (NaN, Infinity) return the slate-500 "no data" color
  * rather than impersonating an "At Risk" red, so a broken upstream chain is

@@ -123,6 +123,10 @@ A+ ≥92, A ≥85, B ≥75, C ≥62, D ≥50, F <50
 
 If a user says "my grade is B" they mean a score of 75–84. Translate to the state label internally but confirm their score band in prose (e.g., "Your score is in the **On Track** range").
 
+**Colours** (one table: RUNWAY_SCORE_BANDS in runway-score-engine.ts, read through bandColorHexForScore). The score and each of its five component sub-scores take the colour of the band the number is in: Strong is green, On Track is blue, Building is amber, At Risk is red. A component's bar is coloured by its own sub-score, not by the overall score, so a Strong score can sit above an amber or red component. It is the same on the dashboard, the Reports page, the business report PDF, the weekly digest email and the mobile app's Runway Score Breakdown sheet. Gold is only the overall score's gauge when the score is Strong. A component bar is never gold.
+
+Changed 2026-10-13: until then four places coloured these numbers their own way. The mobile breakdown sheet cut at 75 / 50 / 30, so a component of 75–80 was green on the phone and blue on the web, 50–60 was blue on the phone and amber on the web, and 30–40 was amber on the phone and red on the web. The business report PDF cut at 80 / 60 / 40, so a component of exactly 80, 60 or 40 was one band higher in the PDF than on the dashboard. The weekly digest email coloured the overall score green from 80, amber from 60 and red below, with no blue: a score of 61–79 that was amber in the email is now blue, 41–59 that was red is now amber, and exactly 80 that was green is now blue. The Reports page drew a component of 81 or more in gold, and it is now green. No score moved, only its colour. A PDF exported or an email received before that date shows the old colours.
+
 ### Common Problems & Diagnostics
 
 **"My score dropped suddenly"**
