@@ -5,7 +5,7 @@
  * buyer-prospect/pipeline-deal dedupe, and the one-action-per-client cap.
  */
 
-import { describe, it, expect } from "vitest";
+import { afterEach, describe, it, expect, vi } from "vitest";
 import {
   computeTodaysActions,
   type TodayOpportunityInput,
@@ -169,5 +169,71 @@ describe("computeTodaysActions", () => {
     });
     expect(actions[0].refId).toBe("stale");
     expect(actions[0].detail).toContain("without movement");
+  });
+});
+
+// "Closing in 1d" counted `Math.floor((noon on the close date - now) / day)`:
+// right in the morning, a day short from noon on, and a day long for the age
+// of a stale opportunity. The count is calendar days from the agent's day.
+describe("close dates and opportunity age count calendar days (2026-10-13)", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  const halifax = () => {
+    vi.stubEnv("TZ", "America/Halifax");
+    expect(new Date("2026-10-13T12:00:00Z").getTimezoneOffset()).toBe(180); // guard: the stub took
+  };
+  const TUE_9AM = new Date("2026-10-13T12:00:00Z"); // Tue Oct 13 2026, 09:00 ADT
+  const TUE_3PM = new Date("2026-10-13T18:00:00Z");
+  const TUE_10PM = new Date("2026-10-14T01:00:00Z");
+
+  const dealDetail = (closeDate: string, asOf: Date) =>
+    computeTodaysActions({
+      briefingItems: [],
+      opportunities: [],
+      deals: [makeDeal({ id: "d1", expected_close_date: closeDate })],
+      clientGciById: {},
+      asOf,
+    })[0].detail;
+
+  const opportunityDetail = (fields: Partial<TodayOpportunityInput>, asOf: Date) =>
+    computeTodaysActions({
+      briefingItems: [],
+      opportunities: [makeOpportunity({ id: "o1", ...fields })],
+      deals: [],
+      clientGciById: {},
+      asOf,
+    })[0].detail;
+
+  it("a deal closing tomorrow reads 1d all day, not 0d from noon", () => {
+    halifax();
+    for (const asOf of [TUE_9AM, TUE_3PM, TUE_10PM]) {
+      expect(dealDetail("2026-10-14", asOf), asOf.toISOString()).toBe("Closing in 1d");
+    }
+  });
+
+  it("a deal closing today reads 0d through the evening", () => {
+    halifax();
+    for (const asOf of [TUE_9AM, TUE_3PM, TUE_10PM]) {
+      expect(dealDetail("2026-10-13", asOf), asOf.toISOString()).toBe("Closing in 0d");
+    }
+  });
+
+  it("an opportunity expected to close in a week reads 7d at any hour", () => {
+    halifax();
+    for (const asOf of [TUE_9AM, TUE_3PM, TUE_10PM]) {
+      expect(opportunityDetail({ expected_close_date: "2026-10-20" }, asOf), asOf.toISOString())
+        .toBe("Expected to close in 7d");
+    }
+  });
+
+  it("an opportunity opened 21 days ago reads 21d at any hour, and is stale that morning", () => {
+    halifax();
+    for (const asOf of [TUE_9AM, TUE_3PM, TUE_10PM]) {
+      expect(opportunityDetail({ opportunity_date: "2026-09-22" }, asOf), asOf.toISOString())
+        .toBe("Open 21d without movement");
+    }
+    expect(opportunityDetail({ opportunity_date: "2026-09-23" }, TUE_10PM)).toBe("Open opportunity");
   });
 });
