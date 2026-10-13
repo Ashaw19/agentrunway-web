@@ -102,6 +102,7 @@ import { probabilityBands } from "@/lib/engines/probabilistic-forecast-engine";
 import { generateAdvisory, ADVISOR_CATEGORY_LABELS } from "@/lib/engines/advisor-engine";
 import { buildHealthReport } from "@/lib/engines/health-report";
 import type { CcaAsset } from "@/lib/types/database";
+import type { T2125ExpenseEntry } from "@/lib/engines/t2125-engine";
 import { ReportsT2125Tab } from "./reports-t2125-tab";
 
 // ── Props ─────────────────────────────────────────────────────────────────────
@@ -119,7 +120,8 @@ interface Props {
   uncategorizedReceiptYTD?: number;
   /** T2125 tab data */
   ccaAssets?: CcaAsset[];
-  expenseAmounts?: Record<string, number>;
+  /** Expenses to date for the T2125 lines: buildT2125Expenses(...).entries. */
+  t2125Expenses?: T2125ExpenseEntry[];
   /** Home Office bills by key, in full (before the home office share). */
   homeOfficeCosts?: Record<string, number>;
   mileageLogs?: { km: number; deduction: number; trip_date: string }[];
@@ -236,7 +238,7 @@ export function ReportsContent({
   receiptTotalsByKey = {},
   uncategorizedReceiptYTD = 0,
   ccaAssets = [],
-  expenseAmounts = {},
+  t2125Expenses = [],
   homeOfficeCosts = {},
   mileageLogs = [],
   taxYear,
@@ -734,7 +736,7 @@ export function ReportsContent({
         <ReportsT2125Tab
           settings={settings}
           transactions={transactions.filter((tx) => tx.date.startsWith(String(taxYear ?? new Date().getFullYear())))}
-          expenseAmounts={expenseAmounts}
+          expenses={t2125Expenses}
           homeOfficeCosts={homeOfficeCosts}
           ccaAssets={ccaAssets}
           mileageLogs={mileageLogs}

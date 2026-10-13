@@ -26,7 +26,7 @@
  */
 
 import { gstHstRate, gstHstLabel } from "./canadian-tax-engine";
-import { EXPENSE_KEY_TO_T2125, isHomeOfficeKey } from "./t2125-engine";
+import { isHomeOfficeKey, t2125LineForExpenseKey } from "./t2125-engine";
 import type { FilingPeriod, FilingFrequency } from "../types/database";
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -104,7 +104,7 @@ export interface GST34Result {
 
 // ── ITC limits ─────────────────────────────────────────────────────────────
 // Which expenses are meals or vehicle comes from the SAME map the T2125
-// estimate uses (EXPENSE_KEY_TO_T2125), so the two can't disagree.
+// estimate uses (t2125LineForExpenseKey), so the two can't disagree.
 //
 // Until 2026-10-13 this file kept its own list of meal keys
 // ("meals_entertainment", "client_meals", "meals", "entertainment"). No
@@ -112,21 +112,21 @@ export interface GST34Result {
 // meals_team, ent_client and ent_events. So the 50% reduction never applied
 // and every meal's HST was claimed in full. Vehicle ITCs ignored the
 // business-use share entirely. Both overstated the refund.
-
-/** Keys older receipts may carry (category-level, before item keys). */
-const LEGACY_MEAL_KEYS = new Set(["meals_entertainment", "client_meals", "meals", "entertainment"]);
-const LEGACY_VEHICLE_KEYS = new Set(["vehicle"]);
+//
+// A category-level key ("meals", "vehicle") resolves in
+// t2125LineForExpenseKey too. This file had its own list of them until the
+// T2125 started counting those keys: two lists is how the first bug happened.
 
 /** Meals and entertainment: CRA allows 50% of the GST/HST paid as an ITC. */
 export function isMealOrEntertainmentKey(key: string | null | undefined): boolean {
   if (!key) return false;
-  return LEGACY_MEAL_KEYS.has(key) || EXPENSE_KEY_TO_T2125[key]?.deductiblePct === 0.5;
+  return t2125LineForExpenseKey(key).deductiblePct === 0.5;
 }
 
 /** Vehicle running costs and lease payments: ITC follows the business-use share. */
 export function isVehicleKey(key: string | null | undefined): boolean {
   if (!key) return false;
-  return LEGACY_VEHICLE_KEYS.has(key) || EXPENSE_KEY_TO_T2125[key]?.applyVehicleUse === true;
+  return t2125LineForExpenseKey(key).applyVehicleUse;
 }
 
 /**

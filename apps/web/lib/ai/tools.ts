@@ -1571,7 +1571,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
 
           if (error) return `Failed to create recurring expense: ${error.message}`;
 
-          return `✓ Recurring expense created — $${amount.toLocaleString()}/month for ${name}, recurring on day ${dayOfMonth}. Entries will auto-generate each month for you to confirm. Manage recurring expenses in **Expenses** (/expenses) under the **Recurring** tab.`;
+          return `✓ Recurring expense created — $${amount.toLocaleString()}/month for ${name}, recurring on day ${dayOfMonth}. It counts in your expense totals by its schedule, with nothing to confirm each month. Manage recurring expenses in **Expenses** (/expenses) under **Recurring Expenses**.`;
         } catch {
           return "Failed to create recurring expense. Please try again.";
         }
@@ -2778,7 +2778,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
 
           if (error) return `Failed to update recurring expense: ${error.message}`;
 
-          return `✓ Recurring expense updated: ${changed.join(", ")}. Future entries will reflect these changes.`;
+          return `✓ Recurring expense updated: ${changed.join(", ")}. Year-to-date totals use the updated values for the whole year so far.`;
         } catch {
           return "Failed to update recurring expense. Please try again.";
         }
@@ -2787,7 +2787,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
 
     // ── DELETE: Recurring expense ─────────────────────────────────────────────
     deleteRecurringExpense: tool({
-      description: "Delete a recurring expense template. Past confirmed entries remain; only future auto-generated entries stop.",
+      description: "Delete a recurring expense. It stops counting in every expense total, including for the months already past this year (a recurring expense counts by its schedule; there are no separate entries that remain).",
       inputSchema: z.object({
         recurringExpenseId: z.string().uuid().describe("The recurring expense UUID"),
         expenseName: z.string().describe("Name for confirmation"),
@@ -2803,7 +2803,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
 
           if (error) return `Failed to delete recurring expense: ${error.message}`;
 
-          return `✓ Recurring expense "${expenseName}" deleted. Past confirmed entries remain in your expense history.`;
+          return `✓ Recurring expense "${expenseName}" deleted. It no longer counts in your expense totals, including for the months already past this year.`;
         } catch {
           return "Failed to delete recurring expense. Please try again.";
         }
