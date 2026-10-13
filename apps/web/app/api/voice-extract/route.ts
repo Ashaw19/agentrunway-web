@@ -5,6 +5,7 @@ import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 import { requirePro } from "@/lib/require-pro";
 import { models, heliconeHeaders } from "@/lib/ai/provider";
 import type { VoiceDraft } from "@/lib/voice/types";
+import { isReceiptCategoryKey } from "@/lib/types/receipt";
 
 // ── Multi-intent extraction prompt ───────────────────────────────────────────
 
@@ -212,6 +213,11 @@ export async function POST(req: NextRequest) {
 
     if (draft.intent === "new_expense" && !draft.expense) {
       return NextResponse.json({ error: "Missing expense object" }, { status: 422 });
+    }
+    // The category is the model's pick: keep it only if it is an expense item
+    // key, so a made-up key is never prefilled into the form and saved.
+    if (draft.intent === "new_expense" && !isReceiptCategoryKey(draft.expense.category_key)) {
+      draft.expense.category_key = null;
     }
 
     if (draft.intent === "new_transaction" && !draft.transaction) {

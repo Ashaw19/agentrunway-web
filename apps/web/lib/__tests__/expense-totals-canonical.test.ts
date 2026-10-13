@@ -76,8 +76,8 @@ const SETTINGS_SELECT = /\.from\(\s*["']user_settings["']\s*\)\s*\.select\(\s*(?
 
 const ALLOWED_SELECTS: Record<string, { count: number; why: string }> = {
   "apps/web/lib/ai/tools.ts": {
-    count: 2,
-    why: "Per-receipt reads (search results, edit diff) that show one receipt's amount paid. No total.",
+    count: 1,
+    why: "Per-receipt read (search results) that shows one receipt's amount paid. No total.",
   },
 };
 
