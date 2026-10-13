@@ -160,21 +160,60 @@ export function totalRecurringHSTForPeriod(
  * separately: a lease payment's HST is limited to the business-use share and
  * a meal's to 50%, which a single total can't express.
  */
+export interface RecurringHSTDetail {
+  id: string;
+  name: string;
+  category_key: string | null;
+  /** Flagged vehicle_pct_applicable (its key may not say it is a vehicle cost). */
+  vehicle_use: boolean;
+  /** Times it was charged inside the period. */
+  occurrences: number;
+  /** What was charged over the period, GST/HST included. */
+  paid: number;
+  /** GST/HST inside that. */
+  tax_amount: number;
+}
+
+/**
+ * Each active recurring expense that carried GST/HST in a period, with its
+ * name and how many times it was charged. The GST34 worksheet lists these so
+ * the agent can see what is behind line 106; `recurringHSTEntriesForPeriod`
+ * is the same data without the labels.
+ */
+export function recurringHSTDetailForPeriod(
+  expenses: RecurringExpense[],
+  startDate: string, // YYYY-MM-DD
+  endDate: string,   // YYYY-MM-DD
+): RecurringHSTDetail[] {
+  const start = new Date(startDate + "T00:00:00");
+  const end   = new Date(endDate   + "T23:59:59");
+  return expenses
+    .filter((re) => re.is_active && Number(re.hst_amount) > 0)
+    .map((re) => {
+      const occurrences = occurrencesInRange(re, start, end);
+      return {
+        id: re.id,
+        name: re.name,
+        category_key: re.category_key ?? null,
+        vehicle_use: Boolean(re.vehicle_pct_applicable),
+        occurrences,
+        paid: occurrences * Number(re.amount),
+        tax_amount: occurrences * Number(re.hst_amount),
+      };
+    })
+    .filter((e) => e.tax_amount > 0);
+}
+
 export function recurringHSTEntriesForPeriod(
   expenses: RecurringExpense[],
   startDate: string, // YYYY-MM-DD
   endDate: string,   // YYYY-MM-DD
 ): { category_key: string | null; tax_amount: number; vehicle_use: boolean }[] {
-  const start = new Date(startDate + "T00:00:00");
-  const end   = new Date(endDate   + "T23:59:59");
-  return expenses
-    .filter((re) => re.is_active && Number(re.hst_amount) > 0)
-    .map((re) => ({
-      category_key: re.category_key ?? null,
-      tax_amount:   occurrencesInRange(re, start, end) * Number(re.hst_amount),
-      vehicle_use:  Boolean(re.vehicle_pct_applicable),
-    }))
-    .filter((e) => e.tax_amount > 0);
+  return recurringHSTDetailForPeriod(expenses, startDate, endDate).map((e) => ({
+    category_key: e.category_key,
+    tax_amount: e.tax_amount,
+    vehicle_use: e.vehicle_use,
+  }));
 }
 
 /** Total YTD HST on active recurring expenses (mirrors totalRecurringYTD). */

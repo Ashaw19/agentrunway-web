@@ -1184,7 +1184,7 @@ All figures are a snapshot of the REAL income deck and are user-editable — if 
 3. The row shows the share, with "of $X in bills" under it for the full bills.
 
 **"Why is the HST on my power bill not all in my ITCs?"**
-→ GST34 line 107 takes off the household share: the ITC on a home bill is the home office share of its GST/HST (10% or less = none, 90% or more = all). The line 107 note says "personal-use share of home bill ITCs (business use of home N%)". Rent, mortgage interest, property tax, home insurance and condo fees normally have no GST/HST to claim.
+→ Only the home office share of the GST/HST on a home bill is an eligible credit (10% or less = none, 90% or more = all), so only that share reaches line 106 of the return. The note under line 106 says "the personal share of home bill HST (home office N%)". Rent, mortgage interest, property tax, home insurance and condo fees normally have no GST/HST to claim.
 
 ### GST/HST Registration
 - Toggle: registered or not
@@ -1811,21 +1811,44 @@ The Overhead page is your complete tax visibility dashboard:
    - Recommended amount to set aside from each commission cheque
    - Based on your effective tax rate applied to average deal GCI
 
-### GST34 Return Pre-Fill (from gst34-engine.ts)
+### GST/HST Return, line by line (from gst34-engine.ts)
 
-The Overhead page can pre-fill your GST34 return for any filing period:
+Where: Expenses page → pick a period under "Filing period" (Q1 to Q4 for a quarterly filer). The card "HST Return: Q2 2026" shows the return the way CRA's Form GST34 asks for it, and "Download worksheet (PDF)" gives the same lines plus every expense behind line 106. It is on the Expenses page, not Overhead.
 
-| Line | Label | Formula |
-|------|-------|---------|
-| 101 | Total sales & revenue | Sum of GCI from closed deals in the period |
-| 103 | GST/HST collected | Line 101 × provincial rate (5%/13%/14%/14.975%/15%) |
-| 105 | Total HST + adjustments | Line 103 + Line 104 (adjustments usually $0) |
-| 106 | Input Tax Credits (ITCs) | GST/HST paid on eligible business expenses |
-| 107 | ITC adjustments | −50% of ITCs on meals & entertainment, and the personal-use share of ITCs on vehicle costs (fuel, repairs, lease). Vehicle share follows the business-use % in Expenses: 10% or less = none claimable, 90% or more = all, otherwise that share (CRA rules) |
-| 108 | Total ITCs | Line 106 + Line 107 |
-| 109 | Net tax | Line 105 − Line 108 (positive = owing, negative = refund) |
-| 110 | Instalments paid | Payments already remitted for this period |
-| 113 | Balance / refund | Line 109 − Line 110 |
+Each line is marked "You enter" (typed into CRA's return) or "CRA calculates" (CRA's online return works it out). Amounts are in dollars and cents.
+
+| Line | CRA's label | Where Agent Runway's figure comes from | On the return |
+|------|-------------|-----------------------------------------|---------------|
+| 101 | Sales and other revenue | GCI from closed deals in the period, before GST/HST | You enter |
+| 103 | GST/HST collected or collectible | Line 101 × provincial rate (5%/13%/14%/14.975%/15%) | You enter |
+| 104 | Adjustments to be added to the net tax | Not tracked: $0 | You enter |
+| 105 | Total GST/HST and adjustments | Line 103 + line 104 | CRA calculates |
+| 106 | Input tax credits (ITCs) | The ELIGIBLE credit: GST/HST paid on the period's receipts and recurring expenses, less what can't be claimed (half of meals and entertainment; the personal share of vehicle costs; the personal share of Home Office bills) | You enter |
+| 107 | Adjustments to be deducted when determining the net tax | Not tracked: $0 | You enter |
+| 108 | Total ITCs and adjustments | Line 106 + line 107 | CRA calculates |
+| 109 | Net tax | Line 105 − line 108 (negative = refund position) | CRA calculates |
+| 110 | Instalments and other annual filer payments | Instalments paid; $0 for a monthly or quarterly filer | You enter |
+| 111 | Rebates | Not tracked: $0 | You enter |
+| 205 | GST/HST due on purchases of real property | Not tracked: $0 | You enter |
+| 405 | Other GST/HST to be self-assessed | Not tracked: $0 | You enter |
+| 114 / 115 | Refund claimed / Amount owing | From the lines above | CRA calculates |
+
+Lines 112 and 113A to 113C exist on the paper return only; the PDF worksheet lists them.
+
+**Line 106 is the eligible amount, and line 107 is NOT where the meal and vehicle limits go.** On CRA's return line 107 is for things like GST/HST in a bad debt, and it is ADDED to line 106. Until 2026-10-13 this card showed the GST/HST paid as line 106 and the part that can't be claimed as a negative "line 107 ITC adjustments". The total (line 108) was right, but copying those two figures into CRA's form would have over-claimed. Now the card shows what was paid and what came off in the note under line 106.
+
+Vehicle share follows the business-use % in Expenses: 10% or less = none claimable, 90% or more = all, otherwise that share. Home Office bills follow the home office % the same way. Meals and entertainment: 50%, applied every period, so there is no yearly add-back on line 104.
+
+**The lines Agent Runway has nothing for** (104, 107, 111, 205, 405) show $0 behind "Show N more lines left at $0". Each says when it applies. Line 405 covers GST/HST someone has to work out and report themselves, for example on services bought from outside Canada that are used less than 90% in the business. Agent Runway does not calculate it. Whether it applies is a question for their accountant.
+
+**The PDF worksheet** also reports: receipts in the period with no GST/HST recorded (nothing is claimed on them); how many claimed receipts have no receipt image stored; and a warning if the expense list does not add up to line 106.
+
+**"What do I type into CRA?" / "How do I file my HST?"**
+1. Expenses → Filing period → the quarter.
+2. Read the lines marked "You enter": 101, 103 and 106 are the ones Agent Runway fills; the rest are $0 unless they apply.
+3. Download the worksheet and compare the expense list on page 2 with their own receipts.
+4. They file with CRA themselves (My Business Account or GST/HST NETFILE). Agent Runway does not file anything.
+A return is expected for every reporting period, including one with no sales. Give the figures and CRA's rules only; do not tell them what to claim.
 
 **Quick Method**: Available if taxable revenue ≤ $400K. Instead of tracking every ITC, remit a flat rate (typically 8.8% of HST-included revenue for service providers). May result in lower remittance but Agent Runway uses the detailed method — consult an accountant before switching.
 
