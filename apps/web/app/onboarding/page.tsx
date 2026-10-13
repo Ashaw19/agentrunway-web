@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { BROKERAGE_HST_WITHHOLDING, brokerageHstWithholdingHint } from "@agent-runway/core/tax-copy";
 import {
   ArrowRight,
   ArrowLeft,
@@ -779,34 +780,33 @@ export default function OnboardingPage() {
 
                 {/* HST Withholding */}
                 <div className="grid gap-2">
-                  <Label className="text-white/80">Does your brokerage withhold HST from your commission cheques?</Label>
+                  <Label className="text-white/80">{BROKERAGE_HST_WITHHOLDING.question}</Label>
                   <div className="grid grid-cols-2 gap-2">
                     <button
                       onClick={() => setBrokerageWithholdsHst(false)}
                       className={cn(
-                        "rounded-lg border py-2.5 text-sm font-medium transition-all",
+                        "rounded-lg border px-2 py-2.5 text-sm font-medium transition-all",
                         !brokerageWithholdsHst
                           ? "border-primary bg-primary text-white shadow-md"
                           : "border-white/20 bg-white/5 text-white/60 hover:border-white/40 hover:text-white",
                       )}
                     >
-                      No — I get the full amount
+                      {BROKERAGE_HST_WITHHOLDING.no}
                     </button>
                     <button
                       onClick={() => setBrokerageWithholdsHst(true)}
                       className={cn(
-                        "rounded-lg border py-2.5 text-sm font-medium transition-all",
+                        "rounded-lg border px-2 py-2.5 text-sm font-medium transition-all",
                         brokerageWithholdsHst
                           ? "border-primary bg-primary text-white shadow-md"
                           : "border-white/20 bg-white/5 text-white/60 hover:border-white/40 hover:text-white",
                       )}
                     >
-                      Yes — they hold it for me
+                      {BROKERAGE_HST_WITHHOLDING.yes}
                     </button>
                   </div>
                   <p className="text-xs text-white/35">
-                    Some brokerages withhold the HST portion and remit it to CRA on your behalf. This changes how we calculate your take-home pay and your estimated HST owing.
-                    {brokerageWithholdsHst && " Nice — one less thing to worry about."}
+                    {brokerageHstWithholdingHint(brokerageWithholdsHst)}
                   </p>
                 </div>
               </div>

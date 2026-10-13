@@ -278,6 +278,9 @@ describe("no loose statement of the $30,000 rule, and no instalment advice wordi
     "lib/knowledge-base.ts",
     "lib/troubleshooting-playbooks.ts",
     "app/api/chat/route.ts",
+    "app/(app)/settings/settings-content.tsx",
+    "app/onboarding/page.tsx",
+    "content/blog/the-real-cost-of-a-real-estate-deal.mdx",
   ];
 
   // The limit as a yearly or 12-month figure, or as income.
