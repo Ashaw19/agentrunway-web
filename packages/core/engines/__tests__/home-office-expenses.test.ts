@@ -35,6 +35,7 @@ import {
   HOME_OFFICE_KEY_TO_COST,
   computeT2125,
   isHomeOfficeKey,
+  t2125EntriesFromAmounts,
 } from "../t2125-engine";
 import { createTestSettings } from "./test-data";
 import type { RecurringExpense } from "../../types/database";
@@ -246,7 +247,7 @@ describe("T2125 line 9945 from logged bills", () => {
     const totals = aggregateReceiptTotals(rows, expenseTaxContext(s));
     return {
       totals,
-      t: computeT2125({ settings: s, transactions: [], expenseAmounts: totals.byKey, homeOfficeCosts: totals.homeOfficeCosts, ccaAssets: [], taxYear: 2026 }),
+      t: computeT2125({ settings: s, transactions: [], expenses: t2125EntriesFromAmounts(totals.byKey), homeOfficeCosts: totals.homeOfficeCosts, ccaAssets: [], taxYear: 2026 }),
     };
   };
 
@@ -290,16 +291,16 @@ describe("T2125 line 9945 from logged bills", () => {
 
   it("with no logged bills the estimate works exactly as before", () => {
     const s = settings({ home_office_utilities_monthly: 200, home_office_rent_monthly: 1000, home_office_property_tax_annual: 3000 });
-    const t = computeT2125({ settings: s, transactions: [], expenseAmounts: {}, ccaAssets: [], taxYear: 2026 });
+    const t = computeT2125({ settings: s, transactions: [], expenses: t2125EntriesFromAmounts({}), ccaAssets: [], taxYear: 2026 });
     expect(t.homeOffice.totalAnnualHomeCosts).toBe(2400 + 12000 + 3000);
     expect(t.line9945_homeOfficeDeduction).toBeCloseTo(17400 * 0.15, 10);
     expect(t.homeOffice.loggedCostTypes).toEqual([]);
   });
 
-  it("home keys left in expenseAmounts (the share) are ignored: only homeOfficeCosts feeds 9945", () => {
+  it("home keys left in the expense entries (the share) are ignored: only homeOfficeCosts feeds 9945", () => {
     const t = computeT2125({
       settings: settings(), transactions: [], ccaAssets: [], taxYear: 2026,
-      expenseAmounts: { home_utilities: 45 },
+      expenses: t2125EntriesFromAmounts({ home_utilities: 45 }),
     });
     expect(t.expenseLines).toEqual([]);
     expect(t.line9369_totalExpenses).toBe(0);

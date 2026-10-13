@@ -122,16 +122,79 @@ export const HOME_OFFICE_KEY_TO_COST: Record<string, HomeOfficeCostType> = {
   [HOME_OFFICE_CATEGORY_KEY]: "maintenance",
 };
 
+const hasOwn = (map: object, key: string) => Object.prototype.hasOwnProperty.call(map, key);
+
 /** A home bill: only the home business-use share of it is a business cost. */
 export function isHomeOfficeKey(key: string | null | undefined): boolean {
   if (!key) return false;
-  return key in HOME_OFFICE_KEY_TO_COST;
+  return hasOwn(HOME_OFFICE_KEY_TO_COST, key);
+}
+
+// ── Keys with no line of their own ───────────────────────────────────────────
+// EXPENSE_KEY_TO_T2125 is keyed by expense ITEM, and every writer now files
+// under an item. Three other kinds of key can still reach the T2125 inputs:
+//   - a category-level key ("vehicle", "marketing"). Flight Crew's expense
+//     tools wrote these until 2026-10-13; migration 00175 moved the existing
+//     rows to each category's first-choice item;
+//   - a custom expense item the agent added, or an item of a category the
+//     T2125 has no line for (corporate admin, payroll);
+//   - none at all (a receipt saved with no category).
+// Until 2026-10-13 computeT2125 dropped all three without a word, while the
+// expense totals, the income-tax estimate and the GST34 ITCs counted them.
+// Now every key resolves to a line:
+//   - a category-level key is treated as the item migration 00175 moved such
+//     rows to, so a stray one counts exactly as a moved one does;
+//   - the Home Office category key is a home bill (business-use-of-home);
+//   - anything else goes on line 9270 "Other expenses" at 100%. Filing the
+//     expense under an item moves it to that item's line.
+// gst34-engine reads its meal and vehicle ITC limits from this resolver, so
+// an expense can't be a meal for the T2125 and not for the ITC.
+
+/** Category-level key → the item it stands for. Same list as migration 00175. */
+const CATEGORY_KEY_TO_ITEM_KEY: Record<string, string> = {
+  vehicle: "vehicle_fuel",
+  marketing: "marketing_ads",
+  office_tech: "office_supplies",
+  professional: "prof_accounting",
+  professional_fees: "prof_accounting",
+  insurance_licenses: "prof_licensing",
+  education: "edu_courses",
+  education_dev: "edu_courses",
+  meals: "meals_client",
+  travel_meals: "meals_client",
+  entertainment: "ent_client",
+  other: "other_misc",
+  // Never written by the app. The GST34 engine listed them as meal keys
+  // before it read its limits from here; kept so that doesn't change.
+  meals_entertainment: "meals_client",
+  client_meals: "meals_client",
+};
+
+const HOME_OFFICE_CATEGORY_LINE: T2125LineMap = {
+  lineNumber: "9945", lineName: "Home office costs", deductiblePct: 1.0, applyVehicleUse: false, applyHomeUse: true, t2125Part: "home_office",
+};
+
+/** Where a key with no line of its own goes: CRA T2125 line 9270, in full. */
+export const T2125_OTHER_EXPENSES: T2125LineMap = {
+  lineNumber: "9270", lineName: "Other expenses", deductiblePct: 1.0, applyVehicleUse: false, t2125Part: "other",
+};
+
+/**
+ * The T2125 line and limits for any expense key. Never undefined: see the
+ * note above for what a category-level, custom or missing key resolves to.
+ */
+export function t2125LineForExpenseKey(key: string | null | undefined): T2125LineMap {
+  if (!key) return T2125_OTHER_EXPENSES;
+  if (hasOwn(EXPENSE_KEY_TO_T2125, key)) return EXPENSE_KEY_TO_T2125[key];
+  if (key === HOME_OFFICE_CATEGORY_KEY) return HOME_OFFICE_CATEGORY_LINE;
+  if (hasOwn(CATEGORY_KEY_TO_ITEM_KEY, key)) return EXPENSE_KEY_TO_T2125[CATEGORY_KEY_TO_ITEM_KEY[key]];
+  return T2125_OTHER_EXPENSES;
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export interface ExpenseLineItem {
-  key: string;
+  key: string | null;        // null = receipts saved with no category
   lineName: string;
   lineNumber: string;
   rawAmount: number;         // Total amount from receipts/items (before adjustments)
@@ -140,6 +203,67 @@ export interface ExpenseLineItem {
   deductibleAmount: number;  // rawAmount × deductiblePct × vehicleUsePct
   isVehicle: boolean;
   isMeals: boolean;
+}
+
+/**
+ * One tracked expense amount handed to the T2125. Built by
+ * `buildT2125Expenses` (t2125-expenses-engine) from receipts, the legacy
+ * per-item monthly figure and the Recurring Expenses list: pages don't
+ * assemble these themselves.
+ */
+export interface T2125ExpenseEntry {
+  /** Expense key. Any key is accepted: see t2125LineForExpenseKey. */
+  key: string | null;
+  /** Year-to-date amount, net of ITCs for a GST/HST registrant (expense-totals-engine). */
+  amount: number;
+  /**
+   * A recurring expense's `vehicle_pct_applicable` box. Ticked, the expense
+   * takes the vehicle business-use share whatever its key. A vehicle key
+   * takes it ticked or not. This is the same OR `itcForExpense` applies to
+   * the GST/HST, so the T2125 and the GST34 make one call per expense.
+   */
+  vehicleUse?: boolean;
+}
+
+/** Entries for a plain key → amount map, each key under its own rules. */
+export function t2125EntriesFromAmounts(amounts: Record<string, number>): T2125ExpenseEntry[] {
+  return Object.entries(amounts).map(([key, amount]) => ({ key, amount }));
+}
+
+/**
+ * What one tracked expense counts for: its T2125 line, the 50% meals limit
+ * and the vehicle business-use share. The only place that arithmetic is
+ * done, for the T2125 pre-fill and for the Expenses page alike.
+ *
+ * A home bill's amount is already the home office share (expense-totals-
+ * engine), so it comes back at 100% of that. computeT2125 keeps home bills
+ * out of the expense lines: they are costs behind line 9945.
+ */
+export function t2125ExpenseLine(entry: T2125ExpenseEntry, vehicleBusinessUsePct: number): ExpenseLineItem {
+  const map = t2125LineForExpenseKey(entry.key);
+  const rawAmount = entry.amount;
+  if (map.applyHomeUse) {
+    return {
+      key: entry.key, lineName: map.lineName, lineNumber: map.lineNumber, rawAmount,
+      deductiblePct: 1.0, vehicleUsePct: 1.0, deductibleAmount: rawAmount, isVehicle: false, isMeals: false,
+    };
+  }
+  const isMeals = map.deductiblePct === 0.5;
+  const isVehicle = map.applyVehicleUse || entry.vehicleUse === true;
+  const vehicleUsePct = isVehicle ? Math.min(1, Math.max(0, vehicleBusinessUsePct || 0)) : 1.0;
+  return {
+    key: entry.key,
+    lineName: map.lineName,
+    // A cost that takes the vehicle share is a motor vehicle expense whatever
+    // it was filed under. A meal stays on 8523, where its 50% limit is shown.
+    lineNumber: isVehicle && !isMeals ? "9281" : map.lineNumber,
+    rawAmount,
+    deductiblePct: map.deductiblePct,
+    vehicleUsePct,
+    deductibleAmount: rawAmount * map.deductiblePct * vehicleUsePct,
+    isVehicle,
+    isMeals,
+  };
 }
 
 export interface CcaLineItem {
@@ -256,11 +380,18 @@ export interface T2125Result {
 export interface T2125Input {
   settings: UserSettings;
   transactions: Transaction[];         // closed deals, current year
-  expenseAmounts: Record<string, number>; // key → YTD amount (receipts + recurring)
+  /**
+   * Expenses incurred to date: `buildT2125Expenses(...).entries`
+   * (t2125-expenses-engine), which covers receipts, the legacy per-item
+   * monthly figure and the Recurring Expenses list. Until 2026-10-13 this was
+   * a key → amount map each caller built, and the recurring list was never
+   * in it.
+   */
+  expenses: readonly T2125ExpenseEntry[];
   /**
    * Home bills logged this year, by expense key: the WHOLE bill, before the
-   * business-use share (`ReceiptTotals.homeOfficeCosts`). Home keys in
-   * `expenseAmounts` are ignored: that map carries them at the business share.
+   * business-use share (`buildT2125Expenses(...).homeOfficeCosts`). A home
+   * key in `expenses` is ignored: an entry carries it at the business share.
    */
   homeOfficeCosts?: Record<string, number>;
   ccaAssets: CcaAsset[];
@@ -271,7 +402,7 @@ export interface T2125Input {
 // ── Main compute function ─────────────────────────────────────────────────────
 
 export function computeT2125(input: T2125Input): T2125Result {
-  const { settings, transactions, expenseAmounts, ccaAssets } = input;
+  const { settings, transactions, expenses, ccaAssets } = input;
   const taxYear = input.taxYear ?? new Date().getFullYear();
   const otherIncome = input.otherIncome ?? 0;
 
@@ -285,25 +416,10 @@ export function computeT2125(input: T2125Input): T2125Result {
   // ── 2. Build expense lines ─────────────────────────────────────────────────
   const vehicleUsePct = Math.min(1, Math.max(0, settings.vehicle_business_use_pct ?? 0));
 
-  const expenseLines: ExpenseLineItem[] = Object.entries(expenseAmounts)
+  const expenseLines: ExpenseLineItem[] = expenses
     // Home bills are not expense lines: they are the costs behind line 9945.
-    .filter(([key, amount]) => amount > 0 && EXPENSE_KEY_TO_T2125[key] && !isHomeOfficeKey(key))
-    .map(([key, rawAmount]) => {
-      const mapping = EXPENSE_KEY_TO_T2125[key];
-      const effectiveVehicleUse = mapping.applyVehicleUse ? vehicleUsePct : 1.0;
-      const deductibleAmount = rawAmount * mapping.deductiblePct * effectiveVehicleUse;
-      return {
-        key,
-        lineName: mapping.lineName,
-        lineNumber: mapping.lineNumber,
-        rawAmount,
-        deductiblePct: mapping.deductiblePct,
-        vehicleUsePct: effectiveVehicleUse,
-        deductibleAmount,
-        isVehicle: mapping.applyVehicleUse,
-        isMeals: mapping.deductiblePct === 0.5,
-      };
-    });
+    .filter((e) => e.amount > 0 && !isHomeOfficeKey(e.key))
+    .map((e) => t2125ExpenseLine(e, vehicleUsePct));
 
   // Helper: sum deductible amount for items matching a line number or key prefix
   const lineSum = (lineNumbers: string[]) =>

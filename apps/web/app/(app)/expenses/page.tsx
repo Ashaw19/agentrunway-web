@@ -345,9 +345,16 @@ export default async function ExpensesPage() {
       return true;
     });
 
+  // Items of the categories filtered out above: not shown, still counted.
+  const shownCategoryIds = new Set(categories.map((cat) => cat.id));
+  const hiddenExpenseItems = items
+    .filter((item) => !shownCategoryIds.has(item.category_id))
+    .map((item) => ({ key: item.key, monthly_recurring: item.monthly_recurring }));
+
   return (
     <ExpensesContent
       initialCategories={categories}
+      hiddenExpenseItems={hiddenExpenseItems}
       settings={settings}
       isPro={isPro}
       transactions={txResult.data ?? []}

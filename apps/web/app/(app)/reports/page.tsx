@@ -3,8 +3,8 @@ import { redirect } from "next/navigation";
 import { ReportsContent } from "./reports-content";
 import type { CcaAsset, RecurringExpense, ListingAppointment } from "@/lib/types/database";
 import { totalRecurringMonthly, totalRecurringYTD } from "@agent-runway/core/engines/recurring-expense-engine";
-import { expenseTaxContext, recurringExpensesNetOfItc } from "@agent-runway/core/engines/expense-totals-engine";
-import { buildT2125ExpenseInputs } from "@/lib/expenses/t2125-inputs";
+import { aggregateReceiptTotals, expenseTaxContext, recurringExpensesNetOfItc } from "@agent-runway/core/engines/expense-totals-engine";
+import { buildT2125Expenses } from "@agent-runway/core/engines/t2125-expenses-engine";
 import { computeIsPro } from "@/lib/compute-is-pro";
 import { atlanticNoon } from "@agent-runway/core/lib/local-date";
 
@@ -100,10 +100,8 @@ export default async function ReportsPage() {
 
   // Net of the GST/HST a registrant claims back as ITCs (expense-totals-engine).
   const taxCtx = expenseTaxContext(settingsRaw);
-  const recurringExpenses = recurringExpensesNetOfItc(
-    (recurringExpResult.data ?? []) as RecurringExpense[],
-    taxCtx,
-  );
+  const recurringExpensesAsStored = (recurringExpResult.data ?? []) as RecurringExpense[];
+  const recurringExpenses = recurringExpensesNetOfItc(recurringExpensesAsStored, taxCtx);
   const recurringExpMonthly = totalRecurringMonthly(recurringExpenses);
   const recurringExpYTD = totalRecurringYTD(recurringExpenses, today);
 
@@ -112,24 +110,23 @@ export default async function ReportsPage() {
     items: (expItemResult.data ?? []).filter((i) => i.category_id === cat.id),
   }));
 
-  // Per-key map drives the T2125 line allocation and MUST stay per-key.
-  // The uncategorized remainder is carried separately so the YTD expense total
-  // still agrees with the dashboard. For a GST/HST registrant every figure is
-  // net of ITCs, so the T2125 lines don't deduct tax the GST34 already claims.
-  //
-  // T2125 inputs: expenses incurred to date by key (receipts, the legacy
-  // per-item monthly figure, and the Recurring Expenses list), plus the Home
-  // Office bills in full for line 9945. See lib/expenses/t2125-inputs.ts.
-  const {
-    expenseAmounts,
-    homeOfficeCosts,
-    receiptTotals: { byKey: receiptTotalsByKey, uncategorized: uncategorizedReceiptYTD },
-  } = buildT2125ExpenseInputs({
-    receiptRows: receiptTotalsResult.data,
+  // Receipts by expense key, with the uncategorized remainder carried
+  // separately so the YTD expense total still agrees with the dashboard. For a
+  // GST/HST registrant every figure is net of ITCs, so nothing here deducts
+  // tax the GST34 already claims.
+  const receiptTotals = aggregateReceiptTotals(receiptTotalsResult.data, taxCtx);
+  const { byKey: receiptTotalsByKey, uncategorized: uncategorizedReceiptYTD } = receiptTotals;
+
+  // T2125 inputs come from t2125-expenses-engine, the same call the Expenses
+  // page makes for "Est. Tax Deductible": receipts, the legacy per-item
+  // monthly figure and the Recurring Expenses list, incurred to date (never a
+  // projected month), plus the Home Office bills in full for line 9945.
+  const t2125Expenses = buildT2125Expenses({
+    receiptTotals,
     expenseItems: expItemResult.data,
-    recurringExpenses: (recurringExpResult.data ?? []) as RecurringExpense[],
+    recurringExpenses: recurringExpensesAsStored,
     ctx: taxCtx,
-    today,
+    now: today,
   });
 
   // Build referral summary for PDF Page 7
@@ -159,8 +156,8 @@ export default async function ReportsPage() {
       receiptTotalsByKey={receiptTotalsByKey}
       uncategorizedReceiptYTD={uncategorizedReceiptYTD}
       ccaAssets={(ccaAssetsResult.data ?? []) as CcaAsset[]}
-      expenseAmounts={expenseAmounts}
-      homeOfficeCosts={homeOfficeCosts}
+      t2125Expenses={t2125Expenses.entries}
+      homeOfficeCosts={t2125Expenses.homeOfficeCosts}
       mileageLogs={(mileageResult.data ?? []).map((r) => ({
         km: Number(r.km),
         deduction: Number(r.deduction),

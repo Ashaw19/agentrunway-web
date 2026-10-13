@@ -31,6 +31,7 @@ import {
   receiptsForYear,
   receiptsInPeriod,
 } from "@/lib/expenses/receipt-list";
+import { buildT2125Expenses, type TrackedExpenseLine } from "@agent-runway/core/engines/t2125-expenses-engine";
 import { KpiCard } from "@/components/kpi-card";
 import {
   computeGCI,
@@ -47,7 +48,7 @@ interface PriorYearRow {
   annual_mileage_deduct: number;
 }
 import { survivalResult, riskColorBand, type RiskColorBand } from "@/lib/engines/survival-engine";
-import { EXPENSE_KEY_TO_T2125, HOME_OFFICE_CATEGORY_KEY, isHomeOfficeKey } from "@/lib/engines/t2125-engine";
+import { HOME_OFFICE_CATEGORY_KEY, isHomeOfficeKey } from "@/lib/engines/t2125-engine";
 import { clampSalePrice, clampCommissionPct, clampGci } from "@/lib/import/clamp-db-range";
 import { readImportError, ImportRequestError } from "@/lib/import/client-error";
 import dynamic from "next/dynamic";
@@ -103,7 +104,7 @@ import {
   deadlineUrgency,
 } from "@agent-runway/core/engines/filing-period-engine";
 import { computeGST34 } from "@agent-runway/core/engines/gst34-engine";
-import { recurringHSTEntriesForPeriod } from "@agent-runway/core/engines/recurring-expense-engine";
+import { recurringHSTEntriesForPeriod, recurringMonthlyEquivalent } from "@agent-runway/core/engines/recurring-expense-engine";
 import { gstHstLabel } from "@agent-runway/core/engines/canadian-tax-engine";
 import { reconcileDeals, type ReconciliationResult, type ImportedDeal } from "@agent-runway/core/engines/reconciliation-engine";
 import { selectTaxTips, TIP_CATEGORY_LABELS } from "@agent-runway/core/engines/tax-iq-engine";
@@ -120,8 +121,17 @@ interface ExpenseCategoryForPlaid {
 /** A receipt totals row with its date, so it can be placed in a filing period. */
 type ReceiptTotalDatedRow = ReceiptTotalsRow & { expense_date?: string | null };
 
+/** Stable default, so the memo that reads it doesn't rerun every render. */
+const NO_HIDDEN_ITEMS: { key: string; monthly_recurring: number | string | null }[] = [];
+
 interface Props {
   initialCategories: ExpenseCategoryWithItems[];
+  /**
+   * Expense items of the categories this page doesn't show (payroll,
+   * corporate admin). Their monthly figure still counts, as it does on the
+   * dashboard and in the T2125 inputs, which read every expense item.
+   */
+  hiddenExpenseItems?: { key: string; monthly_recurring: number | string | null }[];
   settings: UserSettings | null;
   transactions: Transaction[];
   initialReceipts?: ReceiptExpense[];
@@ -177,6 +187,7 @@ export function ExpensesContent({
   plaidExpenseItems = [], plaidExpenseCategories = [], plaidConfigured = false,
   isPro: isProProp = false,
   pipelineDeals = [], historyItems = [], recurringExpenses: recurringExpensesSeed = [],
+  hiddenExpenseItems = NO_HIDDEN_ITEMS,
 }: Props) {
   const supabase = useMemo(() => createClient(), []);
   const thisYear = currentYear ?? new Date().getFullYear();
@@ -812,55 +823,62 @@ export function ExpensesContent({
     return map;
   }, [recurringExpenses, itemKeyToCatKey]);
 
+  // ── What each expense counts for ─────────────────────────────────────────
+  // One call to t2125-expenses-engine gives this page its year-to-date total,
+  // the "Est. Tax Deductible" card and every YTD and Deductible cell. The
+  // Reports page makes the same call for the T2125 lines, so the two agree.
+  // It covers receipts, the per-item monthly figure and the Recurring
+  // Expenses list. Until 2026-10-13 the deductible figures here were worked
+  // out row by row and never read the list, so a lease or dues kept there
+  // showed in YTD Expenses and in no deduction.
+  const tracked = useMemo(
+    () =>
+      buildT2125Expenses({
+        receiptTotals: { byKey: receiptTotals, uncategorized: uncategorizedTotal, homeOfficeCosts: homeBillTotals },
+        expenseItems: [...categories.flatMap((c) => c.items), ...hiddenExpenseItems],
+        recurringExpenses,
+        ctx: expenseTaxCtx,
+      }),
+    [receiptTotals, uncategorizedTotal, homeBillTotals, categories, hiddenExpenseItems, recurringExpenses, expenseTaxCtx],
+  );
+
+  // The engine's lines, arranged the way this page shows them: by expense
+  // item, by recurring expense, and by category. `unfiledLines` are the ones
+  // with no category row to sit under (a receipt saved with no category, or
+  // filed under a category this page doesn't show).
+  const { lineByItemKey, lineByRecurringId, linesByCatKey, unfiledLines } = useMemo(() => {
+    const visibleCatKeys = new Set(categories.map((c) => c.key));
+    const byItemKey = new Map<string, TrackedExpenseLine>();
+    const byRecurringId = new Map<string, TrackedExpenseLine>();
+    const byCatKey: Record<string, TrackedExpenseLine[]> = {};
+    const unfiled: TrackedExpenseLine[] = [];
+    for (const line of tracked.lines) {
+      if (line.source === "item" && line.key) byItemKey.set(line.key, line);
+      if (line.recurringId) byRecurringId.set(line.recurringId, line);
+      const catKey = line.key ? (itemKeyToCatKey[line.key] ?? line.key) : null;
+      if (catKey && visibleCatKeys.has(catKey)) {
+        if (!byCatKey[catKey]) byCatKey[catKey] = [];
+        byCatKey[catKey].push(line);
+      } else {
+        unfiled.push(line);
+      }
+    }
+    return { lineByItemKey: byItemKey, lineByRecurringId: byRecurringId, linesByCatKey: byCatKey, unfiledLines: unfiled };
+  }, [tracked, categories, itemKeyToCatKey]);
+
+  const linesYtd = (lines: TrackedExpenseLine[] | undefined) => (lines ?? []).reduce((s, l) => s + l.rawAmount, 0);
+  const linesDeductible = (lines: TrackedExpenseLine[] | undefined) => (lines ?? []).reduce((s, l) => s + l.deductibleAmount, 0);
+
   /**
    * One occurrence, net of the ITC a registrant claims on it
-   * (expense-totals-engine). Every recurring TOTAL on this page goes through
-   * the two helpers below, so they all use it. The rows themselves stay as
-   * entered: the edit dialog and the Recurring Expenses list read `re.amount`.
+   * (expense-totals-engine). The rows themselves stay as entered: the edit
+   * dialog and the Recurring Expenses list read `re.amount`.
    */
   const reNetAmount = (re: RecurringExpense): number => recurringNetOfItc(re, expenseTaxCtx).net;
 
-  /** Monthly equivalent for a recurring expense */
+  /** Monthly equivalent for a recurring expense, net of ITC */
   function reMonthlyEquivalent(re: RecurringExpense): number {
-    const freq = re.frequency ?? "monthly";
-    const amt = reNetAmount(re);
-    return freq === "monthly" ? amt : freq === "quarterly" ? amt / 3 : amt / 12;
-  }
-
-  /** YTD amount for a recurring expense based on its start_date */
-  function reYTDAmount(re: RecurringExpense): number {
-    const freq = re.frequency ?? "monthly";
-    const amt = reNetAmount(re);
-    const startDate = re.start_date ? new Date(re.start_date + "T00:00:00") : new Date(thisYear, 0, 1);
-    const yearStart = new Date(thisYear, 0, 1);
-    const effectiveStart = startDate > yearStart ? startDate : yearStart;
-    const now = new Date();
-    if (effectiveStart > now) return 0;
-    if (freq === "annual") {
-      // Check if the annual charge month has passed
-      const chargeMonth = (re.month_of_year ?? 1) - 1;
-      const chargeDate = new Date(thisYear, chargeMonth, re.day_of_month);
-      return chargeDate >= effectiveStart && chargeDate <= now ? amt : 0;
-    }
-    if (freq === "quarterly") {
-      // Count how many quarterly occurrences have fallen within thisYear so far.
-      // We enumerate all 4 quarterly slots starting from month_of_year; any slot
-      // that wraps past month 11 belongs to a different calendar year and is skipped.
-      const startMonth = (re.month_of_year ?? 1) - 1;
-      let count = 0;
-      for (let q = 0; q < 4; q++) {
-        const m = startMonth + q * 3;
-        if (m > 11) break; // occurrence falls in a later year — stop
-        const occDate = new Date(thisYear, m, Math.min(re.day_of_month, 28));
-        if (occDate >= effectiveStart && occDate <= now) count++;
-      }
-      return count * amt;
-    }
-    // Monthly: count months from effective start to now
-    const startM = effectiveStart.getMonth();
-    const nowM = now.getMonth();
-    const months = Math.max(0, nowM - startM + (now.getDate() >= effectiveStart.getDate() ? 1 : 0));
-    return months * amt;
+    return recurringMonthlyEquivalent({ ...re, amount: reNetAmount(re) });
   }
 
   /** Monthly total from recurring expenses for a category key */
@@ -881,30 +899,15 @@ export function ExpensesContent({
     0,
   );
 
-  // ── Months elapsed for recurring YTD estimates ──────────────────────
-  // Integer months elapsed (1-12) — MUST match the dashboard's expMonthsElapsed
-  // (getMonth()+1) so the expenses-page expense ratio agrees with the
-  // dashboard's. Fractional getDate()/30 (fixed 2026-06-26) diverged the two.
-  // See dashboard_metric_divergence_fix_2026-06-26.md.
   const now = new Date();
-  const monthsElapsed = now.getMonth() + 1;
 
-  // ── Effective YTD per item: receipts if available, else recurring estimate ──
-  // Avoids double-counting: receipts represent actuals, recurring fills gaps
-  const effectiveYTD = (item: { key: string; monthly_recurring: number | string }) => {
-    const receipt = receiptTotals[item.key] ?? 0;
-    const recurringEst = Number(item.monthly_recurring) * monthsElapsed;
-    return Math.max(receipt, recurringEst);
-  };
-
-  const recurringYTDTotal = recurringExpenses.reduce((s, re) => re.is_active ? s + reYTDAmount(re) : s, 0);
-  // `effectiveYTD` is per expense item, so uncategorized receipts are invisible
-  // to it — add them back or the headline "YTD Expenses" KPI and the expense
-  // ratio both come in under the dashboard's.
-  const effectiveTotal = categories.reduce(
-    (sum, cat) => sum + cat.items.reduce((s, item) => s + effectiveYTD(item), 0),
-    0,
-  ) + recurringYTDTotal + uncategorizedTotal;
+  // ── YTD expenses ──────────────────────────────────────────────────────
+  // Every line the engine tracked: receipts (or the per-item monthly figure
+  // where that is larger), the Recurring Expenses list to date, and receipts
+  // with no category. The monthly figure counts through the current month
+  // (`legacyMonthsElapsed`), the dashboard's `expMonthsElapsed`, so this
+  // page's expense ratio agrees with the dashboard's.
+  const effectiveTotal = tracked.ytdTotal;
 
   // ── YTD GCI for expense ratio ─────────────────────────────────────────
   const ytdGCI = transactions.reduce((sum, tx) => sum + computeGCI(tx), 0);
@@ -913,30 +916,20 @@ export function ExpensesContent({
     expenseRatio > 0.5 ? "critical" : expenseRatio > 0.35 ? "warning" : "healthy";
 
   // ── Tax deductibility breakdown ───────────────────────────────────────
-  const deductBreakdown = categories.reduce(
-    (acc, cat) => {
-      for (const item of cat.items) {
-        const ytd = effectiveYTD(item);
-        if (ytd === 0) continue;
-        const map = EXPENSE_KEY_TO_T2125[item.key];
-        if (!map) {
-          acc.full += ytd; // custom items default to 100%
-        } else if (isHomeOfficeKey(item.key)) {
-          acc.home += ytd; // already the home office share of the bills
-        } else if (map.applyVehicleUse) {
-          acc.vehicle += ytd * vehiclePct;
-        } else if (map.deductiblePct < 1.0) {
-          acc.meals += ytd * map.deductiblePct;
-        } else {
-          acc.full += ytd;
-        }
-      }
-      return acc;
-    },
-    { full: 0, meals: 0, vehicle: 0, home: 0 },
-  );
-  const totalDeductible = deductBreakdown.full + deductBreakdown.meals + deductBreakdown.vehicle + deductBreakdown.home;
+  // From the same engine lines: `home` is already the home office share.
+  const deductBreakdown = tracked.byRule;
+  const totalDeductible = tracked.deductibleTotal;
   const homePctLabel = `${Math.round(homePct * 100)}%`;
+
+  /** Label and colour for a Deductible cell, by the limit that applies. */
+  const deductibleDisplay = (line: TrackedExpenseLine | undefined): { label: string | null; color: string } => {
+    switch (line?.rule) {
+      case "vehicle": return { label: `${Math.round(vehiclePct * 100)}% biz`, color: "text-blue-600" };
+      case "meals":   return { label: "50% rule", color: "text-amber-600" };
+      case "home":    return { label: `${homePctLabel} home`, color: "text-cyan-700" };
+      default:        return { label: null, color: "text-emerald-600" };
+    }
+  };
 
   // ── Survival ──────────────────────────────────────────────────────────
   // Survival cash input MUST be cashPosition.effectiveCash (not raw cash_reserve)
@@ -1001,14 +994,13 @@ export function ExpensesContent({
     slate: "text-slate-700",
   };
 
-  // ── Donut chart data — per-category effective YTD (receipts + recurring estimates + recurring_expenses table) ──
-  const donutData: DonutDataPoint[] = categories
-    .map((cat) => {
-      const itemsYTD = cat.items.reduce((s, i) => s + effectiveYTD(i), 0);
-      const recurringYTD = (recurringByCatKey[cat.key] || []).reduce((s, re) => s + reYTDAmount(re), 0);
-      return { name: cat.title, value: itemsYTD + recurringYTD };
-    })
-    .filter((d) => d.value > 0);
+  // ── Donut chart data — YTD per category, from the engine lines ──────────
+  const unfiledYtd = linesYtd(unfiledLines);
+  const unfiledDeductible = linesDeductible(unfiledLines);
+  const donutData: DonutDataPoint[] = [
+    ...categories.map((cat) => ({ name: cat.title, value: linesYtd(linesByCatKey[cat.key]) })),
+    { name: "Not in a category", value: unfiledYtd },
+  ].filter((d) => d.value > 0);
 
   // ── Helpers ───────────────────────────────────────────────────────────
   function toggleExpand(id: string) {
@@ -1255,6 +1247,22 @@ export function ExpensesContent({
     toast.success("CSV downloaded ✓");
   }
 
+  /** The export's category table: the same engine lines as the table on this page. */
+  function pdfRuleLabel(lines: TrackedExpenseLine[]): string {
+    const rules = new Set(lines.filter((l) => l.rawAmount > 0).map((l) => l.rule));
+    if (rules.size > 1) return "Mixed";
+    if (rules.has("home")) return `${homePctLabel} of home bills`;
+    if (rules.has("vehicle")) return `${Math.round(vehiclePct * 100)}% biz use`;
+    if (rules.has("meals")) return "50% rule";
+    return "100%";
+  }
+  const pdfCategoryRows = [
+    ...categories.map((cat) => ({ name: cat.title, lines: linesByCatKey[cat.key] ?? [] })),
+    { name: "Not in a category", lines: unfiledLines },
+  ]
+    .map(({ name, lines }) => ({ name, ytd: linesYtd(lines), deductible: linesDeductible(lines), rule: pdfRuleLabel(lines) }))
+    .filter((row) => row.ytd > 0);
+
   async function downloadPdf() {
     setExporting("pdf");
     try {
@@ -1262,8 +1270,8 @@ export function ExpensesContent({
         <ExpenseExportPdf
           year={year}
           settings={settings}
-          categories={categories}
-          receiptTotals={receiptTotals}
+          categoryRows={pdfCategoryRows}
+          totalYtd={effectiveTotal}
           vehiclePct={vehiclePct}
           receipts={exportReceipts}
           totalDeductible={totalDeductible}
@@ -2220,16 +2228,14 @@ export function ExpensesContent({
               <TableBody>
                 {categories.map((cat) => {
                   const isOpen = expanded.has(cat.id);
-                  const catRecurringYTD = (recurringByCatKey[cat.key] || []).reduce((s, re) => s + reYTDAmount(re), 0);
-                  const catYtd = cat.items.reduce((s, i) => s + effectiveYTD(i), 0) + catRecurringYTD;
+                  const catLines = linesByCatKey[cat.key] ?? [];
+                  const catYtd = linesYtd(catLines);
                   const catMonthly = cat.items.reduce((s, i) => s + Number(i.monthly_recurring), 0) + recurringMonthlyForCat(cat.key);
-                  const catDeductible = cat.items.reduce((s, i) => {
-                    const ytd = effectiveYTD(i);
-                    const map = EXPENSE_KEY_TO_T2125[i.key];
-                    if (!map) return s + ytd;
-                    if (map.applyVehicleUse) return s + ytd * vehiclePct;
-                    return s + ytd * map.deductiblePct;
-                  }, 0);
+                  const catDeductible = linesDeductible(catLines);
+                  // Receipts filed under this category with no item row to show
+                  // them on (the category itself, or an item since removed).
+                  const catItemKeys = new Set(cat.items.map((i) => i.key));
+                  const looseLines = catLines.filter((l) => l.source === "item" && !(l.key && catItemKeys.has(l.key)));
                   const colors = CAT_COLORS[cat.key] ?? DEFAULT_CAT;
                   const itemCount = cat.items.length + (recurringByCatKey[cat.key]?.length ?? 0);
 
@@ -2313,28 +2319,13 @@ export function ExpensesContent({
                             </TableRow>
                           )}
                           {cat.items.map((item) => {
-                            const ytd = effectiveYTD(item);
-                            const map = EXPENSE_KEY_TO_T2125[item.key];
+                            const line = lineByItemKey.get(item.key);
+                            const ytd = line?.rawAmount ?? 0;
                             const isHomeBill = isHomeOfficeKey(item.key);
                             const homeBills = isHomeBill ? (homeBillTotals[item.key] ?? 0) : 0;
-                            let deductAmt = ytd;
-                            let deductLabel: string | null = null;
-                            let deductColor = "text-emerald-600";
-                            if (isHomeBill) {
-                              // `ytd` is already the home office share of the bills.
-                              deductLabel = `${homePctLabel} home`;
-                              deductColor = "text-cyan-700";
-                            } else if (map) {
-                              if (map.applyVehicleUse) {
-                                deductAmt = ytd * vehiclePct;
-                                deductLabel = `${Math.round(vehiclePct * 100)}% biz`;
-                                deductColor = "text-blue-600";
-                              } else if (map.deductiblePct < 1.0) {
-                                deductAmt = ytd * map.deductiblePct;
-                                deductLabel = "50% rule";
-                                deductColor = "text-amber-600";
-                              }
-                            }
+                            // For a home bill `ytd` is already the home office share.
+                            const deductAmt = line?.deductibleAmount ?? 0;
+                            const { label: deductLabel, color: deductColor } = deductibleDisplay(line);
                             return (
                               <TableRow key={item.id} className="group bg-muted/20 hover:bg-muted/40">
                                 <TableCell className="pl-12 py-1.5">
@@ -2395,7 +2386,9 @@ export function ExpensesContent({
                           {/* Recurring expenses in this category */}
                           {(recurringByCatKey[cat.key] || []).map((re) => {
                             const monthly = reMonthlyEquivalent(re);
-                            const ytd = reYTDAmount(re);
+                            const line = lineByRecurringId.get(re.id);
+                            const ytd = line?.rawAmount ?? 0;
+                            const deduct = deductibleDisplay(line);
                             const freqLabel = (re.frequency ?? "monthly") === "monthly" ? "/mo" : (re.frequency ?? "monthly") === "quarterly" ? "/qtr" : "/yr";
                             return (
                               <TableRow key={`re-${re.id}`} className="group bg-indigo-50/30 hover:bg-indigo-50/50">
@@ -2417,12 +2410,44 @@ export function ExpensesContent({
                                 <TableCell className="text-right py-1.5 text-sm tabular-nums text-indigo-700">
                                   {ytd > 0 ? fmtCurrency(ytd) : "—"}
                                 </TableCell>
-                                <TableCell className="text-right py-1.5 hidden sm:table-cell text-xs font-medium tabular-nums text-emerald-600">
-                                  {ytd > 0 ? fmtCurrency(ytd) : "—"}
+                                <TableCell className="text-right py-1.5 hidden sm:table-cell">
+                                  {line && ytd > 0 ? (
+                                    <span className={cn("text-xs font-medium tabular-nums", deduct.color)}>
+                                      {fmtCurrency(line.deductibleAmount)}
+                                      {deduct.label && <span className="ml-1 text-[9px] opacity-70">{deduct.label}</span>}
+                                    </span>
+                                  ) : (
+                                    <span className="text-xs text-muted-foreground/40">—</span>
+                                  )}
                                 </TableCell>
                                 <TableCell className="text-right py-1.5 text-sm tabular-nums text-indigo-700 font-medium">
                                   {fmtCurrency(monthly)}
                                 </TableCell>
+                              </TableRow>
+                            );
+                          })}
+
+                          {/* Receipts in this category with no item row */}
+                          {looseLines.map((line) => {
+                            const deduct = deductibleDisplay(line);
+                            return (
+                              <TableRow key={`loose-${line.key}`} className="bg-muted/20 hover:bg-muted/40">
+                                <TableCell className="pl-12 py-1.5">
+                                  <span className="text-sm text-muted-foreground">
+                                    {line.key === cat.key ? "No item chosen" : (CAT_LABEL[line.key ?? ""] ?? line.key)}
+                                  </span>
+                                </TableCell>
+                                <TableCell className="py-1.5" />
+                                <TableCell className="text-right py-1.5 text-sm tabular-nums text-muted-foreground">
+                                  {fmtCurrency(line.rawAmount)}
+                                </TableCell>
+                                <TableCell className="text-right py-1.5 hidden sm:table-cell">
+                                  <span className={cn("text-xs font-medium tabular-nums", deduct.color)}>
+                                    {fmtCurrency(line.deductibleAmount)}
+                                    {deduct.label && <span className="ml-1 text-[9px] opacity-70">{deduct.label}</span>}
+                                  </span>
+                                </TableCell>
+                                <TableCell className="py-1.5" />
                               </TableRow>
                             );
                           })}
@@ -2465,6 +2490,33 @@ export function ExpensesContent({
                     </Fragment>
                   );
                 })}
+
+                {/* Counted in YTD Expenses, with no category row above to sit under */}
+                {unfiledYtd > 0 && (
+                  <TableRow className="border-l-4 border-l-slate-300">
+                    <TableCell className="pl-4 py-2.5">
+                      <div className="flex flex-col gap-0.5 pl-5">
+                        <span className="font-semibold text-sm">Not in a category above</span>
+                        <span className="text-[10px] text-muted-foreground">
+                          Receipts with no category, or filed under one not shown here.
+                        </span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="py-2.5" />
+                    <TableCell className="text-right py-2.5 font-semibold text-sm tabular-nums">
+                      {fmtCurrency(unfiledYtd)}
+                    </TableCell>
+                    <TableCell className="text-right py-2.5 hidden sm:table-cell">
+                      <span className={cn(
+                        "text-sm font-semibold tabular-nums",
+                        unfiledDeductible < unfiledYtd ? "text-amber-600" : "text-emerald-600",
+                      )}>
+                        {fmtCurrency(unfiledDeductible)}
+                      </span>
+                    </TableCell>
+                    <TableCell className="py-2.5" />
+                  </TableRow>
+                )}
               </TableBody>
             </Table>
           </div>
@@ -2485,7 +2537,7 @@ export function ExpensesContent({
             </Button>
           </div>
           <CardDescription className="mt-1">
-            Monthly expenses that auto-generate on a set day (e.g. vehicle lease, software subscriptions)
+            Expenses that repeat on a schedule (e.g. vehicle lease, software subscriptions). Each one counts in your totals and deductible figures by that schedule.
           </CardDescription>
         </CardHeader>
         <CardContent>

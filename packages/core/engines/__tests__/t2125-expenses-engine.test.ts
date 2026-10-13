@@ -1,0 +1,558 @@
+/**
+ * T2125 expenses from tracked expenses (2026-10-13).
+ *
+ * Found while shipping #297: the T2125 pre-fill and the Expenses page's
+ * "Est. Tax Deductible YTD" card were built from receipts and the legacy
+ * per-item monthly figure only. The Recurring Expenses list
+ * (`recurring_expenses`, migration 00108) never reached a T2125 line, so a
+ * vehicle lease or board dues kept there counted in "YTD Expenses" on every
+ * screen and in no deduction. Receipts saved under a category-level key
+ * ("vehicle", "marketing") were dropped the same way.
+ *
+ * `buildT2125Expenses` is the one place that decides what each tracked
+ * expense counts for on the T2125. The Reports page feeds its entries to
+ * `computeT2125`; the Expenses page reads its lines. So the two agree.
+ *
+ * Fixtures are $115 paid with $15 HST unless a test says otherwise, and
+ * "now" is 15 June 2026 (six monthly occurrences to date).
+ */
+import { describe, expect, it } from "vitest";
+import { buildT2125Expenses } from "../t2125-expenses-engine";
+import {
+  EXPENSE_KEY_TO_T2125,
+  HOME_OFFICE_KEY_TO_COST,
+  computeT2125,
+  isHomeOfficeKey,
+  t2125EntriesFromAmounts,
+  t2125ExpenseLine,
+  t2125LineForExpenseKey,
+} from "../t2125-engine";
+import { aggregateReceiptTotals, recurringExpensesNetOfItc } from "../expense-totals-engine";
+import { computeGST34, isMealOrEntertainmentKey, isVehicleKey, itcForExpense } from "../gst34-engine";
+import { getFilingPeriods } from "../filing-period-engine";
+import { recurringHSTEntriesForPeriod, recurringYTD, totalRecurringYTD } from "../recurring-expense-engine";
+import { createTestSettings } from "./test-data";
+import type { RecurringExpense } from "../../types/database";
+
+const REGISTRANT = { gstHstRegistered: true, vehicleBusinessUsePct: 0.8, homeOfficeBusinessUsePct: 0.15 };
+const NOT_REGISTERED = { ...REGISTRANT, gstHstRegistered: false };
+const JUN_15 = new Date(2026, 5, 15, 12);
+const NO_RECEIPTS = { byKey: {}, uncategorized: 0, homeOfficeCosts: {} };
+/** Receipt totals already keyed, for tests that don't need the ITC maths. */
+const receiptsByKey = (byKey: Record<string, number>, uncategorized = 0) => ({ byKey, uncategorized, homeOfficeCosts: {} });
+
+function recurring(overrides: Partial<RecurringExpense>): RecurringExpense {
+  return {
+    id: "re-1",
+    user_id: "u1",
+    name: "Board dues",
+    amount: 115,
+    category_key: "prof_board_mls",
+    frequency: "monthly",
+    day_of_month: 1,
+    month_of_year: null,
+    hst_included: true,
+    hst_amount: 15,
+    vehicle_pct_applicable: false,
+    notes: "",
+    start_date: "2025-01-01",
+    end_date: null,
+    is_active: true,
+    created_at: "2025-01-01T12:00:00Z",
+    updated_at: "2025-01-01T12:00:00Z",
+    ...overrides,
+  };
+}
+
+const LEASE = recurring({ id: "re-lease", name: "Lease", category_key: "vehicle_payment", vehicle_pct_applicable: true });
+const MEAL = recurring({ id: "re-meal", name: "Client lunch club", category_key: "meals_client" });
+
+function build(
+  recurringExpenses: RecurringExpense[],
+  ctx = REGISTRANT,
+  extra: Partial<Parameters<typeof buildT2125Expenses>[0]> = {},
+) {
+  return buildT2125Expenses({
+    receiptTotals: NO_RECEIPTS,
+    expenseItems: [],
+    recurringExpenses,
+    ctx,
+    now: JUN_15,
+    ...extra,
+  });
+}
+
+describe("t2125LineForExpenseKey — every key has a line", () => {
+  it("an expense item key keeps its own line", () => {
+    for (const [key, map] of Object.entries(EXPENSE_KEY_TO_T2125)) {
+      expect(t2125LineForExpenseKey(key)).toBe(map);
+    }
+  });
+
+  // Migration 00175 moved rows filed under a whole category to that
+  // category's first-choice item. A stray one is treated as that same item,
+  // so it counts exactly as a moved row does.
+  const CATEGORY_KEY_TO_ITEM: [string, string][] = [
+    ["vehicle", "vehicle_fuel"],
+    ["marketing", "marketing_ads"],
+    ["office_tech", "office_supplies"],
+    ["professional", "prof_accounting"],
+    ["professional_fees", "prof_accounting"],
+    ["insurance_licenses", "prof_licensing"],
+    ["education", "edu_courses"],
+    ["education_dev", "edu_courses"],
+    ["meals", "meals_client"],
+    ["travel_meals", "meals_client"],
+    ["entertainment", "ent_client"],
+    ["other", "other_misc"],
+  ];
+
+  it("a category-level key takes the line and limits of the item migration 00175 moved such rows to", () => {
+    for (const [categoryKey, itemKey] of CATEGORY_KEY_TO_ITEM) {
+      expect(t2125LineForExpenseKey(categoryKey), categoryKey).toBe(EXPENSE_KEY_TO_T2125[itemKey]);
+    }
+    expect(t2125LineForExpenseKey("vehicle")).toMatchObject({ lineNumber: "9281", applyVehicleUse: true });
+    expect(t2125LineForExpenseKey("marketing").lineNumber).toBe("8521");
+    expect(t2125LineForExpenseKey("professional_fees").lineNumber).toBe("8860");
+    expect(t2125LineForExpenseKey("travel_meals")).toMatchObject({ lineNumber: "8523", deductiblePct: 0.5 });
+  });
+
+  it("the meal keys the GST34 engine used to list on its own are still 50% on line 8523", () => {
+    for (const key of ["meals", "entertainment", "meals_entertainment", "client_meals"]) {
+      expect(t2125LineForExpenseKey(key), key).toMatchObject({ lineNumber: "8523", deductiblePct: 0.5, applyVehicleUse: false });
+    }
+  });
+
+  it("a key with no item behind it (a custom item, a hidden category's, none at all) is line 9270 at 100%", () => {
+    for (const key of ["custom_1712345", "corp_legal", "payroll", "", null, undefined]) {
+      expect(t2125LineForExpenseKey(key), String(key)).toMatchObject({ lineNumber: "9270", deductiblePct: 1, applyVehicleUse: false });
+    }
+  });
+
+  it("a key that happens to be an Object.prototype name is an ordinary unknown key", () => {
+    for (const key of ["constructor", "toString", "hasOwnProperty"]) {
+      expect(t2125LineForExpenseKey(key), key).toMatchObject({ lineNumber: "9270", deductiblePct: 1 });
+      expect(isHomeOfficeKey(key), key).toBe(false);
+    }
+  });
+
+  it("the GST34 ITC limits read the same map: a key can't be a meal for one and not the other", () => {
+    for (const key of [...Object.keys(EXPENSE_KEY_TO_T2125), ...CATEGORY_KEY_TO_ITEM.map(([k]) => k), "meals_entertainment", "client_meals", "custom_1"]) {
+      const line = t2125LineForExpenseKey(key);
+      expect(isMealOrEntertainmentKey(key), key).toBe(line.deductiblePct === 0.5);
+      expect(isVehicleKey(key), key).toBe(line.applyVehicleUse);
+    }
+  });
+});
+
+describe("t2125ExpenseLine — one expense", () => {
+  it("a recurring expense flagged vehicle-use takes the business-use share and goes on line 9281, whatever its key", () => {
+    const line = t2125ExpenseLine({ key: "other_misc", amount: 100, vehicleUse: true }, 0.8);
+    expect(line).toMatchObject({ lineNumber: "9281", isVehicle: true, isMeals: false, vehicleUsePct: 0.8, rawAmount: 100 });
+    expect(line.deductibleAmount).toBeCloseTo(80, 10);
+  });
+
+  it("a vehicle key takes the business-use share whether or not the flag is set (the same OR as itcForExpense)", () => {
+    const flagged = t2125ExpenseLine({ key: "vehicle_payment", amount: 100, vehicleUse: true }, 0.8);
+    const unflagged = t2125ExpenseLine({ key: "vehicle_payment", amount: 100, vehicleUse: false }, 0.8);
+    const noFlag = t2125ExpenseLine({ key: "vehicle_payment", amount: 100 }, 0.8);
+    for (const line of [flagged, unflagged, noFlag]) {
+      expect(line.lineNumber).toBe("9281");
+      expect(line.deductibleAmount).toBeCloseTo(80, 10);
+    }
+    // itcForExpense makes the same call on the tax.
+    expect(itcForExpense(15, "vehicle_payment", 0.8, false).claimable).toBeCloseTo(12, 10);
+    expect(itcForExpense(15, "other_misc", 0.8, true).claimable).toBeCloseTo(12, 10);
+  });
+
+  it("a flagged meal keeps the 50% limit and stays on line 8523", () => {
+    const line = t2125ExpenseLine({ key: "meals_client", amount: 100, vehicleUse: true }, 0.8);
+    expect(line).toMatchObject({ lineNumber: "8523", isMeals: true, deductiblePct: 0.5, vehicleUsePct: 0.8 });
+    expect(line.deductibleAmount).toBeCloseTo(40, 10);
+  });
+
+  it("an unflagged ordinary expense is untouched by the vehicle share", () => {
+    expect(t2125ExpenseLine({ key: "prof_board_mls", amount: 100 }, 0.8)).toMatchObject({
+      lineNumber: "8760", deductibleAmount: 100, vehicleUsePct: 1, isVehicle: false,
+    });
+  });
+});
+
+describe("buildT2125Expenses — recurring expenses reach the T2125", () => {
+  it("non-registrant: six months of board dues, as paid, on line 8760", () => {
+    const r = build([recurring({})], NOT_REGISTERED);
+    expect(r.lines).toHaveLength(1);
+    expect(r.lines[0]).toMatchObject({ source: "recurring", recurringId: "re-1", key: "prof_board_mls", lineNumber: "8760", rule: "full" });
+    expect(r.lines[0].rawAmount).toBe(690);
+    expect(r.deductibleTotal).toBe(690);
+    expect(r.ytdTotal).toBe(690);
+    expect(r.entries).toEqual([{ key: "prof_board_mls", amount: 690, vehicleUse: false }]);
+  });
+
+  it("registrant: the same dues are net of the HST claimed as an ITC", () => {
+    const r = build([recurring({})], REGISTRANT);
+    expect(r.lines[0].rawAmount).toBe(600);
+    expect(r.deductibleTotal).toBe(600);
+  });
+
+  it("registrant, vehicle-flagged lease: the business share of the pre-tax cost, on line 9281", () => {
+    const r = build([LEASE], REGISTRANT);
+    // Each $115 payment: $12 ITC, $3 personal-use HST, $100 left; 80% of that.
+    expect(r.lines[0]).toMatchObject({ lineNumber: "9281", rule: "vehicle", isVehicle: true, vehicleUsePct: 0.8 });
+    expect(r.lines[0].rawAmount).toBeCloseTo(600, 10);
+    expect(r.lines[0].deductibleAmount).toBeCloseTo(480, 10);
+    expect(r.byRule.vehicle).toBeCloseTo(480, 10);
+    expect(r.byRule.full).toBe(0);
+  });
+
+  it("non-registrant, vehicle-flagged lease: the business share of what was paid", () => {
+    const r = build([LEASE], NOT_REGISTERED);
+    expect(r.lines[0].rawAmount).toBe(690);
+    expect(r.lines[0].deductibleAmount).toBeCloseTo(552, 10);
+  });
+
+  it("the lease's deduction plus the ITC the GST34 claims is the business share of what was paid, never more", () => {
+    const r = build([LEASE], REGISTRANT);
+    const [h1] = getFilingPeriods("annual", 2026);
+    const itc = recurringHSTEntriesForPeriod([LEASE], h1.startDate, "2026-06-15");
+    const gst34 = computeGST34({
+      province: "newBrunswick",
+      period: h1,
+      frequency: "annual",
+      periodTransactions: [],
+      periodReceipts: itc.map((e) => ({ total_amount: null, ...e })),
+      instalmentsPaid: 0,
+      vehicleBusinessUsePct: 0.8,
+    });
+    expect(gst34.line108).toBeCloseTo(72, 10);
+    expect(r.deductibleTotal + gst34.line108).toBeCloseTo(0.8 * 690, 10);
+  });
+
+  it("a lease whose vehicle box was left unticked still gets the vehicle rule from its key", () => {
+    const unticked = build([{ ...LEASE, vehicle_pct_applicable: false }], REGISTRANT);
+    const ticked = build([LEASE], REGISTRANT);
+    expect(unticked.deductibleTotal).toBeCloseTo(ticked.deductibleTotal, 10);
+    expect(unticked.lines[0].lineNumber).toBe("9281");
+  });
+
+  it("a non-vehicle key with the vehicle box ticked follows the box, as the GST34 does", () => {
+    const carWash = recurring({ id: "re-wash", category_key: "other_misc", vehicle_pct_applicable: true });
+    const r = build([carWash], REGISTRANT);
+    expect(r.lines[0]).toMatchObject({ lineNumber: "9281", rule: "vehicle" });
+    expect(r.lines[0].rawAmount).toBeCloseTo(600, 10);
+    expect(r.lines[0].deductibleAmount).toBeCloseTo(480, 10);
+  });
+
+  it("registrant, a recurring meal: 50% of the amount less the half of the HST that is an ITC", () => {
+    const r = build([MEAL], REGISTRANT);
+    // Each $115: $7.50 ITC, $107.50 left; 50% of that.
+    expect(r.lines[0]).toMatchObject({ lineNumber: "8523", rule: "meals", isMeals: true });
+    expect(r.lines[0].rawAmount).toBe(645);
+    expect(r.lines[0].deductibleAmount).toBe(322.5);
+    expect(r.byRule.meals).toBe(322.5);
+  });
+
+  it("non-registrant, a recurring meal: 50% of what was paid", () => {
+    const r = build([MEAL], NOT_REGISTERED);
+    expect(r.lines[0].rawAmount).toBe(690);
+    expect(r.lines[0].deductibleAmount).toBe(345);
+  });
+
+  it("counts only occurrences that have happened: an annual fee due in November is not in June's figure", () => {
+    const annual = recurring({ id: "re-annual", frequency: "annual", month_of_year: 11, amount: 1150, hst_amount: 150 });
+    const june = build([annual], REGISTRANT);
+    expect(june.lines[0].rawAmount).toBe(0);
+    expect(june.entries).toEqual([]);
+    expect(june.deductibleTotal).toBe(0);
+
+    const december = build([annual], REGISTRANT, { now: new Date(2026, 11, 1, 12) });
+    expect(december.deductibleTotal).toBe(1000);
+  });
+
+  it("a recurring expense that starts later this year adds nothing yet", () => {
+    const r = build([recurring({ start_date: "2026-11-01" })], NOT_REGISTERED);
+    expect(r.lines[0].rawAmount).toBe(0);
+    expect(r.entries).toEqual([]);
+  });
+
+  it("uses recurringYTD for the count, on the net amount (quarterly: two of four by mid-June)", () => {
+    const quarterly = recurring({ id: "re-q", frequency: "quarterly", month_of_year: 1, amount: 345, hst_amount: 45 });
+    const r = build([quarterly], REGISTRANT);
+    const [net] = recurringExpensesNetOfItc([quarterly], REGISTRANT);
+    expect(r.lines[0].rawAmount).toBe(recurringYTD(net, JUN_15));
+    expect(r.lines[0].rawAmount).toBe(600);
+  });
+
+  it("skips an inactive recurring expense", () => {
+    const r = build([recurring({ is_active: false })], REGISTRANT);
+    expect(r.lines).toEqual([]);
+    expect(r.deductibleTotal).toBe(0);
+  });
+
+  it("a recurring expense filed under a whole category is not dropped", () => {
+    const r = build([recurring({ category_key: "professional_fees" })], NOT_REGISTERED);
+    expect(r.lines[0]).toMatchObject({ lineNumber: "8860", rule: "full" });
+    expect(r.deductibleTotal).toBe(690);
+  });
+
+  it("a recurring expense under a custom item is not dropped: line 9270 at 100%", () => {
+    const r = build([recurring({ category_key: "custom_1712345" })], NOT_REGISTERED);
+    expect(r.lines[0]).toMatchObject({ lineNumber: "9270", rule: "full" });
+    expect(r.deductibleTotal).toBe(690);
+  });
+
+  it("a recurring expense filed under the category-level vehicle key gets the vehicle rule", () => {
+    const r = build([recurring({ category_key: "vehicle" })], NOT_REGISTERED);
+    expect(r.lines[0]).toMatchObject({ lineNumber: "9281", rule: "vehicle" });
+    expect(r.deductibleTotal).toBeCloseTo(552, 10);
+  });
+
+  it("handles null lists", () => {
+    const r = buildT2125Expenses({ receiptTotals: NO_RECEIPTS, expenseItems: null, recurringExpenses: undefined, ctx: REGISTRANT, now: JUN_15 });
+    expect(r).toEqual({ lines: [], entries: [], homeOfficeCosts: {}, ytdTotal: 0, deductibleTotal: 0, byRule: { full: 0, meals: 0, vehicle: 0, home: 0 } });
+  });
+});
+
+describe("buildT2125Expenses — receipts and the legacy monthly figure", () => {
+  it("one line per expense key, with the key's own limit", () => {
+    const receiptTotals = aggregateReceiptTotals(
+      [
+        { category_key: "office_supplies", total_amount: 115, tax_amount: 15 },
+        { category_key: "meals_client", total_amount: 115, tax_amount: 15 },
+        { category_key: "vehicle_fuel", total_amount: 115, tax_amount: 15 },
+      ],
+      REGISTRANT,
+    );
+    const r = build([], REGISTRANT, { receiptTotals });
+    const byKey = Object.fromEntries(r.lines.map((l) => [l.key, l]));
+    expect(byKey.office_supplies).toMatchObject({ source: "item", rule: "full", deductibleAmount: 100 });
+    expect(byKey.meals_client).toMatchObject({ rule: "meals", deductibleAmount: 53.75 });
+    expect(byKey.vehicle_fuel.rule).toBe("vehicle");
+    expect(byKey.vehicle_fuel.deductibleAmount).toBeCloseTo(80, 10);
+    expect(r.deductibleTotal).toBeCloseTo(233.75, 10);
+    expect(r.ytdTotal).toBeCloseTo(receiptTotals.total, 10);
+  });
+
+  it("a key with both receipts and a monthly figure counts the larger, not the sum", () => {
+    const items = [{ key: "office_phone", monthly_recurring: 100 }];
+    // Six months elapsed by 15 June: the estimate is $600.
+    const below = build([], NOT_REGISTERED, { receiptTotals: receiptsByKey({ office_phone: 250 }), expenseItems: items });
+    expect(below.lines).toHaveLength(1);
+    expect(below.lines[0].rawAmount).toBe(600);
+
+    const above = build([], NOT_REGISTERED, { receiptTotals: receiptsByKey({ office_phone: 900 }), expenseItems: items });
+    expect(above.lines[0].rawAmount).toBe(900);
+  });
+
+  it("the monthly figure fills in for a key with no receipts, through the current month", () => {
+    const r = build([], NOT_REGISTERED, {
+      expenseItems: [{ key: "office_phone", monthly_recurring: "100.00" }, { key: "office_software", monthly_recurring: 0 }, { key: "edu_books", monthly_recurring: null }],
+    });
+    expect(r.lines.map((l) => [l.key, l.rawAmount])).toEqual([["office_phone", 600]]);
+    expect(build([], NOT_REGISTERED, { expenseItems: [{ key: "office_phone", monthly_recurring: 100 }], now: new Date(2026, 11, 31, 12) }).ytdTotal).toBe(1200);
+  });
+
+  it("a receipt key with no expense item (category-level, custom, hidden category) is still counted", () => {
+    const r = build([], NOT_REGISTERED, {
+      receiptTotals: receiptsByKey({ vehicle: 200, marketing: 300, entertainment: 100, corp_legal: 50 }),
+    });
+    const byKey = Object.fromEntries(r.lines.map((l) => [l.key, l]));
+    expect(byKey.vehicle).toMatchObject({ lineNumber: "9281", rule: "vehicle" });
+    expect(byKey.vehicle.deductibleAmount).toBeCloseTo(160, 10);
+    expect(byKey.marketing).toMatchObject({ lineNumber: "8521", deductibleAmount: 300 });
+    expect(byKey.entertainment).toMatchObject({ lineNumber: "8523", deductibleAmount: 50 });
+    expect(byKey.corp_legal).toMatchObject({ lineNumber: "9270", deductibleAmount: 50 });
+    expect(r.ytdTotal).toBe(650);
+  });
+
+  it("receipts with no category are counted once, on line 9270", () => {
+    const r = build([], NOT_REGISTERED, { receiptTotals: receiptsByKey({ office_supplies: 80 }, 40) });
+    const uncategorized = r.lines.find((l) => l.source === "uncategorized");
+    expect(uncategorized).toMatchObject({ key: null, lineNumber: "9270", rawAmount: 40, deductibleAmount: 40, rule: "full" });
+    expect(r.ytdTotal).toBe(120);
+    expect(r.deductibleTotal).toBe(120);
+  });
+
+  it("a recurring expense and receipts on the same key are both counted (separate lines)", () => {
+    const r = build([recurring({})], NOT_REGISTERED, { receiptTotals: receiptsByKey({ prof_board_mls: 50 }) });
+    expect(r.lines.map((l) => [l.source, l.rawAmount])).toEqual([["item", 50], ["recurring", 690]]);
+    expect(r.ytdTotal).toBe(740);
+  });
+});
+
+describe("buildT2125Expenses — Home Office bills", () => {
+  // A home bill counts at the home office share (15% here) in every expense
+  // total, and reaches the T2125 whole, as a cost behind line 9945. It is
+  // never an expense line and never in line 9369.
+  const receiptTotals = aggregateReceiptTotals(
+    [
+      { category_key: "home_utilities", total_amount: 345, tax_amount: 45 },
+      { category_key: "home_mortgage_interest", total_amount: 1000, tax_amount: null },
+    ],
+    REGISTRANT,
+  );
+  const internet = recurring({ id: "re-net", name: "Home internet", category_key: "home_internet" });
+
+  it("every home key resolves to a home line, including the category key", () => {
+    for (const key of Object.keys(HOME_OFFICE_KEY_TO_COST)) {
+      expect(isHomeOfficeKey(key)).toBe(true);
+      expect(t2125LineForExpenseKey(key), key).toMatchObject({ lineNumber: "9945", applyHomeUse: true });
+    }
+    expect(t2125LineForExpenseKey("office_supplies").applyHomeUse ?? false).toBe(false);
+  });
+
+  it("the share is the line; the whole bills are the T2125 costs", () => {
+    const r = build([internet], REGISTRANT, { receiptTotals });
+    const byKey = Object.fromEntries(r.lines.map((l) => [l.key, l]));
+    expect(byKey.home_utilities).toMatchObject({ source: "item", rule: "home", lineNumber: "9945", rawAmount: 45, deductibleAmount: 45 });
+    expect(byKey.home_mortgage_interest).toMatchObject({ rule: "home", rawAmount: 150, deductibleAmount: 150 });
+    // Six payments of $100 before HST, at 15%.
+    expect(byKey.home_internet).toMatchObject({ source: "recurring", recurringId: "re-net", rule: "home" });
+    expect(byKey.home_internet.rawAmount).toBeCloseTo(90, 10);
+    expect(r.byRule.home).toBeCloseTo(285, 10);
+    expect(r.deductibleTotal).toBeCloseTo(285, 10);
+    expect(r.ytdTotal).toBeCloseTo(285, 10);
+    expect(r.entries).toEqual([]);
+    expect(r.homeOfficeCosts).toEqual({ home_utilities: 300, home_mortgage_interest: 1000, home_internet: 600 });
+  });
+
+  it("computeT2125 puts them on line 9945 at the share, and nowhere in line 9369", () => {
+    const r = build([internet, recurring({})], REGISTRANT, { receiptTotals });
+    const settings = createTestSettings({ gst_hst_registered: true, home_office_business_use_pct: 0.15, vehicle_business_use_pct: 0.8 });
+    const t = computeT2125({ settings, transactions: [], expenses: r.entries, homeOfficeCosts: r.homeOfficeCosts, ccaAssets: [], taxYear: 2026 });
+    expect(t.line9945_homeOfficeDeduction).toBeCloseTo(r.byRule.home, 10);
+    expect(t.line9369_totalExpenses).toBeCloseTo(600, 10);
+    expect(t.line9369_totalExpenses).toBeCloseTo(r.deductibleTotal - r.byRule.home, 10);
+    expect(t.line9270_otherExpenses).toBe(0);
+  });
+
+  it("a recurring expense filed under the Home Office category itself is a home bill, not line 9270", () => {
+    const r = build([recurring({ id: "re-home", category_key: "home_office" })], NOT_REGISTERED);
+    expect(r.lines[0]).toMatchObject({ rule: "home", lineNumber: "9945" });
+    expect(r.lines[0].rawAmount).toBeCloseTo(690 * 0.15, 10);
+    expect(r.entries).toEqual([]);
+    expect(r.homeOfficeCosts).toEqual({ home_office: 690 });
+  });
+
+  it("a home entry handed to computeT2125 is never an expense line", () => {
+    const settings = createTestSettings({ home_office_business_use_pct: 0.15 });
+    const t = computeT2125({
+      settings,
+      transactions: [],
+      expenses: [{ key: "home_utilities", amount: 45 }, { key: "home_office", amount: 10 }],
+      ccaAssets: [],
+      taxYear: 2026,
+    });
+    expect(t.expenseLines).toEqual([]);
+    expect(t.line9369_totalExpenses).toBe(0);
+  });
+
+  it("the vehicle box on a home bill changes nothing (itcForExpense treats it as a home bill too)", () => {
+    const plain = build([internet], REGISTRANT);
+    const ticked = build([{ ...internet, vehicle_pct_applicable: true }], REGISTRANT);
+    expect(ticked.lines[0]).toMatchObject({ rule: "home", isVehicle: false });
+    expect(ticked.deductibleTotal).toBeCloseTo(plain.deductibleTotal, 10);
+  });
+
+  it("a legacy monthly figure on a home item is not counted: home bills are logged one by one", () => {
+    const r = build([], NOT_REGISTERED, { expenseItems: [{ key: "home_utilities", monthly_recurring: 200 }] });
+    expect(r.lines).toEqual([]);
+    expect(r.homeOfficeCosts).toEqual({});
+  });
+});
+
+describe("buildT2125Expenses — totals", () => {
+  const receiptTotals = aggregateReceiptTotals(
+    [
+      { category_key: "office_supplies", total_amount: 115, tax_amount: 15 },
+      { category_key: "meals_client", total_amount: 115, tax_amount: 15 },
+      { category_key: null, total_amount: 23, tax_amount: 3 },
+    ],
+    REGISTRANT,
+  );
+  const list = [recurring({}), LEASE, MEAL];
+
+  it("byRule adds up to the deductible total, and the lines to both totals", () => {
+    const r = build(list, REGISTRANT, { receiptTotals });
+    expect(r.byRule.full + r.byRule.meals + r.byRule.vehicle + r.byRule.home).toBeCloseTo(r.deductibleTotal, 10);
+    expect(r.lines.reduce((s, l) => s + l.deductibleAmount, 0)).toBeCloseTo(r.deductibleTotal, 10);
+    expect(r.lines.reduce((s, l) => s + l.rawAmount, 0)).toBeCloseTo(r.ytdTotal, 10);
+  });
+
+  it("with no legacy monthly figures, the YTD total is the dashboard's: every receipt plus recurring YTD, net", () => {
+    const r = build(list, REGISTRANT, { receiptTotals });
+    const dashboard = receiptTotals.total + totalRecurringYTD(recurringExpensesNetOfItc(list, REGISTRANT), JUN_15);
+    expect(r.ytdTotal).toBeCloseTo(dashboard, 10);
+  });
+});
+
+describe("computeT2125 from the built entries", () => {
+  const settings = (registered: boolean) =>
+    createTestSettings({ gst_hst_registered: registered, vehicle_business_use_pct: 0.8, province: "newBrunswick" });
+  const list = [recurring({}), LEASE, MEAL];
+
+  it("registrant: recurring board dues, a lease and a meal land on lines 8760, 9281 and 8523", () => {
+    const built = build(list, REGISTRANT);
+    const t = computeT2125({ settings: settings(true), transactions: [], expenses: built.entries, ccaAssets: [], taxYear: 2026 });
+    expect(t.line8760_licencesMemberships).toBe(600);
+    expect(t.line9281_motorVehicle).toBeCloseTo(480, 10);
+    expect(t.line8523_mealsEntertainmentGross).toBe(645);
+    expect(t.line8523_mealsEntertainment50pct).toBe(322.5);
+    expect(t.line9369_totalExpenses).toBeCloseTo(1402.5, 10);
+  });
+
+  it("non-registrant: the same three, GST/HST included", () => {
+    const built = build(list, NOT_REGISTERED);
+    const t = computeT2125({ settings: settings(false), transactions: [], expenses: built.entries, ccaAssets: [], taxYear: 2026 });
+    expect(t.line8760_licencesMemberships).toBe(690);
+    expect(t.line9281_motorVehicle).toBeCloseTo(552, 10);
+    expect(t.line8523_mealsEntertainment50pct).toBe(345);
+    expect(t.line9369_totalExpenses).toBeCloseTo(1587, 10);
+  });
+
+  it("line 9369 is the Expenses page's deductible total: one calculation, two screens", () => {
+    for (const ctx of [REGISTRANT, NOT_REGISTERED]) {
+      const built = build([...list, recurring({ id: "re-fc", category_key: "professional_fees" })], ctx, {
+        receiptTotals: receiptsByKey({ vehicle: 200, office_supplies: 80, ent_events: 60 }, 40),
+        expenseItems: [{ key: "office_phone", monthly_recurring: 100 }],
+      });
+      const t = computeT2125({ settings: settings(ctx.gstHstRegistered), transactions: [], expenses: built.entries, ccaAssets: [], taxYear: 2026 });
+      expect(t.line9369_totalExpenses).toBeCloseTo(built.deductibleTotal - built.byRule.home, 10);
+      expect(t.expenseLines.reduce((s, l) => s + l.rawAmount, 0)).toBeCloseTo(built.ytdTotal, 10);
+    }
+  });
+
+  it("the old input (receipts and legacy figures by key) left every recurring expense out", () => {
+    const receiptTotals = receiptsByKey({ office_supplies: 80 });
+    const before = computeT2125({ settings: settings(false), transactions: [], expenses: t2125EntriesFromAmounts(receiptTotals.byKey), ccaAssets: [], taxYear: 2026 });
+    const built = build(list, NOT_REGISTERED, { receiptTotals });
+    const after = computeT2125({ settings: settings(false), transactions: [], expenses: built.entries, ccaAssets: [], taxYear: 2026 });
+    expect(before.line9369_totalExpenses).toBe(80);
+    expect(after.line9369_totalExpenses - before.line9369_totalExpenses).toBeCloseTo(1587, 10);
+  });
+
+  it("an entry with a key that has no line of its own is on line 9270, not dropped", () => {
+    const t = computeT2125({
+      settings: settings(false),
+      transactions: [],
+      expenses: [{ key: "marketing", amount: 300 }, { key: null, amount: 40 }, { key: "custom_1", amount: 10 }],
+      ccaAssets: [],
+      taxYear: 2026,
+    });
+    expect(t.line8521_advertising).toBe(300);
+    expect(t.line9270_otherExpenses).toBe(50);
+    expect(t.line9369_totalExpenses).toBe(350);
+  });
+
+  it("ignores zero and negative amounts", () => {
+    const t = computeT2125({
+      settings: settings(false),
+      transactions: [],
+      expenses: [{ key: "office_supplies", amount: 0 }, { key: "office_supplies", amount: -5 }],
+      ccaAssets: [],
+      taxYear: 2026,
+    });
+    expect(t.expenseLines).toEqual([]);
+    expect(t.line9369_totalExpenses).toBe(0);
+  });
+});
