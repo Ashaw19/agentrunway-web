@@ -119,6 +119,38 @@ describe("contactAnniversaryCandidates", () => {
     expect(dates("2026-11-02")).toEqual([]);
   });
 
+  // An early-January anniversary opens in late December, the calendar year
+  // before. Counted as this year minus the first-contact year, the client is
+  // zero years in until Jan 1.
+  it("finds an early-January first anniversary in late December", () => {
+    expect(anniversary("2026-01-05T15:00:00+00:00", "2026-12-25")).toEqual([{
+      client_id: "c1",
+      opportunity_type: "contact_anniversary",
+      trigger_date: "2027-01-05",
+      context: { anniversary_year: 1, first_contacted_at: "2026-01-05" },
+    }]);
+  });
+
+  it("opens that window 14 days ahead, across the year end", () => {
+    const dates = (today: string) => anniversary("2026-01-05T15:00:00+00:00", today).map((c) => c.trigger_date);
+    expect(dates("2026-12-21")).toEqual([]);
+    expect(dates("2026-12-22")).toEqual(["2027-01-05"]);
+    expect(dates("2026-12-31")).toEqual(["2027-01-05"]);
+    expect(dates("2027-01-01")).toEqual(["2027-01-05"]);
+    expect(dates("2027-01-05")).toEqual(["2027-01-05"]);
+    expect(dates("2027-01-06")).toEqual([]);
+  });
+
+  it.each([1, 2, 3, 5, 10])("finds year %i on Jan 5 from the Dec 25 before", (yr) => {
+    const firstContact = `${2027 - yr}-01-05T15:00:00+00:00`;
+    expect(anniversary(firstContact, "2026-12-25").map((c) => [c.trigger_date, c.context.anniversary_year]))
+      .toEqual([["2027-01-05", yr]]);
+  });
+
+  it("finds nothing for a first contact dated in the future", () => {
+    expect(anniversary("2027-01-05T15:00:00+00:00", "2026-12-25")).toEqual([]);
+  });
+
   it("marks years 1, 2, 3, 5 and 10 only", () => {
     const year = (today: string) => anniversary("2016-11-01T15:00:00+00:00", today).map((c) => c.context.anniversary_year);
     expect(year("2017-10-25")).toEqual([1]);
