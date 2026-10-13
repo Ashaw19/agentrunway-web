@@ -19,6 +19,8 @@ import {
   seasonalFractionElapsed,
 } from "../lib/projection-engine.ts";
 import { CANONICAL_TAX_DISCLAIMER } from "../lib/constants.ts";
+import { loadExpenseInputs } from "../lib/expense-inputs.ts";
+import { getFilingPeriods } from "../../_shared/core/engines/filing-period-engine.ts";
 import { atlanticISODate, atlanticNoon, atlanticYear } from "../../_shared/core/lib/local-date.ts";
 
 // Canonical stage probabilities — mirrors packages/core/types/database.ts
@@ -86,11 +88,12 @@ export function getAnalyticsTools(supabase: SupabaseClient, userId: string): Mcp
         openWorldHint: false,
       },
       handler: async () => {
+        const now = new Date();
         // Atlantic year: from 8 pm Atlantic on Dec 31 the UTC year is already next year.
-        const yearStart = `${atlanticYear()}-01-01`;
-        const today = atlanticISODate();
+        const yearStart = `${atlanticYear(now)}-01-01`;
+        const today = atlanticISODate(now);
 
-        const [settingsRes, txRes, pipelineRes, expenseRes, listingRes, historyRes] = await Promise.all([
+        const [settingsRes, txRes, pipelineRes, expenseInputs, listingRes, historyRes] = await Promise.all([
           supabase
             .from("user_settings")
             .select("goal_gci, goal_transactions, ytd_gci, ytd_transactions, province, use_national_seasonality, national_quarter_pcts")
@@ -108,10 +111,9 @@ export function getAnalyticsTools(supabase: SupabaseClient, userId: string): Mcp
             .select("estimated_price, estimated_commission_pct, stage, probability_override")
             .eq("user_id", userId)
             .not("stage", "in", TERMINAL_STAGES),
-          supabase
-            .from("expense_items")
-            .select("ytd_amount")
-            .eq("user_id", userId),
+          // Receipts, recurring expenses and the legacy monthly estimate: the
+          // dashboard's tables and filters (lib/expense-inputs.ts).
+          loadExpenseInputs(supabase, userId, now),
           // Active listing appointments — same scheduled/active set the dashboard reads.
           supabase
             .from("listing_appointments")
@@ -127,7 +129,6 @@ export function getAnalyticsTools(supabase: SupabaseClient, userId: string): Mcp
         const settings = settingsRes.data;
         const transactions = txRes.data ?? [];
         const deals = pipelineRes.data ?? [];
-        const expenses = expenseRes.data ?? [];
         const listings = listingRes.data ?? [];
         const history = historyRes.data ?? [];
 
@@ -152,10 +153,10 @@ export function getAnalyticsTools(supabase: SupabaseClient, userId: string): Mcp
         // Listing-weighted GCI — canonical helper, matches dashboard.
         const listingWeighted = computeListingWeightedGCI(listings);
 
-        // YTD expenses
-        const ytdExpenses = expenses.reduce((sum, e) => sum + (e.ytd_amount ?? 0), 0);
+        // YTD expenses: the dashboard's `expensesYTD`, net of the GST/HST a
+        // registrant claims as ITCs (ytdExpenseTotals, expense-totals-engine).
+        const ytdExpenses = expenseInputs.totals.expensesYTD;
 
-        const now = new Date();
         const goalGCI = settings?.goal_gci ?? 0;
         const goalTx = settings?.goal_transactions ?? 0;
 
@@ -398,11 +399,12 @@ export function getAnalyticsTools(supabase: SupabaseClient, userId: string): Mcp
       },
       handler: async (args) => {
         const overrideIncome = (args as { override_income?: number }).override_income;
+        const now = new Date();
         // Atlantic year: from 8 pm Atlantic on Dec 31 the UTC year is already next year.
-        const yearStart = `${atlanticYear()}-01-01`;
-        const today = atlanticISODate();
+        const yearStart = `${atlanticYear(now)}-01-01`;
+        const today = atlanticISODate(now);
 
-        const [settingsRes, txRes, expenseRes, pipelineRes, listingRes, historyRes] = await Promise.all([
+        const [settingsRes, txRes, expenseInputs, pipelineRes, listingRes, historyRes] = await Promise.all([
           supabase
             .from("user_settings")
             .select(
@@ -425,10 +427,9 @@ export function getAnalyticsTools(supabase: SupabaseClient, userId: string): Mcp
             .eq("status", "closed")
             .gte("date", yearStart)
             .lte("date", today),
-          supabase
-            .from("expense_items")
-            .select("ytd_amount, monthly_recurring")
-            .eq("user_id", userId),
+          // Receipts, recurring expenses and the legacy monthly estimate: the
+          // dashboard's tables and filters (lib/expense-inputs.ts).
+          loadExpenseInputs(supabase, userId, now),
           supabase
             .from("pipeline_deals")
             .select("estimated_price, estimated_commission_pct, stage, probability_override")
@@ -447,7 +448,6 @@ export function getAnalyticsTools(supabase: SupabaseClient, userId: string): Mcp
 
         const settings = settingsRes.data;
         const transactions = txRes.data ?? [];
-        const expenses = expenseRes.data ?? [];
         const deals = pipelineRes.data ?? [];
         const listings = listingRes.data ?? [];
         const history = historyRes.data ?? [];
@@ -460,11 +460,12 @@ export function getAnalyticsTools(supabase: SupabaseClient, userId: string): Mcp
             : raw);
         }, 0);
 
-        const ytdExpenses = expenses.reduce((sum, e) => sum + (e.ytd_amount ?? 0), 0);
-        const monthlyRecurring = expenses.reduce(
-          (sum, e) => sum + (e.monthly_recurring ?? 0),
-          0,
-        );
+        // The dashboard's `expensesYTD` and `monthlyRecurring` (legacy monthly
+        // estimate + recurring_expenses), both net of the GST/HST a registrant
+        // claims as ITCs. They feed annualExpenses = expensesYTD +
+        // monthlyRecurring × months left, as on the dashboard.
+        const ytdExpenses = expenseInputs.totals.expensesYTD;
+        const monthlyRecurring = expenseInputs.totals.monthlyRecurring;
 
         // Pipeline + listing weighted GCI for the projection (matches dashboard).
         const pipelineWeighted = deals.reduce((sum, deal) => {
@@ -477,7 +478,6 @@ export function getAnalyticsTools(supabase: SupabaseClient, userId: string): Mcp
         const listingWeighted = computeListingWeightedGCI(listings);
 
         // Seasonal fraction (agent/national/uniform) — matches dashboard.
-        const now = new Date();
         const seasonalWeights = deriveSeasonalWeights(
           history,
           settings?.use_national_seasonality,
@@ -597,7 +597,7 @@ export function getAnalyticsTools(supabase: SupabaseClient, userId: string): Mcp
     {
       name: "get_hst_status",
       description:
-        "Returns the agent's GST/HST status for the current year: registration flag, YTD GCI, collected amount, ITCs paid on expenses, net owing, remittance path (self vs brokerage), filing frequency, and the next filing period deadline. ESTIMATE ONLY — not tax advice.",
+        "Returns the agent's GST/HST status for the current year: registration flag, YTD GCI, collected amount, input tax credits (ITCs) estimated from recorded receipts and recurring expenses, net owing, remittance path (self vs brokerage), filing frequency, and the next filing period deadline. ESTIMATE ONLY — not tax advice.",
       inputSchema: { type: "object", properties: {}, additionalProperties: false },
       annotations: {
         title: "GST/HST Status",
@@ -611,12 +611,12 @@ export function getAnalyticsTools(supabase: SupabaseClient, userId: string): Mcp
         const yearStart = `${year}-01-01`;
         const today = atlanticISODate(now);
 
-        const [settingsRes, txRes] = await Promise.all([
+        const [settingsRes, txRes, expenseInputs] = await Promise.all([
           supabase
             .from("user_settings")
             .select(
               "province, gst_hst_registered, brokerage_withholds_hst, " +
-              "filing_frequency, gst_hst_paid_on_expenses, business_number",
+              "filing_frequency, business_number",
             )
             .eq("user_id", userId)
             .maybeSingle(),
@@ -627,6 +627,8 @@ export function getAnalyticsTools(supabase: SupabaseClient, userId: string): Mcp
             .eq("status", "closed")
             .gte("date", yearStart)
             .lte("date", today),
+          // This year's receipts and the active recurring expenses, for the ITCs.
+          loadExpenseInputs(supabase, userId, now),
         ]);
 
         const settings = settingsRes.data;
@@ -651,7 +653,13 @@ export function getAnalyticsTools(supabase: SupabaseClient, userId: string): Mcp
           | "monthly"
           | "quarterly"
           | "annual";
-        const itcsPaidOnExpenses = settings?.gst_hst_paid_on_expenses ?? 0;
+        // ITCs: what the GST34 pre-fill claims on this year's receipts plus
+        // the recurring expenses charged to date (inputTaxCreditsForPeriod:
+        // itcForExpense's 50% meal limit and the business-use share on
+        // vehicle costs and home bills).
+        // Zero for someone who is not registered. Until 2026-10-13 this was
+        // a number typed into Settings, which recorded receipts never changed.
+        const itcsPaidOnExpenses = expenseInputs.itcs.total;
 
         // Canonical helper — never reimplement.
         const collected = computeHSTCollected({
@@ -665,10 +673,8 @@ export function getAnalyticsTools(supabase: SupabaseClient, userId: string): Mcp
           hstPaidOnExpenses: itcsPaidOnExpenses,
         });
 
-        // Inlined mirror of filing-period-engine.ts next-deadline lookup.
-        // Assumes Dec 31 fiscal year-end (standard for most sole-prop
-        // realtors). KEEP IN SYNC with
-        // packages/core/engines/filing-period-engine.ts:getCurrentFilingPeriod.
+        // Periods and deadlines come from the canonical filing-period-engine
+        // (Dec 31 fiscal year-end, standard for most sole-prop realtors).
         const nextFilingPeriod = getNextFilingDeadline(filingFrequency, now);
 
         // Remittance path: describes who physically remits — no verbs.
@@ -696,6 +702,9 @@ export function getAnalyticsTools(supabase: SupabaseClient, userId: string): Mcp
               ytd_gci: Math.round(ytdGCI),
               ytd_collected: Math.round(collected),
               itcs_paid_on_expenses: Math.round(itcsPaidOnExpenses),
+              itcs_basis: isRegistered
+                ? `Estimated from the ${label} recorded on this year's receipts and on recurring expenses charged to date. CRA limits applied: 50% on meals and entertainment, the business-use share on vehicle costs and on home bills.`
+                : `Not registered for ${label}: no input tax credits are claimed.`,
               net_owing: Math.round(netOwing),
               next_filing_period: nextFilingPeriod,
               source: "CRA — canada.ca/en/revenue-agency/services/tax/businesses/topics/gst-hst-businesses/charge-collect-which-rate.html",
@@ -736,12 +745,14 @@ function stateLabelFromScore(score: number): "Strong" | "On Track" | "Building" 
 }
 
 // ── HST filing-period helper ────────────────────────────────────────────────
-// Deliberate mirror of
-// packages/core/engines/filing-period-engine.ts — KEEP IN SYNC.
-// Assumes Dec 31 fiscal year-end (standard for most sole-prop realtors).
-// Returns the filing period whose end is the next upcoming deadline from
-// `now`; if the last period of the current year has already ended, returns
-// the first period of next year.
+// The periods and their CRA deadlines are `getFilingPeriods` in
+// packages/core/engines/filing-period-engine.ts (through the Deno copy). This
+// file kept its own copy until 2026-10-13; it still gave Q4 a Mar 31 deadline
+// after the engine was corrected to Jan 31 (one month after the quarter ends).
+// Returns the filing period whose deadline is the next one from `now`. Last
+// year's periods are searched first: in January the next deadline belongs to
+// last year's final period (Q4 or December, due Jan 31; an annual filer's,
+// due Jun 15), which a search starting at the current year skipped.
 function getNextFilingDeadline(
   frequency: "monthly" | "quarterly" | "annual",
   now: Date,
@@ -749,51 +760,16 @@ function getNextFilingDeadline(
   const todayISO = atlanticISODate(now);
   const year = Number(todayISO.slice(0, 4));
 
-  const periods = buildFilingPeriods(frequency, year);
-  // First period whose deadline is still in the future.
-  const next = periods.find((p) => p.deadline >= todayISO);
-  if (next) return next;
+  const next =
+    [year - 1, year]
+      .flatMap((y) => getFilingPeriods(frequency, y))
+      .find((p) => p.deadline >= todayISO) ??
+    getFilingPeriods(frequency, year + 1)[0];
 
-  // All periods for this year are past — return first period of next year.
-  return buildFilingPeriods(frequency, year + 1)[0];
-}
-
-function buildFilingPeriods(
-  frequency: "monthly" | "quarterly" | "annual",
-  year: number,
-): Array<{ label: string; period_start: string; period_end: string; deadline: string }> {
-  const MONTH_NAMES = [
-    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-  ];
-  const lastDay = (y: number, m: number) => new Date(y, m, 0).getDate();
-  const iso = (y: number, m: number, d: number) =>
-    `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-
-  switch (frequency) {
-    case "monthly":
-      return Array.from({ length: 12 }, (_, i) => {
-        const m = i + 1;
-        const deadlineMonth = m === 12 ? 1 : m + 1;
-        const deadlineYear = m === 12 ? year + 1 : year;
-        const deadlineDay = lastDay(deadlineYear, deadlineMonth);
-        return {
-          label: `${MONTH_NAMES[i]} ${year}`,
-          period_start: iso(year, m, 1),
-          period_end: iso(year, m, lastDay(year, m)),
-          deadline: iso(deadlineYear, deadlineMonth, deadlineDay),
-        };
-      });
-    case "quarterly":
-      return [
-        { label: `Q1 ${year}`, period_start: iso(year, 1, 1),  period_end: iso(year, 3, 31),  deadline: iso(year,     4,  30) },
-        { label: `Q2 ${year}`, period_start: iso(year, 4, 1),  period_end: iso(year, 6, 30),  deadline: iso(year,     7,  31) },
-        { label: `Q3 ${year}`, period_start: iso(year, 7, 1),  period_end: iso(year, 9, 30),  deadline: iso(year,     10, 31) },
-        { label: `Q4 ${year}`, period_start: iso(year, 10, 1), period_end: iso(year, 12, 31), deadline: iso(year + 1, 3,  31) },
-      ];
-    case "annual":
-      return [
-        { label: `${year}`, period_start: iso(year, 1, 1), period_end: iso(year, 12, 31), deadline: iso(year + 1, 6, 15) },
-      ];
-  }
+  return {
+    label: next.label,
+    period_start: next.startDate,
+    period_end: next.endDate,
+    deadline: next.deadline,
+  };
 }

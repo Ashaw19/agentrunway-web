@@ -51,6 +51,9 @@ const ROOTS = [
   "apps/web/app",
   "apps/web/components",
   "apps/web/lib",
+  // The MCP server (Deno). Its totals come from the same engine through
+  // mcp-server/lib/expense-inputs.ts.
+  "apps/web/supabase/functions",
   "apps/mobile/app",
   "apps/mobile/components",
   "apps/mobile/stores",
@@ -109,7 +112,8 @@ function sourceFiles(dir: string): string[] {
       return; // an optional root (apps/mobile/lib) that doesn't exist
     }
     for (const entry of entries) {
-      if (entry === "node_modules" || entry === "dist" || entry === "__tests__" || entry.startsWith(".")) continue;
+      // _shared/core is a generated copy of packages/core (pnpm build:mcp-shared).
+      if (entry === "node_modules" || entry === "dist" || entry === "__tests__" || entry === "_shared" || entry.startsWith(".")) continue;
       const full = path.join(d, entry);
       if (statSync(full).isDirectory()) walk(full);
       else if (/\.tsx?$/.test(entry) && !/\.test\.tsx?$/.test(entry)) out.push(full);
@@ -132,6 +136,7 @@ describe("REGRESSION — expense totals are net of ITCs through expense-totals-e
       "apps/web/app/(app)/expenses/expenses-content.tsx",
       "apps/web/app/api/chat/route.ts",
       "apps/web/lib/ai/tools.ts",
+      "apps/web/supabase/functions/mcp-server/lib/expense-inputs.ts",
       "apps/mobile/app/(app)/profile/expenses.tsx",
     ]) {
       expect(files.map(rel)).toContain(must);

@@ -5,7 +5,7 @@
  * CANONICAL source for every expense TOTAL in the app (Expenses KPI and
  * "Est. Tax Deductible", expense ratio, T2125 lines, income-tax estimate,
  * overhead, forecast, cash position, Flight Crew context, weekly digest,
- * mobile). Created 2026-10-13.
+ * mobile, and the MCP server through its Deno copy). Created 2026-10-13.
  *
  * `receipt_expenses.total_amount` and `recurring_expenses.amount` are what
  * was PAID, GST/HST included. Until this engine every surface summed those
@@ -55,6 +55,11 @@
  */
 
 import { itcForExpense } from "./gst34-engine";
+import {
+  recurringHSTEntriesForPeriod,
+  totalRecurringMonthly,
+  totalRecurringYTD,
+} from "./recurring-expense-engine";
 import { isHomeOfficeKey } from "./t2125-engine";
 import type { RecurringExpense } from "../types/database";
 
@@ -274,4 +279,141 @@ export function recurringExpensesNetOfItc<T extends RecurringExpense>(
   ctx: ExpenseTaxContext,
 ): T[] {
   return (expenses ?? []).map((re) => ({ ...re, amount: recurringNetOfItc(re, ctx).net }));
+}
+
+// ── Year to date, across the three places an expense is recorded ───────────
+//
+// The dashboard's total (dashboard/page.tsx + dashboard-content.tsx), as one
+// call for a server surface that can't render the dashboard (the MCP server):
+//
+//   receipts          `receipt_expenses` dated this calendar year, net.
+//   recurring         active `recurring_expenses`, net, year to date.
+//                     (Net as above: a home bill at the workspace share.)
+//   legacy estimate   `expense_items.monthly_recurring` × months elapsed: the
+//                     older "monthly amount per line" entry. It stands in for
+//                     the receipts only when it is the larger of the two, so
+//                     a cost typed there and also captured as receipts is
+//                     counted once.
+//
+//   expensesYTD = max(receipts, legacy estimate) + recurring
+//
+// `expense_items.ytd_amount` is NOT an input: nothing in the app has written
+// it since receipts replaced it, so it holds 0 or a stale figure.
+
+export interface YtdExpenseInputs {
+  /** `receipt_expenses` rows with expense_date on or after Jan 1 (category_key, total_amount, tax_amount). */
+  receipts: readonly ReceiptTotalsRow[] | null | undefined;
+  /** `recurring_expenses` rows where is_active, as stored (GST/HST included). */
+  recurring: readonly RecurringExpense[] | null | undefined;
+  /** `expense_items` rows; only monthly_recurring is read. */
+  legacyItems: readonly { monthly_recurring?: Numeric }[] | null | undefined;
+  ctx: ExpenseTaxContext;
+  /** Calendar anchor for the year and month. Server callers pass atlanticNoon(). */
+  now: Date;
+}
+
+export interface YtdExpenseTotals {
+  /** The receipt totals the figures below are built from (per key, ITCs, amount paid). */
+  receipts: ReceiptTotals;
+  /** Receipts this year, net. */
+  receiptYTD: number;
+  /** Sum of `expense_items.monthly_recurring`. */
+  legacyMonthlyRecurring: number;
+  /** legacyMonthlyRecurring × months elapsed (1 to 12). */
+  legacyRecurringYTDEstimate: number;
+  /** Monthly equivalent of the active recurring expenses, net. */
+  recurringMonthly: number;
+  /** Active recurring expenses year to date, net. */
+  recurringYTD: number;
+  /** Legacy + recurring per month: the dashboard's `monthlyRecurring`. */
+  monthlyRecurring: number;
+  /** The dashboard's `expensesYTD`. */
+  expensesYTD: number;
+}
+
+export function ytdExpenseTotals(inputs: YtdExpenseInputs): YtdExpenseTotals {
+  const { ctx, now } = inputs;
+
+  const receipts = aggregateReceiptTotals(inputs.receipts, ctx);
+  const receiptYTD = receipts.total;
+
+  const recurringNet = recurringExpensesNetOfItc(inputs.recurring, ctx);
+  const recurringMonthly = totalRecurringMonthly(recurringNet);
+  const recurringYTD = totalRecurringYTD(recurringNet, now);
+
+  const legacyMonthlyRecurring = (inputs.legacyItems ?? []).reduce(
+    (sum, item) => sum + toNumber(item.monthly_recurring),
+    0,
+  );
+  // Whole months, 1 to 12: the dashboard's `expMonthsElapsed`. A fractional
+  // month here once made Flight Crew's expenses differ from the dashboard's.
+  const monthsElapsed = now.getMonth() + 1;
+  const legacyRecurringYTDEstimate = legacyMonthlyRecurring * monthsElapsed;
+
+  return {
+    receipts,
+    receiptYTD,
+    legacyMonthlyRecurring,
+    legacyRecurringYTDEstimate,
+    recurringMonthly,
+    recurringYTD,
+    monthlyRecurring: legacyMonthlyRecurring + recurringMonthly,
+    expensesYTD: Math.max(receiptYTD, legacyRecurringYTDEstimate) + recurringYTD,
+  };
+}
+
+// ── Input tax credits for a period ─────────────────────────────────────────
+
+export interface PeriodInputTaxCredits {
+  /** ITCs on the receipts passed in. */
+  receipts: number;
+  /** ITCs on recurring expenses charged in the period. */
+  recurring: number;
+  total: number;
+}
+
+/**
+ * The ITCs a registrant claims for a period: GST34 line 108 for the same
+ * receipts and recurring expenses (the same `itcForExpense` limits: 50% on
+ * meals, the business-use share on vehicle costs and on home bills; and
+ * `recurringHSTEntriesForPeriod` for what was charged in the period).
+ * Someone who is not registered claims none.
+ *
+ * Like the GST34 pre-fill it takes `tax_amount` as recorded. `expenseNetOfItc`
+ * is stricter with bad data (it caps the tax at the amount paid and skips a
+ * row with no total), so on such a row the ITC here can exceed what came off
+ * the expense. Changing that here alone would make this disagree with line
+ * 108 instead.
+ *
+ * @param receipts  `receipt_expenses` rows already limited to the period.
+ * @param recurring `recurring_expenses` rows as stored: `hst_amount` is read,
+ *                  so never pass the net copies.
+ */
+export function inputTaxCreditsForPeriod(
+  receipts: readonly ReceiptTotalsRow[] | null | undefined,
+  recurring: readonly RecurringExpense[] | null | undefined,
+  ctx: ExpenseTaxContext,
+  startDate: string, // YYYY-MM-DD
+  endDate: string,   // YYYY-MM-DD
+): PeriodInputTaxCredits {
+  if (!ctx.gstHstRegistered) return { receipts: 0, recurring: 0, total: 0 };
+
+  const vehicleUse = ctx.vehicleBusinessUsePct;
+  const homeUse = ctx.homeOfficeBusinessUsePct;
+  const onReceipts = (receipts ?? []).reduce(
+    (sum, r) =>
+      sum + itcForExpense(toNumber(r.tax_amount), r.category_key, vehicleUse, false, homeUse).claimable,
+    0,
+  );
+  const onRecurring = recurringHSTEntriesForPeriod([...(recurring ?? [])], startDate, endDate).reduce(
+    (sum, e) =>
+      sum + itcForExpense(e.tax_amount, e.category_key, vehicleUse, e.vehicle_use, homeUse).claimable,
+    0,
+  );
+
+  return {
+    receipts: round2(onReceipts),
+    recurring: round2(onRecurring),
+    total: round2(onReceipts + onRecurring),
+  };
 }
