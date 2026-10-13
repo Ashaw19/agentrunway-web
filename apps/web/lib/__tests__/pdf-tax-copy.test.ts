@@ -34,6 +34,20 @@
  *     action required", "Consider increasing your reserve") and called a
  *     12-month runway "within the recommended 4–6+ month safety buffer". It
  *     now states the survival engine's bands, in the engine's words.
+ *
+ * Layout defects in the business report, fixed the same day:
+ *   - Its large type was printed over the line under it on every page: the
+ *     grade over the score in the round badge ("D" over "55/100"), "76th" over
+ *     "pctile", each tile's dollar figure against its caption. The page sets
+ *     `lineHeight: 1.4` at 8pt, react-pdf turns that into 11.2 points where it
+ *     is declared, and every <Text> on the page inherits the points whatever
+ *     its own size. Type of 13pt and up now states its own line height.
+ *   - The figure above each bar of the monthly chart was hidden behind the top
+ *     of the bar. It borrowed the month label's style, whose `flex: 1` gives a
+ *     line of text no height in a column.
+ *   - A long name ran off the cover's right edge and into the page header's
+ *     title, and a long address ran into the client's name beside it.
+ *   Shapes are read back from the rendered PDF as text is (`fills`).
  */
 import { beforeAll, describe, expect, it } from "vitest";
 import { createElement, isValidElement, type ReactNode } from "react";
@@ -42,13 +56,14 @@ import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { renderToBuffer, Text } from "@react-pdf/renderer";
-import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
+import { getDocument, OPS } from "pdfjs-dist/legacy/build/pdf.mjs";
 import {
   CANONICAL_TAX_DISCLAIMER_SHORT,
   INCOME_TAX_INSTALMENT_DUE_DATES,
   gstHstReportNote,
   validateTaxCopy,
 } from "@agent-runway/core/tax-copy";
+import { fmtCompact } from "@agent-runway/core/formatters";
 import { compare } from "@agent-runway/core/engines/benchmark-engine";
 import {
   RISK_BAND_LADDER,
@@ -124,13 +139,16 @@ const errorsIn = (text: string) => validateTaxCopy(text).filter((d) => d.level =
 // PDF is read back with pdf.js: one box per run of text, in points from the
 // page's bottom-left corner.
 
-interface TextBox {
+interface Box {
   page: number;
-  text: string;
   left: number;
   right: number;
   bottom: number;
   top: number;
+}
+
+interface TextBox extends Box {
+  text: string;
 }
 
 // The PDFs use Helvetica, one of the 14 standard fonts a PDF does not embed.
@@ -151,8 +169,8 @@ async function textBoxes(pdf: Buffer): Promise<TextBox[]> {
   return boxes;
 }
 
-const sharedHeight = (a: TextBox, b: TextBox) => Math.min(a.top, b.top) - Math.max(a.bottom, b.bottom);
-const sharedWidth = (a: TextBox, b: TextBox) => Math.min(a.right, b.right) - Math.max(a.left, b.left);
+const sharedHeight = (a: Box, b: Box) => Math.min(a.top, b.top) - Math.max(a.bottom, b.bottom);
+const sharedWidth = (a: Box, b: Box) => Math.min(a.right, b.right) - Math.max(a.left, b.left);
 
 /** Pairs of text runs printed on top of each other, by more than a point each way. */
 function overprints(boxes: TextBox[]): string[] {
@@ -167,7 +185,77 @@ function overprints(boxes: TextBox[]): string[] {
   return hits;
 }
 
+// The box pdf.js gives a run is its baseline and its font size above it. The
+// ink is somewhere else: Helvetica's capitals stop at 0.718 of the size, and
+// its descenders hang 0.207 below the baseline (CapHeight and Descender in
+// the font's AFM).
+const inkTop = (box: TextBox) => box.bottom + 0.718 * (box.top - box.bottom);
+const inkBottom = (box: TextBox) => box.bottom - 0.207 * (box.top - box.bottom);
+
+/** Pairs of text runs, one above the other, with less than a point between the ink of the two. */
+function touching(boxes: TextBox[]): string[] {
+  const hits: string[] = [];
+  boxes.forEach((a, i) => {
+    for (const b of boxes.slice(i + 1)) {
+      if (a.page !== b.page || sharedWidth(a, b) <= 1) continue;
+      const [upper, lower] = a.bottom >= b.bottom ? [a, b] : [b, a];
+      if (inkBottom(upper) - inkTop(lower) < 1) hits.push(`page ${a.page}: "${upper.text}" against "${lower.text}"`);
+    }
+  });
+  return hits;
+}
+
+// ── Reading where a PDF's shapes land ───────────────────────────────────────
+// A bar, a badge and a card are filled paths. pdf.js lists a page's drawing
+// operators, and each fill carries its path's bounding box in the coordinates
+// the operators before it set up. Same units and corner as `textBoxes`.
+
+interface Fill extends Box {
+  colour: string;
+}
+
+type Matrix = [number, number, number, number, number, number];
+
+/** The matrix that applies `inner`, then `outer`. */
+const compose = (outer: Matrix, inner: Matrix): Matrix => [
+  outer[0] * inner[0] + outer[2] * inner[1],
+  outer[1] * inner[0] + outer[3] * inner[1],
+  outer[0] * inner[2] + outer[2] * inner[3],
+  outer[1] * inner[2] + outer[3] * inner[3],
+  outer[0] * inner[4] + outer[2] * inner[5] + outer[4],
+  outer[1] * inner[4] + outer[3] * inner[5] + outer[5],
+];
+
+async function fills(pdf: Buffer): Promise<Fill[]> {
+  const doc = await getDocument({ data: new Uint8Array(pdf), standardFontDataUrl: STANDARD_FONTS }).promise;
+  const shapes: Fill[] = [];
+  for (let n = 1; n <= doc.numPages; n++) {
+    const { fnArray, argsArray } = await (await doc.getPage(n)).getOperatorList();
+    let matrix: Matrix = [1, 0, 0, 1, 0, 0];
+    let colour = "";
+    const saved: { matrix: Matrix; colour: string }[] = [];
+    fnArray.forEach((fn, i) => {
+      const args = argsArray[i];
+      if (fn === OPS.save) saved.push({ matrix, colour });
+      else if (fn === OPS.restore) ({ matrix, colour } = saved.pop() ?? { matrix, colour });
+      else if (fn === OPS.transform) matrix = compose(matrix, args);
+      else if (fn === OPS.setFillRGBColor) colour = String(args[0]);
+      else if (fn === OPS.constructPath && (args[0] === OPS.fill || args[0] === OPS.eoFill)) {
+        const [minX, minY, maxX, maxY] = args[2] as Float32Array;
+        const xs = [minX, maxX].map((x, k) => matrix[0] * x + matrix[2] * [minY, maxY][k] + matrix[4]);
+        const ys = [minX, maxX].map((x, k) => matrix[1] * x + matrix[3] * [minY, maxY][k] + matrix[5]);
+        shapes.push({ page: n, colour, left: Math.min(...xs), right: Math.max(...xs), bottom: Math.min(...ys), top: Math.max(...ys) });
+      }
+    });
+  }
+  await doc.destroy();
+  return shapes;
+}
+
 const LETTER_WIDTH = 612;
+const LONG_NAME = "Alexandria Montgomery-Featherstonehaugh Personal Real Estate Corporation";
+// A long line may wrap, and react-pdf hyphenates where it breaks a word.
+const squash = (text: string) => text.replace(/[\s-]/g, "");
 
 // ── Business report PDF ─────────────────────────────────────────────────────
 
@@ -429,6 +517,187 @@ describe("the bands are worded once, in the survival engine", () => {
   });
 });
 
+// ── Business report PDF: where the text lands ───────────────────────────────
+
+const LONG_BUSINESS = "Montgomery-Featherstonehaugh & Associates Real Estate Professional Corporation Limited";
+const LONG_BROKERAGE = "Sample Coastal Homestead Real Estate Brokerage Inc., Independently Owned and Operated";
+const LONG_ADDRESS = "1200 Example Street, Unit 14, Sample Municipality-on-the-River, New Brunswick";
+const LONG_CLIENT = "Sample Client-Hyphenated and Another Sample Client-Hyphenated";
+// Words 4pt wide with their space, so each wrapped line ends within 4pt of the
+// full width of whatever column it is in.
+const FULL_LINES = "i ".repeat(150).trim();
+// Uneven months, so the chart has a bar of every height from none to the tallest.
+const MONTHLY_GCI = [4_000, 9_500, 0, 13_000, 26_000, 18_000, 7_500, 12_000, 30_000, 0, 0, 0];
+
+// Every page of the report. The transaction log, the advisor cards and the
+// year-over-year page are only printed when there is something to put on them.
+function fullReportProps(over: Record<string, unknown> = {}) {
+  return reportProps({
+    monthlyData: MONTHS.map((month, i) => ({ month, gci: MONTHLY_GCI[i], deals: MONTHLY_GCI[i] > 0 ? 1 : 0 })),
+    transactions: [
+      ...TEST_TRANSACTIONS.slice(0, 3),
+      { ...TEST_TRANSACTIONS[0], id: "tx-long", address: LONG_ADDRESS, client_name: LONG_CLIENT },
+      { ...TEST_TRANSACTIONS[0], id: "tx-full", address: FULL_LINES, client_name: FULL_LINES },
+    ],
+    advisorCards: [
+      {
+        id: "card",
+        category: "pipelineHealth",
+        icon: "chart",
+        title: "A sample observation about the pipeline",
+        evidence: ["A sample line of evidence."],
+        action: "A sample action, long enough to run onto a second line. ".repeat(4).trim(),
+        estimatedImpact: "+$12,000 GCI",
+        impactValue: 12_000,
+        priority: 1,
+      },
+    ],
+    historyYears: [
+      { year: TEST_YEAR - 2, gci: 90_000, transactions: 9 },
+      { year: TEST_YEAR - 1, gci: 110_000, transactions: 11 },
+      { year: TEST_YEAR, gci: 120_000, transactions: 12 },
+    ],
+    referralSummary: { inboundCount: 4, outboundCount: 2, feesEarned: 6_000, feesPaid: 1_500 },
+    ...over,
+  });
+}
+
+describe("business report PDF: layout at LETTER width", () => {
+  const COVER_MARGIN = 56;
+  const PAGE_MARGIN = 40;
+  const BAR_BLUE = "#1e72f2"; // C.blue in the report
+  const GRADE_BADGE = 72;
+  const PERCENTILE_BADGE = 52;
+
+  const sample = fullReportProps();
+  const READERS_OF_THE_REPORT: [string, Record<string, unknown>][] = [
+    // Brokerage fee 500 + recurring 2,000 = 2,500 a month, as in the cash runway tests.
+    ["a critical cash runway", { survival: survivalResult(500, 2_000, 3_000, 0) }],
+    ["a warning cash runway", { survival: survivalResult(500, 2_000, 7_500, 0) }],
+    ["a healthy cash runway", { survival: survivalResult(500, 2_000, 11_250, 0) }],
+    ["a strong cash runway", { survival: survivalResult(500, 2_000, 30_000, 0) }],
+    ["a cash runway at the 24+ month cap", { survival: survivalResult(500, 2_000, 90_000, 0) }],
+    ["a cash runway that is not set", { survival: survivalResult(0, 0, 0, 0) }],
+    ["long agent, business and brokerage names", { agentName: LONG_NAME, businessName: LONG_BUSINESS, brokerageName: LONG_BROKERAGE }],
+    // The widest and the narrowest text the two round badges can hold.
+    [
+      "grade A+ at 100/100 and the 100th percentile",
+      { runwayScore: { ...sample.runwayScore, grade: "A+", score: 100 }, benchmark: { ...sample.benchmark, percentile: 100 } },
+    ],
+    [
+      "grade F at 1/100 and the 1st percentile",
+      { runwayScore: { ...sample.runwayScore, grade: "F", score: 1 }, benchmark: { ...sample.benchmark, percentile: 1 } },
+    ],
+  ];
+
+  describe.each(READERS_OF_THE_REPORT)("%s", (_, over) => {
+    const props = fullReportProps(over);
+    let boxes: TextBox[] = [];
+    let shapes: Fill[] = [];
+    beforeAll(async () => {
+      const pdf = await renders(BusinessReportPDF, props);
+      boxes = await textBoxes(pdf);
+      shapes = await fills(pdf);
+    });
+
+    /** The page a heading is printed on. */
+    const pageOf = (heading: string) => {
+      const box = boxes.find(({ text }) => text.startsWith(heading));
+      expect(box, heading).toBeDefined();
+      return box!.page;
+    };
+
+    /** The round badge of the given width that a run of text is printed in. */
+    const badgeAround = (box: TextBox, width: number) => {
+      const x = (box.left + box.right) / 2;
+      const y = (box.bottom + box.top) / 2;
+      const badge = shapes.find(
+        (shape) =>
+          shape.page === box.page &&
+          Math.abs(shape.right - shape.left - width) < 0.5 &&
+          Math.abs(shape.top - shape.bottom - width) < 0.5 &&
+          shape.left < x && x < shape.right && shape.bottom < y && y < shape.top,
+      );
+      expect(badge, box.text).toBeDefined();
+      return badge!;
+    };
+
+    /** How far the ink of a run reaches past the edge of the circle drawn in a badge's square. */
+    const pastTheCircle = (badge: Fill, box: TextBox) => {
+      const radius = (badge.right - badge.left) / 2;
+      const corners = [box.left, box.right].flatMap((x) => [inkBottom(box), inkTop(box)].map((y) => [x, y]));
+      return Math.max(...corners.map(([x, y]) => Math.hypot(x - badge.left - radius, y - badge.bottom - radius) - radius));
+    };
+
+    it("prints every page", () => {
+      for (const heading of ["YTD Snapshot", "Gross Commission by Month", "Expense Analysis", "Transaction Log", "Business Health Assessment", "Key Observations", "Annual Performance History", "Referral Network Summary"]) {
+        pageOf(heading);
+      }
+    });
+
+    it("no text is printed over other text", () => {
+      expect(overprints(boxes)).toEqual([]);
+    });
+
+    it("no line of text touches the line under it", () => {
+      expect(touching(boxes)).toEqual([]);
+    });
+
+    it("no text runs past the page margins", () => {
+      const outside = boxes.filter((box) => {
+        const margin = box.page === 1 ? COVER_MARGIN : PAGE_MARGIN;
+        return box.left < margin - 0.5 || box.right > LETTER_WIDTH - margin + 0.5;
+      });
+      expect(outside.map((box) => `page ${box.page}: "${box.text}"`)).toEqual([]);
+    });
+
+    it("each month's figure is printed just above its bar, not on it", () => {
+      const page = pageOf("Gross Commission by Month");
+      const figures = MONTHLY_GCI.filter((gci) => gci > 0).map(fmtCompact);
+      const labels = boxes.filter((box) => box.page === page && figures.includes(box.text));
+      expect(labels.map((label) => label.text)).toEqual(figures);
+      const bars = shapes.filter((shape) => shape.page === page && shape.colour === BAR_BLUE);
+      for (const label of labels) {
+        // How far the foot of the figure stands above each blue shape under it.
+        const above = bars.filter((bar) => sharedWidth(bar, label) > 1 && bar.bottom < inkTop(label)).map((bar) => inkBottom(label) - bar.top);
+        expect(Math.min(...above), label.text).toBeGreaterThanOrEqual(0.5);
+        expect(Math.min(...above), label.text).toBeLessThanOrEqual(4);
+      }
+    });
+
+    it("the grade and the score are inside the round badge", () => {
+      const page = pageOf("Business Health Assessment");
+      const { grade, score } = props.runwayScore;
+      for (const text of [grade, `${score}/100`]) {
+        const box = boxes.find((candidate) => candidate.page === page && candidate.text === text);
+        expect(box, text).toBeDefined();
+        expect(pastTheCircle(badgeAround(box!, GRADE_BADGE), box!), text).toBeLessThanOrEqual(0);
+      }
+    });
+
+    it("the percentile and its caption are inside their circle", () => {
+      const page = pageOf("Peer Benchmark Positioning");
+      for (const shape of [/^\d+(st|nd|rd|th)$/, /^pctile$/]) {
+        const box = boxes.find((candidate) => candidate.page === page && shape.test(candidate.text));
+        expect(box, String(shape)).toBeDefined();
+        expect(pastTheCircle(badgeAround(box!, PERCENTILE_BADGE), box!), box!.text).toBeLessThanOrEqual(0);
+      }
+    });
+
+    it("in the transaction log, a line that fills its column stands clear of the column beside it", () => {
+      const page = pageOf("Transaction Log");
+      const full = boxes.filter((box) => box.page === page && box.text.length > 20 && FULL_LINES.startsWith(box.text));
+      const gaps = full.flatMap((line) =>
+        boxes
+          .filter((box) => box.page === page && box.left > line.left && sharedHeight(box, line) > 1)
+          .map((box) => box.left - line.right),
+      );
+      expect(gaps.length).toBeGreaterThan(3); // each line of the address has a line of the client's name to its right
+      expect(Math.min(...gaps)).toBeGreaterThanOrEqual(4);
+    });
+  });
+});
+
 // ── T2125 PDF ───────────────────────────────────────────────────────────────
 
 function t2125Props(ccaAssets: CcaAsset[] = []) {
@@ -483,15 +752,11 @@ describe("T2125 PDF: instalment tracker", () => {
 
 describe("T2125 PDF: layout at LETTER width", () => {
   const MARGIN = 40;
-  const LONG_NAME = "Alexandria Montgomery-Featherstonehaugh Personal Real Estate Corporation";
   const footerLines = (name: string) => [
     `Agent Runway · T2125 Summary · ${name} · ${TEST_YEAR} Tax Year`,
     "ESTIMATES ONLY — NOT PROFESSIONAL TAX ADVICE — CONSULT YOUR ACCOUNTANT",
     "© 2026 Agent Runway Inc. · Canada Corporation No. 1786542-2",
   ];
-  // A long line may wrap, and react-pdf hyphenates where it breaks a word.
-  const squash = (text: string) => text.replace(/[\s-]/g, "");
-
   /** Section headers that a page break cut in two, or cut off from the first line under them. */
   function strandedHeaders(props: ReturnType<typeof t2125Props>, boxes: TextBox[]): string[] {
     const headers = propsOf(createElement(T2125Pdf, props), "SectionHeader");
