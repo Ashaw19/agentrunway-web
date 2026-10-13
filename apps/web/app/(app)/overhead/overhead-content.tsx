@@ -503,8 +503,6 @@ interface Props {
   settings: UserSettings | null;
   /** Year-to-date expenses: ytdExpenseTotals(...).expensesYTD (t2125-expenses-engine), the Expenses page's total. */
   expensesYTD?: number;
-  /** Expected each month: ytdExpenseTotals(...).monthlyRecurring. */
-  monthlyRecurring?: number;
   /**
    * Which commonly missed expense categories the agent already tracks
    * (`deductionTrackingFlags`, from receipts, the per-item monthly figure and
@@ -573,7 +571,6 @@ export function OverheadContent({
   transactions,
   settings,
   expensesYTD = 0,
-  monthlyRecurring = 0,
   deductionTracking,
   mileageKmTotal = 0,
   ccaAssetCount = 0,
@@ -626,7 +623,7 @@ export function OverheadContent({
   const projectedDealCount = projectedYearEndTransactions(ytdDealCount, pipelineCount, fraction);
 
   // ── Expenses ───────────────────────────────────────────────────────────
-  // `expensesYTD` and `monthlyRecurring` arrive from the page's one engine
+  // `expensesYTD` and `expensesRemaining` arrive from the page's one engine
   // call (ytdExpenseTotals, t2125-expenses-engine): receipts, the per-item
   // monthly figures and the Recurring Expenses list. Nothing here combines
   // them, so this is the dashboard's and the Expenses page's figure.

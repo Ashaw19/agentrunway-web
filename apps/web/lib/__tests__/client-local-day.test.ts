@@ -63,16 +63,11 @@ const UTC_DAY = /\.toISOString\(\)\s*\.\s*(?:(?:slice|substring|substr)\(\s*0\s*
  * Known matches left in place, counted per file so a new one still fails and
  * a fixed one forces this list to shrink.
  */
-const ALLOWED: Record<string, { count: number; why: string }> = {
-  "apps/mobile/stores/data-store.ts": {
-    count: 3,
-    why:
-      "todayActivityCount + contactStreak bucket contact_activities.activity_date " +
-      "(timestamptz) by its UTC date and compare it with the UTC today/yesterday. " +
-      "Out of scope for the 2026-10-09 sweep (timestamptz left alone); both sides " +
-      "need to move to the local day together.",
-  },
-};
+// Empty since 2026-10-13: the mobile store's todayActivityCount and
+// contactStreak (three matches) moved to the phone's local day, both sides
+// together. server-calendar.test.ts guards the other half, the activity's
+// own day.
+const ALLOWED: Record<string, { count: number; why: string }> = {};
 
 function sourceFiles(dir: string): string[] {
   const out: string[] = [];

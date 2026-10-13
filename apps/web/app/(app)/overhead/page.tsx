@@ -190,7 +190,6 @@ export default async function OverheadPage() {
       transactions={transactions}
       settings={rawSettings}
       expensesYTD={expensesYTD}
-      monthlyRecurring={monthlyRecurring}
       deductionTracking={deductionTracking}
       mileageKmTotal={mileageKmTotal}
       ccaAssetCount={ccaAssetCount}

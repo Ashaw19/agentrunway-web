@@ -13,6 +13,7 @@
  *                   "today" for the user is pinned to America/Halifax, the
  *                   same zone as income_goal_current_year().
  *   addDaysISO      calendar arithmetic on a YYYY-MM-DD string, no time zone.
+ *   nextYearlyDate  a birthday's next occurrence and the calendar days to it.
  *
  * "This year" / "this month" follow the same split. On the server,
  * `new Date().getFullYear()` and `getMonth()` are UTC: from 8 pm Atlantic on
@@ -36,6 +37,12 @@
  * zone: `toLocaleDateString("en-CA", { timeZone: APP_TIME_ZONE })` or
  * `atlanticISODate(new Date(ts))`. Without it the server prints the UTC
  * date, and so does `ts.slice(0, 10)`.
+ *
+ * The database runs in UTC as well. To filter a timestamp column to a
+ * calendar day, bound it with atlanticDayStart(day): a bare `2026-10-09` or
+ * `2026-10-09T00:00:00` is read as UTC, 8 or 9 pm Atlantic the evening
+ * before. To store a wall-clock time the user typed, send an instant
+ * (`new Date(value).toISOString()` in the browser), never the bare string.
  */
 
 export const APP_TIME_ZONE = "America/Halifax";
@@ -107,6 +114,59 @@ export function atlanticNoon(d: Date = new Date()): Date {
 export function atlanticWallClock(d: Date = new Date()): Date {
   const { year, month, day, hour, minute, second } = atlanticFields(d);
   return new Date(Date.UTC(year, month - 1, day, hour, minute, second, d.getUTCMilliseconds()));
+}
+
+/**
+ * The instant an Atlantic calendar day (YYYY-MM-DD) begins: 03:00 UTC in
+ * daylight time, 04:00 UTC in standard time. Use it to filter a timestamptz
+ * column to a day or a run of days, as a half-open range:
+ *
+ *   .gte(col, atlanticDayStart(first).toISOString())
+ *   .lt(col, atlanticDayStart(addDaysISO(last, 1)).toISOString())
+ *
+ * Postgres reads a bare `${day}T00:00:00` as UTC, which is 8 or 9 pm
+ * Atlantic the evening before. Invalid Date for anything that is not a real
+ * YYYY-MM-DD.
+ */
+export function atlanticDayStart(iso: string): Date {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  if (!m) return new Date(NaN);
+  const wall = Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  if (new Date(wall).toISOString().slice(0, 10) !== iso) return new Date(NaN);
+  // How far Atlantic time is behind UTC at an instant: 3 or 4 hours.
+  const behind = (t: number) => t - atlanticWallClock(new Date(t)).getTime();
+  // Clocks change at 2 am, so midnight is never skipped or repeated. The
+  // second pass reads the offset in force at the candidate itself.
+  const guess = wall + behind(wall);
+  return new Date(wall + behind(guess));
+}
+
+/**
+ * The next time a yearly date-only value (a birthdate, "1990-03-21") comes
+ * round, and the whole calendar days until it. The day itself is 0, all day.
+ * Null when the value has no readable month and day.
+ *
+ * Only the calendar day of `today` is read, through its local getters: the
+ * user's own day in the browser and on mobile, atlanticNoon() on the server.
+ * Both ends are local noon, so the count is exact at any hour.
+ * `Math.floor((new Date(birthdate) - now) / day)` is not: the date parses as
+ * UTC midnight (the evening before, west of Greenwich) and the floor drops
+ * the day once it has begun.
+ */
+export function nextYearlyDate(
+  dateOnly: string,
+  today: Date = new Date(),
+): { date: Date; daysUntil: number } | null {
+  const parts = dateOnly.split("-");
+  if (parts.length !== 3) return null;
+  const mm = parseInt(parts[1]) - 1;
+  const dd = parseInt(parts[2]);
+  if (isNaN(mm) || isNaN(dd) || mm < 0 || mm > 11 || dd < 1 || dd > 31) return null;
+  const todayNoon = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 12);
+  const thisYear = new Date(todayNoon.getFullYear(), mm, dd, 12);
+  const date = thisYear < todayNoon ? new Date(todayNoon.getFullYear() + 1, mm, dd, 12) : thisYear;
+  // Rounded: across a clock change two noons are 23 or 25 hours apart.
+  return { date, daysUntil: Math.round((date.getTime() - todayNoon.getTime()) / 86_400_000) };
 }
 
 /** YYYY-MM-DD plus `days` calendar days (negative goes back). */

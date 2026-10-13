@@ -374,7 +374,8 @@ describe("REGRESSION — expense totals are net of ITCs through expense-totals-e
       expect(file, `${receiver} not found`).toBeDefined();
       const src = readFileSync(file!, "utf8");
       expect(src, receiver).toMatch(/\bexpensesYTD = 0,/);
-      expect(src, receiver).toMatch(/\bmonthlyRecurring = 0,/);
+      // Overhead shows no monthly figure of its own (the scenario seed carries it).
+      if (!receiver.endsWith("overhead-content.tsx")) expect(src, receiver).toMatch(/\bmonthlyRecurring = 0,/);
       expect(src, receiver).not.toMatch(/\bconst (?:expensesYTD|monthlyRecurring)\b/);
     }
   });
