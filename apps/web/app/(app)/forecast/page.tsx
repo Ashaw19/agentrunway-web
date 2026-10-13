@@ -4,6 +4,8 @@ import { ForecastContent } from "./forecast-content";
 
 import { totalRecurringMonthly, totalRecurringRemaining, totalRecurringYTD } from "@agent-runway/core/engines/recurring-expense-engine";
 import { aggregateReceiptTotals, expenseTaxContext, recurringExpensesNetOfItc } from "@agent-runway/core/engines/expense-totals-engine";
+import { buildT2125Expenses } from "@agent-runway/core/engines/t2125-expenses-engine";
+import { deductionTrackingFlags } from "@agent-runway/core/engines/tax-optimization-engine";
 import type { RecurringExpense } from "@/lib/types/database";
 import { computeIsPro } from "@/lib/compute-is-pro";
 import { atlanticNoon } from "@agent-runway/core/lib/local-date";
@@ -107,7 +109,22 @@ export default async function ForecastPage() {
   }));
 
   // Current-year receipt total for accurate expense YTD
-  const receiptYTD = aggregateReceiptTotals(receiptTotalsResult.data, taxCtx).total;
+  const receiptTotals = aggregateReceiptTotals(receiptTotalsResult.data, taxCtx);
+  const receiptYTD = receiptTotals.total;
+
+  // Which expense categories the agent tracks, for the tax cards. From the
+  // same lines as the Expenses page and the T2125 (t2125-expenses-engine):
+  // receipts, the per-item monthly figure and the Recurring Expenses list.
+  const deductionTracking = deductionTrackingFlags(
+    buildT2125Expenses({
+      receiptTotals,
+      expenseItems: expItemResult.data,
+      recurringExpenses: (recurringExpResult.data ?? []) as RecurringExpense[],
+      ctx: taxCtx,
+      now: today,
+    }).lines,
+    expenseCategories,
+  );
 
   // Sum mileage logs for tax optimization
   const mileageKmTotal = (mileageResult.data ?? []).reduce(
@@ -126,6 +143,7 @@ export default async function ForecastPage() {
       historyItems={historyResult.data ?? []}
       isPro={await computeIsPro(supabase, user.id, rawSettings)}
       receiptYTD={receiptYTD}
+      deductionTracking={deductionTracking}
       mileageKmTotal={mileageKmTotal}
       ccaAssetCount={ccaAssetCount}
       recurringExpMonthly={recurringExpMonthly}

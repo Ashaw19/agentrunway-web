@@ -686,7 +686,10 @@ describe("the dashboard lines the MCP mirrors have not moved", () => {
       "const recurringExpMonthly = totalRecurringMonthly(recurringExpenses);",
       "const recurringExpYTD = totalRecurringYTD(recurringExpenses, today);",
       "const recurringExpRemaining = totalRecurringRemaining(recurringExpenses, today);",
-      "const receiptYTD = aggregateReceiptTotals(receiptTotalsResult.data, taxCtx).total;",
+      // Same total as before; the receipt totals are kept so the tax cards'
+      // "already tracked" flags can read them too (deductionTrackingFlags).
+      "const receiptTotals = aggregateReceiptTotals(receiptTotalsResult.data, taxCtx);",
+      "const receiptYTD = receiptTotals.total;",
     ]) {
       expect(page, line).toContain(line);
     }

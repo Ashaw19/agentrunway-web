@@ -4,6 +4,8 @@ import { OverheadContent } from "./overhead-content";
 import type { HistoryItem, Transaction, PipelineDeal, SplitPreset, RecurringExpense } from "@/lib/types/database";
 import { totalRecurringMonthly, totalRecurringRemaining, totalRecurringYTD } from "@agent-runway/core/engines/recurring-expense-engine";
 import { aggregateReceiptTotals, expenseTaxContext, recurringExpensesNetOfItc, remainingYearExpenses } from "@agent-runway/core/engines/expense-totals-engine";
+import { buildT2125Expenses } from "@agent-runway/core/engines/t2125-expenses-engine";
+import { deductionTrackingFlags } from "@agent-runway/core/engines/tax-optimization-engine";
 import { computeGCI, computeWeightedGCI, activePipelineDeals } from "@/lib/types/database";
 import { projectedYearEndGCI, projectedYearEndTransactions, seasonalFractionElapsed } from "@/lib/engines/projection-engine";
 import { computeEffectiveCashForSurvival } from "@/lib/engines/effective-cash";
@@ -114,7 +116,22 @@ export default async function OverheadPage() {
     items: expenseItems.filter((i) => i.category_id === cat.id),
   }));
 
-  const receiptYTD = aggregateReceiptTotals(receiptTotalsResult.data, taxCtx).total;
+  const receiptTotals = aggregateReceiptTotals(receiptTotalsResult.data, taxCtx);
+  const receiptYTD = receiptTotals.total;
+
+  // Which expense categories the agent tracks, for the tax cards. From the
+  // same lines as the Expenses page and the T2125 (t2125-expenses-engine):
+  // receipts, the per-item monthly figure and the Recurring Expenses list.
+  const deductionTracking = deductionTrackingFlags(
+    buildT2125Expenses({
+      receiptTotals,
+      expenseItems: expenseItems,
+      recurringExpenses: (recurringExpResult.data ?? []) as RecurringExpense[],
+      ctx: taxCtx,
+      now: today,
+    }).lines,
+    expenseCategories,
+  );
 
   const mileageKmTotal = (mileageResult.data ?? []).reduce(
     (sum, r) => sum + Number(r.km ?? 0),
@@ -194,6 +211,7 @@ export default async function OverheadPage() {
       settings={rawSettings}
       expenseCategories={expenseCategories}
       receiptYTD={receiptYTD}
+      deductionTracking={deductionTracking}
       mileageKmTotal={mileageKmTotal}
       ccaAssetCount={ccaAssetCount}
       historyItems={(historyResult.data ?? []) as HistoryItem[]}

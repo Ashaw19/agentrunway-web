@@ -294,6 +294,8 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
       deductionArgs,
       seed.ytdGCI,
       seed.comp,
+      seed.expensesRemaining,
+      seed.monthlyRecurring,
     ],
   );
 

@@ -891,7 +891,7 @@ export function ExpensesContent({
   }
 
   // ── Totals ────────────────────────────────────────────────────────────
-  // ytdTotal is now computed from receipt_expenses (not the manual ytd_amount field).
+  // ytdTotal is computed from receipt_expenses.
   // Includes receipts with no category — they have no expense item to attach to
   // but are still real spend, and the dashboard counts them.
   const ytdTotal =
@@ -1069,7 +1069,6 @@ export function ExpensesContent({
         category_id: categoryId,
         key,
         title,
-        ytd_amount: 0,
         monthly_recurring: 0,
         sort_order: sortOrder,
       })

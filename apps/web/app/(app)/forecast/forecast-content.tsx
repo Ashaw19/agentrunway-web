@@ -48,7 +48,7 @@ import { computeEffectiveCashForSurvival, computePipelineMonthlyIncome } from "@
 import { remainingYearExpenses } from "@agent-runway/core/engines/expense-totals-engine";
 import { compare } from "@/lib/engines/benchmark-engine";
 import { generateAdvisory, type AdvisorCard } from "@/lib/engines/advisor-engine";
-import { generateTaxOptimizations, type TaxOptimizationCard } from "@/lib/engines/tax-optimization-engine";
+import { generateTaxOptimizations, type DeductionTrackingFlags, type TaxOptimizationCard } from "@/lib/engines/tax-optimization-engine";
 import dynamic from "next/dynamic";
 import type { ProbabilityDataPoint } from "@/components/probability-chart";
 
@@ -83,6 +83,12 @@ interface Props {
   listingAppointments?: ListingAppointment[];
   isPro?: boolean;
   receiptYTD?: number;
+  /**
+   * Which commonly missed expense categories the agent already tracks
+   * (`deductionTrackingFlags`, from receipts, the per-item monthly figure and
+   * the Recurring Expenses list). Computed by the page.
+   */
+  deductionTracking: DeductionTrackingFlags;
   mileageKmTotal?: number;
   ccaAssetCount?: number;
   recurringExpMonthly?: number;
@@ -100,6 +106,7 @@ export function ForecastContent({
   historyItems,
   isPro: isPro = false,
   receiptYTD: receiptYTDProp = 0,
+  deductionTracking,
   mileageKmTotal = 0,
   ccaAssetCount = 0,
   recurringExpMonthly = 0,
@@ -312,11 +319,6 @@ export function ForecastContent({
   }, 3);
 
   // ── Tax Optimization Engine ─────────────────────────────────────────────
-  const hasExpensesInCategory = (key: string) =>
-    expenseCategories.some(
-      (cat) => cat.key === key && cat.items.some((i) => Number(i.ytd_amount) > 0 || Number(i.monthly_recurring) > 0),
-    );
-
   const taxOptInput = {
     netIncome: netForTax,
     projectedGCI,
@@ -352,13 +354,7 @@ export function ForecastContent({
       settings.tax_instalment_paid_q3 +
       settings.tax_instalment_paid_q4,
     cppInstalmentPaidYTD: settings.cpp_instalment_paid_ytd,
-    hasProfDevExpenses: hasExpensesInCategory("education"),
-    hasMarketingExpenses: hasExpensesInCategory("marketing"),
-    hasClientGiftExpenses: expenseCategories.some(
-      (cat) => cat.key === "marketing" && cat.items.some((i) => i.key === "marketing_gifts" && (Number(i.ytd_amount) > 0 || Number(i.monthly_recurring) > 0)),
-    ),
-    hasMealExpenses: hasExpensesInCategory("meals"),
-    hasLicensingExpenses: hasExpensesInCategory("professional"),
+    ...deductionTracking,
     ccaAssetCount,
     dismissed: (settings.tax_opt_dismissed as string[]) ?? [],
   };

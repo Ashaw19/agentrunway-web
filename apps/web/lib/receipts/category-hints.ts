@@ -7,7 +7,8 @@
  *  3. Groq's own suggested_category (passed through from extraction)
  *  4. Fallback → "other_misc"
  *
- * Keys match expense_items.key so savings can directly increment ytd_amount.
+ * Keys match expense_items.key. The saved receipt carries the key as
+ * receipt_expenses.category_key; totals are built from those rows.
  */
 
 interface HintRule {

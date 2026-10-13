@@ -59,6 +59,8 @@ import { generateInsights, type Insight } from "@agent-runway/core/engines/insig
 import { totalRecurringMonthly, totalRecurringRemaining, totalRecurringYTD, recurringHSTEntriesForPeriod } from "@agent-runway/core/engines/recurring-expense-engine";
 import { itcForExpense } from "@agent-runway/core/engines/gst34-engine";
 import { aggregateReceiptTotals, expenseTaxContext, recurringExpensesNetOfItc, remainingYearExpenses } from "@agent-runway/core/engines/expense-totals-engine";
+import { buildT2125Expenses } from "@agent-runway/core/engines/t2125-expenses-engine";
+import { ccaOpportunityLine, documentationLine, expenseItemsOf, missingDeductionsLine, trackedExpenseCounts, type ExpenseCategoryRow } from "@/lib/ai/expense-tax-intel";
 import { getCurrentFilingPeriod, deadlineUrgency } from "@agent-runway/core/engines/filing-period-engine";
 
 import type { RecurringExpense, FilingFrequency } from "@/lib/types/database";
@@ -289,7 +291,7 @@ export async function POST(req: NextRequest) {
         supabase.from("user_settings").select("*").eq("user_id", user.id).maybeSingle(),                                                                  // 0
         supabase.from("transactions").select("date, sale_price, commission_pct, team_split_pct, gci_override").eq("user_id", user.id).eq("status", "closed"), // 1
         supabase.from("pipeline_deals").select("estimated_price, estimated_commission_pct, probability_override, stage, expected_close_date").eq("user_id", user.id), // 2
-        supabase.from("expense_categories").select("key, expense_items(key, ytd_amount, monthly_recurring)").eq("user_id", user.id),                   // 3
+        supabase.from("expense_categories").select("key, expense_items(key, monthly_recurring)").eq("user_id", user.id),                   // 3
         supabase.from("clients").select("id", { count: "exact", head: true }).eq("user_id", user.id).is("archived_at", null).in("status", ["boarding", "in_flight"]).lt("last_contact_at", new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()), // 4
         supabase.from("clients").select("id", { count: "exact", head: true }).eq("user_id", user.id).is("archived_at", null).in("status", ["boarding", "in_flight"]).lt("last_contact_at", new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString()), // 5
         supabase.from("receipt_expenses").select("category_key, total_amount, tax_amount").eq("user_id", user.id).gte("expense_date", ytdStart),       // 6
@@ -382,6 +384,18 @@ export async function POST(req: NextRequest) {
       // What was actually paid, GST/HST included: context only, so Flight Crew
       // can explain why a registrant's expense total is below their receipts.
       const expensesPaidYTD = Math.max(receiptTotals.paid, legacyRecurringYTDEstimate) + totalRecurringYTD(recurringExps, today);
+      // Which expenses are tracked, for the tax-intel lines below: the lines
+      // behind the Expenses page and the T2125 (receipts, the per-item
+      // monthly figure, the Recurring Expenses list). Until 2026-10-13 those
+      // lines read expense_items.ytd_amount, which the app stopped writing.
+      const expenseCategoryRows = (expenseCategories ?? []) as ExpenseCategoryRow[];
+      const trackedExpenseLines = buildT2125Expenses({
+        receiptTotals,
+        expenseItems: expenseItemsOf(expenseCategoryRows),
+        recurringExpenses: recurringExps,
+        ctx: expenseTaxCtx,
+        now: today,
+      }).lines;
       // Plan-aware label: 'real' has no pXX_YY preset — describeSplit renders
       // "REAL plan (~XX% effective)" instead of a null regex match.
       const splitLabel = describeSplit(settings);
@@ -806,15 +820,13 @@ export async function POST(req: NextRequest) {
           "",
           // Expense data completeness context — helps AI judge if expense score is realistic
           (() => {
-            const expenseItemCount = (expenseCategories ?? []).reduce(
-              (sum: number, cat: { expense_items?: unknown[] }) => sum + (cat.expense_items ?? []).length, 0,
-            );
-            const catWithItems = (expenseCategories ?? []).filter(
-              (cat: { expense_items?: unknown[] }) => (cat.expense_items ?? []).length > 0,
-            ).length;
+            // Lines and categories with an amount this year. Counting
+            // expense_items rows gave the size of the seeded list (the same
+            // for every account), not what has been recorded.
+            const tracked = trackedExpenseCounts(trackedExpenseLines, expenseCategoryRows);
             const expenseRatio = ytdGCI > 0 ? (expensesYTD / ytdGCI * 100) : 0;
             const lines = [
-              `Expense Data: ${fmtCurrency(expensesYTD)} YTD across ${expenseItemCount} items in ${catWithItems} categories (expense-to-GCI ratio: ${expenseRatio.toFixed(1)}%)`,
+              `Expense Data: ${fmtCurrency(expensesYTD)} YTD across ${tracked.lines} expense lines with an amount in ${tracked.categories} categories (expense-to-GCI ratio: ${expenseRatio.toFixed(1)}%)`,
               `  Typical Canadian real estate agent expense ratio: 25-35% of GCI`,
             ];
             if (ytdGCI > 0 && expenseRatio < 20) {
@@ -872,39 +884,15 @@ export async function POST(req: NextRequest) {
           "── TAX INTELLIGENCE (surface these proactively when relevant) ──",
         ];
 
-        // 1. Missing Deduction Detection — flag $0 categories likely to have real spend
-        if (ytdTx.length >= 3) {
-          const allItemKeys = new Set<string>();
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          (expenseCategories ?? []).forEach((cat: any) => {
-            (cat.expense_items ?? []).forEach((item: { key: string; ytd_amount?: number | string; monthly_recurring?: number | string }) => {
-              if (Number(item.ytd_amount ?? 0) > 0 || Number(item.monthly_recurring ?? 0) > 0) {
-                allItemKeys.add(item.key);
-              }
-            });
-          });
-          // Also count recurring expenses by category
-          recurringExps.forEach((re) => { if (re.category_key) allItemKeys.add(re.category_key); });
-
-          const CORE_CATEGORIES: Record<string, string> = {
-            vehicle: "Vehicle expenses (gas, insurance, lease)",
-            marketing: "Marketing & advertising",
-            office: "Office & technology",
-            professional: "Professional fees (MLS, licensing, E&O)",
-          };
-          const missingCats: string[] = [];
-          for (const [prefix, label] of Object.entries(CORE_CATEGORIES)) {
-            const hasAny = [...allItemKeys].some((k) => k.startsWith(prefix));
-            if (!hasAny) missingCats.push(label);
-          }
-          if (missingCats.length > 0) {
-            taxIntelLines.push(
-              `[MISSING DEDUCTIONS] Agent has ${ytdTx.length} closed deals YTD with $0 recorded in: ${missingCats.join(", ")}. ` +
-              `CRA T2125 permits deductions in these categories when substantiated by receipts. ` +
-              `State the data neutrally — describe the zero balance, cite T2125 categories, name no amounts.`,
-            );
-          }
-        }
+        // 1. Missing Deduction Detection — core categories with nothing tracked
+        //    (no receipt this year, no monthly figure, no active recurring expense).
+        taxIntelLines.push(
+          missingDeductionsLine({
+            closedDealsYTD: ytdTx.length,
+            lines: trackedExpenseLines,
+            categories: expenseCategoryRows,
+          }),
+        );
 
         // 2. Tax Installment Cash Flow Planning
         {
@@ -1011,28 +999,15 @@ export async function POST(req: NextRequest) {
           );
         }
 
-        // 6. Receipt Capture Compliance Score
-        {
-          const totalClaimableItems = (expenseCategories ?? []).reduce(
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            (sum: number, cat: any) => sum + (cat.expense_items ?? []).filter(
-              (i: { ytd_amount?: number | string }) => Number(i.ytd_amount ?? 0) > 0,
-            ).length,
-            0,
-          ) + recurringExps.length;
-          const capturedReceipts = receiptCount ?? 0;
-          if (totalClaimableItems > 0) {
-            const docRate = totalClaimableItems > 0
-              ? Math.min(100, Math.round((capturedReceipts / Math.max(totalClaimableItems, 1)) * 100))
-              : 0;
-            taxIntelLines.push(
-              `[DOCUMENTATION] Documentation coverage: ${docRate}%. ` +
-              `${capturedReceipts} receipts captured YTD against ${totalClaimableItems} expense items with amounts. ` +
-              `CRA T2125 guidance requires receipts to substantiate claims. ` +
-              `State the coverage percentage neutrally — apply no qualitative label to the rate.`,
-            );
-          }
-        }
+        // 6. Receipts behind the amounts: how many expense lines with an
+        //    amount this year have a receipt logged, and where the rest come from.
+        taxIntelLines.push(
+          documentationLine({
+            lines: trackedExpenseLines,
+            receiptByKey: receiptTotals.byKey,
+            receiptCount: receiptCount ?? 0,
+          }),
+        );
 
         // 7. Seasonal Tax Set-Aside Adjustments
         // A heavy quarter — agent earning disproportionately. The quarter is
@@ -1048,25 +1023,8 @@ export async function POST(req: NextRequest) {
           }),
         );
 
-        // 8. CCA (Depreciation) Reminders
-        {
-          // Check if any hardware/equipment items have spend but no CCA assets tracked
-          const hasEquipmentSpend = [...(expenseCategories ?? [])].some(
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            (cat: any) => (cat.expense_items ?? []).some(
-              (i: { key: string; ytd_amount?: number | string }) =>
-                i.key === "office_hardware" && Number(i.ytd_amount ?? 0) > 500,
-            ),
-          );
-          if (hasEquipmentSpend) {
-            taxIntelLines.push(
-              `[CCA OPPORTUNITY] Agent has hardware/equipment expenses over $500 YTD. ` +
-              `CRA T2125 treats larger capital purchases (laptop, camera, signage) as depreciable assets under the Capital Cost Allowance regime ` +
-              `(Class 50 for computers/peripherals at 55% declining balance, Class 8 for office equipment at 20%) rather than current-year expenses. ` +
-              `State the rule only — do not characterize CCA treatment as more or less advantageous than expensing.`,
-            );
-          }
-        }
+        // 8. CCA (Depreciation) Reminders — over $500 on the hardware item this year
+        taxIntelLines.push(ccaOpportunityLine(trackedExpenseLines));
 
         // 9. Filing Deadline Countdown
         {
