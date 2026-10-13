@@ -317,6 +317,9 @@ export function ExpensesContent({
   const [reSaving, setReSaving] = useState(false);
   // Removing one asks what happened: it ended (keeps the charges to that
   // date) or it was never a real expense (takes the whole entry out).
+  // `removingRecurring` stays set while the dialog closes, so it keeps its
+  // contents through the exit animation (as `editingRecurring` does).
+  const [removeDialogOpen, setRemoveDialogOpen] = useState(false);
   const [removingRecurring, setRemovingRecurring] = useState<RecurringExpense | null>(null);
   const [removeEndDate, setRemoveEndDate] = useState("");
 
@@ -638,7 +641,7 @@ export function ExpensesContent({
     setRecurringExpenses((prev) => prev.filter((r) => r.id !== id));
     toast.success("Recurring expense removed.");
     deletingReRef.current = false;
-    setRemovingRecurring(null);
+    setRemoveDialogOpen(false);
   }
 
   function openRemoveRecurring(re: RecurringExpense) {
@@ -646,6 +649,7 @@ export function ExpensesContent({
     const today = localISODate();
     setRemoveEndDate(re.end_date ?? (re.start_date > today ? re.start_date : today));
     setRemovingRecurring(re);
+    setRemoveDialogOpen(true);
   }
 
   /** The expense was real and has stopped: keep the row, with an end date. */
@@ -665,7 +669,7 @@ export function ExpensesContent({
     setRecurringExpenses((prev) => prev.map((r) => r.id === re.id ? { ...r, end_date: endDate } : r));
     toast.success("End date saved. Charges up to that date still count.");
     deletingReRef.current = false;
-    setRemovingRecurring(null);
+    setRemoveDialogOpen(false);
   }
 
   // ── Voice-to-expense ─────────────────────────────────────────────────────
@@ -3183,7 +3187,7 @@ export function ExpensesContent({
       </Dialog>
 
       {/* ── Remove a recurring expense: it ended, or it was never real ─────── */}
-      <Dialog open={removingRecurring !== null} onOpenChange={(open) => { if (!open) setRemovingRecurring(null); }}>
+      <Dialog open={removeDialogOpen} onOpenChange={setRemoveDialogOpen}>
         <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -3239,7 +3243,7 @@ export function ExpensesContent({
 
               <TaxDisclaimer />
 
-              <Button variant="ghost" className="w-full" onClick={() => setRemovingRecurring(null)}>
+              <Button variant="ghost" className="w-full" onClick={() => setRemoveDialogOpen(false)}>
                 Cancel
               </Button>
             </div>
