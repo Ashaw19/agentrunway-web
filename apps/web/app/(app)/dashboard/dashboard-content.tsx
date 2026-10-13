@@ -114,7 +114,6 @@ import {
   type Transaction,
   type PipelineDeal,
   type UserSettings,
-  type ExpenseCategoryWithItems,
   type HistoryItem,
   type ContactTask,
   type ListingAppointment,
@@ -200,9 +199,10 @@ interface Props {
   transactions: Transaction[];
   pipelineDeals: PipelineDeal[];
   settings: UserSettings | null;
-  expenseCategories: ExpenseCategoryWithItems[];
-  /** Current-year YTD total from receipt_expenses, net of ITCs (expense-totals-engine). */
-  receiptYTD?: number;
+  /** Year-to-date expenses: ytdExpenseTotals(...).expensesYTD (t2125-expenses-engine), the Expenses page's total. */
+  expensesYTD?: number;
+  /** Expected each month: ytdExpenseTotals(...).monthlyRecurring. */
+  monthlyRecurring?: number;
   /**
    * Which commonly missed expense categories the agent already tracks
    * (`deductionTrackingFlags`, from receipts, the per-item monthly figure and
@@ -231,10 +231,8 @@ interface Props {
   aiProfilePromptDismissedAt?: string | null;
   activeListings?: ListingAppointment[];
   teamWelcome?: { orgName: string } | null;
-  /** Pre-computed monthly total from recurring_expenses table */
-  recurringExpMonthly?: number;
-  /** Pre-computed YTD total from recurring_expenses table */
-  recurringExpYTD?: number;
+  /** Still to come this year: ytdExpenseTotals(...).expensesRemaining. expensesYTD + this = the year's expenses. */
+  expensesRemaining: number;
   /** ISO timestamp the server loaded this data — drives the freshness line. */
   dataAsOf?: string;
   /** income_goals rows (00169/00170): one goal per calendar year. */
@@ -317,8 +315,8 @@ export function DashboardContent({
   transactions,
   pipelineDeals,
   settings,
-  expenseCategories,
-  receiptYTD = 0,
+  expensesYTD = 0,
+  monthlyRecurring = 0,
   deductionTracking,
   historyItems = [],
   initialDashboardView: _initialDashboardView,
@@ -341,8 +339,7 @@ export function DashboardContent({
   aiProfilePromptDismissedAt = null,
   activeListings,
   teamWelcome = null,
-  recurringExpMonthly = 0,
-  recurringExpYTD = 0,
+  expensesRemaining,
   dataAsOf,
   incomeGoals: initialIncomeGoals = [],
 }: Props) {
@@ -653,28 +650,21 @@ export function DashboardContent({
   });
 
   // ── Expenses ──────────────────────────────────────────────────────────
-  // Effective YTD: higher of receipt-verified actuals or recurring estimates
-  // Includes both legacy expense_items.monthly_recurring AND new recurring_expenses table
-  const receiptTotal = receiptYTD;
-  const legacyMonthlyRecurring = expenseCategories.reduce(
-    (sum, cat) =>
-      sum + cat.items.reduce((s, i) => s + Number(i.monthly_recurring), 0),
-    0,
-  );
-  const monthlyRecurring = legacyMonthlyRecurring + recurringExpMonthly;
-  const expMonthsElapsed = now.getMonth() + 1; // 1-12, consistent with expRemainingMonths denominator
-  const legacyRecurringYTDEstimate = legacyMonthlyRecurring * expMonthsElapsed;
-  const expensesYTD = Math.max(receiptTotal, legacyRecurringYTDEstimate) + recurringExpYTD;
+  // `expensesYTD` and `monthlyRecurring` arrive from the page's one engine
+  // call (ytdExpenseTotals, t2125-expenses-engine): receipts, the per-item
+  // monthly figures and the Recurring Expenses list. Nothing here combines
+  // them, so this is the Expenses page's "YTD Expenses".
 
   // ── Survival prep (pipeline monthly estimate) ──────────────────────────
   const remainingMonths = Math.max(1, 12 - Math.floor(fraction * 12));
   const pipelineMonthlyEst = fraction > 0 ? pipelineWeightedGCI / remainingMonths : 0;
 
   // ── Tax estimate ──────────────────────────────────────────────────────
-  // Project full-year expenses: actual YTD + remaining months of recurring.
-  // Using expRemainingMonths avoids double-counting recurring costs already in expensesYTD.
-  const expRemainingMonths = Math.max(0, 12 - (now.getMonth() + 1));
-  const annualExpenses = expensesYTD + monthlyRecurring * expRemainingMonths;
+  // Project full-year expenses: actual YTD + what is still to come (the
+  // monthly figures for the months after this one, and the recurring list's
+  // charges after today), so nothing in expensesYTD is counted twice. Both
+  // arrive from the page's one engine call.
+  const annualExpenses = expensesYTD + expensesRemaining;
   // Per-deal tax portion is more useful against projected deal count, not just YTD.
   // Declared BEFORE projectedNet: the plan-aware chain needs it for REAL per-deal fees.
   const projectedDealCount = projectedYearEndTransactions(ytdDealCount, pipelineCount, fraction);

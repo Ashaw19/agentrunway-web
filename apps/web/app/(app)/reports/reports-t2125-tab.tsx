@@ -36,7 +36,7 @@ interface MileageLogRow {
 interface Props {
   settings: UserSettings | null;
   transactions: Transaction[];
-  /** Expenses to date for the T2125 lines: buildT2125Expenses(...).entries. */
+  /** Expenses to date for the T2125 lines: ytdExpenseTotals(...).tracked.entries. */
   expenses: T2125ExpenseEntry[];
   /** Home Office bills by key, in full (before the home office share). */
   homeOfficeCosts?: Record<string, number>;

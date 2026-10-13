@@ -2,9 +2,8 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { ForecastContent } from "./forecast-content";
 
-import { totalRecurringMonthly, totalRecurringYTD } from "@agent-runway/core/engines/recurring-expense-engine";
-import { aggregateReceiptTotals, expenseTaxContext, recurringExpensesNetOfItc } from "@agent-runway/core/engines/expense-totals-engine";
-import { buildT2125Expenses } from "@agent-runway/core/engines/t2125-expenses-engine";
+import { expenseTaxContext } from "@agent-runway/core/engines/expense-totals-engine";
+import { ytdExpenseTotals } from "@agent-runway/core/engines/t2125-expenses-engine";
 import { deductionTrackingFlags } from "@agent-runway/core/engines/tax-optimization-engine";
 import type { RecurringExpense } from "@/lib/types/database";
 import { computeIsPro } from "@/lib/compute-is-pro";
@@ -93,37 +92,25 @@ export default async function ForecastPage() {
         .limit(10000),
     ]);
 
-  // Net of the GST/HST a registrant claims back as ITCs (expense-totals-engine).
-  const taxCtx = expenseTaxContext(rawSettings);
-  const recurringExpenses = recurringExpensesNetOfItc(
-    (recurringExpResult.data ?? []) as RecurringExpense[],
-    taxCtx,
-  );
-  const recurringExpMonthly = totalRecurringMonthly(recurringExpenses);
-  const recurringExpYTD = totalRecurringYTD(recurringExpenses, today);
-
   const expenseCategories = (expCatResult.data ?? []).map((cat) => ({
     ...cat,
     items: (expItemResult.data ?? []).filter((i) => i.category_id === cat.id),
   }));
 
-  // Current-year receipt total for accurate expense YTD
-  const receiptTotals = aggregateReceiptTotals(receiptTotalsResult.data, taxCtx);
-  const receiptYTD = receiptTotals.total;
+  // Year-to-date expenses and the monthly figure: the dashboard's one engine
+  // call (t2125-expenses-engine). Receipts, the per-item monthly figures and
+  // the Recurring Expenses list, net of the ITCs a registrant claims.
+  const expenseTotals = ytdExpenseTotals({
+    receipts: receiptTotalsResult.data,
+    recurring: (recurringExpResult.data ?? []) as RecurringExpense[],
+    expenseItems: expItemResult.data,
+    ctx: expenseTaxContext(rawSettings),
+    now: today,
+  });
 
-  // Which expense categories the agent tracks, for the tax cards. From the
-  // same lines as the Expenses page and the T2125 (t2125-expenses-engine):
-  // receipts, the per-item monthly figure and the Recurring Expenses list.
-  const deductionTracking = deductionTrackingFlags(
-    buildT2125Expenses({
-      receiptTotals,
-      expenseItems: expItemResult.data,
-      recurringExpenses: (recurringExpResult.data ?? []) as RecurringExpense[],
-      ctx: taxCtx,
-      now: today,
-    }).lines,
-    expenseCategories,
-  );
+  // Which expense categories the agent tracks, for the tax cards: the lines
+  // the two totals above are the sums of.
+  const deductionTracking = deductionTrackingFlags(expenseTotals.tracked.lines, expenseCategories);
 
   // Sum mileage logs for tax optimization
   const mileageKmTotal = (mileageResult.data ?? []).reduce(
@@ -138,15 +125,14 @@ export default async function ForecastPage() {
       transactions={txResult.data ?? []}
       pipelineDeals={pipelineResult.data ?? []}
       listingAppointments={listingApptResult.data ?? []}
-      expenseCategories={expenseCategories}
       historyItems={historyResult.data ?? []}
       isPro={await computeIsPro(supabase, user.id, rawSettings)}
-      receiptYTD={receiptYTD}
+      expensesYTD={expenseTotals.expensesYTD}
+      monthlyRecurring={expenseTotals.monthlyRecurring}
       deductionTracking={deductionTracking}
       mileageKmTotal={mileageKmTotal}
       ccaAssetCount={ccaAssetCount}
-      recurringExpMonthly={recurringExpMonthly}
-      recurringExpYTD={recurringExpYTD}
+      expensesRemaining={expenseTotals.expensesRemaining}
     />
   );
 }

@@ -15,6 +15,10 @@
  *     .entries / .homeOfficeCosts   → computeT2125 (Reports page)
  *     .lines / .byRule / totals     → Expenses page
  *
+ * Pages reach it through `ytdExpenseTotals(...).tracked`, the one call that
+ * also gives every surface its year-to-date expenses (see
+ * expense-totals-canonical.test.ts, shape 7).
+ *
  * Three shapes are scanned for, in web and mobile source:
  *   1. a read of the per-key map (`EXPENSE_KEY_TO_T2125`) or of a line's
  *      limits (`.deductiblePct`, `.applyVehicleUse`): deductible arithmetic
@@ -22,7 +26,7 @@
  *   2. `t2125EntriesFromAmounts(`: T2125 entries assembled from a key → amount
  *      map, which is how the recurring list was left out
  *   3. a `computeT2125(` call in a tree where nothing calls
- *      `buildT2125Expenses(`
+ *      `ytdExpenseTotals(` (the wrapper around `buildT2125Expenses`)
  *
  * A regex can't prove a figure is right, only that it didn't bypass the
  * engine. The numbers are tested in
@@ -88,9 +92,10 @@ describe("REGRESSION — T2125 expense treatment comes from t2125-expenses-engin
     );
   });
 
-  it("the Reports page and the Expenses page both call buildT2125Expenses", () => {
+  it("the Reports page and the Expenses page both take their lines from ytdExpenseTotals", () => {
     for (const file of ["apps/web/app/(app)/reports/page.tsx", "apps/web/app/(app)/expenses/expenses-content.tsx"]) {
-      expect(sources.get(file), file).toMatch(/\bbuildT2125Expenses\s*\(/);
+      expect(sources.get(file), file).toMatch(/\bytdExpenseTotals\s*\(/);
+      expect(sources.get(file), file).toMatch(/\.tracked\b/);
     }
   });
 
@@ -105,8 +110,9 @@ describe("REGRESSION — T2125 expense treatment comes from t2125-expenses-engin
   it("computeT2125 is only called where the entries come from buildT2125Expenses", () => {
     const callers = [...sources].filter(([, src]) => /\bcomputeT2125\s*\(/.test(src)).map(([file]) => file);
     // The T2125 tab: its `expenses` prop is the Reports page's
-    // buildT2125Expenses(...).entries, passed through reports-content.
+    // ytdExpenseTotals(...).tracked.entries, passed through reports-content.
     expect(callers).toEqual(["apps/web/app/(app)/reports/reports-t2125-tab.tsx"]);
+    expect(sources.get("apps/web/app/(app)/reports/page.tsx")).toMatch(/const t2125Expenses = expenseTotals\.tracked;/);
     expect(sources.get("apps/web/app/(app)/reports/page.tsx")).toMatch(/t2125Expenses=\{t2125Expenses\.entries\}/);
     expect(sources.get("apps/web/app/(app)/reports/reports-content.tsx")).toMatch(/expenses=\{t2125Expenses\}/);
   });
@@ -132,7 +138,7 @@ describe("REGRESSION — T2125 expense treatment comes from t2125-expenses-engin
       `expenses: t2125EntriesFromAmounts(receiptTotals.byKey),`,
     ];
     const good = [
-      `const tracked = buildT2125Expenses({ receiptTotals, expenseItems, recurringExpenses, ctx });`,
+      `const tracked = ytdExpenseTotals({ receipts, recurring, expenseItems, ctx, now }).tracked;`,
       `const deductAmt = line?.deductibleAmount ?? 0;`,
       `acc[line.rule] += line.deductibleAmount;`,
       `t2125LineForExpenseKey(l.key) === T2125_OTHER_EXPENSES`,

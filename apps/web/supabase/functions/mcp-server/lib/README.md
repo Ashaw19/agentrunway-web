@@ -11,7 +11,7 @@ with `.ts` added to each relative import. A tool imports the real engine from
 there, so there is nothing to keep in sync:
 
 ```ts
-import { ytdExpenseTotals } from "../../_shared/core/engines/expense-totals-engine.ts";
+import { ytdExpenseTotals } from "../../_shared/core/engines/t2125-expenses-engine.ts";
 ```
 
 Use this for anything new. Two tests in `apps/web/lib/mcp-server/__tests__/`
@@ -21,7 +21,7 @@ resolve, and `expense-parity.test.ts` runs the real tool handlers.
 
 | Local file | Canonical engines it calls | Notes |
 |---|---|---|
-| `expense-inputs.ts` | `expense-totals-engine` (`ytdExpenseTotals`, `inputTaxCreditsForPeriod`, `expenseTaxContext`, `recurringExpensesNetOfItc`), `local-date` | Added 2026-10-13. NOT a mirror: it fetches the dashboard's expense rows (`receipt_expenses` this Atlantic year, active `recurring_expenses`, `expense_items.monthly_recurring`) and hands them to the engine. Every tool that reports an expense figure calls `loadExpenseInputs`. `expense_items.ytd_amount` is never read: the app stopped writing it. |
+| `expense-inputs.ts` | `t2125-expenses-engine` (`ytdExpenseTotals`: the one year-to-date total, and the lines it is the sum of), `expense-totals-engine` (`inputTaxCreditsForPeriod`, `expenseTaxContext`), `local-date` | Added 2026-10-13. NOT a mirror: it fetches the dashboard's expense rows (`receipt_expenses` this Atlantic year, active `recurring_expenses`, `expense_items` key and `monthly_recurring`) and hands them to the engine. Every tool that reports an expense figure calls `loadExpenseInputs`. `expense_items.ytd_amount` is never read: the app stopped writing it. |
 
 `tools/analytics.ts` also takes the GST/HST filing periods straight from
 `filing-period-engine` (`getFilingPeriods`). Its hand copy had kept Q4's

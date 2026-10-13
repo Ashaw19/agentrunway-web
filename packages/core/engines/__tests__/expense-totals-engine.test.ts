@@ -24,8 +24,9 @@ import {
   inputTaxCreditsForPeriod,
   recurringExpensesNetOfItc,
   recurringNetOfItc,
-  ytdExpenseTotals,
+  remainingYearExpenses,
 } from "../expense-totals-engine";
+import { ytdExpenseTotals } from "../t2125-expenses-engine";
 import { computeGST34 } from "../gst34-engine";
 import { getFilingPeriods } from "../filing-period-engine";
 import {
@@ -345,115 +346,66 @@ describe("T2125 lines from net amounts", () => {
   });
 });
 
-// The MCP server read `expense_items.ytd_amount`, a column the app stopped
-// writing long ago, so its expenses, net income and tax estimate disagreed
-// with the dashboard. `ytdExpenseTotals` is the dashboard's total as one call
-// (dashboard/page.tsx + dashboard-content.tsx), so a server surface that
-// can't render the dashboard still gets its number.
-describe("ytdExpenseTotals — the dashboard's year-to-date expenses", () => {
-  // 13 Oct 2026: October is the 10th month, so 10 months have started.
-  const NOW = new Date(2026, 9, 13, 12);
+// The year-to-date total across receipts, the per-item monthly figure and the
+// Recurring Expenses list is `ytdExpenseTotals` in t2125-expenses-engine,
+// tested in t2125-expenses-engine.test.ts.
 
-  const receipts = [
-    { category_key: "prof_board_mls", total_amount: 115, tax_amount: 15 }, // net 100
-    { category_key: "meals_client", total_amount: 57.5, tax_amount: 7.5 }, // ITC 3.75 → net 53.75
-    { category_key: "vehicle_fuel", total_amount: 230, tax_amount: 30 }, // 80% use: ITC 24, personal 6 → net 200
-  ];
-  // $575 a month with $75 HST, vehicle use: ITC 60, personal 15 → net 500.
+// The year's expenses are what has been counted to date plus what is still to
+// come. Recurring expenses count by charge date (2026-10-13), so "still to
+// come" has to be the charges after today, not a monthly figure × whole
+// months left: on the 13th that drops a charge due on the 20th from the year.
+describe("ytdExpenseTotals — what is still to come this year", () => {
+  const at = (month: number, day: number) => new Date(2026, month - 1, day, 12);
+  // $575 a month on the 20th, net 500 for a registrant.
   const lease = recurring({
-    id: "lease", name: "Lease", amount: 575, hst_amount: 75,
+    id: "lease", name: "Lease", amount: 575, hst_amount: 75, day_of_month: 20,
     category_key: "vehicle_payment", vehicle_pct_applicable: true, start_date: "2026-01-01",
   });
-  const legacyItems = [{ monthly_recurring: 20 }, { monthly_recurring: 0 }];
+  const expenseItems = [{ key: "office_phone", monthly_recurring: 20 }];
+  const totals = (now: Date, rows = [lease]) =>
+    ytdExpenseTotals({ receipts: [], recurring: rows, expenseItems, ctx: REGISTRANT, now });
 
-  it("registrant: max(receipts, legacy estimate) + recurring, every part net of ITCs", () => {
-    const t = ytdExpenseTotals({ receipts, recurring: [lease], legacyItems, ctx: REGISTRANT, now: NOW });
-
-    expect(t.receiptYTD).toBe(353.75);
-    expect(t.legacyMonthlyRecurring).toBe(20);
-    expect(t.legacyRecurringYTDEstimate).toBe(200);
-    expect(t.recurringMonthly).toBe(500);
-    expect(t.recurringYTD).toBe(5000);
-    expect(t.monthlyRecurring).toBe(520);
-    expect(t.expensesYTD).toBe(5353.75);
+  it("before this month's charge day: nine charges to date, three still to come", () => {
+    const t = totals(at(10, 13));
+    expect(t.recurringYTD).toBe(4500);
+    expect(t.recurringRemaining).toBe(1500);
+    // Legacy monthly figure: the two whole months after this one.
+    expect(t.expensesRemaining).toBe(1500 + 20 * 2);
   });
 
-  it("non-registrant: every part is the amount paid", () => {
-    const t = ytdExpenseTotals({ receipts, recurring: [lease], legacyItems, ctx: NOT_REGISTERED, now: NOW });
-
-    expect(t.receiptYTD).toBe(402.5);
-    expect(t.recurringMonthly).toBe(575);
-    expect(t.recurringYTD).toBe(5750);
-    expect(t.monthlyRecurring).toBe(595);
-    expect(t.expensesYTD).toBe(6152.5);
+  it("on the charge day it moves to year to date, and the year's total does not change", () => {
+    const before = totals(at(10, 13));
+    const after = totals(at(10, 20));
+    expect(after.recurringYTD).toBe(5000);
+    expect(after.recurringRemaining).toBe(1000);
+    expect(after.expensesYTD + after.expensesRemaining).toBe(before.expensesYTD + before.expensesRemaining);
   });
 
-  it("the legacy monthly estimate stands in for receipts only when it is the larger", () => {
-    const t = ytdExpenseTotals({
-      receipts, recurring: [lease], legacyItems: [{ monthly_recurring: 100 }], ctx: REGISTRANT, now: NOW,
-    });
-    // 100 × 10 months = 1,000 > 353.75 of receipts; never both.
-    expect(t.expensesYTD).toBe(1000 + 5000);
+  it("year to date plus still to come is twelve charges on any day of the year", () => {
+    for (const day of [at(1, 1), at(1, 20), at(6, 30), at(10, 13), at(10, 20), at(12, 31)]) {
+      const t = totals(day);
+      expect(t.recurringYTD + t.recurringRemaining, day.toDateString()).toBe(6000);
+    }
   });
 
-  it("is the dashboard's chain, engine call for engine call", () => {
-    const settings = { gst_hst_registered: true, vehicle_business_use_pct: 0.5, home_office_business_use_pct: 0.15 };
-    const rows = [lease, recurring({ id: "dues", start_date: "2026-03-15", day_of_month: 15 })];
-
-    // dashboard/page.tsx
-    const taxCtx = expenseTaxContext(settings);
-    const recurringExpenses = recurringExpensesNetOfItc(rows, taxCtx);
-    const recurringExpMonthly = totalRecurringMonthly(recurringExpenses);
-    const recurringExpYTD = totalRecurringYTD(recurringExpenses, NOW);
-    const receiptYTD = aggregateReceiptTotals(receipts, taxCtx).total;
-    // dashboard-content.tsx
-    const legacyMonthlyRecurring = legacyItems.reduce((s, i) => s + Number(i.monthly_recurring), 0);
-    const monthlyRecurring = legacyMonthlyRecurring + recurringExpMonthly;
-    const expMonthsElapsed = NOW.getMonth() + 1;
-    const expensesYTD = Math.max(receiptYTD, legacyMonthlyRecurring * expMonthsElapsed) + recurringExpYTD;
-
-    const t = ytdExpenseTotals({ receipts, recurring: rows, legacyItems, ctx: taxCtx, now: NOW });
-    expect(t.expensesYTD).toBe(expensesYTD);
-    expect(t.monthlyRecurring).toBe(monthlyRecurring);
-    expect(t.receipts).toEqual(aggregateReceiptTotals(receipts, taxCtx));
+  it("an annual fee still ahead is all of it, not a twelfth per month left", () => {
+    const annual = recurring({ id: "annual", frequency: "annual", month_of_year: 12, day_of_month: 15, amount: 1200, hst_amount: 0 });
+    const t = totals(at(10, 13), [annual]);
+    expect(t.recurringYTD).toBe(0);
+    expect(t.recurringRemaining).toBe(1200);
   });
 
-  it("a home bill counts at the workspace share, as in every other total", () => {
-    // $230 power bill with $30 HST at a 15% workspace: ITC 4.50, the bill
-    // before tax is 200, and 15% of that is the expense.
-    const power = { category_key: "home_utilities", total_amount: 230, tax_amount: 30 };
-    const withBill = ytdExpenseTotals({ receipts: [...receipts, power], recurring: [lease], legacyItems, ctx: REGISTRANT, now: NOW });
-    expect(withBill.receiptYTD).toBe(353.75 + 30);
-    expect(withBill.expensesYTD).toBe(5353.75 + 30);
-    // No workspace share set (the column default): the bill counts for nothing.
-    const noShare = ytdExpenseTotals({
-      receipts: [...receipts, power], recurring: [lease], legacyItems,
-      ctx: { ...REGISTRANT, homeOfficeBusinessUsePct: 0 }, now: NOW,
-    });
-    expect(noShare.expensesYTD).toBe(5353.75);
+  it("an annual fee already charged adds nothing more", () => {
+    const annual = recurring({ id: "annual", frequency: "annual", month_of_year: 3, day_of_month: 10, amount: 1200, hst_amount: 0 });
+    const t = totals(at(10, 13), [annual]);
+    expect(t.recurringYTD).toBe(1200);
+    expect(t.recurringRemaining).toBe(0);
   });
 
-  it("months elapsed is the calendar month (1 to 12), never a fraction of one", () => {
-    const only = { receipts: [], recurring: [], legacyItems: [{ monthly_recurring: 100 }], ctx: REGISTRANT };
-    expect(ytdExpenseTotals({ ...only, now: new Date(2026, 0, 31, 12) }).expensesYTD).toBe(100);
-    expect(ytdExpenseTotals({ ...only, now: new Date(2026, 11, 1, 12) }).expensesYTD).toBe(1200);
-  });
-
-  it("inactive recurring rows count nothing, and the stored rows are left as entered", () => {
-    const off = recurring({ id: "off", is_active: false });
-    const t = ytdExpenseTotals({ receipts: [], recurring: [off, lease], legacyItems: [], ctx: REGISTRANT, now: NOW });
-    expect(t.recurringMonthly).toBe(500);
-    expect(lease.amount).toBe(575);
-  });
-
-  it("accepts PostgREST's numeric strings and null lists", () => {
-    const t = ytdExpenseTotals({
-      receipts: null, recurring: undefined, legacyItems: [{ monthly_recurring: "12.50" }, { monthly_recurring: null }],
-      ctx: REGISTRANT, now: NOW,
-    });
-    expect(t.legacyMonthlyRecurring).toBe(12.5);
-    expect(t.expensesYTD).toBe(125);
-    expect(ytdExpenseTotals({ receipts: null, recurring: null, legacyItems: null, ctx: REGISTRANT, now: NOW }).expensesYTD).toBe(0);
+  it("remainingYearExpenses: the legacy figure for the months after this one, plus the recurring charges left", () => {
+    expect(remainingYearExpenses(100, 250, at(10, 13))).toBe(100 * 2 + 250);
+    expect(remainingYearExpenses(100, 0, at(1, 31))).toBe(1100);
+    expect(remainingYearExpenses(100, 250, at(12, 1))).toBe(250);
   });
 });
 

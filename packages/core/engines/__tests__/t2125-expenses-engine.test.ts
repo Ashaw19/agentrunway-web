@@ -17,7 +17,7 @@
  * "now" is 15 June 2026 (six monthly occurrences to date).
  */
 import { describe, expect, it } from "vitest";
-import { buildT2125Expenses } from "../t2125-expenses-engine";
+import { buildT2125Expenses, ytdExpenseTotals, ytdExpensesGstHstIncluded } from "../t2125-expenses-engine";
 import {
   EXPENSE_KEY_TO_T2125,
   HOME_OFFICE_KEY_TO_COST,
@@ -30,7 +30,7 @@ import {
 import { aggregateReceiptTotals, recurringExpensesNetOfItc } from "../expense-totals-engine";
 import { computeGST34, isMealOrEntertainmentKey, isVehicleKey, itcForExpense } from "../gst34-engine";
 import { getFilingPeriods } from "../filing-period-engine";
-import { recurringHSTEntriesForPeriod, recurringYTD, totalRecurringYTD } from "../recurring-expense-engine";
+import { recurringHSTEntriesForPeriod, recurringYTD, totalRecurringMonthly, totalRecurringYTD } from "../recurring-expense-engine";
 import { createTestSettings } from "./test-data";
 import type { RecurringExpense } from "../../types/database";
 
@@ -269,6 +269,36 @@ describe("buildT2125Expenses — recurring expenses reach the T2125", () => {
     expect(december.deductibleTotal).toBe(1000);
   });
 
+  it("this month's charge is not on the line before its day, and is on it from that day", () => {
+    // Monthly on the 20th: Jan 20 to May 20 have happened by 15 June.
+    const onThe20th = recurring({ day_of_month: 20 });
+    expect(build([onThe20th], NOT_REGISTERED).lines[0].rawAmount).toBe(5 * 115);
+    expect(build([onThe20th], NOT_REGISTERED, { now: new Date(2026, 5, 20, 12) }).lines[0].rawAmount).toBe(6 * 115);
+  });
+
+  it("an expense that ended in March keeps January to March and adds nothing after", () => {
+    const r = build([recurring({ end_date: "2026-03-31" })], NOT_REGISTERED);
+    expect(r.lines[0].rawAmount).toBe(3 * 115);
+    expect(r.deductibleTotal).toBe(3 * 115);
+  });
+
+  it("the line and the GST34 ITC count the same charges (registrant, charge day still ahead)", () => {
+    const onThe20th = recurring({ day_of_month: 20 });
+    const line = build([onThe20th], REGISTRANT).lines[0];
+    const [itc] = recurringHSTEntriesForPeriod([onThe20th], "2026-01-01", "2026-06-15");
+    // $100 net and $15 HST a charge: five of each.
+    expect(line.rawAmount).toBe(500);
+    expect(itc.tax_amount).toBe(75);
+  });
+
+  it("a home bill's whole cost behind line 9945 counts the same charges as its share", () => {
+    const internet = recurring({ id: "re-net", category_key: "home_internet", day_of_month: 20 });
+    const r = build([internet], REGISTRANT);
+    // Five charges of $100 before HST: the costs whole, the line at 15%.
+    expect(r.homeOfficeCosts).toEqual({ home_internet: 500 });
+    expect(r.lines[0].rawAmount).toBeCloseTo(75, 10);
+  });
+
   it("a recurring expense that starts later this year adds nothing yet", () => {
     const r = build([recurring({ start_date: "2026-11-01" })], NOT_REGISTERED);
     expect(r.lines[0].rawAmount).toBe(0);
@@ -309,7 +339,7 @@ describe("buildT2125Expenses — recurring expenses reach the T2125", () => {
 
   it("handles null lists", () => {
     const r = buildT2125Expenses({ receiptTotals: NO_RECEIPTS, expenseItems: null, recurringExpenses: undefined, ctx: REGISTRANT, now: JUN_15 });
-    expect(r).toEqual({ lines: [], entries: [], homeOfficeCosts: {}, ytdTotal: 0, deductibleTotal: 0, byRule: { full: 0, meals: 0, vehicle: 0, home: 0 } });
+    expect(r).toEqual({ lines: [], entries: [], homeOfficeCosts: {}, ytdTotal: 0, monthlyTotal: 0, deductibleTotal: 0, byRule: { full: 0, meals: 0, vehicle: 0, home: 0 } });
   });
 });
 
@@ -554,5 +584,173 @@ describe("computeT2125 from the built entries", () => {
     });
     expect(t.expenseLines).toEqual([]);
     expect(t.line9369_totalExpenses).toBe(0);
+  });
+});
+
+// Until 2026-10-13 two rules combined receipts with the per-item monthly
+// figure. The Expenses page and the T2125 took the larger PER KEY
+// (buildT2125Expenses). The dashboard, Reports, Forecast, Overhead,
+// Altimeter, Scenarios, Flight Crew, the weekly digest and the Connector took
+// the larger of the two TOTALS, which dropped the smaller side whole. An
+// account with a monthly figure on one item and receipts on another saw a
+// higher "YTD Expenses" on the Expenses page than on its dashboard.
+//
+// `ytdExpenseTotals` is now the one call: its total IS the sum of the
+// Expenses page's lines.
+describe("ytdExpenseTotals — one year-to-date total for every screen", () => {
+  // 13 Oct 2026: October is the 10th month, so 10 months have started.
+  const NOW = new Date(2026, 9, 13, 12);
+
+  const receipts = [
+    { category_key: "prof_board_mls", total_amount: 115, tax_amount: 15 }, // net 100
+    { category_key: "meals_client", total_amount: 57.5, tax_amount: 7.5 }, // ITC 3.75 → net 53.75
+    { category_key: "vehicle_fuel", total_amount: 230, tax_amount: 30 }, // 80% use: ITC 24, personal 6 → net 200
+  ];
+  // $575 a month with $75 HST, vehicle use: ITC 60, personal 15 → net 500.
+  const lease = recurring({
+    id: "lease", name: "Lease", amount: 575, hst_amount: 75,
+    category_key: "vehicle_payment", vehicle_pct_applicable: true, start_date: "2026-01-01",
+  });
+  // A $20 monthly figure on an item with no receipts: 20 × 10 months = 200.
+  const expenseItems = [{ key: "office_phone", monthly_recurring: 20 }, { key: "office_software", monthly_recurring: 0 }];
+
+  it("a monthly figure on one item and receipts on another both count", () => {
+    const t = ytdExpenseTotals({ receipts, recurring: [lease], expenseItems, ctx: REGISTRANT, now: NOW });
+    expect(t.expensesYTD).toBe(353.75 + 200 + 5000);
+
+    // The rule this replaces: the larger of the two totals, so the $200 of
+    // monthly figures vanished behind $353.75 of receipts on other items.
+    const largerOfTheTotals = Math.max(353.75, 20 * 10) + 5000;
+    expect(t.expensesYTD - largerOfTheTotals).toBe(200);
+  });
+
+  it("is the Expenses page's total: the sum of the engine lines for the same rows", () => {
+    const t = ytdExpenseTotals({ receipts, recurring: [lease], expenseItems, ctx: REGISTRANT, now: NOW });
+    const page = buildT2125Expenses({
+      receiptTotals: aggregateReceiptTotals(receipts, REGISTRANT),
+      expenseItems,
+      recurringExpenses: [lease],
+      ctx: REGISTRANT,
+      now: NOW,
+    });
+    expect(t.expensesYTD).toBe(page.ytdTotal);
+    expect(t.tracked).toEqual(page);
+    expect(t.tracked.lines.reduce((s, l) => s + l.rawAmount, 0)).toBe(t.expensesYTD);
+    expect(t.receipts).toEqual(aggregateReceiptTotals(receipts, REGISTRANT));
+  });
+
+  it("receipts and a monthly figure on the SAME item count once: the larger, never the sum", () => {
+    const larger = ytdExpenseTotals({
+      receipts, recurring: [lease], expenseItems: [{ key: "prof_board_mls", monthly_recurring: 100 }], ctx: REGISTRANT, now: NOW,
+    });
+    // Board dues: 100 × 10 = 1,000 against 100 of receipts. The other two receipts still count.
+    expect(larger.expensesYTD).toBe(1000 + 53.75 + 200 + 5000);
+    expect(larger.estimatesAboveReceipts).toBe(900);
+
+    const smaller = ytdExpenseTotals({
+      receipts, recurring: [lease], expenseItems: [{ key: "prof_board_mls", monthly_recurring: 5 }], ctx: REGISTRANT, now: NOW,
+    });
+    expect(smaller.expensesYTD).toBe(353.75 + 5000);
+    expect(smaller.estimatesAboveReceipts).toBe(0);
+  });
+
+  it("the three parts add up to the total", () => {
+    const t = ytdExpenseTotals({ receipts, recurring: [lease], expenseItems, ctx: REGISTRANT, now: NOW });
+    expect(t.receiptYTD).toBe(353.75);
+    expect(t.estimatesAboveReceipts).toBe(200);
+    expect(t.recurringYTD).toBe(5000);
+    expect(t.receiptYTD + t.estimatesAboveReceipts + t.recurringYTD).toBe(t.expensesYTD);
+  });
+
+  it("monthly: the per-item figures plus the Recurring Expenses list, and the lines add up to it", () => {
+    const t = ytdExpenseTotals({ receipts, recurring: [lease], expenseItems, ctx: REGISTRANT, now: NOW });
+    expect(t.legacyMonthlyRecurring).toBe(20);
+    expect(t.recurringMonthly).toBe(500);
+    expect(t.monthlyRecurring).toBe(520);
+    expect(t.recurringMonthly).toBe(totalRecurringMonthly(recurringExpensesNetOfItc([lease], REGISTRANT)));
+    expect(t.tracked.lines.reduce((s, l) => s + l.monthlyAmount, 0)).toBe(t.monthlyRecurring);
+    expect(t.tracked.monthlyTotal).toBe(t.monthlyRecurring);
+
+    const byKey = Object.fromEntries(t.tracked.lines.map((l) => [l.source + ":" + l.key, l.monthlyAmount]));
+    expect(byKey).toEqual({
+      "item:prof_board_mls": 0, // receipts only: nothing is expected again next month
+      "item:meals_client": 0,
+      "item:vehicle_fuel": 0,
+      "item:office_phone": 20,
+      "recurring:vehicle_payment": 500,
+    });
+  });
+
+  it("non-registrant: every part is the amount paid", () => {
+    const t = ytdExpenseTotals({ receipts, recurring: [lease], expenseItems, ctx: NOT_REGISTERED, now: NOW });
+    expect(t.receiptYTD).toBe(402.5);
+    expect(t.recurringMonthly).toBe(575);
+    expect(t.recurringYTD).toBe(5750);
+    expect(t.monthlyRecurring).toBe(595);
+    expect(t.expensesYTD).toBe(402.5 + 200 + 5750);
+  });
+
+  it("the same total with the GST/HST left in is what someone not registered would see", () => {
+    const inputs = { receipts, recurring: [lease], expenseItems, ctx: REGISTRANT, now: NOW };
+    expect(ytdExpensesGstHstIncluded(inputs)).toBe(ytdExpenseTotals({ ...inputs, ctx: NOT_REGISTERED }).expensesYTD);
+    expect(ytdExpensesGstHstIncluded(inputs)).toBeGreaterThan(ytdExpenseTotals(inputs).expensesYTD);
+    expect(ytdExpensesGstHstIncluded({ ...inputs, ctx: NOT_REGISTERED })).toBe(6352.5);
+  });
+
+  it("a monthly figure and a Recurring Expenses row on the same item both count (two entries the user made)", () => {
+    const t = ytdExpenseTotals({
+      receipts: [], recurring: [lease], expenseItems: [{ key: "vehicle_payment", monthly_recurring: 300 }], ctx: REGISTRANT, now: NOW,
+    });
+    expect(t.tracked.lines.map((l) => [l.source, l.rawAmount])).toEqual([["item", 3000], ["recurring", 5000]]);
+    expect(t.expensesYTD).toBe(8000);
+    expect(t.monthlyRecurring).toBe(800);
+  });
+
+  it("a home bill counts at the workspace share, as in every other total", () => {
+    // $230 power bill with $30 HST at a 15% workspace: ITC 4.50, the bill
+    // before tax is 200, and 15% of that is the expense.
+    const power = { category_key: "home_utilities", total_amount: 230, tax_amount: 30 };
+    const withBill = ytdExpenseTotals({ receipts: [...receipts, power], recurring: [lease], expenseItems, ctx: REGISTRANT, now: NOW });
+    expect(withBill.receiptYTD).toBe(353.75 + 30);
+    expect(withBill.expensesYTD).toBe(5553.75 + 30);
+    // No workspace share set (the column default): the bill counts for nothing.
+    const noShare = ytdExpenseTotals({
+      receipts: [...receipts, power], recurring: [lease], expenseItems,
+      ctx: { ...REGISTRANT, homeOfficeBusinessUsePct: 0 }, now: NOW,
+    });
+    expect(noShare.expensesYTD).toBe(5553.75);
+  });
+
+  it("a monthly figure on a home item counts in neither figure: home bills are logged one by one", () => {
+    const t = ytdExpenseTotals({
+      receipts: [], recurring: [], expenseItems: [{ key: "home_utilities", monthly_recurring: 200 }], ctx: REGISTRANT, now: NOW,
+    });
+    expect(t.expensesYTD).toBe(0);
+    expect(t.monthlyRecurring).toBe(0);
+  });
+
+  it("months elapsed is the calendar month (1 to 12), never a fraction of one", () => {
+    const only = { receipts: [], recurring: [], expenseItems: [{ key: "office_phone", monthly_recurring: 100 }], ctx: REGISTRANT };
+    expect(ytdExpenseTotals({ ...only, now: new Date(2026, 0, 31, 12) }).expensesYTD).toBe(100);
+    expect(ytdExpenseTotals({ ...only, now: new Date(2026, 11, 1, 12) }).expensesYTD).toBe(1200);
+  });
+
+  it("inactive recurring rows count nothing, and the stored rows are left as entered", () => {
+    const off = recurring({ id: "off", is_active: false });
+    const t = ytdExpenseTotals({ receipts: [], recurring: [off, lease], expenseItems: [], ctx: REGISTRANT, now: NOW });
+    expect(t.recurringMonthly).toBe(500);
+    expect(t.recurringYTD).toBe(5000);
+    expect(lease.amount).toBe(575);
+  });
+
+  it("accepts PostgREST's numeric strings and null lists", () => {
+    const t = ytdExpenseTotals({
+      receipts: null, recurring: undefined,
+      expenseItems: [{ key: "office_phone", monthly_recurring: "12.50" }, { key: "edu_books", monthly_recurring: null }, { key: "edu_courses" }],
+      ctx: REGISTRANT, now: NOW,
+    });
+    expect(t.legacyMonthlyRecurring).toBe(12.5);
+    expect(t.expensesYTD).toBe(125);
+    expect(ytdExpenseTotals({ receipts: null, recurring: null, expenseItems: null, ctx: REGISTRANT, now: NOW }).expensesYTD).toBe(0);
   });
 });

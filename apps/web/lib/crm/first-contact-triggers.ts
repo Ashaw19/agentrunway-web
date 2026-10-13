@@ -131,13 +131,18 @@ export function newClientWelcomeCandidates(
   return out;
 }
 
-/** "N years since we first spoke", from 14 days ahead through the day itself. */
+/**
+ * "N years since we first spoke", from 14 days ahead through the day itself.
+ *
+ * Decided from the anniversary date alone. This used to skip a client whose
+ * first contact was in the current calendar year, which hid a first
+ * anniversary in early January until Jan 1: up to two weeks into its window.
+ */
 export function contactAnniversaryCandidates(
   clients: readonly FirstContactClient[],
   opts:    FirstContactOptions,
 ): FirstContactCandidate[] {
   const today = opts.today ?? atlanticISODate();
-  const thisYear = Number(today.slice(0, 4));
   const out: FirstContactCandidate[] = [];
   for (const client of clients) {
     if (!client.first_contacted_at) continue;
@@ -145,10 +150,7 @@ export function contactAnniversaryCandidates(
     const first = firstContactDay(client.first_contacted_at);
     if (!first) continue;
     const { day } = first;
-    const yearsSince = thisYear - Number(day.slice(0, 4));
-    if (yearsSince < 1) continue;
     for (const yr of ANNIVERSARY_YEARS) {
-      if (yr > yearsSince + 1) break;
       const annivDate = addYearsISO(day, yr);
       const d = daysBetweenISO(today, annivDate);
       if (d >= 0 && d <= opts.windowDays) {

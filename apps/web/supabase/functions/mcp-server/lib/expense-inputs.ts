@@ -1,15 +1,19 @@
 // Expense inputs for the MCP tools: the dashboard's, read the same way.
 //
 // NOT a mirror. The math is the canonical engine, imported from the Deno copy
-// of packages/core (`pnpm build:mcp-shared`): `ytdExpenseTotals` and
-// `inputTaxCreditsForPeriod` in expense-totals-engine. This file only fetches
-// the rows, with the dashboard's tables, columns and filters
+// of packages/core (`pnpm build:mcp-shared`): `ytdExpenseTotals` in
+// t2125-expenses-engine (the one year-to-date total the dashboard, the
+// Expenses page and every other surface take) and `inputTaxCreditsForPeriod`
+// in expense-totals-engine. This file only fetches the rows, with the
+// dashboard's tables, columns and filters
 // (apps/web/app/(app)/dashboard/page.tsx):
 //
 //   receipt_expenses    category_key, total_amount, tax_amount
 //                       expense_date on or after Jan 1 of the Atlantic year
 //   recurring_expenses  every column, is_active = true
-//   expense_items       monthly_recurring (the legacy monthly estimate)
+//   expense_items       key, monthly_recurring (the monthly estimate typed
+//                       on an expense line; it counts per item, so the key
+//                       has to be read with it)
 //   user_settings       gst_hst_registered, vehicle_business_use_pct,
 //                       home_office_business_use_pct (the three inputs of
 //                       expenseTaxContext; without the last one a home bill
@@ -29,13 +33,14 @@ import type { SupabaseClient } from "npm:@supabase/supabase-js@2";
 import {
   expenseTaxContext,
   inputTaxCreditsForPeriod,
-  recurringExpensesNetOfItc,
-  ytdExpenseTotals,
   type ExpenseTaxContext,
   type PeriodInputTaxCredits,
   type ReceiptTotalsRow,
-  type YtdExpenseTotals,
 } from "../../_shared/core/engines/expense-totals-engine.ts";
+import {
+  ytdExpenseTotals,
+  type YtdExpenseTotals,
+} from "../../_shared/core/engines/t2125-expenses-engine.ts";
 import { atlanticISODate, atlanticNoon } from "../../_shared/core/lib/local-date.ts";
 import type { RecurringExpense } from "../../_shared/core/types/database.ts";
 
@@ -58,10 +63,8 @@ export interface ExpenseInputs {
   yearStart: string;
   /** Active recurring expenses as stored (GST/HST included). */
   recurring: RecurringExpense[];
-  /** The same rows with `amount` net of ITC: for totals only. */
-  recurringNet: RecurringExpense[];
   items: ExpenseItemRow[];
-  /** The dashboard's `expensesYTD` and `monthlyRecurring`, and what they are built from. */
+  /** The dashboard's `expensesYTD` and `monthlyRecurring`, and the lines they are the sums of. */
   totals: YtdExpenseTotals;
   /** ITCs on this year's receipts and on recurring expenses charged to date. */
   itcs: PeriodInputTaxCredits;
@@ -120,9 +123,8 @@ export async function loadExpenseInputs(
     todayISO,
     yearStart,
     recurring,
-    recurringNet: recurringExpensesNetOfItc(recurring, taxCtx),
     items,
-    totals: ytdExpenseTotals({ receipts, recurring, legacyItems: items, ctx: taxCtx, now: today }),
+    totals: ytdExpenseTotals({ receipts, recurring, expenseItems: items, ctx: taxCtx, now: today }),
     itcs: inputTaxCreditsForPeriod(receipts, recurring, taxCtx, yearStart, todayISO),
   };
 }

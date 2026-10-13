@@ -68,8 +68,8 @@ const ALLOWED: Record<string, { count: number; why: string }> = {
     why: "Sample ExpenseItem rows for the demo dashboard: the type requires the field. Nothing reads it.",
   },
   "apps/web/supabase/functions/mcp-server/tools/expenses.ts": {
-    count: 13,
-    why: "`ytd_amount` here is a field of get_expenses' OUTPUT, filled from receipts and recurring expenses (lib/expense-inputs.ts). The column is not selected.",
+    count: 10,
+    why: "`ytd_amount` here is a field of get_expenses' OUTPUT, filled from the engine's expense lines (lib/expense-inputs.ts → ytdExpenseTotals). The column is not selected.",
   },
 };
 
