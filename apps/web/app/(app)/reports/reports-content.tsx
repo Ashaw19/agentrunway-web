@@ -90,6 +90,8 @@ import {
   gstHstLabel,
 } from "@/lib/engines/canadian-tax-engine";
 import { computeHSTCollected } from "@/lib/engines/hst-engine";
+import { gstHstReportNote } from "@agent-runway/core/tax-copy";
+import type { BusinessReportPDFProps } from "@/components/pdf/business-report-pdf";
 import { compare, COHORT_LABELS } from "@/lib/engines/benchmark-engine";
 import { calculateCorporateTax } from "@/lib/engines/corporate-tax-engine";
 import { survivalResult, riskColorBand, type RiskLevel, type RiskColorBand } from "@/lib/engines/survival-engine";
@@ -546,7 +548,9 @@ export function ReportsContent({
         };
       });
 
-      const pdfProps = {
+      // Typed here because the PDF file is @ts-nocheck: a prop left out would
+      // reach it as `undefined` with no compile error.
+      const pdfProps: BusinessReportPDFProps = {
         // Identity
         agentName: settings.display_name ?? "",
         brokerageName: settings.brokerage_name ?? "",
@@ -585,6 +589,8 @@ export function ReportsContent({
         taxResult,
         gstHstCollectedYTD,
         gstHstLabel: taxLabel,
+        gstHstRegistered: settings.gst_hst_registered ?? false,
+        brokerageWithholdsHst: settings.brokerage_withholds_hst ?? false,
 
         // Expenses
         expenseRatio,
@@ -1203,16 +1209,16 @@ export function ReportsContent({
             </div>
           </div>
 
-          {settings.gst_hst_registered ? (
-            <p className="mt-3 text-[11px] text-muted-foreground">
-              {taxLabel} of {fmtCurrency(gstHstCollectedYTD)} was charged to clients and must be remitted to CRA.
-              Net of input tax credits (ITCs) on business expenses may reduce your remittance.
-            </p>
-          ) : (
-            <p className="mt-3 text-[11px] text-muted-foreground">
-              {taxLabel} tracking is available once you register and enable it in Settings.
-            </p>
-          )}
+          {/* Same note as the PDF's Expenses page: one of three, by registration and who remits. */}
+          <p className="mt-3 text-[11px] text-muted-foreground">
+            {gstHstReportNote({
+              label: taxLabel,
+              registered: settings.gst_hst_registered ?? false,
+              brokerageWithholds: settings.brokerage_withholds_hst ?? false,
+              collectedYTD: gstHstCollectedYTD,
+              ytdGCI,
+            })}
+          </p>
         </CardContent>
       </Card>
 

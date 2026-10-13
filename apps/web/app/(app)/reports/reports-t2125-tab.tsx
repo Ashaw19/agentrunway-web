@@ -22,6 +22,7 @@ import { computeT2125, t2125LineForExpenseKey, T2125_OTHER_EXPENSES } from "@/li
 import type { HomeOfficeCostType, T2125ExpenseEntry, T2125Result } from "@/lib/engines/t2125-engine";
 import { generateTaxOptimizations, type DeductionTrackingFlags } from "@/lib/engines/tax-optimization-engine";
 import { T2125Pdf } from "@/components/pdf/t2125-pdf";
+import { INCOME_TAX_INSTALMENT_DUE_DATES, SMALL_SUPPLIER_RULE_SHORT } from "@agent-runway/core/tax-copy";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 
@@ -907,7 +908,7 @@ export function ReportsT2125Tab({
             <div className="rounded-lg bg-white border px-3 py-2 text-center">
               <p className="text-xs text-muted-foreground">Quarterly Instalment</p>
               <p className="text-sm font-bold">{fmtCurrency(result.instalments.recommendedQuarterly)}</p>
-              <p className="text-[10px] text-muted-foreground">Recommended per quarter</p>
+              <p className="text-[10px] text-muted-foreground">Estimated tax ÷ 4</p>
             </div>
           </div>
         </CardContent>
@@ -934,7 +935,7 @@ export function ReportsT2125Tab({
             <div className="flex items-center gap-3 rounded-lg border px-4 py-3">
               <div className="flex-1">
                 <p className="text-sm font-medium">GST/HST Registered?</p>
-                <p className="text-xs text-muted-foreground">Required if annual revenue exceeds $30,000</p>
+                <p className="text-xs text-muted-foreground">{SMALL_SUPPLIER_RULE_SHORT}</p>
               </div>
               <div className="flex gap-2">
                 {([false, true] as const).map((v) => (
@@ -1038,7 +1039,7 @@ export function ReportsT2125Tab({
             <SectionHeader
               icon={CreditCard}
               label="CRA Tax Instalment Tracker"
-              subtitle="Compare recommended vs. paid to spot any shortfall"
+              subtitle="Estimated tax in four equal parts, next to what you have paid"
               color="text-amber-600"
             />
             {expandedSections.instalments ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
@@ -1054,12 +1055,13 @@ export function ReportsT2125Tab({
                     <div className="flex justify-between text-xs">
                       <span className="font-semibold">Q{q} Instalment</span>
                       <span className="text-muted-foreground">
-                        Due: {q === 1 ? "Apr 30" : q === 2 ? "Jul 31" : q === 3 ? "Oct 31" : "Jan 31"}
+                        {/* Income tax instalments: CRA's dates for individuals, not the GST/HST filing dates. */}
+                        Due: {INCOME_TAX_INSTALMENT_DUE_DATES[q - 1].short}
                       </span>
                     </div>
                     <div className="flex items-center gap-3">
                       <div className="flex-1">
-                        <p className="text-[10px] text-muted-foreground mb-1">Recommended</p>
+                        <p className="text-[10px] text-muted-foreground mb-1">Estimated</p>
                         <p className="text-sm font-medium">{fmtCurrency(result.instalments.recommendedQuarterly)}</p>
                       </div>
                       <div className="flex-1">
@@ -1084,7 +1086,7 @@ export function ReportsT2125Tab({
               result.instalments.balance > 0 ? "border-red-200 bg-red-50" : "border-emerald-200 bg-emerald-50",
             )}>
               <div className="flex justify-between">
-                <span>Recommended total</span>
+                <span>Estimated tax for the year</span>
                 <span>{fmtCurrency(result.totalTaxBurden)}</span>
               </div>
               <div className="flex justify-between">

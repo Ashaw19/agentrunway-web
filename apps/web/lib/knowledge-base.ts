@@ -109,7 +109,7 @@ Platform for Canadian real estate agents: income, expenses, pipeline, clients, t
 **QPP:** 12.80%. Quebec abatement: federal tax x 83.5%.
 **Ontario surtax:** 20% over $5,710 + 36% over $7,307.
 
-**GST/HST:** 5%(AB,BC,MB,SK,territories), 13%(ON), 14%(NS), 15%(NB,NL,PE). Mandatory >$30K/12mo.
+**GST/HST:** 5%(AB,BC,MB,SK,territories), 13%(ON), 14%(NS), 15%(NB,NL,PE). Registration (CRA small supplier rule): required once revenue from worldwide taxable supplies, before expenses, is over $30,000 in a single calendar quarter or over the last four consecutive calendar quarters (commission revenue, not net income; calendar quarters, not a year or rolling 12 months); optional at or under it. Registered or not = the Settings toggle only.
 
 **Corporate CCPC:** SBD 9% on first $500K. General 15%. Phase-out $5/$1 over $50K AAII. Non-eligible gross-up 15%, DTC 9.0301%.
 

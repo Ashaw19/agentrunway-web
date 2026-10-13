@@ -17,6 +17,7 @@ import type { T2125Result } from "@/lib/engines/t2125-engine";
 import type { TaxOptimizationCard } from "@/lib/engines/tax-optimization-engine";
 import type { UserSettings } from "@/lib/types/database";
 import { PROVINCE_LABELS } from "@/lib/types/database";
+import { INCOME_TAX_INSTALMENT_DUE_DATES } from "@agent-runway/core/tax-copy";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -518,7 +519,7 @@ export function T2125Pdf({ result, settings, taxYear, mileageSummary, taxOptCard
           <View style={s.kpiTile}>
             <Text style={s.kpiLabel}>Quarterly Instalment</Text>
             <Text style={s.kpiValue}>{fmt(result.instalments.recommendedQuarterly)}</Text>
-            <Text style={s.kpiSub}>Due Apr/Jul/Oct/Jan</Text>
+            <Text style={s.kpiSub}>Due {INCOME_TAX_INSTALMENT_DUE_DATES.map((d) => d.short).join(", ")}</Text>
           </View>
         </View>
 
@@ -545,20 +546,20 @@ export function T2125Pdf({ result, settings, taxYear, mileageSummary, taxOptCard
         )}
 
         {/* Instalments */}
-        <SectionHeader title="CRA Tax Instalment Tracker" subtitle="Recommended vs. paid comparison" color="#B45309" />
+        {/* Income tax instalments: CRA's dates for individuals, not the GST/HST filing dates. */}
+        <SectionHeader title="CRA Tax Instalment Tracker" subtitle="Estimated tax in four equal parts vs. paid" color="#B45309" />
         <View style={s.ccaHeader}>
           <Text style={[s.ccaCol1, { flex: 1 }]}>Quarter</Text>
           <Text style={[s.ccaCol2]}>Due Date</Text>
-          <Text style={[s.ccaCol2]}>Recommended</Text>
+          <Text style={[s.ccaCol2]}>Estimated</Text>
           <Text style={[s.ccaCol2]}>Paid</Text>
         </View>
         {([1, 2, 3, 4] as const).map((q) => {
           const paid = [result.instalments.paidQ1, result.instalments.paidQ2, result.instalments.paidQ3, result.instalments.paidQ4][q - 1];
-          const dueDates = ["April 30", "July 31", "October 31", "January 31"];
           return (
             <View key={q} style={s.ccaRow}>
               <Text style={[s.ccaCol1, { flex: 1, fontSize: 8 }]}>Q{q}</Text>
-              <Text style={[s.ccaCol2, { fontSize: 8 }]}>{dueDates[q - 1]}</Text>
+              <Text style={[s.ccaCol2, { fontSize: 8 }]}>{INCOME_TAX_INSTALMENT_DUE_DATES[q - 1].long}</Text>
               <Text style={[s.ccaCol2, { fontSize: 8 }]}>{fmt(result.instalments.recommendedQuarterly)}</Text>
               <Text style={[s.ccaCol2, { fontSize: 8, fontFamily: "Helvetica-Bold" }]}>{fmt(paid)}</Text>
             </View>

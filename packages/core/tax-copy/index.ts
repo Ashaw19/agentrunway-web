@@ -32,3 +32,12 @@ export {
   type Diagnostic,
   type DiagnosticLevel,
 } from "./validate";
+
+export {
+  SMALL_SUPPLIER_LIMIT,
+  SMALL_SUPPLIER_RULE,
+  SMALL_SUPPLIER_RULE_SHORT,
+  INCOME_TAX_INSTALMENT_DUE_DATES,
+  gstHstReportNote,
+  type GstHstReportNoteInput,
+} from "./cra-rules";
