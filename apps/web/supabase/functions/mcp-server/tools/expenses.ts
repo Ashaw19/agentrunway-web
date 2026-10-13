@@ -25,10 +25,14 @@ export function getExpenseTools(supabase: SupabaseClient, userId: string): McpTo
     // are the engine's own (`totals.tracked.lines`), so they add up to it.
     // Until 2026-10-13 this tool listed `expense_items.ytd_amount`, a column
     // the app no longer writes: receipts and recurring expenses were missing.
+    // `next_year_expenses` is the dashboard's next-year plan figure
+    // (`totals.expensesNextYear`). It replaced `projected_annual_recurring`,
+    // the monthly figure × 12, which counted a recurring expense with an end
+    // date for the whole of next year.
     {
       name: "get_expenses",
       description:
-        "Returns the agent's YTD business expenses by category and line item (receipts, monthly estimates and recurring expenses), plus monthly recurring totals. For a GST/HST registrant the amounts are net of the GST/HST claimed as input tax credits. Home Office bills count at the home office share. A recurring expense with an end_date counts its charges up to that date; once the date has passed its monthly_recurring is 0 and it is out of the monthly totals. ESTIMATE ONLY — not tax advice.",
+        "Returns the agent's YTD business expenses by category and line item (receipts, monthly estimates and recurring expenses), plus monthly recurring totals. For a GST/HST registrant the amounts are net of the GST/HST claimed as input tax credits. Home Office bills count at the home office share. A recurring expense with an end_date counts its charges up to that date; once the date has passed its monthly_recurring is 0 and it is out of the monthly totals. next_year_expenses is the business expenses expected next calendar year, the figure the dashboard's next-year plan deducts: each recurring expense by the charge dates that fall in that year (so one with an end_date stops counting at it, and one that starts during the year counts from its start date) plus 12 months of the monthly estimates. It is not total_monthly_recurring x 12. ESTIMATE ONLY — not tax advice.",
       inputSchema: { type: "object", properties: {}, additionalProperties: false },
       annotations: {
         title: "Business Expenses",
@@ -136,7 +140,15 @@ export function getExpenseTools(supabase: SupabaseClient, userId: string): McpTo
               amounts: amountsNote,
               total_ytd: round2(totals.expensesYTD),
               total_monthly_recurring: round2(totals.monthlyRecurring),
-              projected_annual_recurring: round2(totals.monthlyRecurring * 12),
+              // Next calendar year, as the dashboard's next-year plan counts
+              // it. Not total_monthly_recurring × 12: a recurring expense has
+              // dates, so it counts by its charge dates in that year.
+              next_year_expenses: {
+                year: today.getFullYear() + 1,
+                total: round2(totals.expensesNextYear),
+                recurring: round2(totals.recurringNextYear),
+                formula: "total = recurring + 12 months of the monthly estimates on expense items. recurring = each recurring expense's charge dates that fall in that year, from its start date and up to its end_date when it has one. Receipts are not projected.",
+              },
               // How total_ytd is built. An expense item's line is its
               // receipts, or its monthly estimate × months so far where that
               // is larger; the excess over receipts is listed here.

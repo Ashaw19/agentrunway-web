@@ -24,10 +24,11 @@ export function recurringMonthlyEquivalent(re: RecurringExpense): number {
 
 // ── Monthly run-rate ──────────────────────────────────────────────────────
 //
-// The run-rate is what the Recurring Expenses list is expected to cost each
-// month from here on: "Monthly Recurring", survival burn, next year's plan.
-// Unlike the dated totals below it is not a count of charge dates, so it
-// needs its own rule for a row with an end date.
+// The run-rate is what the Recurring Expenses list costs each month as of
+// today: "Monthly Recurring", the "/mo" cells, survival burn. Unlike the
+// dated totals below it is not a count of charge dates, so it needs its own
+// rule for a row with an end date. What a given year costs is not this
+// figure × 12: it is that year's charge dates (`totalRecurringInYear`).
 //
 // An expense that really ended is kept active with an `end_date`: the
 // charges up to that date stay in the year to date, the T2125 lines and the
@@ -177,6 +178,31 @@ export function projectedAnnualRecurring(
   now: Date = new Date(),
 ): number {
   return totalRecurringYTD(expenses, now) + totalRecurringRemaining(expenses, now);
+}
+
+// ── A whole calendar year ─────────────────────────────────────────────────
+//
+// What the list is charged over one calendar year, any year: the dashboard's
+// plan for next year reads it (`ytdExpenseTotals(...).expensesNextYear`).
+// The same charge dates as the totals above, from Jan 1 to Dec 31, so a row
+// with an end date stops counting at it and a row that starts during the
+// year counts from its start date.
+//
+// Until 2026-10-13 next year's plan was the monthly run-rate × 12. That
+// counted a lease ending Dec 31 for all twelve months of the next year until
+// Jan 1 came, a row starting in July for the whole year, and an annual fee
+// whether or not it was still running on its renewal date.
+
+/** What one recurring expense is charged in calendar year `year`: its charge dates from Jan 1 to Dec 31. */
+export function recurringChargesInYear(re: RecurringExpense, year: number): number {
+  return Number(re.amount) * occurrencesInRange(re, new Date(year, 0, 1), new Date(year, 11, 31, 23, 59, 59));
+}
+
+/** Total charged in calendar year `year` across all active recurring expenses */
+export function totalRecurringInYear(expenses: RecurringExpense[], year: number): number {
+  return expenses
+    .filter((re) => re.is_active)
+    .reduce((sum, re) => sum + recurringChargesInYear(re, year), 0);
 }
 
 // ── HST / ITC helpers ────────────────────────────────────────────────────

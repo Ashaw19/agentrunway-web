@@ -731,6 +731,15 @@ const TOPIC_RULES: TopicRule[] = [
       "no longer pay",
       "says ended",
       "shows ended",
+      // An end date still ahead, and next year's plan, which counts an
+      // entry by its charge dates in that year (2026-10-13).
+      "my lease ends",
+      "car lease ends",
+      "vehicle lease ends",
+      "subscription ends",
+      "expenses next year",
+      "expenses for next year",
+      "next year's expenses",
     ],
   },
   {

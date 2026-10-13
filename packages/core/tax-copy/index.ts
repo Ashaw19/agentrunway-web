@@ -38,6 +38,8 @@ export {
   SMALL_SUPPLIER_RULE,
   SMALL_SUPPLIER_RULE_SHORT,
   INCOME_TAX_INSTALMENT_DUE_DATES,
+  BROKERAGE_HST_WITHHOLDING,
+  brokerageHstWithholdingHint,
   gstHstReportNote,
   type GstHstReportNoteInput,
 } from "./cra-rules";
