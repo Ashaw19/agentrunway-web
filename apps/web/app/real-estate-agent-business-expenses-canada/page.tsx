@@ -6,6 +6,18 @@ import { MarketingFooter } from "@/components/marketing-footer";
 import { ScrollRevealSection } from "@/components/scroll-reveal-section";
 import { EmailCapture } from "@/components/email-capture";
 import { articleSchema } from "@/lib/schema";
+import { EXPENSE_RATIO_COPY } from "@agent-runway/core/engines/expense-ratio-bands";
+
+// One question and answer, used by the FAQ on the page and its JSON-LD. The
+// figure is Agent Runway's target (EXPENSE_RATIO_BANDS). The wording that was
+// here gave a range as what agents commonly run and said more than that may
+// attract CRA review; neither half had a source.
+const EXPENSE_RATIO_FAQ = {
+  question: "What expense ratio does Agent Runway measure against?",
+  answer:
+    `${EXPENSE_RATIO_COPY.targetSentence} ${EXPENSE_RATIO_COPY.provenance} ` +
+    "It is a planning figure, not a CRA threshold. In Agent Runway the ratio is recorded business expenses divided by gross commission income, and the brokerage split is taken off separately.",
+};
 
 export const metadata: Metadata = {
   title: "Real Estate Agent Business Expenses You Can Deduct in Canada",
@@ -109,10 +121,10 @@ const JSON_LD_FAQ = {
     },
     {
       "@type": "Question",
-      name: "What expense ratio is typical for a Canadian real estate agent?",
+      name: EXPENSE_RATIO_FAQ.question,
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Total expense ratios for active Canadian real estate agents commonly fall in the 25 to 30 percent range of gross commission income, covering brokerage splits, marketing, vehicle costs, board dues, and other business expenses. Ratios materially above that range may attract closer CRA review. The 25 to 30 percent figure is a descriptive observation, not a CRA-published threshold.",
+        text: EXPENSE_RATIO_FAQ.answer,
       },
     },
     {
@@ -434,12 +446,11 @@ export default function BusinessExpensesGuidePage() {
                   </p>
                 </div>
                 <p>
-                  <strong>Observed industry pattern:</strong> total expense
-                  ratios for active Canadian real estate agents commonly fall
-                  between <strong>25&ndash;30% of gross commission income</strong>.
-                  That range covers brokerage splits, board dues, marketing,
-                  vehicle costs, and software subscriptions. The figure is a
-                  descriptive observation, not a CRA-published benchmark.
+                  <strong>Expense ratio:</strong> recorded business expenses
+                  divided by gross commission income.{" "}
+                  {EXPENSE_RATIO_COPY.targetSentence}{" "}
+                  {EXPENSE_RATIO_COPY.provenance} It is a planning figure, not
+                  a CRA-published benchmark.
                 </p>
                 <p>
                   These expenses are reported on the{" "}
@@ -642,11 +653,10 @@ export default function BusinessExpensesGuidePage() {
                 <li className="flex items-start gap-3 text-base text-slate-700">
                   <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-slate-400" />
                   <span>
-                    <strong>Expense ratio context.</strong> Total expense
-                    ratios for active Canadian real estate agents commonly
-                    fall in the 25&ndash;30% of GCI range. Ratios materially
-                    above that range may attract closer review &mdash; the
-                    figure is descriptive, not a CRA threshold.
+                    <strong>Expense ratio context.</strong> Agent Runway
+                    shows the expense ratio against its own target of{" "}
+                    {EXPENSE_RATIO_COPY.target}. That target is a planning
+                    figure, not a CRA threshold.
                   </span>
                 </li>
               </ul>
@@ -679,16 +689,10 @@ export default function BusinessExpensesGuidePage() {
                 </div>
                 <div>
                   <h3 className="text-lg font-semibold text-slate-900">
-                    What expense ratio is typical for a Canadian real estate agent?
+                    {EXPENSE_RATIO_FAQ.question}
                   </h3>
                   <p className="mt-2 text-base leading-relaxed text-slate-600">
-                    Total expense ratios for active Canadian real estate agents
-                    commonly fall in the 25&ndash;30% range of gross commission
-                    income, covering brokerage splits, marketing, vehicle
-                    costs, board dues, and other business expenses. Ratios
-                    materially above that range may attract closer CRA review.
-                    The 25&ndash;30% figure is a descriptive observation, not a
-                    CRA-published threshold.
+                    {EXPENSE_RATIO_FAQ.answer}
                   </p>
                 </div>
                 <div>

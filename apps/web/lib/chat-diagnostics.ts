@@ -22,7 +22,8 @@ import {
 import {
   compute as computeRunwayScore,
 } from "@agent-runway/core/engines/runway-score-engine";
-import { buildHealthReport } from "@agent-runway/core/engines/health-report";
+import { buildHealthReport, expenseSubScore } from "@agent-runway/core/engines/health-report";
+import { EXPENSE_RATIO_COPY, expenseRatioBand, expenseRatioBandRange } from "@agent-runway/core/engines/expense-ratio-bands";
 import {
   survivalResult as computeSurvivalResult,
 } from "@agent-runway/core/engines/survival-engine";
@@ -547,39 +548,27 @@ ${stageLines || "  (empty pipeline)"}`;
 }
 
 /**
- * diagExpenses: matches health-report.ts logic exactly.
- * v1.2: 35 when GCI > 0 but no expenses (not 50).
+ * diagExpenses: the sub-score is health-report.ts's own function, and the
+ * band is EXPENSE_RATIO_BANDS, so neither can drift from the dashboard.
  */
 function diagExpenses(ctx: DiagContext): string {
   const { ytdGCI, expensesYTD, expensesPaidYTD, monthlyRecurring, expenseCategoryYTD } = ctx;
 
   const ratio = ytdGCI > 0 ? (expensesYTD / ytdGCI) * 100 : 0;
 
-  // Expense score — same logic as health-report.ts
-  let expenseScore: number;
-  if (ytdGCI > 0 && expensesYTD > 0) {
-    const r = expensesYTD / ytdGCI;
-    if (r > 0.5) expenseScore = 30;
-    else if (r > 0.35) expenseScore = 55;
-    else if (r > 0.25) expenseScore = 75;
-    else expenseScore = 90;
-  } else if (ytdGCI > 0 && expensesYTD === 0) {
-    expenseScore = 35; // v1.2: incomplete data penalty
-  } else {
-    expenseScore = 50; // no GCI yet
-  }
+  const expenseScore = expenseSubScore(ytdGCI, expensesYTD);
 
-  // Emit the raw ratio bucket as a state-only descriptor — no editorial
+  // Emit the ratio's band as a state-only descriptor: its range and where it
+  // sits against the target, in the words the screens use. No editorial
   // labels. Personas layer interpretation per their own voice rules.
   // Removed 2026-04-22 (Audit 2): "WARNING", "Concerning", "Needs attention"
   // were editorial judgments on an engine-computed ratio; keeping them
   // forced downstream personas to either echo them verbatim (violating
   // info-not-advice) or contradict the diagnostic text.
+  const band = expenseRatioBand(ytdGCI > 0 ? expensesYTD / ytdGCI : NaN);
   const ratioBucket = ytdGCI === 0 ? "N/A (no GCI)" :
-    ratio > 50 ? "above 50%" :
-    ratio > 35 ? "above 35%" :
-    ratio > 30 ? "above 30%" :
-    ratio > 25 ? "above 25%" : "at or below 25%";
+    band ? `${expenseRatioBandRange(band)}, ${band.position} ${EXPENSE_RATIO_COPY.targetPhrase}` :
+    "N/A (no expenses recorded)";
 
   // Already largest first. Recurring expenses and monthly figures are inside
   // each category's year-to-date amount, not on top of it.

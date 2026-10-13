@@ -26,6 +26,7 @@ import { compare } from "../benchmark-engine";
 import { probabilityBands, fiveYearBands } from "../probabilistic-forecast-engine";
 import { compute as computeRunwayScore } from "../runway-score-engine";
 import type { BusinessHealthReport } from "../runway-score-engine";
+import { expenseSubScore } from "../health-report";
 import {
   TEST_TRANSACTIONS,
   TEST_PIPELINE,
@@ -178,8 +179,7 @@ describe("Full Dashboard Pipeline", () => {
     // Build health report (simplified version of dashboard's buildHealthReport)
     const paceScore = Math.min(100, Math.max(0, 50 + pacePercent * 0.5));
     const pipelineScore = TEST_PIPELINE.length > 0 ? 65 : 20;
-    const expenseRatio = TEST_EXPENSES.ytdExpenses / Math.max(1, ytdGCI);
-    const expenseScore = expenseRatio < 0.25 ? 90 : expenseRatio < 0.35 ? 75 : 50;
+    const expenseScore = expenseSubScore(ytdGCI, TEST_EXPENSES.ytdExpenses);
 
     const healthReport: BusinessHealthReport = {
       score: 0,

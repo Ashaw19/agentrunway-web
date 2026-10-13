@@ -14,11 +14,45 @@ import {
 import { MarketingNav } from "@/components/marketing-nav";
 import { MarketingFooter } from "@/components/marketing-footer";
 import { definedTermSchema, breadcrumbSchema } from "@/lib/schema";
+import {
+  EXPENSE_RATIO_BANDS,
+  EXPENSE_RATIO_COPY,
+  expenseRatioBand,
+  expenseRatioBandRange,
+  expenseRatioTone,
+  formatExpenseRatio,
+  type ExpenseRatioBandKey,
+} from "@agent-runway/core/engines/expense-ratio-bands";
+import { EXPENSE_RATIO_TONE_CLASS } from "@/lib/expense-ratio-style";
+
+// The bands, target and colours on this page are the app's own
+// (EXPENSE_RATIO_BANDS): what the page says is what a signed-in agent sees.
+// Only the sentence beside each band is written here, and it carries no figure.
+const BAND_NOTES: Record<ExpenseRatioBandKey, string> = {
+  wellWithin: "The top band. The Expenses part of the Runway Score is at its highest here.",
+  within: "At or under the target.",
+  above: "Past the target. The dashboard starts to flag the ratio here.",
+  wellAbove: "The last band. The Expenses part of the Runway Score is at its lowest here.",
+};
+
+const BAND_ROW_CLASS: Record<(typeof EXPENSE_RATIO_BANDS)[number]["tone"], string> = {
+  emerald: "bg-emerald-50",
+  blue: "bg-blue-50",
+  amber: "bg-amber-50",
+  red: "bg-red-50",
+};
+
+// The worked example further down, placed in its band like any other ratio.
+const EXAMPLE_EXPENSES = 52_000;
+const EXAMPLE_GCI = 180_000;
+const EXAMPLE_RATIO = EXAMPLE_EXPENSES / EXAMPLE_GCI;
+const EXAMPLE_BAND = expenseRatioBand(EXAMPLE_RATIO);
+const EXAMPLE_CLASS = EXPENSE_RATIO_TONE_CLASS[expenseRatioTone(EXAMPLE_RATIO)];
 
 export const metadata: Metadata = {
   title: "Real Estate Expense Ratio Explained",
   description:
-    "Learn what expense ratio means for real estate agents, how to calculate it, and what the industry benchmark is for a healthy business.",
+    "Learn what expense ratio means for real estate agents, how to calculate it, and the target Agent Runway measures it against.",
   openGraph: {
     url: "https://agentrunway.ca/metrics/expense-ratio",
     images: [{ url: "/og-image-v2.png", width: 1200, height: 630 }],
@@ -32,7 +66,8 @@ const expenseRatioSchema = definedTermSchema({
   name: "Expense Ratio (Real Estate Agent)",
   alternateName: ["Cost Ratio", "Operating Expense Ratio"],
   description:
-    "Expense Ratio for a real estate agent is total business expenses divided by Gross Commission Income (GCI), expressed as a percentage. It measures what share of revenue is consumed by operating costs (marketing, fees, tools, vehicle, insurance, education) before taxes. Canadian real estate expense ratios typically range from 20% to 45% of GCI.",
+    "Expense Ratio for a real estate agent is total business expenses divided by Gross Commission Income (GCI), expressed as a percentage. It measures what share of revenue is consumed by operating costs (marketing, fees, tools, vehicle, insurance, education) before taxes. " +
+    EXPENSE_RATIO_COPY.targetSentence,
   url: "/metrics/expense-ratio",
 });
 
@@ -72,16 +107,15 @@ export default function ExpenseRatioMetricPage() {
               Expense Ratio
             </h1>
             <p className="mx-auto mt-4 max-w-2xl text-base leading-relaxed text-slate-400 sm:text-lg">
-              How much of every commission dollar you spend running your business —
-              and the benchmark that separates efficient agents from those quietly
-              eroding their income.
+              How much of every commission dollar goes to running your business,
+              and the target Agent Runway measures it against.
             </p>
 
             {/* Key stat pills */}
             <div className="mt-10 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
               {[
-                { value: "25–30%", label: "industry benchmark for a healthy ratio" },
-                { value: "Every $", label: "above 40% spent is income lost" },
+                { value: EXPENSE_RATIO_COPY.targetShort, label: "of GCI is Agent Runway's target" },
+                { value: "Every $", label: "of expenses comes out of net income" },
                 { value: "1 metric", label: "that reveals your cost efficiency" },
               ].map((s) => (
                 <div
@@ -179,73 +213,48 @@ export default function ExpenseRatioMetricPage() {
               </div>
             </div>
 
-            {/* 3. Benchmark gauge */}
+            {/* 3. Target and bands */}
             <div>
               <h2 className="text-2xl font-bold tracking-tight text-slate-900">What is a healthy expense ratio?</h2>
               <p className="mt-4 leading-relaxed text-slate-600">
-                The widely cited benchmark for a healthy real estate agent business is an expense
-                ratio of <strong className="text-slate-800">25–30%</strong>. This range reflects
-                sufficient investment in lead generation without overspending relative to production.
+                Agent Runway measures the ratio against a target of{" "}
+                <strong className="text-slate-800">{EXPENSE_RATIO_COPY.target}</strong>.{" "}
+                {EXPENSE_RATIO_COPY.provenance} The app reads every ratio in one of four bands,
+                and shows it in that band&apos;s colour on the dashboard, the Expenses page and
+                your reports.
               </p>
 
-              {/* Benchmark gauge */}
+              {/* Bands */}
               <div className="mt-6 overflow-hidden rounded-2xl border border-slate-200">
-                {[
-                  {
-                    range: "Below 20%",
-                    label: "Under-invested",
-                    color: "bg-amber-100 border-amber-200",
-                    badge: "bg-amber-100 text-amber-800",
-                    dot: "bg-amber-400",
-                    desc: "May indicate underinvestment in marketing or lead generation — limiting future growth.",
-                  },
-                  {
-                    range: "25–30%",
-                    label: "Healthy ✓",
-                    color: "bg-emerald-50 border-emerald-200",
-                    badge: "bg-emerald-100 text-emerald-800",
-                    dot: "bg-emerald-500",
-                    desc: "Business is investing appropriately in operations and growth. This is the target zone.",
-                  },
-                  {
-                    range: "30–40%",
-                    label: "Elevated",
-                    color: "bg-orange-50 border-orange-200",
-                    badge: "bg-orange-100 text-orange-800",
-                    dot: "bg-orange-400",
-                    desc: "Worth monitoring closely. May be acceptable for agents in early growth phase.",
-                  },
-                  {
-                    range: "Above 40%",
-                    label: "Warning",
-                    color: "bg-red-50 border-red-200",
-                    badge: "bg-red-100 text-red-800",
-                    dot: "bg-red-500",
-                    desc: "Fixed cost structure is likely too high relative to production. Review required.",
-                  },
-                ].map((tier) => (
-                  <div
-                    key={tier.range}
-                    className={`flex items-start gap-4 border-t border-slate-100 first:border-t-0 px-5 py-4 ${tier.color}`}
-                  >
-                    <div className={`mt-1 h-3 w-3 shrink-0 rounded-full ${tier.dot}`} />
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-bold text-slate-900">{tier.range}</span>
-                        <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${tier.badge}`}>
-                          {tier.label}
-                        </span>
+                {EXPENSE_RATIO_BANDS.map((band) => {
+                  const range = expenseRatioBandRange(band);
+                  const tone = EXPENSE_RATIO_TONE_CLASS[band.tone];
+                  return (
+                    <div
+                      key={band.key}
+                      className={`flex items-start gap-4 border-t border-slate-100 first:border-t-0 px-5 py-4 ${BAND_ROW_CLASS[band.tone]}`}
+                    >
+                      <div className={`mt-1 h-3 w-3 shrink-0 rounded-full ${tone.bar}`} />
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-bold text-slate-900">
+                            {range[0].toUpperCase()}{range.slice(1)}
+                          </span>
+                          <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${tone.badge}`}>
+                            {band.label}
+                          </span>
+                        </div>
+                        <p className="mt-1 text-sm text-slate-600">{BAND_NOTES[band.key]}</p>
                       </div>
-                      <p className="mt-1 text-sm text-slate-600">{tier.desc}</p>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
               <p className="mt-4 text-sm leading-relaxed text-slate-500">
-                These benchmarks apply most accurately to agents with established production.
-                New agents in their first 1–2 years may temporarily run higher ratios while
-                building their client base.
+                The bands are the same for every agent. A new agent building a client base
+                may run a higher ratio for a while, and a very low ratio can also mean some
+                expenses have not been recorded yet.
               </p>
             </div>
 
@@ -278,7 +287,10 @@ export default function ExpenseRatioMetricPage() {
                   </div>
                   <div className="flex justify-between bg-white px-5 py-4">
                     <span className="font-bold text-slate-900">Expense ratio</span>
-                    <span className="text-lg font-bold text-emerald-700">28.9% ✓</span>
+                    <span className={`text-lg font-bold ${EXAMPLE_CLASS.value}`}>
+                      {formatExpenseRatio(EXAMPLE_RATIO)}
+                      {EXAMPLE_BAND ? ` · ${EXAMPLE_BAND.label}` : ""}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -326,10 +338,10 @@ export default function ExpenseRatioMetricPage() {
             <div className="px-8 py-6 sm:px-10">
               <p className="text-sm leading-relaxed text-slate-600">
                 Agent Runway tracks all business expenses by category and automatically calculates
-                your expense ratio against your year-to-date GCI. The dashboard displays your
-                ratio against the 25–30% benchmark so you can see at a glance whether your cost
-                structure is healthy — and which expense categories are driving the number up
-                or down.
+                your expense ratio against your year-to-date GCI. The ratio is shown against
+                the target of {EXPENSE_RATIO_COPY.target}, in the same band and colour on the
+                dashboard, the Expenses page and your reports, beside the expense categories
+                that make up the number.
               </p>
             </div>
           </div>

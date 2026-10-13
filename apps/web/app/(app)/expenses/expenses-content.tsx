@@ -113,6 +113,14 @@ import { recurringHSTDetailForPeriod, recurringHSTEntriesForPeriod, recurringMon
 import { recurringEndDateError, recurringEndStatus } from "@/lib/expenses/recurring-end-date";
 import { localISODate } from "@agent-runway/core/lib/local-date";
 import { gstHstLabel } from "@agent-runway/core/engines/canadian-tax-engine";
+import {
+  EXPENSE_RATIO_COPY,
+  EXPENSE_RATIO_GAUGE_MAX,
+  expenseRatioBand,
+  expenseRatioColorHex,
+  expenseRatioTone,
+} from "@agent-runway/core/engines/expense-ratio-bands";
+import { EXPENSE_RATIO_TONE_CLASS } from "@/lib/expense-ratio-style";
 import { reconcileDeals, type ReconciliationResult, type ImportedDeal } from "@agent-runway/core/engines/reconciliation-engine";
 import { selectTaxTips, TIP_CATEGORY_LABELS } from "@agent-runway/core/engines/tax-iq-engine";
 import { gstHstRate } from "@agent-runway/core/engines/canadian-tax-engine";
@@ -896,8 +904,11 @@ export function ExpensesContent({
   // ── YTD GCI for expense ratio ─────────────────────────────────────────
   const ytdGCI = transactions.reduce((sum, tx) => sum + computeGCI(tx), 0);
   const expenseRatio = ytdGCI > 0 ? effectiveTotal / ytdGCI : 0;
-  const ratioStatus =
-    expenseRatio > 0.5 ? "critical" : expenseRatio > 0.35 ? "warning" : "healthy";
+  // Band, colour and badge text from EXPENSE_RATIO_BANDS: the cut-offs the
+  // Runway Score uses, so this page and the dashboard agree on any ratio.
+  const ratioBand = expenseRatioBand(expenseRatio);
+  const ratioTone = expenseRatioTone(expenseRatio);
+  const ratioClass = EXPENSE_RATIO_TONE_CLASS[ratioTone];
 
   // ── Tax deductibility breakdown ───────────────────────────────────────
   // From the same engine lines: `home` is already the home office share.
@@ -1400,8 +1411,8 @@ export function ExpensesContent({
         <KpiCard
           label="Expense Ratio"
           value={ytdGCI > 0 ? fmtPct(expenseRatio) : "—"}
-          colorScheme={ratioStatus === "healthy" ? "emerald" : ratioStatus === "warning" ? "amber" : "red"}
-          valueClassName={ratioStatus === "healthy" ? "text-emerald-700" : ratioStatus === "warning" ? "text-amber-700" : "text-red-700"}
+          colorScheme={ratioTone}
+          valueClassName={ratioClass.value}
           layout="horizontal"
         />
         <KpiCard
@@ -2117,7 +2128,7 @@ export function ExpensesContent({
                     </TableCell>
                     <TableCell className={cn(
                       "text-right font-semibold hidden md:table-cell",
-                      ytdGCI > 0 ? (expenseRatio > 0.35 ? "text-amber-600" : "text-emerald-600") : "text-muted-foreground",
+                      ytdGCI > 0 ? ratioClass.text : "text-muted-foreground",
                     )}>
                       {ytdGCI > 0 ? fmtPct(expenseRatio) : "—"}
                     </TableCell>
@@ -2173,8 +2184,7 @@ export function ExpensesContent({
                         </TableCell>
                         <TableCell className={cn(
                           "text-right font-medium hidden md:table-cell",
-                          ratio == null ? "text-muted-foreground" :
-                          ratio > 0.35 ? "text-amber-600" : "text-emerald-600",
+                          ratio == null ? "text-muted-foreground" : EXPENSE_RATIO_TONE_CLASS[expenseRatioTone(ratio)].text,
                         )}>
                           {ratio != null ? fmtPct(ratio) : "—"}
                         </TableCell>
@@ -2209,23 +2219,22 @@ export function ExpensesContent({
                       <GuideLink anchor="expense-ratio" label="Expense ratio explained in Guide" />
                       {isPro && <ExplainButton question="What is a healthy expense ratio for a real estate agent and how can I improve mine?" />}
                     </h3>
-                    <Badge
-                      variant="secondary"
-                      className={cn(
-                        "text-xs",
-                        ratioStatus === "healthy" && "bg-emerald-100 text-emerald-700",
-                        ratioStatus === "warning" && "bg-amber-100 text-amber-700",
-                        ratioStatus === "critical" && "bg-red-100 text-red-700",
-                      )}
-                    >
-                      {ratioStatus === "healthy" ? "On track" : ratioStatus === "warning" ? "Elevated" : "High"}
-                    </Badge>
+                    {ratioBand && (
+                      <Badge variant="secondary" className={cn("text-xs", ratioClass.badge)}>
+                        {ratioBand.label}
+                      </Badge>
+                    )}
                   </div>
-                  <Progress value={Math.min(expenseRatio * 100, 100)} className="h-2.5" />
+                  {/* Drawn on the scale the captions name: full at the gauge's end, not at 100%. */}
+                  <Progress
+                    value={Math.min(expenseRatio / EXPENSE_RATIO_GAUGE_MAX, 1) * 100}
+                    className="h-2.5"
+                    indicatorStyle={{ background: expenseRatioColorHex(expenseRatio) }}
+                  />
                   <div className="mt-2 flex justify-between text-xs text-muted-foreground">
                     <span>0%</span>
-                    <span className="font-medium text-foreground">25–30% target</span>
-                    <span>50%+</span>
+                    <span className="font-medium text-foreground">{EXPENSE_RATIO_COPY.targetCaption}</span>
+                    <span>{EXPENSE_RATIO_COPY.gaugeMaxCaption}</span>
                   </div>
                 </div>
               )}

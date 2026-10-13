@@ -43,6 +43,13 @@ import {
 } from "@/lib/engines/survival-engine";
 import type { RunwayScoreResult } from "@/lib/engines/runway-score-engine";
 import type { AdvisorCard } from "@/lib/engines/advisor-engine";
+import {
+  EXPENSE_RATIO_COPY,
+  EXPENSE_RATIO_GAUGE_MAX,
+  expenseRatioColorHex,
+  expenseRatioVsTarget,
+  formatExpenseRatio,
+} from "@agent-runway/core/engines/expense-ratio-bands";
 
 // ── Palette ──────────────────────────────────────────────────────────────────
 
@@ -149,15 +156,13 @@ function generateAssessment(
       ? ` You're tracking at or above your cohort median, keeping you competitive within your experience tier.`
       : ` Your GCI trajectory currently ranks below the cohort median — closing this gap represents a significant opportunity.`;
 
-  // Compared on the rounded figure it prints, against the same 25–30% target
-  // as the Expense Ratio bar on the Expenses page of this report.
-  const roundedRatio = Math.round(expenseRatio);
-  const expenseNote =
-    expenseRatio <= 0
-      ? ""
-      : ` Your expense ratio of ${roundedRatio}% is ${
-          roundedRatio > 30 ? "above" : roundedRatio >= 25 ? "within" : "under"
-        } the 25–30% target range.`;
+  // Placed in the same band as the Expense Ratio bar on the Expenses page of
+  // this report (EXPENSE_RATIO_BANDS, which takes a fraction), and printed to
+  // the decimal so a ratio just past the target does not read as on it.
+  const vsTarget = expenseRatioVsTarget(expenseRatio / 100);
+  const expenseNote = vsTarget
+    ? ` Your expense ratio of ${formatExpenseRatio(expenseRatio / 100)} is ${vsTarget}.`
+    : "";
 
   const weakNote =
     weakest.score < 60
@@ -1682,14 +1687,14 @@ export function BusinessReportPDF({
 
         <Text style={[s.sectionTitle, s.sectionTitleFirst]}>Expense Analysis — YTD {year}</Text>
 
-        {/* Expense ratio progress: drawn on a 0–50% scale, so the fill is not the ratio */}
+        {/* Expense ratio progress: drawn to EXPENSE_RATIO_GAUGE_MAX, not to 100%, so the fill is not the ratio */}
         <ProgressBar
-          label={`Expense Ratio · ${expenseRatio.toFixed(1)}% of GCI (target: 25–30%)`}
+          label={`Expense Ratio · ${expenseRatio.toFixed(1)}% of GCI (target: ${EXPENSE_RATIO_COPY.targetShort})`}
           value={expenseRatio}
-          max={50}
+          max={EXPENSE_RATIO_GAUGE_MAX * 100}
           valueText={`${expenseRatio.toFixed(1)}%`}
-          note="YTD expenses divided by YTD GCI. The target range is 25–30%."
-          color={expenseRatio <= 30 ? C.emerald : expenseRatio <= 40 ? C.amber : C.rose}
+          note={`YTD expenses divided by YTD GCI. ${EXPENSE_RATIO_COPY.targetSentence}`}
+          color={expenseRatioColorHex(expenseRatio / 100)}
         />
 
         {/* Category table: the rows add up to the Total row */}

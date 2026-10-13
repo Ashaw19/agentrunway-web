@@ -43,7 +43,7 @@ const PROVINCE_OPTIONS = (Object.entries(PROVINCE_LABELS) as [Province, string][
 export function TaxEstimator() {
   // Inputs
   const [gci, setGci] = useState(120_000);
-  const [expenses, setExpenses] = useState(30_000); // typical 20-30% of GCI
+  const [expenses, setExpenses] = useState(30_000); // a round starting figure, not a benchmark
   const [province, setProvince] = useState<Province>("ontario");
   const [dealCount, setDealCount] = useState(12);
   const [hstRegistered, setHstRegistered] = useState(true);
