@@ -27,7 +27,7 @@
  * the two can't compute different dates.
  */
 
-import { addDaysISO, atlanticISODate } from "@agent-runway/core/lib/local-date";
+import { addDaysISO, atlanticISODate, daysBetweenISO } from "@agent-runway/core/lib/local-date";
 import { opportunityKey, type OpportunityKeyParts } from "./dismissed-opportunities";
 
 export const FIRST_CONTACT_TYPES = ["new_client_welcome", "contact_anniversary"] as const;
@@ -75,15 +75,6 @@ function addYearsISO(iso: string, years: number): string {
   const [y, m, d] = iso.split("-").map(Number);
   const dt = new Date(Date.UTC(y + years, m - 1, d));
   return `${dt.getUTCFullYear()}-${pad2(dt.getUTCMonth() + 1)}-${pad2(dt.getUTCDate())}`;
-}
-
-/** Whole calendar days from `from` to `to`, both YYYY-MM-DD. */
-function daysBetweenISO(from: string, to: string): number {
-  const utc = (iso: string) => {
-    const [y, m, d] = iso.split("-").map(Number);
-    return Date.UTC(y, m - 1, d);
-  };
-  return Math.round((utc(to) - utc(from)) / 86_400_000);
 }
 
 /**
@@ -140,13 +131,18 @@ export function newClientWelcomeCandidates(
   return out;
 }
 
-/** "N years since we first spoke", from 14 days ahead through the day itself. */
+/**
+ * "N years since we first spoke", from 14 days ahead through the day itself.
+ *
+ * Decided from the anniversary date alone. This used to skip a client whose
+ * first contact was in the current calendar year, which hid a first
+ * anniversary in early January until Jan 1: up to two weeks into its window.
+ */
 export function contactAnniversaryCandidates(
   clients: readonly FirstContactClient[],
   opts:    FirstContactOptions,
 ): FirstContactCandidate[] {
   const today = opts.today ?? atlanticISODate();
-  const thisYear = Number(today.slice(0, 4));
   const out: FirstContactCandidate[] = [];
   for (const client of clients) {
     if (!client.first_contacted_at) continue;
@@ -154,10 +150,7 @@ export function contactAnniversaryCandidates(
     const first = firstContactDay(client.first_contacted_at);
     if (!first) continue;
     const { day } = first;
-    const yearsSince = thisYear - Number(day.slice(0, 4));
-    if (yearsSince < 1) continue;
     for (const yr of ANNIVERSARY_YEARS) {
-      if (yr > yearsSince + 1) break;
       const annivDate = addYearsISO(day, yr);
       const d = daysBetweenISO(today, annivDate);
       if (d >= 0 && d <= opts.windowDays) {

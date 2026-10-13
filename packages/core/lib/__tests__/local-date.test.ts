@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   addDaysISO,
   atlanticDayStart,
@@ -7,9 +7,15 @@ import {
   atlanticNoon,
   atlanticWallClock,
   atlanticYear,
+  daysBetweenISO,
+  localDaysSince,
   localISODate,
   nextYearlyDate,
 } from "../local-date";
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
 
 // Pinned instants. Vercel and Supabase Edge run in UTC, where all three of
 // these already read as the next day / month / year.
@@ -215,5 +221,113 @@ describe("nextYearlyDate (birthday countdowns on the user's own calendar)", () =
     const next = nextYearlyDate("1990-10-10", oct9(22, 30));
     expect(localISODate(next!.date)).toBe("2026-10-10");
     expect(next?.date.getHours()).toBe(12);
+  });
+});
+
+describe("daysBetweenISO", () => {
+  it("is 0 for the same day, positive forward, negative back", () => {
+    expect(daysBetweenISO("2026-10-13", "2026-10-13")).toBe(0);
+    expect(daysBetweenISO("2026-10-12", "2026-10-13")).toBe(1);
+    expect(daysBetweenISO("2026-10-13", "2026-10-12")).toBe(-1);
+  });
+
+  it("crosses month, year and leap-day boundaries", () => {
+    expect(daysBetweenISO("2026-09-29", "2026-10-13")).toBe(14);
+    expect(daysBetweenISO("2026-12-30", "2027-01-02")).toBe(3);
+    expect(daysBetweenISO("2028-02-28", "2028-03-01")).toBe(2);
+  });
+
+  it("is unaffected by DST transitions", () => {
+    // Atlantic DST ends 2026-11-01 and starts 2027-03-14.
+    expect(daysBetweenISO("2026-10-31", "2026-11-02")).toBe(2);
+    expect(daysBetweenISO("2027-03-13", "2027-03-15")).toBe(2);
+    expect(daysBetweenISO("2026-10-20", "2026-12-15")).toBe(56);
+  });
+
+  it("is the inverse of addDaysISO", () => {
+    for (const n of [-400, -1, 0, 1, 45, 366]) {
+      expect(daysBetweenISO("2026-10-13", addDaysISO("2026-10-13", n))).toBe(n);
+    }
+  });
+});
+
+describe("localDaysSince (what \"Today / Yesterday / 3 days ago\" counts)", () => {
+  // `Math.floor((now - then) / 86_400_000)` counts elapsed 24-hour blocks: a
+  // call logged at 10 pm read "Today" at 9 the next morning (11 hours), and
+  // one logged at 9 am read "Yesterday" only from 9 am the following day.
+  const halifax = () => {
+    vi.stubEnv("TZ", "America/Halifax");
+    expect(new Date("2026-10-13T12:00:00Z").getTimezoneOffset()).toBe(180); // guard: the stub took
+  };
+
+  it("is 1 the morning after a late-evening call, 11 hours on", () => {
+    halifax();
+    const logged = "2026-10-13T01:00:00Z"; // Mon Oct 12, 22:00 ADT
+    const now = new Date("2026-10-13T12:00:00Z"); // Tue Oct 13, 09:00 ADT
+    expect(localDaysSince(logged, now)).toBe(1);
+  });
+
+  it("is 1 for a 9 am call at 8 the next morning, 23 hours on", () => {
+    halifax();
+    expect(localDaysSince("2026-10-12T12:00:00Z", new Date("2026-10-13T11:00:00Z"))).toBe(1);
+  });
+
+  it("is 2 across two midnights, 26 hours on", () => {
+    halifax();
+    const logged = "2026-10-12T02:00:00Z"; // Sun Oct 11, 23:00 ADT
+    const now = new Date("2026-10-13T04:00:00Z"); // Tue Oct 13, 01:00 ADT
+    expect(localDaysSince(logged, now)).toBe(2);
+  });
+
+  it("is 0 from just after midnight to just before the next one", () => {
+    halifax();
+    const logged = "2026-10-13T03:05:00Z"; // Tue Oct 13, 00:05 ADT
+    expect(localDaysSince(logged, new Date("2026-10-14T02:55:00Z"))).toBe(0); // 23:55 ADT
+    expect(localDaysSince(logged, new Date("2026-10-14T03:05:00Z"))).toBe(1); // Wed 00:05 ADT
+  });
+
+  it("reads a date-only value as its own day, not as UTC midnight", () => {
+    halifax();
+    // new Date("2026-10-09") is Oct 8, 21:00 ADT.
+    expect(localDaysSince("2026-10-09", new Date("2026-10-09T12:00:00Z"))).toBe(0); // Oct 9, 09:00
+    expect(localDaysSince("2026-10-09", new Date("2026-10-10T00:30:00Z"))).toBe(0); // Oct 9, 21:30
+    expect(localDaysSince("2026-10-09", new Date("2026-10-10T12:00:00Z"))).toBe(1);
+  });
+
+  it("is negative for a day still to come", () => {
+    halifax();
+    const now = new Date("2026-10-13T18:00:00Z"); // Tue Oct 13, 15:00 ADT
+    expect(localDaysSince("2026-10-14", now)).toBe(-1);
+    expect(localDaysSince("2026-10-15T12:00:00Z", now)).toBe(-2);
+  });
+
+  it("counts whole days across a clock change", () => {
+    halifax();
+    const logged = "2026-10-31T15:00:00Z"; // Sat Oct 31, 12:00 ADT
+    const now = new Date("2026-11-02T04:30:00Z"); // Mon Nov 2, 00:30 AST
+    expect(now.getTimezoneOffset()).toBe(240);
+    expect(localDaysSince(logged, now)).toBe(2);
+  });
+
+  it("takes a Date as well as a string", () => {
+    halifax();
+    expect(localDaysSince(new Date("2026-10-13T01:00:00Z"), new Date("2026-10-13T12:00:00Z"))).toBe(1);
+  });
+
+  it("uses whatever zone the device is in", () => {
+    const logged = "2026-10-13T05:00:00Z";
+    const now = new Date("2026-10-13T16:00:00Z");
+    vi.stubEnv("TZ", "America/Vancouver"); // Oct 12, 22:00 PDT -> Oct 13, 09:00 PDT
+    expect(localDaysSince(logged, now)).toBe(1);
+    vi.stubEnv("TZ", "America/Halifax"); // Oct 13, 02:00 ADT -> Oct 13, 13:00 ADT
+    expect(localDaysSince(logged, now)).toBe(0);
+  });
+
+  it("is null for a missing or unreadable value", () => {
+    const now = new Date("2026-10-13T12:00:00Z");
+    for (const bad of [null, undefined, "", "not a date", "2026-13-45T00:00:00Z"]) {
+      expect(localDaysSince(bad, now), String(bad)).toBeNull();
+    }
+    expect(localDaysSince(new Date(NaN), now)).toBeNull();
   });
 });
