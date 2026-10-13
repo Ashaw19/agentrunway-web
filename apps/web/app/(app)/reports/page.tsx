@@ -5,6 +5,7 @@ import type { CcaAsset, RecurringExpense, ListingAppointment } from "@/lib/types
 import { totalRecurringMonthly, totalRecurringYTD } from "@agent-runway/core/engines/recurring-expense-engine";
 import { aggregateReceiptTotals, expenseTaxContext, recurringExpensesNetOfItc } from "@agent-runway/core/engines/expense-totals-engine";
 import { buildT2125Expenses } from "@agent-runway/core/engines/t2125-expenses-engine";
+import { deductionTrackingFlags } from "@agent-runway/core/engines/tax-optimization-engine";
 import { computeIsPro } from "@/lib/compute-is-pro";
 import { atlanticNoon } from "@agent-runway/core/lib/local-date";
 
@@ -158,6 +159,7 @@ export default async function ReportsPage() {
       ccaAssets={(ccaAssetsResult.data ?? []) as CcaAsset[]}
       t2125Expenses={t2125Expenses.entries}
       homeOfficeCosts={t2125Expenses.homeOfficeCosts}
+      deductionTracking={deductionTrackingFlags(t2125Expenses.lines, categories)}
       mileageLogs={(mileageResult.data ?? []).map((r) => ({
         km: Number(r.km),
         deduction: Number(r.deduction),

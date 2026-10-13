@@ -40,6 +40,8 @@
 import { recurringNetOfItc, type ExpenseTaxContext, type ReceiptTotals } from "./expense-totals-engine";
 import { recurringYTD } from "./recurring-expense-engine";
 import {
+  HOME_OFFICE_CATEGORY_KEY,
+  expenseItemKeyFor,
   isHomeOfficeKey,
   t2125ExpenseLine,
   t2125LineForExpenseKey,
@@ -168,4 +170,132 @@ export function buildT2125Expenses(input: T2125ExpensesInput): T2125ExpensesResu
   }
 
   return { lines, entries, homeOfficeCosts, ytdTotal, deductibleTotal, byRule };
+}
+
+// ── Tracked expenses by category ─────────────────────────────────────────────
+//
+// "Has this agent recorded anything under Marketing?" is asked by the tax
+// cards (Commonly Missed Deductions), by Flight Crew's tax context and by the
+// expense diagnostics. Until 2026-10-13 each of them answered it from
+// `expense_items.ytd_amount`, a column nothing has written since receipts
+// replaced it, so an agent with a year of fuel receipts read as having no
+// vehicle expenses. The answer is in the lines above: receipts, the per-item
+// monthly figure and the Recurring Expenses list.
+
+/** An `expense_categories` row with the keys of its `expense_items`. */
+export interface ExpenseCategoryKeys {
+  key: string;
+  items?: readonly { key: string }[] | null;
+}
+
+/**
+ * The seeded categories (`seed_default_expenses`) and the prefix their item
+ * keys carry. Used only for a key the agent has no item row for: an older
+ * account can hold a recurring expense under `vehicle_payment` without that
+ * item, and it is still a vehicle cost.
+ */
+const STANDARD_KEY_PREFIXES: readonly (readonly [prefix: string, categoryKey: string])[] = [
+  ["vehicle_", "vehicle"],
+  ["marketing_", "marketing"],
+  ["office_", "office_tech"],
+  ["prof_", "professional"],
+  ["edu_", "education"],
+  ["meals_", "meals"],
+  ["ent_", "entertainment"],
+  ["other_", "other"],
+  ["payroll_", "payroll"],
+  ["corp_", "corp_admin"],
+  ["home_", HOME_OFFICE_CATEGORY_KEY],
+];
+
+function standardCategoryKey(key: string): string | null {
+  for (const [prefix, categoryKey] of STANDARD_KEY_PREFIXES) {
+    if (key === categoryKey || key.startsWith(prefix)) return categoryKey;
+  }
+  return null;
+}
+
+/**
+ * Which category an expense key sits under, for one agent's categories:
+ *   1. the category of the agent's own item with that key (so a custom item
+ *      counts for the category it was added to);
+ *   2. the key itself, when it is one of the agent's categories;
+ *   3. for a category-level key from before 2026-10-13, the category of the
+ *      item it stands for (`expenseItemKeyFor`, the T2125's own reading);
+ *   4. the seeded category a standard key belongs to.
+ * null: no key (a receipt saved with no category), or a key none of these
+ * recognize.
+ */
+export function expenseCategoryResolver(
+  categories: readonly ExpenseCategoryKeys[] | null | undefined,
+): (key: string | null | undefined) => string | null {
+  const categoryKeys = new Set<string>();
+  const categoryByItem = new Map<string, string>();
+  for (const cat of categories ?? []) {
+    categoryKeys.add(cat.key);
+    for (const item of cat.items ?? []) {
+      if (item.key && !categoryByItem.has(item.key)) categoryByItem.set(item.key, cat.key);
+    }
+  }
+  return (key) => {
+    if (!key) return null;
+    const own = categoryByItem.get(key);
+    if (own) return own;
+    if (categoryKeys.has(key)) return key;
+    const itemKey = expenseItemKeyFor(key);
+    return categoryByItem.get(itemKey) ?? standardCategoryKey(itemKey);
+  };
+}
+
+type TrackedLine = Pick<TrackedExpenseLine, "key" | "rawAmount" | "source">;
+
+/**
+ * A line the agent is tracking: it has an amount this year, or it is an
+ * active recurring expense. The second matters before the first occurrence
+ * of the year: board dues set up to renew in November are $0 in June and are
+ * still an expense the agent tracks.
+ */
+export function isTrackedLine(line: TrackedLine): boolean {
+  return line.rawAmount > 0 || line.source === "recurring";
+}
+
+export interface TrackedCategory {
+  /** Year to date: the category's lines added up. */
+  ytd: number;
+  /** The expense keys tracked under it. */
+  keys: string[];
+}
+
+export interface TrackedExpensesByCategory {
+  /** By `expense_categories.key`. A category with nothing tracked is absent. */
+  categories: Record<string, TrackedCategory>;
+  /** Year to date of the tracked lines no category claims. */
+  unfiledYtd: number;
+}
+
+/**
+ * `buildT2125Expenses(...).lines` arranged by expense category. The amounts
+ * add up to the builder's `ytdTotal`.
+ */
+export function trackedExpensesByCategory(
+  lines: readonly TrackedLine[],
+  categories: readonly ExpenseCategoryKeys[] | null | undefined,
+): TrackedExpensesByCategory {
+  const categoryOf = expenseCategoryResolver(categories);
+  const byCategory: Record<string, TrackedCategory> = {};
+  let unfiledYtd = 0;
+  for (const line of lines) {
+    if (!isTrackedLine(line)) continue;
+    const categoryKey = categoryOf(line.key);
+    if (!categoryKey) {
+      unfiledYtd += line.rawAmount;
+      continue;
+    }
+    if (!byCategory[categoryKey]) byCategory[categoryKey] = { ytd: 0, keys: [] };
+    const category = byCategory[categoryKey];
+    category.ytd += line.rawAmount;
+    if (line.key && !category.keys.includes(line.key)) category.keys.push(line.key);
+  }
+  for (const category of Object.values(byCategory)) category.ytd = round2(category.ytd);
+  return { categories: byCategory, unfiledYtd: round2(unfiledYtd) };
 }

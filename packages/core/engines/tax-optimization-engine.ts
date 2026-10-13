@@ -17,6 +17,12 @@ import {
   gstHstLabel,
 } from "./canadian-tax-engine";
 import { calculateCorporateTax } from "./corporate-tax-engine";
+import {
+  isTrackedLine,
+  trackedExpensesByCategory,
+  type ExpenseCategoryKeys,
+  type TrackedExpenseLine,
+} from "./t2125-expenses-engine";
 
 // ⚠️  TAX_YEAR = 2026 — Update all FOUR tax files together:
 // - canadian-tax-engine.ts
@@ -151,6 +157,47 @@ export interface TaxOptimizationResult {
   totalEstimatedSavings: number;
   topOpportunity: TaxOptimizationCard | null;
   cardCount: number;
+}
+
+// ── Deduction tracking, from the tracked expenses ────────────────────────────
+
+/** The "Deduction tracking" inputs of `generateTaxOptimizations`. */
+export type DeductionTrackingFlags = Pick<
+  TaxOptimizationInput,
+  | "hasProfDevExpenses"
+  | "hasMarketingExpenses"
+  | "hasClientGiftExpenses"
+  | "hasMealExpenses"
+  | "hasLicensingExpenses"
+>;
+
+/**
+ * Which of the commonly missed categories (Rule 10) the agent already
+ * tracks. One definition for every screen that shows the tax cards
+ * (Dashboard, Forecast, Overhead, the T2125 PDF), from the same lines the
+ * Expenses page and the T2125 are built on: receipts this year, the
+ * per-item monthly figure and the Recurring Expenses list.
+ *
+ * Until 2026-10-13 three of those screens read `expense_items.ytd_amount`
+ * (never written since receipts replaced it), so a category with a year of
+ * receipts was listed as not tracked.
+ *
+ * @param lines      `buildT2125Expenses(...).lines`
+ * @param categories the agent's expense categories with their items
+ */
+export function deductionTrackingFlags(
+  lines: readonly Pick<TrackedExpenseLine, "key" | "rawAmount" | "source" | "isMeals">[],
+  categories: readonly ExpenseCategoryKeys[] | null | undefined,
+): DeductionTrackingFlags {
+  const tracked = trackedExpensesByCategory(lines, categories).categories;
+  return {
+    hasProfDevExpenses: Boolean(tracked.education),
+    hasMarketingExpenses: Boolean(tracked.marketing),
+    hasClientGiftExpenses: lines.some((l) => l.key === "marketing_gifts" && isTrackedLine(l)),
+    // Meals and entertainment share T2125 line 8523 and the 50% limit.
+    hasMealExpenses: lines.some((l) => l.isMeals && isTrackedLine(l)),
+    hasLicensingExpenses: Boolean(tracked.professional),
+  };
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────

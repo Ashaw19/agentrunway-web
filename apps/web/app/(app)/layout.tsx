@@ -62,7 +62,6 @@ export default async function AppLayout({
       { data: settings },
       { data: transactions },
       { data: pipeline },
-      { data: expenseCategories },
       { data: memberships },
       { count: staleClientCount },
       { data: policyAcceptances },
@@ -81,10 +80,6 @@ export default async function AppLayout({
       supabase
         .from("pipeline_deals")
         .select("estimated_price, estimated_commission_pct, probability_override, stage")
-        .eq("user_id", user.id),
-      supabase
-        .from("expense_categories")
-        .select("expense_items(ytd_amount, monthly_recurring)")
         .eq("user_id", user.id),
       supabase
         .from("organization_members")
@@ -206,6 +201,11 @@ export default async function AppLayout({
     }
 
     // ── Financial context (AI chat) ──────────────────────────────────────────
+    // Read only by the chat panel's opening greeting (ai-chat.tsx,
+    // buildInitialMessage). It is NOT sent to /api/chat: the route builds its
+    // own context on the server, through the engines. Expense lines were
+    // removed 2026-10-13: nothing read them, and they summed
+    // expense_items.ytd_amount, a column the app stopped writing.
     if (settings && transactions) {
       try {
         // Atlantic year (income_goal_current_year()), not the server's UTC clock.
@@ -219,27 +219,6 @@ export default async function AppLayout({
         const pipelineWeighted = activePipelineDeals(pipeline ?? []).reduce(
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           (sum: number, d: any) => sum + computeWeightedGCI(d),
-          0,
-        );
-
-        const expensesYTD = (expenseCategories ?? []).reduce(
-          (sum: number, cat: { expense_items?: { ytd_amount?: number | string }[] }) =>
-            sum +
-            (cat.expense_items ?? []).reduce(
-              (s: number, i: { ytd_amount?: number | string }) =>
-                s + Number(i.ytd_amount ?? 0),
-              0,
-            ),
-          0,
-        );
-        const monthlyRecurring = (expenseCategories ?? []).reduce(
-          (sum: number, cat: { expense_items?: { monthly_recurring?: number | string }[] }) =>
-            sum +
-            (cat.expense_items ?? []).reduce(
-              (s: number, i: { monthly_recurring?: number | string }) =>
-                s + Number(i.monthly_recurring ?? 0),
-              0,
-            ),
           0,
         );
 
@@ -276,10 +255,6 @@ export default async function AppLayout({
           describeIncomeGoals(incomeGoalRows ?? [], incomeGoalCurrentYear()),
           settings.experience_years != null
             ? `Years of Experience: ${settings.experience_years}`
-            : null,
-          expensesYTD > 0 ? `YTD Business Expenses: ${fmtCurrency(expensesYTD)}` : null,
-          monthlyRecurring > 0
-            ? `Monthly Recurring Expenses: ${fmtCurrency(monthlyRecurring)}`
             : null,
           staleClientCount != null && staleClientCount > 0
             ? `Stale Active Clients (no contact 30+ days): ${staleClientCount}`

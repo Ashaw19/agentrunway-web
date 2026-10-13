@@ -457,10 +457,12 @@ Every receipt and recurring expense is filed under an expense ITEM (receipt_expe
 
 The item decides three things: the row the expense shows under on the Expenses page, its T2125 line (table above), and which CRA limit applies (vehicle items: business-use %; Meals and Entertainment items: 50%; Home Office items: the home office share, on line 9945; everything else: 100%).
 
-**Flight Crew logging (logExpense, updateExpense, createRecurringExpense, updateRecurringExpense):**
-- Flight Crew picks the item from that same list. The approval card for a new expense or recurring expense names the item before it is saved.
-- GST/HST is recorded only when the agent states it or reads it off the receipt. Flight Crew never works it out from a rate or the province. With no GST/HST recorded, the expense counts in full and no input tax credit is counted on it.
-- GST/HST can be added later: tell Flight Crew the amount (updateExpense), or open the receipt on the Expenses page and fill in the tax field.
+**Flight Crew logging (logExpense, updateExpense, createRecurringExpense):**
+- Flight Crew picks the item from that same list. The approval card for a new expense or recurring expense names the item, and any GST/HST, before it is saved.
+- GST/HST is recorded only when the agent states it or reads it off the receipt or bill. Flight Crew never works it out from a rate or the province. With no GST/HST recorded, the expense counts in full and no input tax credit is counted on it. Flight Crew says so to a GST/HST registrant when it saves one without GST/HST.
+- A recurring expense takes the GST/HST inside each charge ("$115 a month, $15 of that is HST"): createRecurringExpense hstAmount, stored as hst_included on with that hst_amount. Added 2026-10-13. Before that date Flight Crew could not record GST/HST on a recurring expense, so every recurring expense it set up until then has none.
+- The recurring expense form on the Expenses page is the one place an amount is worked out: ticking "This amount includes HST" there fills the GST/HST in from the province rate unless an amount is typed in the Override box. Flight Crew never does this.
+- GST/HST can be added later. A receipt: tell Flight Crew the amount (updateExpense), or open the receipt on the Expenses page and fill in the tax field. A recurring expense: edit the entry in the Recurring Expenses list on the Expenses page, tick "This amount includes HST" and type the amount from the bill in the Override box. No Flight Crew member can edit an existing recurring expense yet.
 - There is no travel item. Flights and hotels go under Other: Miscellaneous unless the agent names another item.
 
 ### Mileage Calculation (CRA 2025 rates)
@@ -526,7 +528,7 @@ If a user asks "what are these tips?" or "why is Agent Runway showing me this?" 
 
 **"I'm registered but my expense total still includes the HST"**
 1. Check the GST/HST amount on the receipts. Quick-add expenses, expenses logged through Flight Crew without a stated GST/HST amount, and receipts saved with a blank tax field have no GST/HST recorded, so they count in full and no ITC is claimed for them. Editing the receipt to add the tax amount updates both the GST34 summary and the totals.
-2. Check recurring expenses: "HST included" has to be on, with an HST amount.
+2. Check recurring expenses: GST/HST comes off an entry only when "This amount includes HST" is on with an HST amount. An entry set up through Flight Crew has GST/HST only if the agent stated the amount, and none if it was set up before 2026-10-13. Editing the entry in the Recurring Expenses list adds it.
 3. Some costs carry no GST/HST (insurance premiums, most government fees), so nothing comes off those.
 4. Confirm the registered toggle (Reports → T2125 → "GST/HST Registered?").
 
@@ -564,6 +566,12 @@ If a user asks "what are these tips?" or "why is Agent Runway showing me this?" 
 **"The Expenses page total is higher than the dashboard's"**
 1. Check for "/mo" figures on expense items alongside receipts on other items. The Expenses page counts the larger of the two item by item; the dashboard compares the two totals. See "Known difference left in place" above.
 2. Check for the same bill entered twice: a "/mo" figure on an item and an entry in the Recurring Expenses list both count. Clearing the "/mo" box leaves the Recurring Expenses entry as the one record of it.
+
+**"The tax card says I'm not tracking marketing / licensing / meals, but I have receipts" / "Commonly Missed Deductions lists a category I log"**
+1. Since 2026-10-13 the "Commonly Missed Deductions" card (the tax cards on the Dashboard, Forecast and Overhead pages, and in the T2125 PDF) treats a category as tracked when any of these is filed under it this year: a receipt, a "/mo" figure on one of its items, or an active entry in the Recurring Expenses list (counted before its first charge of the year too). Before that date receipts and Recurring Expenses entries were not counted on the three pages, which was a bug: only a "/mo" figure was.
+2. The five things it looks for: Education (professional development), Professional Fees (licensing, MLS and board fees), Marketing, the Client Gifts item, and Meals or Entertainment (one T2125 line, 8523).
+3. A receipt saved with no category counts for none of them. Editing the receipt and choosing an item files it.
+4. Source: deductionTrackingFlags in tax-optimization-engine.ts, from the same lines as the Expenses page (t2125-expenses-engine.ts). The card lists categories with nothing recorded; it does not say an expense exists to record.
 
 **"Receipt scan didn't capture correctly"**
 → OCR works best with clear photos, good lighting, and flat receipts. Crumpled/faded receipts may need manual entry.
@@ -1663,7 +1671,7 @@ Pricing: $149/mo team leader + $55/mo per member seat. The Ellis Realty beta has
 1. **Pipeline Health** — Team pipeline value, agents with no pipeline despite deals, coverage ratio
 2. **Transactions in Flight** — Pending deals, total value, nearest close dates
 3. **CRM Consistency** — Average touchpoints per agent, outlier detection (low/high activity)
-4. **Tax Responsibility** — Which agents are missing expense logs, receipts, or categories (aggregate, no amounts)
+4. **Tax Responsibility** — Which agents are missing expense logs, receipts, or categories (aggregate, no amounts). "Hasn't logged expenses this quarter" means none of: a receipt dated in the quarter, an active Recurring Expenses entry, a "/mo" figure on an expense item. "Hasn't uploaded receipts" means no receipt dated in the quarter. Quarters follow the Atlantic calendar.
 5. **Forecasting** — Pace vs goal per agent, who's ahead/behind, team average pace
 
 ### Team Insights Engine (Org Dashboard)
@@ -2027,7 +2035,7 @@ An entry in the Recurring Expenses list (Expenses page) is an expense that repea
 - Frequency: monthly, quarterly, or annual
 - Start date
 - Optional notes
-- "HST included" with the HST amount, for a GST/HST registrant
+- "This amount includes HST" with the HST amount, for a GST/HST registrant. On this form, ticking the box fills the amount in from the province rate unless one is typed in the Override box
 - "Apply vehicle business-use % to this expense", for a vehicle cost
 
 **How an entry is counted:**
@@ -2043,6 +2051,7 @@ The Recurring Expenses list shows the amounts as charged. Totals are net of ITCs
 - **"How do I cancel a recurring expense?"**: Deactivate or delete it in the Recurring Expenses list on the Expenses page. Known limitation: a deactivated entry no longer counts for any part of the year, including the months it ran. Logging those months as receipts keeps them in the totals.
 - **"Recurring expense not in my tax deductions" / "not on my T2125"**: Since 2026-10-13 active entries count in Est. Tax Deductible and on the T2125 lines (see the Expenses playbook, "Est. Tax Deductible YTD and the T2125 lines"). A vehicle entry counts at the vehicle business-use % and a meal at 50%.
 - **"I logged the receipt too and it counted twice"**: A receipt and a recurring entry for the same bill both count. One record per bill keeps the total right.
+- **"My recurring expense has no input tax credit" / "Flight Crew set up my subscription but its HST isn't in my GST34"**: The GST34 summary and the totals read the entry's HST amount. An entry has one only when "This amount includes HST" is on (Expenses page), or when the agent stated the GST/HST as Flight Crew set it up. Entries Flight Crew set up before 2026-10-13 have none: it could not record GST/HST on a recurring expense until then. Editing the entry in the Recurring Expenses list adds it. Some charges carry no GST/HST (insurance premiums, most government fees), so nothing comes off those.
 
 ### Impact on Financial Tracking
 - Occurrences to date count toward YTD expense totals and the expense ratio
@@ -2051,7 +2060,10 @@ The Recurring Expenses list shows the amounts as charged. Totals are net of ITCs
 - Their HST is in the GST34 summary's input tax credits for the period
 
 ### Flight Crew Integration
-- "I pay $150/month for Mailchimp" → creates a recurring expense template
+- "I pay $150/month for Mailchimp" → sets up a monthly recurring expense (createRecurringExpense). The approval card names the expense item, and any GST/HST, before it is saved.
+- "I pay $115 a month for Canva, $15 of that is HST" → the $15 is recorded as the GST/HST inside each charge (hst_included on, hst_amount 15). It is in the GST34 summary's input tax credits for the period and comes off the totals for a registrant.
+- GST/HST is recorded only when the agent states the amount. Flight Crew never works it out from a rate or the province. With none stated, the entry counts in full and Flight Crew tells a GST/HST registrant that no input tax credit is counted on it.
+- Flight Crew sets up monthly entries. Changing an existing entry (amount, GST/HST, pause, quarterly or annual frequency, the vehicle box) is done in the Recurring Expenses list on the Expenses page.
 - "What are my recurring expenses?" → lists active recurring items from context
 `,
 

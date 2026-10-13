@@ -37,10 +37,16 @@ function compare(a: unknown, b: unknown): number {
   return x < y ? -1 : x > y ? 1 : 0;
 }
 
-export function fakeSupabase(tables: Record<string, Row[]>) {
+export interface FakeSupabaseOptions {
+  /** Tables whose every query throws, as when the request never gets there. */
+  unreachable?: readonly string[];
+}
+
+export function fakeSupabase(tables: Record<string, Row[]>, options: FakeSupabaseOptions = {}) {
   const writes: Write[] = [];
 
   function from(table: string) {
+    if (options.unreachable?.includes(table)) throw new Error(`${table} is unreachable`);
     let rows: Row[] = [...(tables[table] ?? [])];
     let columns: string[] | null = null;
     let counting: { head: boolean } | null = null;
