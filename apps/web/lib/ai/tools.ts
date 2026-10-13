@@ -27,8 +27,8 @@
  *   Create              — createClient, createPipelineDeal, createContactTask,
  *                         createRecurringExpense, addPropertyShowing,
  *                         addListingAppointment, createFlightPlan
- *   Update              — updateReferral, updateRecurringExpense,
- *                         updateCCAAsset, updateMileage, updatePropertyShowing
+ *   Update              — updateReferral, updateCCAAsset, updateMileage,
+ *                         updatePropertyShowing
  *   Autonomous          — updatePipelineDealProbability, updatePipelineDealCloseDate,
  *                         updatePipelineDealDetails, updateGCIGoal,
  *                         updateUserSettings, archiveClient, unarchiveClient,
@@ -41,7 +41,8 @@
  *                         linkClientReferral, createPipelineDeal,
  *                         updatePipelineDealStage, logContactActivity,
  *                         createContactTask, createRecurringExpense,
- *                         deleteRecurringExpense, logExpense, logMileage,
+ *                         updateRecurringExpense, deleteRecurringExpense,
+ *                         logExpense, logMileage,
  *                         updateExpense, recordReferral, recordTransaction,
  *                         updateTransaction, updatePipelineDealValue,
  *                         addCCAAsset, updateListingAppointment,
@@ -101,6 +102,7 @@ export const NEEDS_APPROVAL_TOOLS = new Set([
   "deleteContactTask",
   // Expense mutations
   "createRecurringExpense",
+  "updateRecurringExpense",
   "deleteRecurringExpense",
   "logExpense",
   "logMileage",
@@ -154,11 +156,23 @@ export const APPROVAL_DESCRIPTIONS: Record<string, (args: Record<string, unknown
     `Add to Checklist${args.clientName ? ` (${args.clientName})` : ""}: "${args.title}", due ${args.dueDate}`,
   // Expenses
   createRecurringExpense: (args) => {
-    const item = typeof args.categoryKey === "string" ? ` (${receiptCategoryFullLabel(args.categoryKey)})` : "";
-    return `Add recurring expense: ${args.name ?? args.vendor ?? args.description ?? "expense"} — $${args.amount}/mo${item}`;
+    const item = typeof args.categoryKey === "string" ? receiptCategoryFullLabel(args.categoryKey) : null;
+    const tax = typeof args.hstAmount === "number" && args.hstAmount > 0 ? `including $${args.hstAmount.toFixed(2)} GST/HST` : null;
+    const detail = [item, tax].filter(Boolean).join(", ");
+    return `Add recurring expense: ${args.name ?? args.vendor ?? args.description ?? "expense"}, $${args.amount}/mo${detail ? ` (${detail})` : ""}`;
+  },
+  updateRecurringExpense: (args) => {
+    const changes: string[] = [];
+    if (args.name) changes.push(`name → ${args.name}`);
+    if (args.amount !== undefined) changes.push(`amount → $${Number(args.amount).toLocaleString()}`);
+    if (typeof args.hstAmount === "number") changes.push(`GST/HST per charge → ${args.hstAmount > 0 ? `$${args.hstAmount.toFixed(2)}` : "none"}`);
+    if (typeof args.categoryKey === "string") changes.push(`category → ${receiptCategoryFullLabel(args.categoryKey)}`);
+    if (args.isActive !== undefined) changes.push(args.isActive ? "resume" : "pause");
+    if (args.notes !== undefined) changes.push("notes");
+    return `Update recurring expense${args.expenseName ? ` ${args.expenseName}` : ""}: ${changes.length ? changes.join(", ") : "(details)"}`;
   },
   deleteRecurringExpense: (args) =>
-    `Remove recurring expense: ${args.vendor ?? args.description ?? args.expenseId ?? "expense"}`,
+    `Remove recurring expense: ${args.expenseName ?? args.vendor ?? args.description ?? args.expenseId ?? "expense"}`,
   logExpense: (args) => {
     const item = typeof args.categoryKey === "string" ? receiptCategoryFullLabel(args.categoryKey) : null;
     const tax = typeof args.taxAmount === "number" ? `including $${args.taxAmount.toFixed(2)} GST/HST` : null;
@@ -261,6 +275,13 @@ const EXPENSE_ITEM_KEY_GUIDE =
 /** GST/HST is recorded as stated. The app never infers it from a rate (expense-totals-engine). */
 const EXPENSE_TAX_AMOUNT_HINT =
   "GST/HST on the receipt in dollars, already part of the total. Pass it ONLY when the agent states it or reads it off the receipt. Never calculate it from a rate or a province, and leave it out when it isn't stated.";
+/**
+ * The same rule for a recurring expense (`hst_included` / `hst_amount`). The
+ * web form fills the amount in from the province rate when "includes HST" is
+ * ticked with no amount typed; these tools never do.
+ */
+const RECURRING_HST_AMOUNT_HINT =
+  "GST/HST inside each charge in dollars, already part of the amount. Pass it ONLY when the agent states it or reads it off the bill. Never calculate it from a rate or a province, and leave it out when it isn't stated.";
 const TRANSACTION_SIDES = ["buyer", "seller", "both"] as const;
 const ARCHIVE_REASONS = ["deceased", "moved_away", "do_not_contact", "other"] as const;
 
@@ -1549,13 +1570,20 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
       description: `Set up a recurring monthly business expense. Use when the agent says 'I pay $X/month for...' or 'set up a recurring expense for...'. ${EXPENSE_ITEM_KEY_GUIDE} Home bills that change from month to month are logged one at a time with logExpense, not as a recurring expense.`,
       inputSchema: z.object({
         name: z.string().describe("Business or vendor name (e.g. 'Canva', 'Rogers', 'Desjardins Insurance')"),
-        amount: z.number().positive().describe("Expense amount per month in dollars"),
+        amount: z.number().positive().describe("Amount charged each month in dollars, GST/HST included"),
+        hstAmount: z.number().min(0).optional().describe(RECURRING_HST_AMOUNT_HINT),
         categoryKey: z.enum(EXPENSE_ITEM_KEYS).describe("Expense item key"),
         dayOfMonth: z.number().int().min(1).max(28).default(1).describe("Day of month the expense recurs (1-28)"),
         notes: z.string().optional().describe("Optional notes"),
       }),
       needsApproval: true,
-      execute: async ({ name, amount, categoryKey, dayOfMonth, notes }) => {
+      execute: async ({ name, amount, hstAmount, categoryKey, dayOfMonth, notes }) => {
+        if (hstAmount !== undefined && hstAmount > amount) {
+          return `GST/HST of $${hstAmount.toFixed(2)} is more than the $${amount.toFixed(2)} charge, so nothing was created. Confirm the two amounts with the agent.`;
+        }
+        const hasHst = hstAmount !== undefined && hstAmount > 0;
+        const taxNote = hasHst ? `, including $${hstAmount.toFixed(2)} GST/HST` : "";
+
         try {
           const { error } = await supabase
             .from("recurring_expenses")
@@ -1563,6 +1591,12 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
               user_id: userId,
               name,
               amount,
+              // Only what the agent stated. With none stated no ITC is
+              // counted on this expense; GST/HST is never inferred from a
+              // rate. A stated $0 leaves the box off: the web form works an
+              // amount out from the province rate for a row with it on and $0.
+              hst_included: hasHst,
+              hst_amount: hasHst ? hstAmount : 0,
               category_key: categoryKey,
               day_of_month: dayOfMonth,
               is_active: true,
@@ -1570,11 +1604,17 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
             });
 
           if (error) return `Failed to create recurring expense: ${error.message}`;
-
-          return `✓ Recurring expense created — $${amount.toLocaleString()}/month for ${name}, recurring on day ${dayOfMonth}. It counts in your expense totals by its schedule, with nothing to confirm each month. Manage recurring expenses in **Expenses** (/expenses) under **Recurring Expenses**.`;
         } catch {
           return "Failed to create recurring expense. Please try again.";
         }
+
+        // The recurring expense is saved: nothing below may report a failure,
+        // or the model creates it a second time.
+        const taxCtx = hstAmount === undefined ? await getExpenseTaxCtx().catch(() => null) : null;
+        const itcNote = taxCtx?.gstHstRegistered
+          ? " No GST/HST amount was given, so none is recorded and no input tax credit is counted on this expense. If the bill shows GST/HST, the amount can be added by editing the entry in the Recurring Expenses list."
+          : "";
+        return `✓ Recurring expense created: $${amount.toLocaleString()}/month for ${name}${taxNote}, recurring on day ${dayOfMonth}. It counts in your expense totals by its schedule, with nothing to confirm each month.${itcNote} Manage recurring expenses in **Expenses** (/expenses) under **Recurring Expenses**.`;
       },
     }),
 
@@ -2748,22 +2788,56 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
 
     // ── UPDATE: Recurring expense ────────────────────────────────────────────
     updateRecurringExpense: tool({
-      description: "Update or pause/resume a recurring expense. Use when the user says 'change my Mailchimp to $200/month', 'pause that recurring expense', or 'reactivate my MLS fees'.",
+      description: "Update or pause/resume a recurring expense (name, amount, GST/HST, expense item, notes). Use when the user says 'change my Mailchimp to $200/month', 'pause that recurring expense', or 'reactivate my MLS fees'. Gated by the approval card.",
       inputSchema: z.object({
         recurringExpenseId: z.string().uuid().describe("The recurring expense UUID"),
+        expenseName: z.string().optional().describe("Current name of the recurring expense, shown on the approval card"),
         name: z.string().optional().describe("Updated vendor/name"),
-        amount: z.number().optional().describe("Updated amount"),
+        amount: z.number().optional().describe("Updated amount per charge, GST/HST included"),
+        hstAmount: z.number().min(0).optional().describe(`${RECURRING_HST_AMOUNT_HINT} 0 removes the GST/HST recorded on it.`),
         categoryKey: z.enum(EXPENSE_ITEM_KEYS).optional().describe("Updated expense item key (the items are listed in createRecurringExpense)"),
         isActive: z.boolean().optional().describe("Set to false to pause, true to resume"),
         notes: z.string().optional().describe("Updated notes"),
       }),
-      execute: async ({ recurringExpenseId, name, amount, categoryKey, isActive, notes }) => {
+      needsApproval: true,
+      execute: async ({ recurringExpenseId, name, amount, hstAmount, categoryKey, isActive, notes }) => {
         try {
           const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
           const changed: string[] = [];
+          let hstKeptNote = "";
 
           if (name) { updates.name = name; changed.push(`name → "${name}"`); }
           if (amount !== undefined) { updates.amount = amount; changed.push(`amount → $${amount}`); }
+
+          // GST/HST can't be more than the charge it is part of, so a change
+          // to either one is checked against the other as stored.
+          if (amount !== undefined || hstAmount !== undefined) {
+            const { data: current, error: fetchErr } = await supabase
+              .from("recurring_expenses")
+              .select("amount, hst_amount")
+              .eq("id", recurringExpenseId)
+              .eq("user_id", userId)
+              .single();
+
+            if (fetchErr || !current) return `Recurring expense not found (ID: ${recurringExpenseId}). Nothing was changed.`;
+
+            const currentHst = Number(current.hst_amount ?? 0);
+            const newAmount = amount ?? Number(current.amount);
+            const newHst = hstAmount ?? currentHst;
+            if (newHst > newAmount) {
+              return `GST/HST of $${newHst.toFixed(2)} is more than the $${newAmount.toFixed(2)} charge, so nothing was changed. Confirm the two amounts with the agent.`;
+            }
+
+            if (hstAmount !== undefined && hstAmount !== currentHst) {
+              // Only what the agent stated, never worked out from a rate.
+              updates.hst_included = hstAmount > 0;
+              updates.hst_amount = hstAmount;
+              changed.push(`GST/HST per charge: ${currentHst > 0 ? `$${currentHst.toFixed(2)}` : "none recorded"} → ${hstAmount > 0 ? `$${hstAmount.toFixed(2)}` : "none"}`);
+            } else if (hstAmount === undefined && currentHst > 0) {
+              hstKeptNote = ` The GST/HST recorded on it is still $${currentHst.toFixed(2)} per charge: it is not recalculated when the amount changes. If the new charge carries a different GST/HST amount, the agent can state it.`;
+            }
+          }
+
           if (categoryKey) { updates.category_key = categoryKey; changed.push(`category → ${receiptCategoryFullLabel(categoryKey)}`); }
           if (isActive !== undefined) { updates.is_active = isActive; changed.push(isActive ? "reactivated" : "paused"); }
           if (notes !== undefined) { updates.notes = notes; changed.push("notes updated"); }
@@ -2778,7 +2852,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
 
           if (error) return `Failed to update recurring expense: ${error.message}`;
 
-          return `✓ Recurring expense updated: ${changed.join(", ")}. Year-to-date totals use the updated values for the whole year so far.`;
+          return `✓ Recurring expense updated: ${changed.join(", ")}. Year-to-date totals use the updated values for the whole year so far.${hstKeptNote}`;
         } catch {
           return "Failed to update recurring expense. Please try again.";
         }
