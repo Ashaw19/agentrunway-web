@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/select";
 import { Check, Sparkles, ExternalLink, Loader2, Car, Landmark, RefreshCw, Trash2, Clock, Info, AlertCircle, XCircle, Building2, User, TrendingDown, Home, Mail, Receipt } from "lucide-react";
 import { TaxDisclaimer } from "@/components/tax-disclaimer";
+import { BROKERAGE_HST_WITHHOLDING, brokerageHstWithholdingHint } from "@agent-runway/core/tax-copy";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -1713,7 +1714,7 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
 
           {/* HST Withholding toggle */}
           <div className="grid gap-1.5">
-            <Label>Does your brokerage withhold HST from your commission cheques?</Label>
+            <Label>{BROKERAGE_HST_WITHHOLDING.question}</Label>
             <div className="flex items-center gap-3">
               <button
                 onClick={() => setBrokerageWithholdsHst(false)}
@@ -1724,7 +1725,7 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
                     : "border-border text-muted-foreground hover:border-primary/40",
                 )}
               >
-                No — I receive the full amount
+                {BROKERAGE_HST_WITHHOLDING.no}
               </button>
               <button
                 onClick={() => setBrokerageWithholdsHst(true)}
@@ -1735,13 +1736,11 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
                     : "border-border text-muted-foreground hover:border-primary/40",
                 )}
               >
-                Yes — they hold and remit it
+                {BROKERAGE_HST_WITHHOLDING.yes}
               </button>
             </div>
             <p className="text-xs text-muted-foreground">
-              {brokerageWithholdsHst
-                ? "Your brokerage handles HST remittance. We won't include HST in your set-aside recommendations."
-                : "You receive the HST portion with your commission. We'll remind you to set it aside for CRA."}
+              {brokerageHstWithholdingHint(brokerageWithholdsHst)}
             </p>
           </div>
 

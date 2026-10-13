@@ -15,6 +15,10 @@
  *      these funds".
  *   3. Every string passes the info-not-advice lint with no error.
  *   4. The income tax instalment dates are CRA's, not the GST/HST filing dates.
+ *   5. The line under "Does your brokerage withhold HST?" says what the app
+ *      does with the answer. It used to read "We won't include HST in your
+ *      set-aside recommendations" and "We'll remind you to set it aside for
+ *      CRA".
  */
 
 import { describe, it, expect } from "vitest";
@@ -23,8 +27,11 @@ import {
   SMALL_SUPPLIER_RULE,
   SMALL_SUPPLIER_RULE_SHORT,
   INCOME_TAX_INSTALMENT_DUE_DATES,
+  BROKERAGE_HST_WITHHOLDING,
+  brokerageHstWithholdingHint,
   gstHstReportNote,
 } from "../cra-rules";
+import { computeHSTCollected } from "../../engines/hst-engine";
 import { validateTaxCopy } from "../validate";
 
 const errorsIn = (text: string) => validateTaxCopy(text).filter((d) => d.level === "error");
@@ -111,6 +118,40 @@ describe("gstHstReportNote", () => {
   });
 });
 
+describe("brokerage HST withholding question", () => {
+  const yes = brokerageHstWithholdingHint(true);
+  const no = brokerageHstWithholdingHint(false);
+  const everything = [...Object.values(BROKERAGE_HST_WITHHOLDING), yes, no];
+
+  it("yes: the app counts none in the agent's hands, which is what the engine does", () => {
+    expect(yes).toContain("counts no HST in your hands");
+    expect(computeHSTCollected({ ytdGCI: 120_000, hstRate: 0.15, isRegistered: true, brokerageWithholdsHst: true })).toBe(0);
+  });
+
+  it("yes: says the return and T2125 views are not changed (neither reads the setting)", () => {
+    expect(yes).toMatch(/HST return and T2125 views do not use this answer/);
+  });
+
+  it("no: an estimate, and only for a registrant, which is what the engine does", () => {
+    expect(no).toContain("estimates");
+    expect(no).toContain("GST/HST registered");
+    expect(computeHSTCollected({ ytdGCI: 120_000, hstRate: 0.15, isRegistered: true, brokerageWithholdsHst: false })).toBe(18_000);
+    expect(computeHSTCollected({ ytdGCI: 120_000, hstRate: 0.15, isRegistered: false, brokerageWithholdsHst: false })).toBe(0);
+  });
+
+  it("the two answers get different lines", () => {
+    expect(yes).not.toBe(no);
+  });
+
+  it.each(everything)("%s: nothing about what the agent does with the money, and no em dash", (text) => {
+    expect(text).not.toMatch(/set[- ](it )?aside/i);
+    expect(text).not.toMatch(/recommend|remind/i);
+    expect(text).not.toMatch(/take-home/i);
+    expect(text).not.toMatch(/one less thing/i);
+    expect(text).not.toContain("—");
+  });
+});
+
 describe("info-not-advice lint", () => {
   it.each([
     ["SMALL_SUPPLIER_RULE", SMALL_SUPPLIER_RULE],
@@ -118,6 +159,11 @@ describe("info-not-advice lint", () => {
     ["note: not registered", notRegistered],
     ["note: registered", registered],
     ["note: brokerage holds it back", withheld],
+    ["withholding: question", BROKERAGE_HST_WITHHOLDING.question],
+    ["withholding: no", BROKERAGE_HST_WITHHOLDING.no],
+    ["withholding: yes", BROKERAGE_HST_WITHHOLDING.yes],
+    ["withholding hint: yes", brokerageHstWithholdingHint(true)],
+    ["withholding hint: no", brokerageHstWithholdingHint(false)],
   ])("%s has no error-level diagnostic", (_name, text) => {
     expect(errorsIn(text)).toEqual([]);
   });
