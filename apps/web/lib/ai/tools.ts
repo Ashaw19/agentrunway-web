@@ -72,6 +72,7 @@ import {
   type SocialPostTemplate,
 } from "@/lib/ai/draft-services";
 import { APP_TIME_ZONE, addDaysISO, atlanticDayStart, atlanticISODate, atlanticNoon, atlanticYear } from "@agent-runway/core/lib/local-date";
+import { recurringHasEnded } from "@agent-runway/core/engines/recurring-expense-engine";
 import { hasClosedDeal } from "@/lib/crm/contactable-records";
 import {
   RECEIPT_CATEGORY_GROUPS,
@@ -181,11 +182,13 @@ export const APPROVAL_DESCRIPTIONS: Record<string, (args: Record<string, unknown
     if (typeof args.hstAmount === "number") changes.push(`GST/HST per charge → ${args.hstAmount > 0 ? `$${args.hstAmount.toFixed(2)}` : "none"}`);
     if (typeof args.categoryKey === "string") changes.push(`category → ${receiptCategoryFullLabel(args.categoryKey)}`);
     if (args.isActive !== undefined) changes.push(args.isActive ? "resume" : "pause");
+    if (typeof args.endDate === "string") changes.push(`end date → ${args.endDate} (charges up to that date keep counting)`);
+    if (args.endDate === null) changes.push("end date removed");
     if (args.notes !== undefined) changes.push("notes");
     return `Update recurring expense${args.expenseName ? ` ${args.expenseName}` : ""}: ${changes.length ? changes.join(", ") : "(details)"}`;
   },
   deleteRecurringExpense: (args) =>
-    `Remove recurring expense: ${args.expenseName ?? args.vendor ?? args.description ?? args.expenseId ?? "expense"}`,
+    `Delete recurring expense: ${args.expenseName ?? args.vendor ?? args.description ?? args.expenseId ?? "expense"}. It comes out of every expense total, the months already past this year included.`,
   logExpense: (args) => {
     const item = typeof args.categoryKey === "string" ? receiptCategoryFullLabel(args.categoryKey) : null;
     const tax = typeof args.taxAmount === "number" ? `including $${args.taxAmount.toFixed(2)} GST/HST` : null;
@@ -295,6 +298,11 @@ const EXPENSE_TAX_AMOUNT_HINT =
  */
 const RECURRING_HST_AMOUNT_HINT =
   "GST/HST inside each charge in dollars, already part of the amount. Pass it ONLY when the agent states it or reads it off the bill. Never calculate it from a rate or a province, and leave it out when it isn't stated.";
+/** A real calendar day written YYYY-MM-DD ("2026-02-30" is not one). */
+function isCalendarDate(iso: string): boolean {
+  const d = new Date(`${iso}T12:00:00Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === iso;
+}
 const TRANSACTION_SIDES = ["buyer", "seller", "both"] as const;
 const ARCHIVE_REASONS = ["deceased", "moved_away", "do_not_contact", "other"] as const;
 
@@ -2811,7 +2819,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
 
     // ── UPDATE: Recurring expense ────────────────────────────────────────────
     updateRecurringExpense: tool({
-      description: "Update or pause/resume a recurring expense (name, amount, GST/HST, expense item, notes). Use when the user says 'change my Mailchimp to $200/month', 'pause that recurring expense', or 'reactivate my MLS fees'. Gated by the approval card.",
+      description: "Update, end, or pause/resume a recurring expense (name, amount, GST/HST, expense item, end date, notes). Use when the user says 'change my Mailchimp to $200/month', 'I cancelled Mailchimp at the end of June', or 'reactivate my MLS fees'. When an expense that was real has stopped, pass endDate: its charges up to that date stay in the year's totals and none count after it. Pausing (isActive false) is different: a paused expense counts in no total, the months already past this year included, until it is resumed. Find the ID with searchRecurringExpenses. Gated by the approval card.",
       inputSchema: z.object({
         recurringExpenseId: z.string().uuid().describe("The recurring expense UUID"),
         expenseName: z.string().optional().describe("Current name of the recurring expense, shown on the approval card"),
@@ -2819,30 +2827,51 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
         amount: z.number().optional().describe("Updated amount per charge, GST/HST included"),
         hstAmount: z.number().min(0).optional().describe(`${RECURRING_HST_AMOUNT_HINT} 0 removes the GST/HST recorded on it.`),
         categoryKey: z.enum(EXPENSE_ITEM_KEYS).optional().describe("Updated expense item key (the items are listed in createRecurringExpense)"),
-        isActive: z.boolean().optional().describe("Set to false to pause, true to resume"),
+        isActive: z.boolean().optional().describe("Set to false to pause, true to resume. A paused expense counts in no total, past months included; to stop one that was real, use endDate instead"),
+        endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional().describe("Last day the expense applies, YYYY-MM-DD, as the agent states it (the day it was cancelled or last charged). Charges on or before it keep counting; none count after it. null removes the end date"),
         notes: z.string().optional().describe("Updated notes"),
       }),
       needsApproval: true,
-      execute: async ({ recurringExpenseId, name, amount, hstAmount, categoryKey, isActive, notes }) => {
+      execute: async ({ recurringExpenseId, name, amount, hstAmount, categoryKey, isActive, endDate, notes }) => {
         try {
           const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
           const changed: string[] = [];
           let hstKeptNote = "";
+          let endNote = "";
 
           if (name) { updates.name = name; changed.push(`name → "${name}"`); }
           if (amount !== undefined) { updates.amount = amount; changed.push(`amount → $${amount}`); }
 
-          // GST/HST can't be more than the charge it is part of, so a change
-          // to either one is checked against the other as stored.
-          if (amount !== undefined || hstAmount !== undefined) {
+          // GST/HST can't be more than the charge it is part of, and an end
+          // date can't be before the start date, so a change to one is
+          // checked against the other as stored.
+          const settingEndDate = typeof endDate === "string";
+          if (amount !== undefined || hstAmount !== undefined || settingEndDate) {
             const { data: current, error: fetchErr } = await supabase
               .from("recurring_expenses")
-              .select("amount, hst_amount")
+              .select("amount, hst_amount, start_date, is_active")
               .eq("id", recurringExpenseId)
               .eq("user_id", userId)
               .single();
 
             if (fetchErr || !current) return `Recurring expense not found (ID: ${recurringExpenseId}). Nothing was changed.`;
+
+            if (settingEndDate) {
+              if (!isCalendarDate(endDate)) {
+                return `${endDate} is not a date on the calendar, so nothing was changed. Confirm the end date with the agent.`;
+              }
+              const startDate = typeof current.start_date === "string" ? current.start_date : null;
+              if (startDate && endDate < startDate) {
+                return `An end date of ${endDate} is before this expense's start date (${startDate}), so nothing was changed. Confirm the end date with the agent. An entry that was never a real expense can be removed with deleteRecurringExpense.`;
+              }
+              updates.end_date = endDate;
+              changed.push(`end date → ${endDate}`);
+              endNote = ` Its charges up to ${endDate} stay in the year's expense totals, and none count after that date. It leaves the monthly recurring figure the day after.`;
+              // A paused row is read by no total, whatever its dates say.
+              if (current.is_active === false && isActive !== true) {
+                endNote += " This expense is paused, and a paused expense counts in no total: its charges up to the end date count once it is resumed.";
+              }
+            }
 
             const currentHst = Number(current.hst_amount ?? 0);
             const newAmount = amount ?? Number(current.amount);
@@ -2863,6 +2892,11 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
 
           if (categoryKey) { updates.category_key = categoryKey; changed.push(`category → ${receiptCategoryFullLabel(categoryKey)}`); }
           if (isActive !== undefined) { updates.is_active = isActive; changed.push(isActive ? "reactivated" : "paused"); }
+          if (endDate === null) {
+            updates.end_date = null;
+            changed.push("end date removed");
+            endNote = " With no end date it counts on every charge date from its start date on.";
+          }
           if (notes !== undefined) { updates.notes = notes; changed.push("notes updated"); }
 
           if (changed.length === 0) return "No changes specified.";
@@ -2875,7 +2909,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
 
           if (error) return `Failed to update recurring expense: ${error.message}`;
 
-          return `✓ Recurring expense updated: ${changed.join(", ")}. Year-to-date totals use the updated values for the whole year so far.${hstKeptNote}`;
+          return `✓ Recurring expense updated: ${changed.join(", ")}. Year-to-date totals use the updated values for the whole year so far.${endNote}${hstKeptNote}`;
         } catch {
           return "Failed to update recurring expense. Please try again.";
         }
@@ -2884,7 +2918,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
 
     // ── DELETE: Recurring expense ─────────────────────────────────────────────
     deleteRecurringExpense: tool({
-      description: "Delete a recurring expense. It stops counting in every expense total, including for the months already past this year (a recurring expense counts by its schedule; there are no separate entries that remain).",
+      description: "Delete a recurring expense that was entered by mistake or was never a real expense. It stops counting in every expense total, including for the months already past this year (a recurring expense counts by its schedule; there are no separate entries that remain). When the expense was real and has stopped (cancelled, replaced, no longer paid), use updateRecurringExpense with endDate instead: that keeps the charges up to the end date in the year's totals. Find the ID with searchRecurringExpenses.",
       inputSchema: z.object({
         recurringExpenseId: z.string().uuid().describe("The recurring expense UUID"),
         expenseName: z.string().describe("Name for confirmation"),
@@ -2900,7 +2934,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
 
           if (error) return `Failed to delete recurring expense: ${error.message}`;
 
-          return `✓ Recurring expense "${expenseName}" deleted. It no longer counts in your expense totals, including for the months already past this year.`;
+          return `✓ Recurring expense "${expenseName}" deleted. It no longer counts in your expense totals, including for the months already past this year. If it was a real expense that stopped part-way through the year, adding it back with an end date keeps its earlier months in the totals.`;
         } catch {
           return "Failed to delete recurring expense. Please try again.";
         }
@@ -3162,9 +3196,17 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
               return `You have **${count ?? 0} active referrals** (pending or in progress).`;
             }
             case "recurring_expense_count": {
-              const { count, error } = await supabase.from("recurring_expenses").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("is_active", true);
+              // An expense that ended keeps its row, active, with an end
+              // date. It is not one the agent is still paying.
+              const { data, error } = await supabase.from("recurring_expenses").select("end_date").eq("user_id", userId).eq("is_active", true);
               if (error) return `Query failed: ${error.message}`;
-              return `You have **${count ?? 0} active recurring expenses**.`;
+              const today = atlanticNoon();
+              const rows = (data ?? []) as { end_date: string | null }[];
+              const ended = rows.filter((r) => recurringHasEnded(r, today)).length;
+              const endedNote = ended > 0
+                ? ` ${ended} more ${ended === 1 ? "has" : "have"} ended: the charges up to the end date still count in this year's totals.`
+                : "";
+              return `You have **${rows.length - ended} active recurring expenses**.${endedNote}`;
             }
             case "cca_asset_count": {
               const { count, error } = await supabase.from("t2125_cca_assets").select("id", { count: "exact", head: true }).eq("user_id", userId);
@@ -3337,16 +3379,16 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
 
     // ── SEARCH: Recurring Expenses ────────────────────────────────────────────
     searchRecurringExpenses: tool({
-      description: "Search recurring expenses by vendor name. Use to find IDs before updating, pausing, or deleting.",
+      description: "Search recurring expenses by vendor name. Use to find IDs before updating, ending, pausing, or deleting. Each line states whether the expense is active, ended (its end date has passed; the charges up to that date still count) or paused (counts in no total).",
       inputSchema: z.object({
         query: z.string().optional().describe("Vendor/name keyword to search for"),
-        activeOnly: z.boolean().optional().describe("Only show active recurring expenses"),
+        activeOnly: z.boolean().optional().describe("Leave out paused recurring expenses (ended ones are still listed)"),
       }),
       execute: async ({ query, activeOnly }) => {
         try {
           let q = supabase
             .from("recurring_expenses")
-            .select("id, name, amount, category_key, day_of_month, is_active, start_date, notes")
+            .select("id, name, amount, category_key, frequency, day_of_month, is_active, start_date, end_date, notes")
             .eq("user_id", userId)
             .order("name");
 
@@ -3357,9 +3399,17 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
           if (error) return `Search failed: ${error.message}`;
           if (!data || data.length === 0) return query ? `No recurring expenses found matching "${query}".` : "No recurring expenses found.";
 
-          return data.map((r: Record<string, unknown>) =>
-            `• ${r.name} (ID: ${r.id}) — $${Number(r.amount).toFixed(2)}/month (day ${r.day_of_month}) — ${receiptCategoryFullLabel(typeof r.category_key === "string" ? r.category_key : null)} — ${r.is_active ? "🟢 Active" : "⚪ Paused"}${r.notes ? ` — "${r.notes}"` : ""}`
-          ).join("\n");
+          const today = atlanticNoon();
+          return data.map((r: Record<string, unknown>) => {
+            const per = r.frequency === "annual" ? "year" : r.frequency === "quarterly" ? "quarter" : "month";
+            const endDate = typeof r.end_date === "string" ? r.end_date : null;
+            const status = !r.is_active
+              ? "⚪ Paused"
+              : recurringHasEnded({ end_date: endDate }, today)
+                ? `⏹ Ended ${endDate}`
+                : `🟢 Active${endDate ? `, ends ${endDate}` : ""}`;
+            return `• ${r.name} (ID: ${r.id}) — $${Number(r.amount).toFixed(2)}/${per} (day ${r.day_of_month}) — ${receiptCategoryFullLabel(typeof r.category_key === "string" ? r.category_key : null)} — ${status}${r.notes ? ` — "${r.notes}"` : ""}`;
+          }).join("\n");
         } catch { return "Recurring expense search temporarily unavailable."; }
       },
     }),
@@ -3909,7 +3959,9 @@ export function createCoreAgentTools(supabase: SupabaseClient, userId: string): 
     logContactActivity: all.logContactActivity,
     createContactTask: all.createContactTask,
     // Writes (expenses / mileage / referrals)
+    searchRecurringExpenses: all.searchRecurringExpenses,
     createRecurringExpense: all.createRecurringExpense,
+    updateRecurringExpense: all.updateRecurringExpense,
     deleteRecurringExpense: all.deleteRecurringExpense,
     logExpense: all.logExpense,
     updateExpense: all.updateExpense,
@@ -3986,11 +4038,15 @@ export function createPersonaAgentTools(
       // Reads
       searchTransactions: all.searchTransactions,
       searchExpenses: all.searchExpenses,
+      // The only way to a recurring expense's ID, which update and delete take.
+      searchRecurringExpenses: all.searchRecurringExpenses,
       searchListingAppointments: all.searchListingAppointments,
       searchCCAAssets: all.searchCCAAssets,
       getQuickStats: all.getQuickStats,
       // Writes — transactions, expenses, CCA, mileage
       createRecurringExpense: all.createRecurringExpense,
+      // Ends one that really stopped (endDate), so delete is not the only way out.
+      updateRecurringExpense: all.updateRecurringExpense,
       deleteRecurringExpense: all.deleteRecurringExpense,
       logExpense: all.logExpense,
       updateExpense: all.updateExpense,

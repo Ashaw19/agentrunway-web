@@ -295,6 +295,21 @@ describe("recurring expenses", () => {
     expect(totalRecurringYTD(net, jun15)).toBe(6 * 100 + 2 * 300);
   });
 
+  it("net copies keep the end date, so an ended expense leaves the monthly total net or as entered", () => {
+    const ended = recurring({ id: "re-4", end_date: "2026-03-31" });
+    const original = [recurring({}), ended];
+    const net = recurringExpensesNetOfItc(original, REGISTRANT);
+    const jun15 = new Date(2026, 5, 15, 12);
+
+    expect(net[1].end_date).toBe("2026-03-31");
+    expect(totalRecurringMonthly(net, jun15)).toBe(100);
+    expect(totalRecurringMonthly(original, jun15)).toBe(115);
+    // Its three charges are still in the year to date: six of the first, three of the ended one.
+    expect(totalRecurringYTD(net, jun15)).toBe(6 * 100 + 3 * 100);
+    // While it ran, both were in the monthly total.
+    expect(totalRecurringMonthly(net, new Date(2026, 2, 31, 12))).toBe(200);
+  });
+
   it("non-registrant: the copies carry the amounts as entered", () => {
     const original = [recurring({}), recurring({ id: "re-2", amount: 345, hst_amount: 45 })];
     expect(recurringExpensesNetOfItc(original, NOT_REGISTERED).map((r) => r.amount)).toEqual([115, 345]);
@@ -400,6 +415,34 @@ describe("ytdExpenseTotals — what is still to come this year", () => {
     const t = totals(at(10, 13), [annual]);
     expect(t.recurringYTD).toBe(1200);
     expect(t.recurringRemaining).toBe(0);
+  });
+
+  it("an expense that ended on 30 June: six charges to date, none to come, and out of the monthly figure", () => {
+    const t = totals(at(10, 13), [{ ...lease, end_date: "2026-06-30" }]);
+    expect(t.recurringYTD).toBe(3000); // Jan 20 to Jun 20
+    expect(t.recurringRemaining).toBe(0);
+    expect(t.recurringMonthly).toBe(0);
+    expect(t.monthlyRecurring).toBe(20); // the per-item figure only
+    expect(t.expensesRemaining).toBe(20 * 2);
+  });
+
+  it("an ended expense is six charges for the year on any day, before or after its end date", () => {
+    for (const day of [at(1, 1), at(3, 20), at(6, 20), at(6, 30), at(7, 1), at(10, 13), at(12, 31)]) {
+      const t = totals(day, [{ ...lease, end_date: "2026-06-30" }]);
+      expect(t.recurringYTD + t.recurringRemaining, day.toDateString()).toBe(3000);
+    }
+  });
+
+  it("it stays in the monthly figure through its end date, and leaves the day after", () => {
+    const ended = { ...lease, end_date: "2026-06-30" };
+    expect(totals(at(6, 30), [ended]).recurringMonthly).toBe(500);
+    expect(totals(at(7, 1), [ended]).recurringMonthly).toBe(0);
+  });
+
+  it("an end date still ahead: the charges up to it are still to come, and it stays in the monthly figure", () => {
+    const t = totals(at(10, 13), [{ ...lease, end_date: "2026-11-30" }]);
+    expect(t.recurringRemaining).toBe(1000); // Oct 20, Nov 20
+    expect(t.recurringMonthly).toBe(500);
   });
 
   it("remainingYearExpenses: the legacy figure for the months after this one, plus the recurring charges left", () => {

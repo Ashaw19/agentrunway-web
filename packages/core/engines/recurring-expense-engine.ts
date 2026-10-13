@@ -11,18 +11,59 @@ import { localISODate } from "../lib/local-date";
 
 // ── Monthly equivalent ────────────────────────────────────────────────────
 
-/** Convert any-frequency recurring expense to its monthly equivalent */
+/**
+ * Convert any-frequency recurring expense to its monthly equivalent. A plain
+ * conversion of one charge, with no date: what the row adds to the monthly
+ * run-rate today is `recurringMonthlyRunRate`.
+ */
 export function recurringMonthlyEquivalent(re: RecurringExpense): number {
   const freq = re.frequency ?? "monthly";
   const amt = Number(re.amount);
   return freq === "monthly" ? amt : freq === "quarterly" ? amt / 3 : amt / 12;
 }
 
-/** Total monthly equivalent across all active recurring expenses */
-export function totalRecurringMonthly(expenses: RecurringExpense[]): number {
-  return expenses
-    .filter((re) => re.is_active)
-    .reduce((sum, re) => sum + recurringMonthlyEquivalent(re), 0);
+// ── Monthly run-rate ──────────────────────────────────────────────────────
+//
+// The run-rate is what the Recurring Expenses list is expected to cost each
+// month from here on: "Monthly Recurring", survival burn, next year's plan.
+// Unlike the dated totals below it is not a count of charge dates, so it
+// needs its own rule for a row with an end date.
+//
+// An expense that really ended is kept active with an `end_date`: the
+// charges up to that date stay in the year to date, the T2125 lines and the
+// ITCs (`occurrencesInRange`). It leaves the run-rate the day after its end
+// date. On the end date itself it still counts, as that day's charge does.
+//
+// A row whose `start_date` is still ahead counts in the run-rate. The
+// figures it feeds look forward, and a cost already scheduled is part of
+// what lies ahead. (Its year to date is $0 until its first charge date.)
+//
+// `now` is the calendar anchor, as for the dated totals: browser callers
+// take the default, server callers pass atlanticNoon().
+
+/** Has this expense's end date passed, as of `now`'s day? False with no end date. */
+export function recurringHasEnded(
+  re: Pick<RecurringExpense, "end_date">,
+  now: Date = new Date(),
+): boolean {
+  return re.end_date ? re.end_date < localISODate(now) : false;
+}
+
+/**
+ * What one recurring expense adds to the monthly run-rate on `now`'s day:
+ * its monthly equivalent, or 0 when it is inactive or its end date has passed.
+ */
+export function recurringMonthlyRunRate(re: RecurringExpense, now: Date = new Date()): number {
+  if (!re.is_active || recurringHasEnded(re, now)) return 0;
+  return recurringMonthlyEquivalent(re);
+}
+
+/** Monthly run-rate across the recurring expenses that have not ended */
+export function totalRecurringMonthly(
+  expenses: RecurringExpense[],
+  now: Date = new Date(),
+): number {
+  return expenses.reduce((sum, re) => sum + recurringMonthlyRunRate(re, now), 0);
 }
 
 // ── Occurrences ───────────────────────────────────────────────────────────
@@ -230,12 +271,13 @@ export function totalRecurringHSTYTD(
   );
 }
 
-/** Monthly total from recurring expenses for a specific category key */
+/** Monthly run-rate from the recurring expenses filed under one category key */
 export function recurringMonthlyForCategory(
   expenses: RecurringExpense[],
   categoryKey: string,
+  now: Date = new Date(),
 ): number {
   return expenses
-    .filter((re) => re.is_active && re.category_key === categoryKey)
-    .reduce((sum, re) => sum + recurringMonthlyEquivalent(re), 0);
+    .filter((re) => re.category_key === categoryKey)
+    .reduce((sum, re) => sum + recurringMonthlyRunRate(re, now), 0);
 }

@@ -343,6 +343,53 @@ describe("buildT2125Expenses — recurring expenses reach the T2125", () => {
   });
 });
 
+// An expense that really ended keeps its row, active, with an end date: its
+// charges to that date stay on the T2125 lines. `monthlyAmount` is what the
+// row is expected to cost each month from here on, so it is $0 from the day
+// after the end date (recurringMonthlyRunRate).
+describe("buildT2125Expenses — a recurring expense with an end date", () => {
+  const ended = recurring({ end_date: "2026-03-31" });
+
+  it("ended: its charges to date stay, and nothing is expected each month", () => {
+    const r = build([ended], NOT_REGISTERED);
+    expect(r.lines[0].rawAmount).toBe(3 * 115);
+    expect(r.lines[0].monthlyAmount).toBe(0);
+    expect(r.ytdTotal).toBe(3 * 115);
+    expect(r.monthlyTotal).toBe(0);
+    expect(r.deductibleTotal).toBe(3 * 115);
+  });
+
+  it("was in the monthly total through its end date, and out the day after", () => {
+    expect(build([ended], NOT_REGISTERED, { now: new Date(2026, 2, 31, 12) }).monthlyTotal).toBe(115);
+    expect(build([ended], NOT_REGISTERED, { now: new Date(2026, 3, 1, 12) }).monthlyTotal).toBe(0);
+  });
+
+  it("an end date still ahead leaves the monthly amount in", () => {
+    const r = build([recurring({ end_date: "2026-12-31" })], NOT_REGISTERED);
+    expect(r.lines[0].monthlyAmount).toBe(115);
+    expect(r.monthlyTotal).toBe(115);
+  });
+
+  it("registrant: a running row's monthly amount is net of the ITC, an ended row's is $0", () => {
+    const r = build([recurring({ id: "running" }), recurring({ id: "ended", end_date: "2026-03-31" })], REGISTRANT);
+    expect(r.lines.map((l) => [l.recurringId, l.monthlyAmount])).toEqual([["running", 100], ["ended", 0]]);
+    expect(r.monthlyTotal).toBe(100);
+  });
+
+  it("the ended row keeps its line, so the Expenses page row still finds its year to date", () => {
+    const r = build([ended], REGISTRANT);
+    expect(r.lines).toHaveLength(1);
+    expect(r.lines[0].recurringId).toBe("re-1");
+    expect(r.lines[0].rawAmount).toBe(300);
+  });
+
+  it("a row that has not started yet: nothing to date, and its monthly amount counts (a scheduled cost)", () => {
+    const r = build([recurring({ start_date: "2026-11-01" })], NOT_REGISTERED);
+    expect(r.lines[0].rawAmount).toBe(0);
+    expect(r.lines[0].monthlyAmount).toBe(115);
+  });
+});
+
 describe("buildT2125Expenses — receipts and the legacy monthly figure", () => {
   it("one line per expense key, with the key's own limit", () => {
     const receiptTotals = aggregateReceiptTotals(
@@ -667,7 +714,7 @@ describe("ytdExpenseTotals — one year-to-date total for every screen", () => {
     expect(t.legacyMonthlyRecurring).toBe(20);
     expect(t.recurringMonthly).toBe(500);
     expect(t.monthlyRecurring).toBe(520);
-    expect(t.recurringMonthly).toBe(totalRecurringMonthly(recurringExpensesNetOfItc([lease], REGISTRANT)));
+    expect(t.recurringMonthly).toBe(totalRecurringMonthly(recurringExpensesNetOfItc([lease], REGISTRANT), NOW));
     expect(t.tracked.lines.reduce((s, l) => s + l.monthlyAmount, 0)).toBe(t.monthlyRecurring);
     expect(t.tracked.monthlyTotal).toBe(t.monthlyRecurring);
 
@@ -679,6 +726,17 @@ describe("ytdExpenseTotals — one year-to-date total for every screen", () => {
       "item:office_phone": 20,
       "recurring:vehicle_payment": 500,
     });
+  });
+
+  it("a recurring expense that ended on 30 June: its year to date stays, and it is out of every monthly figure", () => {
+    const endedLease = { ...lease, end_date: "2026-06-30" };
+    const t = ytdExpenseTotals({ receipts, recurring: [endedLease], expenseItems, ctx: REGISTRANT, now: NOW });
+    expect(t.recurringYTD).toBe(6 * 500); // Jan 1 to Jun 1
+    expect(t.expensesYTD).toBe(353.75 + 200 + 3000);
+    expect(t.recurringMonthly).toBe(0);
+    expect(t.monthlyRecurring).toBe(20); // the per-item figure only
+    expect(t.tracked.monthlyTotal).toBe(20);
+    expect(t.recurringMonthly).toBe(totalRecurringMonthly(recurringExpensesNetOfItc([endedLease], REGISTRANT), NOW));
   });
 
   it("non-registrant: every part is the amount paid", () => {

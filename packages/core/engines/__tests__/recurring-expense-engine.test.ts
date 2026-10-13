@@ -9,9 +9,13 @@
 import { describe, expect, it } from "vitest";
 import {
   projectedAnnualRecurring,
+  recurringHasEnded,
+  recurringMonthlyForCategory,
+  recurringMonthlyRunRate,
   recurringRemainingThisYear,
   recurringYTD,
   totalRecurringHSTYTD,
+  totalRecurringMonthly,
   totalRecurringRemaining,
   totalRecurringYTD,
 } from "../recurring-expense-engine";
@@ -252,5 +256,109 @@ describe("year to date plus what is still to come is the full year", () => {
 
   it("totalRecurringRemaining skips inactive expenses", () => {
     expect(totalRecurringRemaining([expense({ is_active: false })], OCT_13)).toBe(0);
+  });
+});
+
+/**
+ * Monthly run-rate and end dates (2026-10-13).
+ *
+ * The run-rate had no date: every active row counted. An expense that really
+ * ended is kept active with an `end_date`, so its earlier charges stay in the
+ * year to date. Without a date the run-rate would have kept counting it in
+ * Monthly Recurring, survival burn and next year's plan for good.
+ */
+describe("recurringHasEnded", () => {
+  it("is false with no end date", () => {
+    expect(recurringHasEnded(expense({}), OCT_13)).toBe(false);
+  });
+
+  it("is true once the end date has passed", () => {
+    expect(recurringHasEnded(expense({ end_date: "2026-06-30" }), OCT_13)).toBe(true);
+    expect(recurringHasEnded(expense({ end_date: "2025-12-31" }), OCT_13)).toBe(true);
+  });
+
+  it("is false on the end date itself: it is the last day a charge counts", () => {
+    expect(recurringHasEnded(expense({ end_date: "2026-10-13" }), OCT_13)).toBe(false);
+    expect(recurringHasEnded(expense({ end_date: "2026-10-13" }), at(10, 14))).toBe(true);
+  });
+
+  it("is false while the end date is still ahead", () => {
+    expect(recurringHasEnded(expense({ end_date: "2026-11-30" }), OCT_13)).toBe(false);
+  });
+
+  it("reads the anchor's calendar day, so Dec 31 evening Atlantic is not yet ended", () => {
+    const re = expense({ end_date: "2026-12-31" });
+    expect(recurringHasEnded(re, DEC31_10PM_AST)).toBe(false);
+    expect(recurringHasEnded(re, JAN1_1AM_AST)).toBe(true);
+  });
+});
+
+describe("monthly run-rate leaves out a row once its end date has passed", () => {
+  it("counts a row with no end date", () => {
+    expect(recurringMonthlyRunRate(expense({}), OCT_13)).toBe(100);
+  });
+
+  it("counts nothing for a row whose end date has passed", () => {
+    expect(recurringMonthlyRunRate(expense({ end_date: "2026-06-30" }), OCT_13)).toBe(0);
+  });
+
+  it("counts a row through its end date and drops it the day after", () => {
+    const re = expense({ end_date: "2026-10-13" });
+    expect(recurringMonthlyRunRate(re, OCT_13)).toBe(100);
+    expect(recurringMonthlyRunRate(re, at(10, 14))).toBe(0);
+  });
+
+  it("counts a row whose end date is still ahead", () => {
+    expect(recurringMonthlyRunRate(expense({ end_date: "2026-12-31" }), OCT_13)).toBe(100);
+  });
+
+  it("counts a row whose start date is still ahead: a scheduled cost is part of what lies ahead", () => {
+    expect(recurringMonthlyRunRate(expense({ start_date: "2026-11-01" }), OCT_13)).toBe(100);
+  });
+
+  it("counts nothing for an inactive row", () => {
+    expect(recurringMonthlyRunRate(expense({ is_active: false }), OCT_13)).toBe(0);
+  });
+
+  it("spreads a quarterly or annual charge over its months", () => {
+    expect(recurringMonthlyRunRate(expense({ frequency: "quarterly", amount: 300 }), OCT_13)).toBe(100);
+    expect(recurringMonthlyRunRate(expense({ frequency: "annual", amount: 1200 }), OCT_13)).toBe(100);
+    expect(recurringMonthlyRunRate(expense({ frequency: "annual", amount: 1200, end_date: "2026-06-30" }), OCT_13)).toBe(0);
+  });
+
+  it("an ended row keeps its year to date and has no run-rate", () => {
+    const ended = expense({ day_of_month: 15, end_date: "2026-06-30" });
+    expect(recurringYTD(ended, OCT_13)).toBe(600);
+    expect(recurringMonthlyRunRate(ended, OCT_13)).toBe(0);
+  });
+});
+
+describe("totalRecurringMonthly and recurringMonthlyForCategory read the end date", () => {
+  const running = expense({ id: "run", amount: 100 });
+  const ended = expense({ id: "ended", amount: 250, end_date: "2026-06-30" });
+  const endsLater = expense({ id: "later", amount: 40, end_date: "2026-12-31" });
+  const startsLater = expense({ id: "soon", amount: 60, start_date: "2026-11-01" });
+  const paused = expense({ id: "paused", amount: 500, is_active: false });
+  const otherCategory = expense({ id: "other", amount: 75, category_key: "marketing_digital" });
+  const all = [running, ended, endsLater, startsLater, paused, otherCategory];
+
+  it("totals the rows that have not ended", () => {
+    expect(totalRecurringMonthly(all, OCT_13)).toBe(100 + 40 + 60 + 75);
+  });
+
+  it("counted the ended row while it was running", () => {
+    expect(totalRecurringMonthly(all, at(6, 30))).toBe(100 + 250 + 40 + 60 + 75);
+    expect(totalRecurringMonthly(all, at(7, 1))).toBe(100 + 40 + 60 + 75);
+  });
+
+  it("drops a row the day after its end date", () => {
+    expect(totalRecurringMonthly(all, at(12, 31))).toBe(100 + 40 + 60 + 75);
+    expect(totalRecurringMonthly(all, at(1, 1, 2027))).toBe(100 + 60 + 75);
+  });
+
+  it("per category, the same rows", () => {
+    expect(recurringMonthlyForCategory(all, "professional_mls", OCT_13)).toBe(100 + 40 + 60);
+    expect(recurringMonthlyForCategory(all, "professional_mls", at(6, 30))).toBe(100 + 250 + 40 + 60);
+    expect(recurringMonthlyForCategory(all, "marketing_digital", OCT_13)).toBe(75);
   });
 });

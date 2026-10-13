@@ -94,6 +94,9 @@ const TOOL_STATUS_LABELS: Record<string, string> = {
   logContactActivity: "Logging activity…",
   createContactTask: "Creating task…",
   addRecurringExpense: "Adding expense…",
+  createRecurringExpense: "Adding expense…",
+  searchRecurringExpenses: "Searching recurring expenses…",
+  updateRecurringExpense: "Updating recurring expense…",
   deleteRecurringExpense: "Removing expense…",
   logExpense: "Logging expense…",
   updateExpense: "Updating expense…",
@@ -551,7 +554,8 @@ function ApprovalCard({
     logContactActivity: "Log Activity",
     createContactTask: "Create Task",
     createRecurringExpense: "Add Expense",
-    deleteRecurringExpense: "Remove Expense",
+    updateRecurringExpense: "Update Recurring Expense",
+    deleteRecurringExpense: "Delete Recurring Expense",
   };
 
   return (
