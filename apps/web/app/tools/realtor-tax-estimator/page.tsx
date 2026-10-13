@@ -7,6 +7,7 @@ import { ScrollRevealSection } from "@/components/scroll-reveal-section";
 import { TaxEstimator } from "./tax-estimator";
 import { CharterScarcityStrip } from "@/components/charter-scarcity-strip";
 import { articleSchema, faqSchema, breadcrumbSchema, howToSchema } from "@/lib/schema";
+import { TAX_ENGINE_ESTIMATE, taxEstimateSpreadSentence } from "@agent-runway/core/tax-copy";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Metadata
@@ -52,8 +53,7 @@ export const metadata: Metadata = {
 const FAQS = [
   {
     question: "How much tax does a Canadian real estate agent pay?",
-    answer:
-      "Canadian real estate agents are self-employed and pay federal income tax, provincial income tax, and CPP (or QPP in Quebec) contributions on their net commission income. Effective rates typically range from 20% to 40% depending on net income and province. On $100,000 of net income in Ontario, expect roughly $25,000 to $28,000 in total tax plus CPP — an effective rate around 25% to 28%.",
+    answer: `Canadian real estate agents are self-employed and pay federal income tax, provincial income tax, and CPP (or QPP in Quebec) contributions on their net commission income. ${taxEstimateSpreadSentence(100_000)} ${TAX_ENGINE_ESTIMATE.varies}`,
   },
   {
     question: "Do real estate agents have to pay quarterly taxes in Canada?",
@@ -88,7 +88,7 @@ const FAQS = [
   {
     question: "How is this different from Agent Runway's full product?",
     answer:
-      "This free calculator gives you a one-time tax estimate. The full Agent Runway product tracks your GCI, expenses, and mileage in real time; updates your tax estimate with every new transaction; sends quarterly instalment reminders; calculates per-deal set-asides automatically; and includes an agentic Flight Crew that can execute tasks like logging deals, drafting client outreach, and updating your pipeline — all with human approval.",
+      "This free calculator gives you a one-time tax estimate. The full Agent Runway product tracks your GCI, expenses, and mileage in real time; updates your tax estimate with every new transaction; shows quarterly instalment estimates and a per-deal tax portion; and includes an agentic Flight Crew that can execute tasks like logging deals, drafting client outreach, and updating your pipeline — all with human approval.",
   },
 ];
 
@@ -135,7 +135,7 @@ const JSON_LD_HOWTO = howToSchema({
     },
     {
       name: "Review your tax and quarterly instalment amounts",
-      text: "The estimator shows your total federal tax, provincial tax, CPP or QPP contributions, effective rate, quarterly instalment amount, and per-deal set-aside target.",
+      text: "The estimator shows your total federal tax, provincial tax, CPP or QPP contributions, effective rate, quarterly instalment amount, and per-deal tax portion.",
     },
   ],
 });
@@ -224,12 +224,9 @@ export default function RealtorTaxEstimatorPage() {
                 How much tax does a Canadian real estate agent actually pay?
               </h2>
               <p className="mt-3 rounded-lg border-l-4 border-blue-500 bg-blue-50 px-4 py-3 text-slate-700">
-                <strong>Short answer:</strong> Canadian realtors typically owe{" "}
-                <strong>20% to 40% of net commission income</strong> in combined federal tax,
-                provincial tax, and CPP/QPP contributions. Effective rate depends on net income,
-                province, and whether you&rsquo;re incorporated as a PREC. A sole proprietor in
-                Ontario earning $100,000 net pays roughly $26,000 (26% effective). The same agent
-                in Alberta pays roughly $24,000 (24% effective).
+                <strong>Short answer:</strong> it depends on province and net income.{" "}
+                {taxEstimateSpreadSentence(100_000)} {TAX_ENGINE_ESTIMATE.assumptions} An agent
+                incorporated as a PREC is taxed differently.
               </p>
               <p className="mt-4">
                 Real estate agents in Canada are classified as self-employed independent contractors,
@@ -237,8 +234,8 @@ export default function RealtorTaxEstimatorPage() {
                 <Link href="/t2125-guide-real-estate-agents-canada" className="text-blue-600 underline">
                   CRA form T2125
                 </Link>
-                . Unlike employees with income tax withheld at source, you are responsible for
-                setting aside tax money yourself and remitting it through quarterly instalments.
+                . Unlike employment income, commission income has no income tax withheld at
+                source, so the tax is paid at filing time or through quarterly instalments.
               </p>
             </ScrollRevealSection>
 
@@ -401,7 +398,7 @@ export default function RealtorTaxEstimatorPage() {
                 {
                   href: "/how-much-should-real-estate-agents-save-for-taxes-canada",
                   title: "How much of each deal is estimated for tax",
-                  blurb: "Per-deal tax portion percentage by province and GCI bracket.",
+                  blurb: "The CRA rules, and the tax engine's estimate by province.",
                 },
                 {
                   href: "/real-estate-agent-business-expenses-canada",

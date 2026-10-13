@@ -4,7 +4,9 @@ import { ArrowRight, BookOpen, AlertTriangle } from "lucide-react";
 import { MarketingNav } from "@/components/marketing-nav";
 import { MarketingFooter } from "@/components/marketing-footer";
 import { EmailCapture } from "@/components/email-capture";
+import { TaxEngineEstimateTable } from "@/components/tax-engine-estimate-table";
 import { articleSchema } from "@/lib/schema";
+import { TAX_ENGINE_ESTIMATE } from "@agent-runway/core/tax-copy";
 
 export const metadata: Metadata = {
   title: "Real Estate Agent Tax Planning in Canada",
@@ -400,25 +402,22 @@ export default function RealEstateAgentTaxPlanningCanadaPage() {
                 .
               </p>
 
-              <h3>The 30–35% tax-portion estimate</h3>
+              <h3>How much of a commission is tax</h3>
 
               <p>
-                A common framing among Canadian real estate agents: roughly 30–35% of
-                every commission payment is estimated as the tax portion, covering
-                combined federal and provincial income tax<CRACite id={7} /> and CPP
-                contributions<CRACite id={1} />. The exact figure depends on the
-                province, projected annual income, applicable deductions, and the
-                CPP1 and CPP2 schedules<CRACite id={1} /><CRACite id={2} />.
+                The CRA sets income tax by bracket on taxable income for the year
+                <CRACite id={7} /> and CPP contributions on net self-employment
+                earnings<CRACite id={1} /><CRACite id={2} />. Neither is set as a
+                percentage of a commission. {TAX_ENGINE_ESTIMATE.what}{" "}
+                {TAX_ENGINE_ESTIMATE.varies}
               </p>
 
+              <TaxEngineEstimateTable />
+
               <p>
-                In higher-tax provinces or at higher income levels, the estimated
-                tax-portion rate may sit closer to 38–40%. Agent Runway computes
-                the projection from the agent&apos;s own province, income trajectory,
-                and tracked deductions, and surfaces the estimate in real time.
-                Numbers shown are estimates based on rules published by the CRA;
-                verify with an accountant before making any filing or financial
-                decision.
+                {TAX_ENGINE_ESTIMATE.perDeal} Inside Agent Runway the same engine
+                runs on the agent&apos;s own province, projected income for the
+                year, and logged expenses, and the estimate updates as deals close.
               </p>
 
               {/* ── Section 3: Deductible Expenses ── */}

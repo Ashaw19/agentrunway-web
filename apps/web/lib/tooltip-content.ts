@@ -7,6 +7,7 @@
 // ============================================================================
 
 import type { CardId } from "@/app/(app)/dashboard/card-registry";
+import { INSTALMENT_INTEREST_RULE, INSTALMENT_REQUIREMENT_RULE } from "@agent-runway/core/tax-copy";
 
 export interface TooltipDriver {
   label: string;
@@ -179,7 +180,7 @@ export const TOOLTIP_REGISTRY: Partial<Record<CardId, TooltipEntry>> = {
     action: {
       condition: "Estimated tax owing exceeds $5,000 and no instalments paid",
       check: (taxOwing, ctx) => taxOwing > 5000 && (ctx?.instalmentsPaid ?? 0) === 0,
-      message: "CRA may charge interest if quarterly instalments aren't made. Consider setting aside funds now.",
+      message: `${INSTALMENT_REQUIREMENT_RULE} ${INSTALMENT_INTEREST_RULE}`,
       href: "/overhead",
       ctaLabel: "Tax Estimates",
     },

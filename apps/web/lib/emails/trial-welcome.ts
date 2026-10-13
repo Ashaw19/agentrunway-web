@@ -111,7 +111,7 @@ export function trialWelcomeEmail({
                   ["🏆", "Runway Score", "A-to-F health grade across 5 business dimensions"],
                   ["🤖", "AI Business Assistant", "GPT-powered Q&A about your specific numbers"],
                   ["📊", "Probability Forecast", "P10–P90 income bands for the months ahead"],
-                  ["💰", "Tax Estimates", "Quarterly instalment targets + per-deal set-aside"],
+                  ["💰", "Tax Estimates", "Quarterly instalment estimates + per-deal tax portion"],
                   ["📈", "5-Year Growth Plan", "Long-range projections with widening uncertainty bands"],
                   ["🎯", "Business Insights", "Ranked action items with evidence and impact scores"],
                 ].map(([icon, title, desc]) => `
@@ -186,7 +186,7 @@ What's unlocked:
 • Runway Score — A-to-F health grade across 5 business dimensions
 • AI Business Assistant — GPT-powered Q&A about your specific numbers
 • Probability Forecast — P10–P90 income bands for the months ahead
-• Tax Estimates — Quarterly instalment targets + per-deal set-aside
+• Tax Estimates — Quarterly instalment estimates + per-deal tax portion
 • 5-Year Growth Plan — Long-range projections with widening uncertainty bands
 • Business Insights — Ranked action items with evidence and impact scores
 

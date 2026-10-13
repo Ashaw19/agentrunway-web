@@ -17,6 +17,7 @@
     "./tax-copy/forbidden-verbs": "./tax-copy/forbidden-verbs.ts",
     "./tax-copy/validate": "./tax-copy/validate.ts",
     "./tax-copy/cra-rules": "./tax-copy/cra-rules.ts",
+    "./tax-copy/engine-estimate": "./tax-copy/engine-estimate.ts",
     "./voice-quiz": "./voice-quiz/index.ts",
     "./business-identity": "./business-identity/index.ts",
     "./agent-goals": "./agent-goals/index.ts"
