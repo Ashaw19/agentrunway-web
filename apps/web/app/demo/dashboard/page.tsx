@@ -573,6 +573,7 @@ export default function DemoDashboardPage() {
               expensesYTD={demoExpenses.expensesYTD}
               monthlyRecurring={demoExpenses.monthlyRecurring}
               expensesRemaining={demoExpenses.expensesRemaining}
+              expensesNextYear={demoExpenses.expensesNextYear}
               deductionTracking={demoDeductionTracking}
               initialDashboardView="standard"
               isPro={true}

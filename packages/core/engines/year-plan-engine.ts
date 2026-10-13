@@ -15,8 +15,13 @@
 //   - monthlyTargets: goal spread by the same quarterly seasonal weights the
 //     pace engine uses (normalizeSeasonalWeights).
 //   - planTakeHome: projectedAgentNet (split/plan fees/brokerage fees, the
-//     forecast + dashboard chain) − a full year of recurring expenses −
+//     forecast + dashboard chain) − that year's business expenses −
 //     canadian-tax-engine income tax + CPP. Estimates only.
+//     The expenses are `ytdExpenseTotals(...).expensesNextYear`
+//     (t2125-expenses-engine): each Recurring Expenses row by the charge
+//     dates that fall in the planned year, plus twelve months of the per-item
+//     monthly figures. Never today's monthly figure × 12, which counts a
+//     row with an end date for the whole year.
 
 import {
   activePipelineDeals,
@@ -121,18 +126,19 @@ export interface PlanTakeHome {
 }
 
 export function planTakeHome(input: {
-  gci:              number;
-  settings:         Pick<UserSettings, keyof CompSettingsSlice | "monthly_brokerage_fee" | "province">;
-  monthlyRecurring: number;
-  dealCount?:       number;
-  year:             number;
+  gci:        number;
+  settings:   Pick<UserSettings, keyof CompSettingsSlice | "monthly_brokerage_fee" | "province">;
+  /** Business expenses for `year`, whole: `ytdExpenseTotals(...).expensesNextYear`. */
+  expenses:   number;
+  dealCount?: number;
+  year:       number;
 }): PlanTakeHome {
-  const { gci, settings, monthlyRecurring, dealCount, year } = input;
+  const { gci, settings, dealCount, year } = input;
   const asOf = new Date(`${year}-${PLAN_AS_OF_MONTH_DAY}T12:00:00Z`);
   const brokerageFees = settings.monthly_brokerage_fee * 12;
   const afterPlanAndFees = projectedAgentNet(gci, settings, dealCount, asOf);
   const afterPlan = afterPlanAndFees + brokerageFees;
-  const expenses = Math.max(0, monthlyRecurring) * 12;
+  const expenses = Math.max(0, input.expenses);
   const netForTax = Math.max(0, afterPlanAndFees - expenses);
   const incomeTaxAndCpp = netForTax > 0
     ? calculateCanadianTax(netForTax, settings.province, Math.max(dealCount ?? 1, 1)).totalBurden
