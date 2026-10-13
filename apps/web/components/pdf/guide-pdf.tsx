@@ -294,7 +294,7 @@ export function GuidePdf({ province, businessStructure, splitPreset }: Props) {
         {/* Source of truth for mileage rates: CRA_MILEAGE_RATES in packages/core/types/database.ts */}
         <Text style={S.bullet}>{"\u2022"} Mileage: $0.72/km first 5,000 km, $0.66/km after</Text>
         <Text style={S.bullet}>{"\u2022"} Meals: 50% deductible (CRA rule)</Text>
-        {/* What the app does with the item (EXPENSE_KEY_TO_T2125.marketing_gifts in t2125-engine). The "~$25/person/year" figure that was here had no CRA source. */}
+        {/* What the app does with the Client Gifts item (its T2125 line is set in t2125-engine). The "~$25/person/year" figure that was here had no CRA source. */}
         <Text style={S.bullet}>{"\u2022"} Client gifts: counted in full under Other Expenses (T2125 line 9270)</Text>
 
         <Text style={S.sectionSubtitle}>CRM & Client Management</Text>
