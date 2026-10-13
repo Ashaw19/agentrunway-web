@@ -56,10 +56,10 @@ All plans include full Flight Crew access, unlimited transactions, all 26+ produ
 ### Business metrics glossaries
 
 - [Real estate metrics](https://agentrunway.ca/real-estate-metrics): Metric catalog and definitions
-- [GCI (Gross Commission Income)](https://agentrunway.ca/metrics/gci): Definition, formula, benchmarks
-- [Conversion rate](https://agentrunway.ca/metrics/conversion-rate): Definition and industry benchmarks
+- [GCI (Gross Commission Income)](https://agentrunway.ca/metrics/gci): Definition, formula and a worked example
+- [Conversion rate](https://agentrunway.ca/metrics/conversion-rate): Definition, formula and a worked example
 - [Average commission](https://agentrunway.ca/metrics/average-commission): Calculation and use cases
-- [Expense ratio](https://agentrunway.ca/metrics/expense-ratio): Definition and healthy ranges
+- [Expense ratio](https://agentrunway.ca/metrics/expense-ratio): Definition and Agent Runway's target bands
 - [Net income](https://agentrunway.ca/metrics/net-income): Realtor net income calculation
 - [Financial runway](https://agentrunway.ca/metrics/financial-runway): Runway concept adapted for real estate agents
 

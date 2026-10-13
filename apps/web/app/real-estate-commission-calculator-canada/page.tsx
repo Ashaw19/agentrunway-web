@@ -51,7 +51,7 @@ const JSON_LD_FAQ = {
       name: "What is the average real estate commission in Canada?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Total real estate commission in Canada typically ranges from 3% to 5% of the sale price, split between the buyer's and seller's agents. Each agent's side is usually 2% to 2.5%. The exact rate varies by market, brokerage, and negotiation with the client.",
+        text: "The Financial Consumer Agency of Canada says realtor commissions may be negotiable and typically range from 2% to 6% of the sale price, depending on location. The rate, and how it is shared between the listing brokerage and the buyer's brokerage, is set by agreement. The calculator works from the rate entered for one side.",
       },
     },
     {
@@ -59,7 +59,7 @@ const JSON_LD_FAQ = {
       name: "Do I have to pay HST on my commission?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Per the CRA, once gross revenue exceeds $30,000 over four consecutive calendar quarters, GST/HST registration and collection applies. The rate charged depends on the province where the supply is made: 13% in Ontario, 15% in New Brunswick, Nova Scotia, PEI, and Newfoundland & Labrador, and 5% GST in provinces without HST such as Alberta, BC, Saskatchewan, and Manitoba. A single average-priced Canadian transaction's commission often surpasses $30,000 on its own.",
+        text: "Per the CRA, once gross revenue exceeds $30,000 over four consecutive calendar quarters, GST/HST registration and collection applies. The rate charged depends on the province where the supply is made: 13% in Ontario, 15% in New Brunswick, Nova Scotia, PEI, and Newfoundland & Labrador, and 5% GST in provinces without HST such as Alberta, BC, Saskatchewan, and Manitoba.",
       },
     },
     {
@@ -72,10 +72,10 @@ const JSON_LD_FAQ = {
     },
     {
       "@type": "Question",
-      name: "What are typical brokerage split structures in Canada?",
+      name: "How do brokerage split structures work in Canada?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Canadian brokerages typically use one of three models: percentage splits (e.g., 70/30 or 80/20 in the agent's favour), flat desk fees (a fixed monthly fee and you keep 100% of commission), or cap-based models (you pay a split until reaching a cap, then keep 100%). New agents often start at lower splits like 50/50 or 60/40.",
+        text: "A brokerage agreement sets how commission is shared. Three structures are a percentage split (70/30 and 80/20 in the agent's favour are examples), a flat desk fee (a fixed monthly fee and you keep 100% of commission), and a cap (you pay a split until reaching a cap, then keep 100%). This calculator models a percentage split with a per-deal fee.",
       },
     },
   ],
@@ -86,7 +86,8 @@ const JSON_LD_FAQ = {
 // Every CRA-mechanical claim in this article (HST $30K threshold, provincial
 // HST/GST rates, GST/HST filing) maps to one of the URLs below. Inline
 // citations are rendered via <CRACite id={n} />. URLs were hand-verified live
-// on 2026-05-10.
+// on 2026-05-10. Source 4 is not CRA: it is the Financial Consumer Agency of
+// Canada's page, the source for the commission range (verified 2026-10-13).
 
 const CRA_SOURCES = [
   {
@@ -103,6 +104,11 @@ const CRA_SOURCES = [
     id: 3,
     label: "CRA — File a GST/HST return",
     url: "https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/gst-hst-businesses/file-gst-hst-return.html",
+  },
+  {
+    id: 4,
+    label: "Financial Consumer Agency of Canada — Selling a home (realtor commissions)",
+    url: "https://www.canada.ca/en/financial-consumer-agency/services/selling-home.html",
   },
 ] as const;
 
@@ -182,15 +188,17 @@ export default function CommissionCalculatorPage() {
               </h2>
               <div className="mt-6 space-y-5 text-base leading-relaxed text-slate-600">
                 <p>
-                  The total commission on a Canadian real estate transaction is
-                  typically 3&ndash;5% of the sale price, split between the
-                  buyer&apos;s and seller&apos;s agents. Each agent&apos;s side
-                  is usually 2&ndash;2.5%.
+                  The Financial Consumer Agency of Canada says realtor
+                  commissions may be negotiable and typically range from 2% to
+                  6% of the sale price, depending on location
+                  <CRACite id={4} />. The rate, and how it is shared between the
+                  listing brokerage and the buyer&apos;s brokerage, is set by
+                  agreement.
                 </p>
                 <p>
                   But that&apos;s the gross number. Before an agent sees any of
-                  it, the brokerage takes their split — anywhere from 5% to 50%
-                  depending on your agreement. Then come per-deal transaction
+                  it, the brokerage takes the split set in your agreement.
+                  Then come per-deal transaction
                   fees, desk fees, and E&amp;O insurance. After that, the CRA
                   wants their share: HST/GST on the commission itself
                   <CRACite id={2} />, plus income tax on what&apos;s left.
@@ -273,11 +281,13 @@ export default function CommissionCalculatorPage() {
                     What is the average real estate commission in Canada?
                   </h3>
                   <p className="mt-2 text-base leading-relaxed text-slate-600">
-                    Total commission typically ranges from 3% to 5% of the sale
-                    price, split between the buyer&apos;s and seller&apos;s
-                    agents. Each agent&apos;s side is usually 2% to 2.5%. The
-                    exact rate varies by market, brokerage, and negotiation with
-                    the client.
+                    The Financial Consumer Agency of Canada says realtor
+                    commissions may be negotiable and typically range from 2%
+                    to 6% of the sale price, depending on location
+                    <CRACite id={4} />. The rate, and how it is shared between
+                    the listing brokerage and the buyer&apos;s brokerage, is set
+                    by agreement. The calculator works from the rate entered for
+                    one side.
                   </p>
                 </div>
                 <div>
@@ -292,9 +302,7 @@ export default function CommissionCalculatorPage() {
                     Ontario, 15% in New Brunswick, Nova Scotia, PEI, and
                     Newfoundland &amp; Labrador, and 5% GST in provinces
                     without HST such as Alberta, BC, Saskatchewan, and
-                    Manitoba<CRACite id={2} />. A single average-priced
-                    Canadian transaction&apos;s commission often surpasses
-                    $30,000 on its own.
+                    Manitoba<CRACite id={2} />.
                   </p>
                 </div>
                 <div>
@@ -314,15 +322,15 @@ export default function CommissionCalculatorPage() {
                 </div>
                 <div>
                   <h3 className="text-lg font-semibold text-slate-900">
-                    What are typical brokerage split structures in Canada?
+                    How do brokerage split structures work in Canada?
                   </h3>
                   <p className="mt-2 text-base leading-relaxed text-slate-600">
-                    Canadian brokerages typically use one of three models:
-                    percentage splits (e.g., 70/30 or 80/20 in the agent&apos;s
-                    favour), flat desk fees (a fixed monthly fee and you keep 100%
-                    of commission), or cap-based models (you pay a split until
-                    reaching a cap, then keep 100%). New agents often start at
-                    lower splits like 50/50 or 60/40.
+                    A brokerage agreement sets how commission is shared. Three
+                    structures are a percentage split (70/30 and 80/20 in the
+                    agent&apos;s favour are examples), a flat desk fee (a fixed
+                    monthly fee and you keep 100% of commission), and a cap (you
+                    pay a split until reaching a cap, then keep 100%). This
+                    calculator models a percentage split with a per-deal fee.
                   </p>
                 </div>
               </div>
@@ -398,9 +406,10 @@ export default function CommissionCalculatorPage() {
               </h2>
               <p className="mt-2 text-xs text-slate-500">
                 Every CRA-mechanical claim in this article (HST registration
-                threshold, provincial HST/GST rates, GST/HST filing) is backed
-                by one of the primary sources below. Hand-verified live on
-                2026-05-10.
+                threshold, provincial HST/GST rates, GST/HST filing) and the
+                commission range are backed by one of the sources below. CRA
+                links hand-verified live on 2026-05-10, the commission range on
+                2026-10-13.
               </p>
               <ol className="mt-4 space-y-2 text-xs text-slate-500">
                 {CRA_SOURCES.map((s) => (

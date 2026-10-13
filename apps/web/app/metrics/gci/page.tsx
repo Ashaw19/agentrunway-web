@@ -71,7 +71,7 @@ export default function GCIMetricPage() {
             <div className="mt-10 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
               {[
                 { value: "$21,000", label: "GCI on a $700k sale at 3%" },
-                { value: "37–55%", label: "typical take-home % of GCI" },
+                { value: "55%", label: "of GCI left before tax in the worked example below" },
                 { value: "#1", label: "metric every agent must track" },
               ].map((s) => (
                 <div
@@ -203,7 +203,7 @@ export default function GCIMetricPage() {
               </div>
 
               <p className="mt-4 text-sm leading-relaxed text-slate-500">
-                An agent earning $200,000 GCI may net $110,000–$130,000 before tax. Understanding
+                In this example $200,000 of GCI leaves about $110,600 before tax. Understanding
                 the gap between GCI and{" "}
                 <Link href="/metrics/net-income" className="text-blue-600 underline underline-offset-2">
                   net income

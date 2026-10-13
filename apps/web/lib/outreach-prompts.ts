@@ -292,7 +292,7 @@ Context:
 - It's the ${season} in Canada
 
 RESEARCH CONTEXT (apply to this email):
-- Persistence matters: industry data shows most real estate conversions happen after multiple contacts. This is one touchpoint in a long-term relationship — it doesn't need to "close" anything.
+- Persistence matters: most real estate conversions happen after multiple contacts. This is one touchpoint in a long-term relationship — it doesn't need to "close" anything.
 - Reciprocity principle: give before asking. Lead with something USEFUL (a market observation, a seasonal tip, genuine curiosity about their life) before any CTA.
 - Light contextual personalization: reference the season, their neighbourhood, or their general area. Do NOT invent personal details you don't have.
 - Canadian tone: pick up naturally, no apology for the gap, no urgency. "Figured I'd drop a line" energy.
@@ -960,7 +960,7 @@ Context:
 - This is purely a relationship touchpoint — no agenda, no ask
 
 RESEARCH CONTEXT:
-- This is touchpoint maintenance — industry data shows most conversions happen after 6+ contacts over time. This email's job is to keep the relationship warm, not to generate a response.
+- This is touchpoint maintenance — most conversions happen after several contacts over time. This email's job is to keep the relationship warm, not to generate a response.
 - Warmth-before-competence: the entire email should be warmth. No market data, no value proposition, no business content. Pure human connection.
 - Canadian calibration: think "running into them at the grocery store" energy — casual, warm, no agenda.
 - If you don't have specific details about their life, keep it SHORT. A 3-sentence genuine note beats a 3-paragraph fabricated one.
