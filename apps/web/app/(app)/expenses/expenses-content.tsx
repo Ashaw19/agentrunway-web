@@ -19,7 +19,11 @@ import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { ChevronDown, ChevronRight, Plus, Check, X, Trash2, Info, ExternalLink, ChevronsUpDown, Camera, Receipt, ArrowRight, Download, FileText, RefreshCw, AlertTriangle, Clock, Lightbulb } from "lucide-react";
 import { fmtCurrency, fmtPct } from "@/lib/formatters";
-import { aggregateReceiptTotals } from "@/lib/expenses/receipt-totals";
+import {
+  aggregateReceiptTotals,
+  recurringNetOfItc,
+  type ReceiptTotalsRow,
+} from "@agent-runway/core/engines/expense-totals-engine";
 import { KpiCard } from "@/components/kpi-card";
 import {
   computeGCI,
@@ -111,10 +115,8 @@ interface Props {
   settings: UserSettings | null;
   transactions: Transaction[];
   initialReceipts?: ReceiptExpense[];
-  /** Current-year receipt totals keyed by expense_items.key — computed server-side */
-  receiptTotalsByKey: Record<string, number>;
-  /** Current-year receipts with a NULL category_key — excluded from the per-key map. */
-  uncategorizedReceiptYTD?: number;
+  /** Current-year receipts (category_key, total_amount, tax_amount) for the YTD totals. */
+  receiptTotalRows: ReceiptTotalsRow[];
   /** Prior year history for YoY comparison (up to 4 years) */
   priorYearHistory?: PriorYearRow[];
   currentYear?: number;
@@ -156,7 +158,7 @@ const CAT_LABEL: Record<string, string> = Object.fromEntries(
 
 export function ExpensesContent({
   initialCategories, settings, transactions, initialReceipts = [],
-  receiptTotalsByKey, uncategorizedReceiptYTD = 0, priorYearHistory = [], currentYear,
+  receiptTotalRows: receiptTotalRowsSeed, priorYearHistory = [], currentYear,
   mileageLogs = [], plaidItems = [], plaidTransactions = [],
   plaidExpenseItems = [], plaidExpenseCategories = [], plaidConfigured = false,
   isPro: isProProp = false,
@@ -175,16 +177,29 @@ export function ExpensesContent({
   ).length;
   void _pendingImportsCount;
 
-  // ── Receipt YTD totals (keyed by expense_items.key, refreshed after each save) ──
-  const [receiptTotals, setReceiptTotals] = useState<Record<string, number>>(receiptTotalsByKey);
-  // Receipts saved with no category have no expense item to attach to, so they
-  // never appear in `receiptTotals`. Tracked separately so YTD totals still
-  // agree with the dashboard, which sums every receipt regardless of category.
-  const [uncategorizedTotal, setUncategorizedTotal] = useState<number>(uncategorizedReceiptYTD);
-
   // ── Vehicle business use % (editable, persisted to user_settings) ────────
   const [vehiclePct, setVehiclePct] = useState<number>(
     settings?.vehicle_business_use_pct != null ? settings.vehicle_business_use_pct : 0.80,
+  );
+
+  // ── Receipt YTD totals (refreshed after each save) ────────────────────────
+  // Every expense total on this page comes from expense-totals-engine. For a
+  // GST/HST registrant it is net of the ITCs the GST34 summary claims, so the
+  // same tax isn't counted as both an ITC and an expense. The vehicle % in
+  // the context is the editable one above, the same figure the GST34 uses.
+  const [receiptTotalRows, setReceiptTotalRows] = useState<ReceiptTotalsRow[]>(receiptTotalRowsSeed);
+  const gstHstRegistered = settings?.gst_hst_registered === true;
+  const expenseTaxCtx = useMemo(
+    () => ({ gstHstRegistered, vehicleBusinessUsePct: vehiclePct }),
+    [gstHstRegistered, vehiclePct],
+  );
+  // `receiptTotals` is keyed by expense_items.key. Receipts saved with no
+  // category have no expense item to attach to, so they never appear in it:
+  // `uncategorizedTotal` carries them so YTD totals still agree with the
+  // dashboard, which counts every receipt regardless of category.
+  const { byKey: receiptTotals, uncategorized: uncategorizedTotal } = useMemo(
+    () => aggregateReceiptTotals(receiptTotalRows, expenseTaxCtx),
+    [receiptTotalRows, expenseTaxCtx],
   );
 
   // ── Receipt capture ────────────────────────────────────────────────────────
@@ -698,20 +713,15 @@ export function ExpensesContent({
     // Refresh YTD totals — re-aggregate from all current-year receipts
     const { data: totalsData } = await supabase
       .from("receipt_expenses")
-      .select("category_key, total_amount")
+      .select("category_key, total_amount, tax_amount")
       .eq("user_id", authUser.id)
       .gte("expense_date", `${year}-01-01`);
-    if (totalsData) {
-      const { byKey, uncategorized } = aggregateReceiptTotals(totalsData);
-      setReceiptTotals(byKey);
-      setUncategorizedTotal(uncategorized);
-    }
+    if (totalsData) setReceiptTotalRows(totalsData as ReceiptTotalsRow[]);
   };
 
   // Auto-expand all categories on first visit (no receipts yet and no monthly recurring)
   const isFirstVisit =
-    Object.keys(receiptTotalsByKey).length === 0 &&
-    uncategorizedReceiptYTD === 0 &&
+    receiptTotalRowsSeed.length === 0 &&
     initialCategories.every(
       (cat) => cat.items.every((i) => Number(i.monthly_recurring) === 0),
     );
@@ -776,17 +786,25 @@ export function ExpensesContent({
     return map;
   }, [recurringExpenses, itemKeyToCatKey]);
 
+  /**
+   * One occurrence, net of the ITC a registrant claims on it
+   * (expense-totals-engine). Every recurring TOTAL on this page goes through
+   * the two helpers below, so they all use it. The rows themselves stay as
+   * entered: the edit dialog and the Recurring Expenses list read `re.amount`.
+   */
+  const reNetAmount = (re: RecurringExpense): number => recurringNetOfItc(re, expenseTaxCtx).net;
+
   /** Monthly equivalent for a recurring expense */
   function reMonthlyEquivalent(re: RecurringExpense): number {
     const freq = re.frequency ?? "monthly";
-    const amt = Number(re.amount);
+    const amt = reNetAmount(re);
     return freq === "monthly" ? amt : freq === "quarterly" ? amt / 3 : amt / 12;
   }
 
   /** YTD amount for a recurring expense based on its start_date */
   function reYTDAmount(re: RecurringExpense): number {
     const freq = re.frequency ?? "monthly";
-    const amt = Number(re.amount);
+    const amt = reNetAmount(re);
     const startDate = re.start_date ? new Date(re.start_date + "T00:00:00") : new Date(thisYear, 0, 1);
     const yearStart = new Date(thisYear, 0, 1);
     const effectiveStart = startDate > yearStart ? startDate : yearStart;
@@ -1097,14 +1115,12 @@ export function ExpensesContent({
     if (!authUser) return;
     const { data, error } = await supabase
       .from("receipt_expenses")
-      .select("category_key, total_amount")
+      .select("category_key, total_amount, tax_amount")
       .eq("user_id", authUser.id)
       .gte("expense_date", `${year}-01-01`);
     if (error) { console.error("[expenses] receipt totals refresh failed:", error); return; }
     if (!data) return;
-    const { byKey, uncategorized } = aggregateReceiptTotals(data);
-    setReceiptTotals(byKey);
-    setUncategorizedTotal(uncategorized);
+    setReceiptTotalRows(data as ReceiptTotalsRow[]);
   }
 
   function handleReceiptUpdated(updated: ReceiptExpense) {
@@ -1204,6 +1220,7 @@ export function ExpensesContent({
           deductFull={deductBreakdown.full}
           deductMeals={deductBreakdown.meals}
           deductVehicle={deductBreakdown.vehicle}
+          netOfItc={gstHstRegistered}
         />
       );
       const { pdf } = await import("@react-pdf/renderer");
@@ -1276,7 +1293,13 @@ export function ExpensesContent({
 
       {/* KPI cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <KpiCard label="YTD Expenses" value={fmtCurrency(effectiveTotal)} colorScheme="rose" layout="horizontal" />
+        <KpiCard
+          label="YTD Expenses"
+          value={fmtCurrency(effectiveTotal)}
+          subtitle={gstHstRegistered ? `Net of ${settings ? gstHstLabel(settings.province) : "GST/HST"} input tax credits` : undefined}
+          colorScheme="rose"
+          layout="horizontal"
+        />
         <KpiCard label="Monthly Recurring" value={fmtCurrency(monthlyTotal)} colorScheme="amber" layout="horizontal" />
         <KpiCard
           label="Expense Ratio"
@@ -1731,6 +1754,11 @@ export function ExpensesContent({
                 <CardDescription className="mt-0.5 text-xs">
                   Based on CRA rules · Meals & entertainment at 50% · Vehicle at{" "}
                   {Math.round(vehiclePct * 100)}% business use
+                  {gstHstRegistered && (
+                    <>
+                      {" "}· Net of the {settings ? gstHstLabel(settings.province) : "GST/HST"} claimed as input tax credits
+                    </>
+                  )}
                 </CardDescription>
               </div>
               <div className="text-right">
@@ -1738,7 +1766,7 @@ export function ExpensesContent({
                   {fmtCurrency(totalDeductible)}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  of {fmtCurrency(effectiveTotal)} spent ({effectiveTotal > 0 ? Math.round((totalDeductible / effectiveTotal) * 100) : 0}% deductible)
+                  of {fmtCurrency(effectiveTotal)} in expenses ({effectiveTotal > 0 ? Math.round((totalDeductible / effectiveTotal) * 100) : 0}% deductible)
                 </p>
               </div>
             </div>
@@ -2419,14 +2447,14 @@ export function ExpensesContent({
           )}
           <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
             <span>
-              Monthly avg: <strong className="text-foreground">{fmtCurrency(recurringExpenses.reduce((s, r) => {
+              Monthly avg{gstHstRegistered ? " as charged" : ""}: <strong className="text-foreground">{fmtCurrency(recurringExpenses.reduce((s, r) => {
                 const freq = r.frequency ?? "monthly";
                 const amt = Number(r.amount);
                 return s + (freq === "monthly" ? amt : freq === "quarterly" ? amt / 3 : amt / 12);
               }, 0))}</strong>
             </span>
             <span>
-              Annual total: <strong className="text-foreground">{fmtCurrency(recurringExpenses.reduce((s, r) => {
+              Annual total{gstHstRegistered ? " as charged" : ""}: <strong className="text-foreground">{fmtCurrency(recurringExpenses.reduce((s, r) => {
                 const freq = r.frequency ?? "monthly";
                 const amt = Number(r.amount);
                 return s + (freq === "monthly" ? amt * 12 : freq === "quarterly" ? amt * 4 : amt);

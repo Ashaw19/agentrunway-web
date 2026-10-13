@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { ForecastContent } from "./forecast-content";
 
 import { totalRecurringMonthly, totalRecurringYTD } from "@agent-runway/core/engines/recurring-expense-engine";
+import { aggregateReceiptTotals, expenseTaxContext, recurringExpensesNetOfItc } from "@agent-runway/core/engines/expense-totals-engine";
 import type { RecurringExpense } from "@/lib/types/database";
 import { computeIsPro } from "@/lib/compute-is-pro";
 import { atlanticNoon } from "@agent-runway/core/lib/local-date";
@@ -71,7 +72,7 @@ export default async function ForecastPage() {
       // Current-year receipt totals for accurate YTD expense calculation
       supabase
         .from("receipt_expenses")
-        .select("total_amount")
+        .select("category_key, total_amount, tax_amount")
         .eq("user_id", user.id)
         .gte("expense_date", `${year}-01-01`)
         .limit(10000),
@@ -90,7 +91,12 @@ export default async function ForecastPage() {
         .limit(10000),
     ]);
 
-  const recurringExpenses = (recurringExpResult.data ?? []) as RecurringExpense[];
+  // Net of the GST/HST a registrant claims back as ITCs (expense-totals-engine).
+  const taxCtx = expenseTaxContext(rawSettings);
+  const recurringExpenses = recurringExpensesNetOfItc(
+    (recurringExpResult.data ?? []) as RecurringExpense[],
+    taxCtx,
+  );
   const recurringExpMonthly = totalRecurringMonthly(recurringExpenses);
   const recurringExpYTD = totalRecurringYTD(recurringExpenses, today);
 
@@ -99,11 +105,8 @@ export default async function ForecastPage() {
     items: (expItemResult.data ?? []).filter((i) => i.category_id === cat.id),
   }));
 
-  // Sum current-year receipt totals for accurate expense YTD
-  const receiptYTD = (receiptTotalsResult.data ?? []).reduce(
-    (sum, r) => sum + Number(r.total_amount ?? 0),
-    0,
-  );
+  // Current-year receipt total for accurate expense YTD
+  const receiptYTD = aggregateReceiptTotals(receiptTotalsResult.data, taxCtx).total;
 
   // Sum mileage logs for tax optimization
   const mileageKmTotal = (mileageResult.data ?? []).reduce(

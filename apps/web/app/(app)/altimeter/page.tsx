@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { AltimeterContent } from "./altimeter-content";
 import type { HistoryItem, RecurringExpense } from "@/lib/types/database";
 import { totalRecurringMonthly, totalRecurringYTD } from "@agent-runway/core/engines/recurring-expense-engine";
+import { aggregateReceiptTotals, expenseTaxContext, recurringExpensesNetOfItc } from "@agent-runway/core/engines/expense-totals-engine";
 import { computeIsPro } from "@/lib/compute-is-pro";
 import { atlanticNoon } from "@agent-runway/core/lib/local-date";
 
@@ -59,7 +60,7 @@ export default async function AltimeterPage() {
         .limit(10000),
       supabase
         .from("receipt_expenses")
-        .select("total_amount")
+        .select("category_key, total_amount, tax_amount")
         .eq("user_id", user.id)
         .gte("expense_date", `${dashYear}-01-01`)
         .limit(10000),
@@ -80,14 +81,17 @@ export default async function AltimeterPage() {
     ...cat,
     items: (expItemResult.data ?? []).filter((i: { category_id: string }) => i.category_id === cat.id),
   }));
-  const receiptYTD = (receiptTotalsResult.data ?? []).reduce(
-    (sum: number, r: { total_amount?: number | string | null }) => sum + Number(r.total_amount ?? 0), 0,
-  );
+  // Net of the GST/HST a registrant claims back as ITCs (expense-totals-engine).
+  const taxCtx = expenseTaxContext(settings);
+  const receiptYTD = aggregateReceiptTotals(receiptTotalsResult.data, taxCtx).total;
   const legacyMonthlyRecurring = expenseCategories.reduce(
     (sum: number, cat: { items: { monthly_recurring?: number | string }[] }) =>
       sum + cat.items.reduce((s: number, i: { monthly_recurring?: number | string }) => s + Number(i.monthly_recurring ?? 0), 0), 0,
   );
-  const recurringExps = (recurringExpResult.data ?? []) as RecurringExpense[];
+  const recurringExps = recurringExpensesNetOfItc(
+    (recurringExpResult.data ?? []) as RecurringExpense[],
+    taxCtx,
+  );
   const recurringExpMonthly = totalRecurringMonthly(recurringExps);
   const recurringExpYTD = totalRecurringYTD(recurringExps, today);
   const altMonthlyRecurring = legacyMonthlyRecurring + recurringExpMonthly;

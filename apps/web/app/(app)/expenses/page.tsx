@@ -2,7 +2,6 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { ExpensesContent } from "./expenses-content";
 import { computeIsPro } from "@/lib/compute-is-pro";
-import { aggregateReceiptTotals } from "@/lib/expenses/receipt-totals";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { PlaidItem, PlaidTransaction, PipelineDeal, HistoryItem, RecurringExpense } from "@/lib/types/database";
 import { atlanticYear } from "@agent-runway/core/lib/local-date";
@@ -201,10 +200,11 @@ export default async function ExpensesPage() {
       .eq("status", "closed")
       .gte("date", `${year}-01-01`)
       .limit(10000),
-    // All current-year receipts for YTD totals (lightweight — just the two fields we need)
+    // All current-year receipts for YTD totals (lightweight). tax_amount is
+    // needed too: a GST/HST registrant's totals are net of the ITCs claimed.
     supabase
       .from("receipt_expenses")
-      .select("category_key, total_amount")
+      .select("category_key, total_amount, tax_amount")
       .eq("user_id", user.id)
       .gte("expense_date", `${year}-01-01`)
       .limit(10000),
@@ -283,12 +283,6 @@ export default async function ExpensesPage() {
       .limit(10000),
   ]);
 
-  // Per-key map drives the per-expense-item rows; the uncategorized remainder is
-  // carried separately so YTD totals agree with the dashboard, which sums every
-  // receipt regardless of category. See lib/expenses/receipt-totals.ts.
-  const { byKey: receiptTotalsByKey, uncategorized: uncategorizedReceiptYTD } =
-    aggregateReceiptTotals(receiptTotalsResult.data);
-
   let cats = categoriesResult.data ?? [];
   let items = itemsResult.data ?? [];
 
@@ -335,8 +329,7 @@ export default async function ExpensesPage() {
       isPro={isPro}
       transactions={txResult.data ?? []}
       initialReceipts={receiptsResult.data ?? []}
-      receiptTotalsByKey={receiptTotalsByKey}
-      uncategorizedReceiptYTD={uncategorizedReceiptYTD}
+      receiptTotalRows={receiptTotalsResult.data ?? []}
       priorYearHistory={historyResult.data ?? []}
       currentYear={year}
       mileageLogs={mileageResult.data ?? []}

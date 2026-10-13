@@ -693,7 +693,10 @@ export function DashboardContent({
     isRegistered: settings?.gst_hst_registered ?? false,
     brokerageWithholdsHst: settings?.brokerage_withholds_hst ?? false,
   });
-  const ytdHstOnExpenses = settings?.gst_hst_paid_on_expenses ? expensesYTD * (hstRateValue / (1 + hstRateValue)) : 0;
+  // expensesYTD is already net of the ITCs a registrant claims
+  // (expense-totals-engine), so no further ITC comes off the HST owing: that
+  // would count the same GST/HST twice. Lockstep with effective-cash.ts.
+  const ytdHstOnExpenses = 0;
   const cashPosition: CashPositionResult = computeCashPosition({
     ytdGCI,
     ytdAgentNet: (() => {

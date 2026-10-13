@@ -171,6 +171,12 @@ export interface UserSettings {
   growth_goal_year_pcts: number[] | null;
   monthly_brokerage_fee: number | null;
   /**
+   * Decide whether GST/HST on an expense comes back as an input tax credit
+   * (expense-totals-engine). Read-only on mobile; set on web.
+   */
+  gst_hst_registered: boolean | null;
+  vehicle_business_use_pct: number | null;
+  /**
    * AI Voice & Identity blobs. Defined in
    * `packages/core/types/database.ts`. Mobile reads them through the
    * canonical types but stores them as nullable on the row.
@@ -445,7 +451,9 @@ interface DataStore {
 //   + `agent_goals` + `ai_voice_guide` on `settings` (parity gap #14 — mobile
 //   Voice Quiz close-out). Bumping forces a one-time cache flush so returning
 //   users repopulate `settings` from the broader `select()` in `fetchAll`.
-const CACHE_VERSION = 4;
+// v5 (2026-10-13): added `gst_hst_registered` + `vehicle_business_use_pct` on
+//   `settings` so expense totals are net of ITCs for registrants, as on web.
+const CACHE_VERSION = 5;
 const CACHE_KEY = "data_store_cache";
 const CACHE_VERSION_KEY = "data_store_cache_version";
 
@@ -631,7 +639,9 @@ export const useDataStore = create<DataStore>((set, get) => {
                   // communication_profile, business_identity, agent_goals,
                   // ai_voice_guide. CACHE_VERSION bumped to 4 in tandem so
                   // returning users repopulate from the wider select.
-                  "user_id, display_name, avatar_url, goal_gci, goal_transactions, split_preset, province, experience_years, subscription_tier, cash_reserve, growth_goal_year_pcts, monthly_brokerage_fee, runway_score_snapshot, communication_profile, business_identity, agent_goals, ai_voice_guide"
+                  // 2026-10-13: gst_hst_registered, vehicle_business_use_pct
+                  // (expense totals net of ITCs). CACHE_VERSION 5.
+                  "user_id, display_name, avatar_url, goal_gci, goal_transactions, split_preset, province, experience_years, subscription_tier, cash_reserve, growth_goal_year_pcts, monthly_brokerage_fee, gst_hst_registered, vehicle_business_use_pct, runway_score_snapshot, communication_profile, business_identity, agent_goals, ai_voice_guide"
                 )
                 .eq("user_id", user.id)
                 .single(),

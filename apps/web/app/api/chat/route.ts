@@ -58,6 +58,7 @@ import {
 import { generateInsights, type Insight } from "@agent-runway/core/engines/insights-engine";
 import { totalRecurringMonthly, totalRecurringYTD, recurringHSTEntriesForPeriod } from "@agent-runway/core/engines/recurring-expense-engine";
 import { itcForExpense } from "@agent-runway/core/engines/gst34-engine";
+import { aggregateReceiptTotals, expenseTaxContext, recurringExpensesNetOfItc } from "@agent-runway/core/engines/expense-totals-engine";
 import { getCurrentFilingPeriod, deadlineUrgency } from "@agent-runway/core/engines/filing-period-engine";
 
 import type { RecurringExpense, FilingFrequency } from "@/lib/types/database";
@@ -290,7 +291,7 @@ export async function POST(req: NextRequest) {
         supabase.from("expense_categories").select("key, expense_items(key, ytd_amount, monthly_recurring)").eq("user_id", user.id),                   // 3
         supabase.from("clients").select("id", { count: "exact", head: true }).eq("user_id", user.id).is("archived_at", null).in("status", ["boarding", "in_flight"]).lt("last_contact_at", new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()), // 4
         supabase.from("clients").select("id", { count: "exact", head: true }).eq("user_id", user.id).is("archived_at", null).in("status", ["boarding", "in_flight"]).lt("last_contact_at", new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString()), // 5
-        supabase.from("receipt_expenses").select("total_amount").eq("user_id", user.id).gte("expense_date", ytdStart),                                 // 6
+        supabase.from("receipt_expenses").select("category_key, total_amount, tax_amount").eq("user_id", user.id).gte("expense_date", ytdStart),       // 6
         supabase.from("recurring_expenses").select("*").eq("user_id", user.id).eq("is_active", true),                                                  // 7
         supabase.from("receipt_expenses").select("id", { count: "exact", head: true }).eq("user_id", user.id).gte("expense_date", ytdStart),            // 8
         supabase.from("receipt_expenses").select("total_amount, tax_amount, category_key, expense_date").eq("user_id", user.id).gte("expense_date", ytdStart), // 9
@@ -328,8 +329,13 @@ export async function POST(req: NextRequest) {
     const { data: showingRows } = val(settled[16], emptyResult);
     const { data: incomeGoalRows } = val(settled[17], emptyResult);
     const recurringExps = (recurringExpRows ?? []) as RecurringExpense[];
-    const recurringExpMonthly = totalRecurringMonthly(recurringExps);
-    const recurringExpYTDTotal = totalRecurringYTD(recurringExps, today);
+    // Expense totals are net of the GST/HST a registrant claims back as ITCs
+    // (expense-totals-engine), same as the dashboard. `recurringExps` keeps
+    // the amounts as entered for the ITC forecast below.
+    const expenseTaxCtx = expenseTaxContext(settings);
+    const recurringExpsNet = recurringExpensesNetOfItc(recurringExps, expenseTaxCtx);
+    const recurringExpMonthly = totalRecurringMonthly(recurringExpsNet);
+    const recurringExpYTDTotal = totalRecurringYTD(recurringExpsNet, today);
 
     if (settings && transactions) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -351,9 +357,8 @@ export async function POST(req: NextRequest) {
         (listingApptRows ?? []) as { estimated_list_price: number | null; estimated_commission_pct: number | null; status: string }[],
       );
       // Match dashboard expense logic: Math.max(receiptTotal, legacyRecurring * monthsElapsed) + recurringExpYTD
-      const receiptTotal = (receiptRows ?? []).reduce(
-        (sum: number, r: { total_amount?: number | string | null }) => sum + Number(r.total_amount ?? 0), 0,
-      );
+      const receiptTotals = aggregateReceiptTotals(receiptRows, expenseTaxCtx);
+      const receiptTotal = receiptTotals.total;
       const legacyMonthlyRecurring = (expenseCategories ?? []).reduce(
         (sum: number, cat: { expense_items?: { monthly_recurring?: number | string }[] }) =>
           sum + (cat.expense_items ?? []).reduce((s: number, i: { monthly_recurring?: number | string }) => s + Number(i.monthly_recurring ?? 0), 0),
@@ -370,6 +375,9 @@ export async function POST(req: NextRequest) {
       const expMonthsElapsed = today.getMonth() + 1;
       const legacyRecurringYTDEstimate = legacyMonthlyRecurring * expMonthsElapsed;
       const expensesYTD = Math.max(receiptTotal, legacyRecurringYTDEstimate) + recurringExpYTDTotal;
+      // What was actually paid, GST/HST included: context only, so Flight Crew
+      // can explain why a registrant's expense total is below their receipts.
+      const expensesPaidYTD = Math.max(receiptTotals.paid, legacyRecurringYTDEstimate) + totalRecurringYTD(recurringExps, today);
       // Plan-aware label: 'real' has no pXX_YY preset — describeSplit renders
       // "REAL plan (~XX% effective)" instead of a null regex match.
       const splitLabel = describeSplit(settings);
@@ -417,7 +425,12 @@ export async function POST(req: NextRequest) {
           return `Next-year plan (${ny}): goal ${goal == null ? "not set" : goal > 0 ? fmtCurrency(goal) : "none ($0)"}; ${fmtCurrency(lined.weightedGCI)} probability-weighted GCI already lined up from ${lined.dealCount} active deal(s) expected to close in ${ny}${lined.undatedCount > 0 ? ` (${lined.undatedCount} active deal(s) have no expected close date)` : ""}`;
         })(),
         settings.experience_years != null ? `Years of Experience: ${settings.experience_years}` : null,
-        expensesYTD > 0 ? `YTD Business Expenses: ${fmtCurrency(expensesYTD)}` : null,
+        expensesYTD > 0
+          ? `YTD Business Expenses: ${fmtCurrency(expensesYTD)}` +
+            (expenseTaxCtx.gstHstRegistered && expensesPaidYTD - expensesYTD >= 0.01
+              ? ` (net of GST/HST claimed as input tax credits; amount paid including GST/HST: ${fmtCurrency(expensesPaidYTD)})`
+              : "")
+          : null,
         monthlyRecurring > 0 ? `Monthly Recurring Expenses: ${fmtCurrency(monthlyRecurring)}` : null,
         staleClientCount14 != null && staleClientCount14 > 0 ? `Stale Clients (14+ days, dashboard threshold): ${staleClientCount14}` : null,
         staleClientCount != null && staleClientCount > 0 ? `Stale Clients (30+ days, CRM threshold): ${staleClientCount}` : null,
@@ -633,9 +646,10 @@ export async function POST(req: NextRequest) {
           isRegistered: settings.gst_hst_registered ?? false,
           brokerageWithholdsHst: settings.brokerage_withholds_hst ?? false,
         });
-        const ytdHstOnExpenses = settings.gst_hst_paid_on_expenses
-          ? expensesYTD * (hstRateValue / (1 + hstRateValue))
-          : 0;
+        // expensesYTD is already net of the ITCs a registrant claims
+        // (expense-totals-engine), so no further ITC comes off the HST owing.
+        // Lockstep with dashboard-content.tsx and effective-cash.ts.
+        const ytdHstOnExpenses = 0;
         // Plan-aware (REAL waterfall or legacy split) — must stay in lockstep
         // with dashboard-content.tsx's cash-position block (the 53/61 pair).
         const { grossAfterPlan: cpGrossAfterPlan } = computePlanGross(settings, ytdGCI, {
@@ -927,8 +941,8 @@ export async function POST(req: NextRequest) {
           const receiptDetails = (receiptDetailsRows ?? []) as { total_amount?: number | null; tax_amount?: number | null; category_key?: string | null }[];
           // Same limits as the GST34 pre-fill (itcForExpense): half of meals
           // and entertainment, and the business-use share of vehicle costs.
-          // The Expenses page defaults vehicle use to 80% when unset.
-          const vehicleUse = settings.vehicle_business_use_pct != null ? Number(settings.vehicle_business_use_pct) : 0.8;
+          // Vehicle use is the same figure the expense totals above were netted with.
+          const vehicleUse = expenseTaxCtx.vehicleBusinessUsePct;
           const receiptITCs = receiptDetails.reduce(
             (sum, r) => sum + itcForExpense(Number(r.tax_amount ?? 0), r.category_key, vehicleUse).claimable, 0);
           const recurringITCs = recurringHSTEntriesForPeriod(recurringExps, `${todayISO.slice(0, 4)}-01-01`, todayISO)

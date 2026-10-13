@@ -4,6 +4,7 @@ import { DashboardContent } from "./dashboard-content";
 import type { HistoryItem, ContactTask, Client, ContactActivity, ClientRecord, ListingAppointment, RunwayScoreHistory, RunwayScoreHistoryComponent } from "@/lib/types/database";
 import { computeIntelligenceBriefing, type BriefingItem } from "@/lib/engines/crm-analytics-engine";
 import { totalRecurringMonthly, totalRecurringYTD } from "@agent-runway/core/engines/recurring-expense-engine";
+import { aggregateReceiptTotals, expenseTaxContext, recurringExpensesNetOfItc } from "@agent-runway/core/engines/expense-totals-engine";
 import type { RecurringExpense } from "@/lib/types/database";
 import { computeIsPro } from "@/lib/compute-is-pro";
 import type { IncomeGoalRow } from "@/lib/income-goals";
@@ -67,7 +68,7 @@ export default async function DashboardPage({
         .limit(10000),
       supabase
         .from("receipt_expenses")
-        .select("total_amount")
+        .select("category_key, total_amount, tax_amount")
         .eq("user_id", user.id)
         .gte("expense_date", `${dashYear}-01-01`)
         .limit(10000),
@@ -150,7 +151,12 @@ export default async function DashboardPage({
     unwrap(settledResults[15]), unwrap(settledResults[16]), unwrap(settledResults[17]),
   ];
 
-  const recurringExpenses = (recurringExpResult.data ?? []) as RecurringExpense[];
+  // Net of the GST/HST a registrant claims back as ITCs (expense-totals-engine).
+  const taxCtx = expenseTaxContext(settingsRow);
+  const recurringExpenses = recurringExpensesNetOfItc(
+    (recurringExpResult.data ?? []) as RecurringExpense[],
+    taxCtx,
+  );
   const recurringExpMonthly = totalRecurringMonthly(recurringExpenses);
   const recurringExpYTD = totalRecurringYTD(recurringExpenses, today);
 
@@ -171,12 +177,7 @@ export default async function DashboardPage({
     items: (expItemResult.data ?? []).filter((i) => i.category_id === cat.id),
   }));
 
-  const receiptYTD = Math.round(
-    (receiptTotalsResult.data ?? []).reduce(
-      (sum, r) => sum + Number(r.total_amount ?? 0),
-      0,
-    ) * 100,
-  ) / 100;
+  const receiptYTD = aggregateReceiptTotals(receiptTotalsResult.data, taxCtx).total;
 
   const mileageKmTotal = (mileageResult.data ?? []).reduce(
     (sum, r) => sum + Number(r.km ?? 0),

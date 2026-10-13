@@ -3,8 +3,8 @@ import { redirect } from "next/navigation";
 import { ReportsContent } from "./reports-content";
 import type { CcaAsset, RecurringExpense, ListingAppointment } from "@/lib/types/database";
 import { totalRecurringMonthly, totalRecurringYTD } from "@agent-runway/core/engines/recurring-expense-engine";
+import { aggregateReceiptTotals, expenseTaxContext, recurringExpensesNetOfItc } from "@agent-runway/core/engines/expense-totals-engine";
 import { computeIsPro } from "@/lib/compute-is-pro";
-import { aggregateReceiptTotals } from "@/lib/expenses/receipt-totals";
 import { atlanticNoon } from "@agent-runway/core/lib/local-date";
 
 
@@ -59,7 +59,7 @@ export default async function ReportsPage() {
       // Current-year receipt totals per sub-category key
       supabase
         .from("receipt_expenses")
-        .select("category_key, total_amount")
+        .select("category_key, total_amount, tax_amount")
         .eq("user_id", user.id)
         .gte("expense_date", `${year}-01-01`)
         .limit(10000),
@@ -97,7 +97,12 @@ export default async function ReportsPage() {
         .limit(10000),
     ]);
 
-  const recurringExpenses = (recurringExpResult.data ?? []) as RecurringExpense[];
+  // Net of the GST/HST a registrant claims back as ITCs (expense-totals-engine).
+  const taxCtx = expenseTaxContext(settingsRaw);
+  const recurringExpenses = recurringExpensesNetOfItc(
+    (recurringExpResult.data ?? []) as RecurringExpense[],
+    taxCtx,
+  );
   const recurringExpMonthly = totalRecurringMonthly(recurringExpenses);
   const recurringExpYTD = totalRecurringYTD(recurringExpenses, today);
 
@@ -108,9 +113,10 @@ export default async function ReportsPage() {
 
   // Per-key map drives the T2125 line allocation and MUST stay per-key.
   // The uncategorized remainder is carried separately so the YTD expense total
-  // still agrees with the dashboard. See lib/expenses/receipt-totals.ts.
+  // still agrees with the dashboard. For a GST/HST registrant every figure is
+  // net of ITCs, so the T2125 lines don't deduct tax the GST34 already claims.
   const { byKey: receiptTotalsByKey, uncategorized: uncategorizedReceiptYTD } =
-    aggregateReceiptTotals(receiptTotalsResult.data);
+    aggregateReceiptTotals(receiptTotalsResult.data, taxCtx);
 
   // Build expenseAmounts for T2125 tab: receipts YTD + recurring for completed months only.
   // T2125 is a tax form — only include expenses actually incurred (not projected future months).

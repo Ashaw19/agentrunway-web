@@ -147,6 +147,7 @@ IMPORTANT: Always include this disclaimer once in tax-related responses: "These 
 
 **Input**: Net self-employment income (after expenses, before tax)
 Net SE Income = Projected Annual GCI × Agent Split% − Annual Expenses
+Annual Expenses for a GST/HST registrant are net of the GST/HST claimed as input tax credits (expense-totals-engine.ts; see the Expenses playbook). For a non-registrant they are the amounts paid, GST/HST included.
 
 **Step 1: CPP/QPP** (self-employed pay both halves)
 - CPP1: 11.90% on income between $3,500 (basic exemption) and $74,600 (YMPE 2026)
@@ -184,6 +185,7 @@ Required when annual tax owing >$3,000 (>$1,800 in Quebec)
 - Quebec: 5% GST + 9.975% QST = 14.975% combined
 - Input Tax Credits (ITCs) offset GST paid on business expenses
 - Net Payable = GST collected on GCI − ITCs claimed
+- A registrant's expense totals everywhere in the app are net of those ITCs, so the same GST/HST is not counted as both an ITC and a business expense (CRA T4002 ch. 3: deductible expenses include the GST/HST incurred, less any input tax credit claimed). A non-registrant claims no ITCs, so their expenses include the GST/HST paid.
 
 ### Corporate Tax (CCPC — canadian PREC or corp)
 - Federal SBD: 9% on first $500K active business income
@@ -207,6 +209,7 @@ Required when annual tax owing >$3,000 (>$1,800 in Quebec)
 3. Check business structure — sole prop vs PREC vs corp have different rates
 4. Check if expenses are entered — expenses reduce net income → lower tax
 5. Check RRSP contributions entered in settings
+6. GST/HST registrant whose estimate went UP on or after 2026-10-13 with no new data: before that date expense totals still included the GST/HST that the GST34 also claims as ITCs, so expenses were overstated and the estimate was low. In a 15% HST province that was $15 of every $115 on taxed expenses. Totals are now net of ITCs. Explain the change; do not describe it as money owed.
 
 **"How much should I set aside per deal?"**
 → Direct them to Forecast page → Tax Estimates card. Formula: Annual tax estimate ÷ projected deal count.
@@ -351,6 +354,31 @@ Expense Ratio = Total YTD Expenses ÷ YTD GCI
 
 Secondary signal: advisor-engine.ts shows a "Trim Expenses to Benchmark" action card when the projected ratio exceeds 30%, with a 25-30% reference benchmark. The Runway Score sub-score is the canonical band.
 
+### GST/HST in expense totals (registrant vs not registered)
+Source of truth: packages/core/engines/expense-totals-engine.ts (expenseNetOfItc, aggregateReceiptTotals, recurringExpensesNetOfItc). Every surface that totals expenses calls it: Expenses page KPIs and category rows, Est. Tax Deductible YTD, Reports and the T2125 lines, dashboard, overhead, forecast, altimeter, scenarios, cash position, weekly digest, Flight Crew context and tools, mobile.
+
+CRA rule (T4002 ch. 3, and canada.ca "Business expenses"): deductible expenses include the GST/HST incurred on them, less any input tax credit claimed.
+- **Registered** (user_settings.gst_hst_registered = true; toggle on Reports → T2125 → "GST/HST Registered?"): expense totals are NET of the ITCs the GST34 summary claims.
+- **Not registered**: no ITCs, so expense totals are the full amounts paid, GST/HST included.
+
+What comes off one expense (always the same ITC the GST34 summary claims, via itcForExpense):
+| Expense | GST/HST that comes off | What stays |
+|---|---|---|
+| Ordinary (ads, software, dues, fees) | All of it | Amount before GST/HST |
+| Meals & entertainment | Half (CRA's 50% ITC limit) | Amount before GST/HST plus the other half; the 50% deduction limit then applies to that |
+| Vehicle, business use over 10% | All of it: the business share is the ITC, the personal share is a personal cost | Amount before GST/HST; the business-use % then applies to that |
+| Vehicle, business use 10% or less | None (no ITC) | Full amount paid |
+| No GST/HST amount entered (tax blank or 0) | None | Full amount paid |
+
+Worked example, 15% HST, $115 paid with $15 HST:
+- Office supplies: counts as $100.
+- Client meal: counts as $107.50; $53.75 is deductible (50%).
+- Fuel at 80% business use: counts as $100; $80 is deductible. The ITC is $12; the other $3 of HST is personal use.
+
+Recurring expenses work the same way: amount is what is charged, hst_amount is the GST/HST inside it, and the vehicle toggle applies the vehicle rule.
+
+Still shown as paid (GST/HST included): each receipt, the receipt log and its CSV/PDF, and the Recurring Expenses list with its "as charged" monthly and annual totals.
+
 ### Expense Categories — CRA T2125 Mapping
 
 Source of truth: packages/core/engines/t2125-engine.ts (CATEGORY_MAPPINGS). Mirrors the CRA T2125 form / T4002 publication.
@@ -385,7 +413,7 @@ Common "wrong line number" question: legacy notes/screenshots may cite 8210/8211
 Camera capture → image uploaded to Supabase Storage → /api/receipts/process for OCR extraction → fields pre-filled (vendor, amount, date, category suggestion) → user reviews and saves.
 
 ### Expense Impact on Other Metrics
-1. **Tax Estimate**: Expenses reduce net SE income → lower tax
+1. **Tax Estimate**: Expenses reduce net SE income → lower tax. For a registrant the expenses are net of ITCs, so GST/HST that is claimed back does not also reduce income.
 2. **Expense Ratio**: Feeds into Runway Score (15% weight)
 3. **Survival Runway**: Monthly recurring expenses increase burn rate → shorter runway
 4. **Advisor Cards**: Flags if expense ratio >30% of projected GCI
@@ -430,6 +458,24 @@ If a user asks "what are these tips?" or "why is Agent Runway showing me this?" 
 2. Check for large one-time expenses inflating the number
 3. Monthly recurring expenses are annualized in some views
 
+**"My expense total is lower than my receipts add up to" / "My expenses dropped on October 13" / "Expenses don't match my bank statement"**
+1. Check gst_hst_registered. If true, this is expected: totals are net of the GST/HST claimed as input tax credits. The receipts still show what was paid.
+2. The gap is the ITCs on the GST34 summary, plus the personal-use share of vehicle GST/HST.
+3. The [EXPENSE DIAGNOSTIC] "Amount paid including GST/HST" line gives the paid figure to compare.
+4. Before 2026-10-13 totals included that GST/HST, so a registrant's totals went down that day with no data change.
+
+**"I'm registered but my expense total still includes the HST"**
+1. Check the GST/HST amount on the receipts. Quick-add expenses and receipts saved with a blank tax field have no GST/HST recorded, so they count in full and no ITC is claimed for them. Editing the receipt to add the tax amount updates both the GST34 summary and the totals.
+2. Check recurring expenses: "HST included" has to be on, with an HST amount.
+3. Some costs carry no GST/HST (insurance premiums, most government fees), so nothing comes off those.
+4. Confirm the registered toggle (Reports → T2125 → "GST/HST Registered?").
+
+**"My totals match QuickBooks now" / "QuickBooks shows a lower expense total than my receipts"**
+→ Accounting software reports a registrant's expenses net of recoverable sales tax. Agent Runway does the same for registrants.
+
+**"I'm not registered. Why do my expenses include HST?"**
+→ Without registration there are no input tax credits, so the GST/HST paid is part of the cost (CRA T4002 ch. 3). Whether and when to register is a question for their accountant.
+
 **"Receipt scan didn't capture correctly"**
 → OCR works best with clear photos, good lighting, and flat receipts. Crumpled/faded receipts may need manual entry.
 
@@ -442,7 +488,7 @@ If a user asks "what are these tips?" or "why is Agent Runway showing me this?" 
 → YTD = actual amounts entered/imported this year. Monthly recurring = fixed amounts that repeat (auto-annualized in projections).
 
 **"Meals & Entertainment — why only 50%?"**
-→ CRA rule: Only 50% of meals & entertainment costs are deductible. The system tracks the full amount but only claims 50% on T2125 line 8523.
+→ CRA rule: Only 50% of meals & entertainment costs are deductible. The system tracks the full amount but only claims 50% on T2125 line 8523. For a GST/HST registrant the amount the 50% applies to is the meal less the ITC claimed on it (half its GST/HST).
 
 **"Why does Agent Runway show me tax tips?"** / **"What is Tax IQ?"**
 → Tax IQ is a contextual education feature on the Expenses page. It selects relevant CRA-referenced tips based on the agent's expense categories, filing situation, province, and current quarter. Tips can be dismissed and are stored in browser localStorage. They do not affect calculations — they are educational only.
@@ -1037,8 +1083,9 @@ All figures are a snapshot of the REAL income deck and are user-editable — if 
 
 ### GST/HST Registration
 - Toggle: registered or not
-- If registered: GST/HST collected on GCI, ITCs claimed on expenses
-- If not: No GST obligations (under $30,000 threshold)
+- If registered: GST/HST collected on GCI, ITCs claimed on expenses. Expense totals across the app are net of those ITCs.
+- If not: No GST obligations (under $30,000 threshold). Expense totals include the GST/HST paid.
+- Changing the toggle changes every expense total, the T2125 lines and the tax estimate (see the Expenses playbook, "GST/HST in expense totals").
 
 ### Vehicle Business Use
 - Percentage of total km that are business-related
@@ -1089,7 +1136,7 @@ All figures are a snapshot of the REAL income deck and are user-editable — if 
 
 **Monthly Burn** = monthly_brokerage_fee (Settings) + monthly recurring expenses
 - monthly_brokerage_fee: the fixed desk fee entered in Settings
-- monthlyRecurring: sum of all active recurring expense amounts (monthly + prorated quarterly/annual)
+- monthlyRecurring: sum of all active recurring expense amounts (monthly + prorated quarterly/annual), net of ITCs for a GST/HST registrant
 - NOTE: This does NOT use YTD expenses ÷ months elapsed — it uses the configured recurring amounts only
 
 **Income Offset** = Pipeline Weighted GCI ÷ max(1, 12 − months elapsed)
@@ -1102,7 +1149,8 @@ All figures are a snapshot of the REAL income deck and are user-editable — if 
 **Effective Cash** (from cash-position-engine.ts):
 - If agent has closed deals this year: max(0, Implied Cash + Manual Cash Reserve)
   - Implied Cash = YTD Agent Net − YTD Expenses − YTD Tax Set-Aside − YTD HST Owing
-  - HST Owing = $0 if brokerage withholds HST; otherwise HST collected − ITCs on expenses
+  - YTD Expenses are net of ITCs for a registrant, so the ITCs are already counted there
+  - HST Owing = $0 if brokerage withholds HST; otherwise HST collected on commissions (no second ITC offset: that would count the same GST/HST twice)
   - This is what should be in the account if the agent has been disciplined
 - If no closed deals yet: Manual Cash Reserve only (from Settings)
 

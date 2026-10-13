@@ -30,7 +30,13 @@ import {
   computeEffectiveCashForSurvival,
   computeProjectedNetForTax,
 } from "@agent-runway/core/engines/effective-cash";
-import type { UserSettings as CanonicalUserSettings } from "@agent-runway/core/types/database";
+import {
+  aggregateReceiptTotals,
+  expenseTaxContext,
+  recurringExpensesNetOfItc,
+} from "@agent-runway/core/engines/expense-totals-engine";
+import { totalRecurringMonthly, totalRecurringYTD } from "@agent-runway/core/engines/recurring-expense-engine";
+import type { UserSettings as CanonicalUserSettings, RecurringExpense } from "@agent-runway/core/types/database";
 import {
   compare as benchmarkCompare,
   COHORT_LABELS,
@@ -132,7 +138,10 @@ interface DiagContext {
   today: Date;
   engineFraction: number;
   monthlyRecurring: number;
+  /** Net of the ITCs a GST/HST registrant claims (expense-totals-engine). */
   expensesYTD: number;
+  /** The same expenses as paid, GST/HST included. */
+  expensesPaidYTD: number;
 }
 
 // ─── Main Diagnostic Builder ──────────────────────────────────────────────────
@@ -167,6 +176,7 @@ export async function buildDiagnostics(
     { data: receiptExpenses },
     { data: referralRows },
     { data: listingRows },
+    { data: recurringRows },
   ] = await Promise.all([
     supabase.from("user_settings").select("*").eq("user_id", userId).single(),
     supabase
@@ -192,7 +202,7 @@ export async function buildDiagnostics(
       .eq("user_id", userId),
     supabase
       .from("receipt_expenses")
-      .select("total_amount")
+      .select("category_key, total_amount, tax_amount")
       .eq("user_id", userId)
       .gte("expense_date", `${currentYear}-01-01`),
     supabase
@@ -207,6 +217,13 @@ export async function buildDiagnostics(
       .select("estimated_list_price, estimated_commission_pct, status")
       .eq("user_id", userId)
       .in("status", ["scheduled", "active"]),
+    // Active recurring expenses: part of the dashboard's expensesYTD and
+    // monthly recurring, and missing here until 2026-10-13.
+    supabase
+      .from("recurring_expenses")
+      .select("*")
+      .eq("user_id", userId)
+      .eq("is_active", true),
   ]);
 
   if (!settings) return "\n[DIAGNOSTIC: No user settings found — user may not have completed onboarding]";
@@ -255,19 +272,25 @@ export async function buildDiagnostics(
       : [0.25, 0.25, 0.25, 0.25]);
   const engineFraction = seasonalFractionElapsed(engineSeasonalWeights);
 
-  // Compute total YTD expenses and monthly recurring (same formula as dashboard)
-  let monthlyRecurring = 0;
+  // Compute total YTD expenses and monthly recurring (same formula as dashboard:
+  // Math.max(receipts, legacy monthly × months elapsed) + recurring_expenses YTD).
+  // Receipts and recurring are net of the GST/HST a registrant claims back as
+  // ITCs (expense-totals-engine).
+  const taxCtx = expenseTaxContext(settings as Pick<CanonicalUserSettings, "gst_hst_registered" | "vehicle_business_use_pct">);
+  let legacyMonthlyRecurring = 0;
   for (const cat of expenses) {
     for (const item of cat.expense_items ?? []) {
-      monthlyRecurring += Number(item.monthly_recurring ?? 0);
+      legacyMonthlyRecurring += Number(item.monthly_recurring ?? 0);
     }
   }
-  const receiptTotal = (receiptExpenses ?? []).reduce(
-    (sum: number, r: { total_amount?: number | string }) => sum + Number(r.total_amount ?? 0), 0,
-  );
+  const recurringRowsTyped = (recurringRows ?? []) as RecurringExpense[];
+  const recurringNet = recurringExpensesNetOfItc(recurringRowsTyped, taxCtx);
+  const monthlyRecurring = legacyMonthlyRecurring + totalRecurringMonthly(recurringNet);
+  const receiptTotals = aggregateReceiptTotals(receiptExpenses, taxCtx);
   const expMonthsElapsed = today.getMonth() + 1; // 1-12, consistent with dashboard engine
-  const recurringYTDEstimate = monthlyRecurring * expMonthsElapsed;
-  const expensesYTD = Math.max(receiptTotal, recurringYTDEstimate);
+  const legacyRecurringYTDEstimate = legacyMonthlyRecurring * expMonthsElapsed;
+  const expensesYTD = Math.max(receiptTotals.total, legacyRecurringYTDEstimate) + totalRecurringYTD(recurringNet, today);
+  const expensesPaidYTD = Math.max(receiptTotals.paid, legacyRecurringYTDEstimate) + totalRecurringYTD(recurringRowsTyped, today);
 
   const ctx: DiagContext = {
     settings: s,
@@ -284,6 +307,7 @@ export async function buildDiagnostics(
     engineFraction,
     monthlyRecurring,
     expensesYTD,
+    expensesPaidYTD,
   };
 
   const diagnosticParts: string[] = [];
@@ -516,7 +540,7 @@ ${stageLines || "  (empty pipeline)"}`;
  * v1.2: 35 when GCI > 0 but no expenses (not 50).
  */
 function diagExpenses(ctx: DiagContext): string {
-  const { expenses, ytdGCI, expensesYTD, monthlyRecurring } = ctx;
+  const { expenses, ytdGCI, expensesYTD, expensesPaidYTD, monthlyRecurring } = ctx;
 
   const categoryTotals: { name: string; ytd: number; recurring: number }[] = [];
 
@@ -562,8 +586,14 @@ function diagExpenses(ctx: DiagContext): string {
     .map((c) => `  ${c.name}: YTD ${fmtCurrency(c.ytd)}${c.recurring > 0 ? ` + ${fmtCurrency(c.recurring)}/mo recurring` : ""}`)
     .join("\n");
 
+  // Registrant: totals are net of the GST/HST claimed as ITCs. Say so, with
+  // the amount paid, so the gap to the user's receipts can be explained.
+  const basisLine = ctx.settings.gst_hst_registered
+    ? `\nBasis: GST/HST registrant. Expense totals are net of the GST/HST claimed as input tax credits on the GST34 (CRA T4002 ch. 3). Amount paid including GST/HST: ${fmtCurrency(expensesPaidYTD)}. Receipts with no GST/HST amount recorded count in full.`
+    : `\nBasis: not a GST/HST registrant. Expense totals are the amounts paid, GST/HST included (no input tax credits to claim).`;
+
   return `[EXPENSE DIAGNOSTIC]
-YTD Expenses: ${fmtCurrency(expensesYTD)}
+YTD Expenses: ${fmtCurrency(expensesYTD)}${basisLine}
 Monthly Recurring: ${fmtCurrency(monthlyRecurring)}
 Expense Ratio: ${ratio.toFixed(1)}% (ratio bucket: ${ratioBucket})
 Expense Sub-Score: ${expenseScore}/100
