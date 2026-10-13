@@ -18,17 +18,7 @@ export function safeDateMs(value: string | null | undefined): number | null {
   return d ? d.getTime() : null;
 }
 
-/** Days between now and a date string.  Returns null on bad input. */
-export function daysSince(value: string | null | undefined): number | null {
-  const ms = safeDateMs(value);
-  if (ms === null) return null;
-  return Math.floor((Date.now() - ms) / 86_400_000);
-}
-
-/** Days until a future date.  Returns null on bad input or past dates. */
-export function daysUntil(value: string | null | undefined): number | null {
-  const ms = safeDateMs(value);
-  if (ms === null) return null;
-  const diff = Math.ceil((ms - Date.now()) / 86_400_000);
-  return diff >= 0 ? diff : null;
-}
+// For a day count behind a label ("Today", "3 days ago"), use localDaysSince
+// from @agent-runway/core/lib/local-date: calendar days on the phone's own
+// day, null-safe. The daysSince / daysUntil that were here (no callers)
+// counted elapsed 24-hour blocks.

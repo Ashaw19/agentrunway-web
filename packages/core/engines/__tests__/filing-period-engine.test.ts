@@ -6,7 +6,7 @@
  * returned the next one. Server callers pass atlanticNoon(). Instants are
  * pinned; expectations hold in any host zone.
  */
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { deadlineUrgency, getCurrentFilingPeriod } from "../filing-period-engine";
 import { atlanticNoon } from "../../lib/local-date";
 
@@ -40,5 +40,42 @@ describe("deadlineUrgency with a calendar anchor", () => {
     const dl = deadlineUrgency("2026-10-31", deadlineEvening);
     expect(dl.daysUntil).toBe(0);
     expect(dl.label).toBe("Due today");
+  });
+});
+
+// In the browser both ends were local midnight and the gap was rounded up.
+// Across the autumn clock change the gap is a whole number of days plus one
+// hour, so every deadline after it read a day further off than it was.
+describe("deadlineUrgency across a clock change (2026-10-13)", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  const halifax = () => {
+    vi.stubEnv("TZ", "America/Halifax");
+    expect(new Date("2026-10-13T12:00:00Z").getTimezoneOffset()).toBe(180); // guard: the stub took
+    expect(new Date("2026-12-15T12:00:00Z").getTimezoneOffset()).toBe(240);
+  };
+
+  it("counts calendar days to a deadline after clocks go back (Nov 1)", () => {
+    halifax();
+    const oct20 = new Date("2026-10-20T12:00:00Z"); // Tue Oct 20, 09:00 ADT
+    expect(deadlineUrgency("2026-12-15", oct20).daysUntil).toBe(56);
+    expect(deadlineUrgency("2027-01-31", oct20).daysUntil).toBe(103);
+  });
+
+  it("is 2 days from Oct 31 to Nov 2, and urgent", () => {
+    halifax();
+    const dl = deadlineUrgency("2026-11-02", new Date("2026-10-31T21:00:00Z")); // Sat Oct 31, 18:00 ADT
+    expect(dl.daysUntil).toBe(2);
+    expect(dl.urgency).toBe("urgent");
+  });
+
+  it("counts calendar days across clocks going forward (Mar 14) and late in the evening", () => {
+    halifax();
+    const mar10 = new Date("2027-03-11T02:30:00Z"); // Wed Mar 10, 22:30 AST
+    expect(deadlineUrgency("2027-03-31", mar10).daysUntil).toBe(21);
+    expect(deadlineUrgency("2027-03-10", mar10).daysUntil).toBe(0);
+    expect(deadlineUrgency("2027-03-09", mar10).daysUntil).toBe(-1);
   });
 });
