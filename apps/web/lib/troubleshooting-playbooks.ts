@@ -531,6 +531,9 @@ If a user asks "what are these tips?" or "why is Agent Runway showing me this?" 
 2. Check for large one-time expenses inflating the number
 3. Monthly recurring expenses are annualized in some views
 
+**"The report PDF shows a different percentage beside my expense ratio" / "It says 66% next to 33%"**
+→ Fixed 2026-10-13. The expense ratio bar in the business report PDF (Expenses page) is drawn on a 0 to 50% scale, the same as the bar on the Reports page. A PDF downloaded before that date printed how full the bar was at the right of the label, which is twice the ratio: "66%" beside "Expense Ratio · 33.0% of GCI". The ratio in the label was the correct figure and nothing was calculated differently. The bar now prints the ratio itself ("33.0%"), as the Reports page does. The "Annual GCI Goal Progress" bar had the same fault once GCI passed the goal: it printed "100%" beside, say, "$250,000 of $200,000", and now prints the real share (125%). Downloading the PDF again gives the corrected figures.
+
 **"My expense total is lower than my receipts add up to" / "My expenses dropped on October 13" / "Expenses don't match my bank statement"**
 1. Check gst_hst_registered. If true, this is expected: totals are net of the GST/HST claimed as input tax credits. The receipts still show what was paid.
 2. The gap is the ITCs on the GST34 summary, plus the personal-use share of vehicle GST/HST.
@@ -1295,10 +1298,14 @@ All figures are a snapshot of the REAL income deck and are user-editable — if 
 | Months | Level | Color |
 |--------|-------|-------|
 | ≥6 | Strong | Green |
-| 4–6 | Healthy | Blue |
-| 2–4 | Warning | Yellow |
+| 4–6 | Healthy | Amber |
+| 2–4 | Warning | Amber |
 | <2 | Critical | Red |
-| Not configured | Neutral | Gray |
+| Not configured | Not Set | Gray |
+
+Each band runs from its lower figure up to, not including, the next one (exactly 4.0 months is Healthy, exactly 6.0 is Strong). Healthy and Warning share amber on every screen and in the business report PDF (survival-engine.ts, riskColorBand): only Strong is green. The word on the badge tells them apart.
+
+**What the business report PDF says about cash runway** (changed 2026-10-13). The Cash Runway box on its Expenses page is headed with the months and the band ("3.0 months of cash runway · Warning"; "24+ months of cash runway · Strong" at the cap; "Not Set" when no reserve or costs are entered). Under that it gives the cash reserve and monthly burn, then the four bands in one sentence: "Under 2 months is critical, 2–4 is warning, 4–6 is healthy, 6+ is strong." The Assessment paragraph on the last page says which range the runway is in ("Your cash runway of 3.0 months is in the Warning range (2–4 months)."). The PDF states where the runway sits and gives no instruction. A PDF downloaded before that date said "Immediate action required", "Consider increasing your reserve to 4+ months" or "You are within the recommended 4–6+ month safety buffer" (also printed for a Strong runway), and showed "-1.0 Months" when nothing was set. The months and the band were calculated the same way then; only the wording changed.
 
 **Cap**: Runway is capped at 24 months maximum (to avoid infinity when burn ≤ 0).
 
@@ -1823,6 +1830,7 @@ The Overhead page is your complete tax visibility dashboard:
    - Deadlines: March 15, June 15, September 15, December 15
    - Calculated as: Estimated Annual Tax ÷ 4
    - The T2125 tab's "CRA Tax Instalment Tracker" and the T2125 PDF list those four dates beside an "Estimated" amount (the annual estimate ÷ 4) and what the agent entered as paid. Changed 2026-10-13: before that date the tracker printed the GST/HST filing dates (Apr 30, Jul 31, Oct 31, Jan 31) and headed the column "Recommended". A PDF exported earlier shows the old dates.
+   - "The bottom of my T2125 PDF is unreadable" / "the text overlaps": fixed 2026-10-13. Before that date the three footer lines (the document line with the agent's name and tax year, the "ESTIMATES ONLY" disclaimer, and the corporation line) were printed over each other on every page, the last one running past the page edge, and a long agent name printed over the "Agent Name" label on page 1. The footer now has the disclaimer on its own row with the other two lines under it. No figure in the PDF changed; downloading it again gives the clean layout.
 
 4. **HST/GST Tracking**
    - HST collected on commissions (13% in ON, 14% in NS, 15% in NB/NL/PE, etc.)

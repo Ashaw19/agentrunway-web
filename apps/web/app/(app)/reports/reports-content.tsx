@@ -94,7 +94,7 @@ import { gstHstReportNote } from "@agent-runway/core/tax-copy";
 import type { BusinessReportPDFProps } from "@/components/pdf/business-report-pdf";
 import { compare, COHORT_LABELS } from "@/lib/engines/benchmark-engine";
 import { calculateCorporateTax } from "@/lib/engines/corporate-tax-engine";
-import { survivalResult, riskColorBand, type RiskLevel, type RiskColorBand } from "@/lib/engines/survival-engine";
+import { survivalResult, riskColorBand, RISK_LEVEL_LABEL, type RiskLevel, type RiskColorBand } from "@/lib/engines/survival-engine";
 import { computeEffectiveCashForSurvival, computePipelineMonthlyIncome } from "@/lib/engines/effective-cash";
 import {
   compute as computeRunwayScore,
@@ -189,16 +189,8 @@ const RISK_BAND_STYLE: Record<RiskColorBand, { cardBorder: string; badgeCls: str
   slate:   { cardBorder: "border-slate-200",   badgeCls: "bg-slate-100 text-slate-600",     dot: "bg-slate-400",   labelColor: "text-slate-600" },
 };
 
-const RISK_LABEL: Record<RiskLevel, string> = {
-  strong: "Strong",
-  healthy: "Healthy",
-  warning: "Warning",
-  critical: "Critical",
-  notConfigured: "Not Set",
-};
-
 function riskStyle(level: RiskLevel) {
-  return { ...RISK_BAND_STYLE[riskColorBand(level)], label: RISK_LABEL[level] };
+  return { ...RISK_BAND_STYLE[riskColorBand(level)], label: RISK_LEVEL_LABEL[level] };
 }
 
 // ── Waterfall row ─────────────────────────────────────────────────────────────
