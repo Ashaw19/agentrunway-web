@@ -34,20 +34,6 @@
  *     action required", "Consider increasing your reserve") and called a
  *     12-month runway "within the recommended 4–6+ month safety buffer". It
  *     now states the survival engine's bands, in the engine's words.
- *
- * Layout defects in the business report, fixed the same day:
- *   - Its large type was printed over the line under it on every page: the
- *     grade over the score in the round badge ("D" over "55/100"), "76th" over
- *     "pctile", each tile's dollar figure against its caption. The page sets
- *     `lineHeight: 1.4` at 8pt, react-pdf turns that into 11.2 points where it
- *     is declared, and every <Text> on the page inherits the points whatever
- *     its own size. Type of 13pt and up now states its own line height.
- *   - The figure above each bar of the monthly chart was hidden behind the top
- *     of the bar. It borrowed the month label's style, whose `flex: 1` gives a
- *     line of text no height in a column.
- *   - A long name ran off the cover's right edge and into the page header's
- *     title, and a long address ran into the client's name beside it.
- *   Shapes are read back from the rendered PDF as text is (`fills`).
  */
 import { beforeAll, describe, expect, it } from "vitest";
 import { createElement, isValidElement, type ReactNode } from "react";
@@ -518,6 +504,18 @@ describe("the bands are worded once, in the survival engine", () => {
 });
 
 // ── Business report PDF: where the text lands ───────────────────────────────
+// Layout defects fixed 2026-10-13, found by rendering every page:
+//   - Large type was printed over the line under it on every content page:
+//     the grade over the score in the round badge ("D" over "55/100"), "76th"
+//     over "pctile", each tile's dollar figure against its caption. The page
+//     sets `lineHeight: 1.4` at 8pt, react-pdf turns that into 11.2 points
+//     where it is declared, and every <Text> on the page inherits the points
+//     whatever its own size. Type of 13pt and up now sets its own line height.
+//   - The figure above each bar of the monthly chart was hidden behind the top
+//     of the bar. It borrowed the month label's style, whose `flex: 1` gives a
+//     line of text no height in a column.
+//   - A long name ran off the cover's right edge and into the page header's
+//     title, and a long address ran into the client's name beside it.
 
 const LONG_BUSINESS = "Montgomery-Featherstonehaugh & Associates Real Estate Professional Corporation Limited";
 const LONG_BROKERAGE = "Sample Coastal Homestead Real Estate Brokerage Inc., Independently Owned and Operated";
