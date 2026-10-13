@@ -62,7 +62,7 @@ export const FLIGHT_PLAN_DEFAULTS: FlightPlanDefault[] = [
       { step_order: 1,  delay_days: 7,   action_type: "email", template: "No-rush email — 'Totally understand you're not in a rush. Here's what the market is doing so you can track it over time.' Include a simple market snapshot." },
       { step_order: 2,  delay_days: 30,  action_type: "email", template: "Month 1 update — relevant new listings and price trends in their target area. Keep it short: 3 key stats + 2 listings." },
       { step_order: 3,  delay_days: 60,  action_type: "task",  template: "📞 2-month check-in — 'Has your timeline or budget changed at all? Just want to make sure I'm watching the right areas for you.'" },
-      { step_order: 4,  delay_days: 90,  action_type: "email", template: "Pre-approval timing guide — 'When to start the mortgage conversation.' Most experts say 3–6 months before buying. Introduce your preferred broker now." },
+      { step_order: 4,  delay_days: 90,  action_type: "email", template: "Pre-approval timing guide — 'When to start the mortgage conversation.' Introduce your preferred broker now." },
       { step_order: 5,  delay_days: 120, action_type: "email", template: "Neighbourhood spotlight — pick one neighbourhood that matches their profile. Share lifestyle details, school ratings, commute times, average sold prices." },
       { step_order: 6,  delay_days: 180, action_type: "task",  template: "📞 6-month milestone call — reassess their situation. Are they closer to ready? Any major life changes? Keep this call personal, not transactional." },
       { step_order: 7,  delay_days: 270, action_type: "email", template: "9-month market update — how conditions have shifted since you first connected. Is it getting better or harder for buyers? Help them understand timing." },
@@ -130,7 +130,7 @@ export const FLIGHT_PLAN_DEFAULTS: FlightPlanDefault[] = [
   {
     system_key:     "open_house_follow_up",
     name:           "Open House Follow-Up",
-    description:    "Captures the warm in-person connection from open house sign-ins. Most agents lose 90% of open house leads within 48 hours — this sequence prevents that.",
+    description:    "Captures the warm in-person connection from open house sign-ins, starting with a text and a call the same day.",
     trigger_status: "boarding",
     trigger_tag:    "Open House",
     steps: [
@@ -211,7 +211,7 @@ export const FLIGHT_PLAN_DEFAULTS: FlightPlanDefault[] = [
   {
     system_key:     "re_engagement_ghosted",
     name:           "Re-Engagement — Ghosted Lead",
-    description:    "Recovers leads who went cold without burning bridges. 20–30% of 'dead' leads convert within 12 months with the right low-pressure sequence.",
+    description:    "Recovers leads who went cold without burning bridges. A low-pressure check-in leaves the door open for a lead whose timing has changed.",
     trigger_status: null,
     trigger_tag:    null,
     steps: [
@@ -235,7 +235,7 @@ export const FLIGHT_PLAN_DEFAULTS: FlightPlanDefault[] = [
       { step_order: 1,  delay_days: 0,   action_type: "task",  template: "📞 CALL WITHIN THE HOUR — 'I noticed your home at [Address] came off the market. I have a different approach that gets results in this neighbourhood — do you have 5 minutes?'" },
       { step_order: 2,  delay_days: 0,   action_type: "text",  template: "Hi [Name], saw your home at [Address] recently came off the market. I've had success where other agents haven't in [Neighbourhood] — I'd love to share what I do differently. 5 minutes?" },
       { step_order: 3,  delay_days: 1,   action_type: "email", template: "Why listings expire — the 3 most common reasons: overpricing, poor marketing, wrong agent fit. Be direct and educational. Include your recent area sold data. Subject: 'What actually went wrong — and what I'd do differently'" },
-      { step_order: 4,  delay_days: 2,   action_type: "task",  template: "📞 Second attempt — most agents stop after 1 call. Don't. Persistence signals you actually want their business. Keep it brief and confident." },
+      { step_order: 4,  delay_days: 2,   action_type: "task",  template: "📞 Second attempt — one unanswered call is not a no. Persistence signals you actually want their business. Keep it brief and confident." },
       { step_order: 5,  delay_days: 4,   action_type: "email", template: "Comparable sold data — 3 recent sales near their property. Show what buyers are actually paying right now and how their home compares. Let data do the persuading." },
       { step_order: 6,  delay_days: 7,   action_type: "task",  template: "📞 Follow-up call — lead with value: 'I put together an updated CMA for your home that shows what's changed in the market this week.' Offer to send or meet." },
       { step_order: 7,  delay_days: 14,  action_type: "email", template: "Re-listing timing email — is now actually a better time than when they first listed? Include market seasonality data for their area. Subject: 'The market has shifted since your listing expired'" },
@@ -270,7 +270,7 @@ export const FLIGHT_PLAN_DEFAULTS: FlightPlanDefault[] = [
   {
     system_key:     "investor_lead_nurture",
     name:           "Investor Lead Nurture",
-    description:    "Serves real estate investors with ROI-focused content. Investors transact repeatedly and refer heavily — worth 5x the effort of a typical buyer lead.",
+    description:    "Serves real estate investors with ROI-focused content. An investor may buy more than once, so the relationship can outlast a single deal.",
     trigger_status: "boarding",
     trigger_tag:    "Investor",
     steps: [

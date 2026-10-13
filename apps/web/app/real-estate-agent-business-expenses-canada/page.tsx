@@ -19,6 +19,17 @@ const EXPENSE_RATIO_FAQ = {
     "It is a planning figure, not a CRA threshold. In Agent Runway the ratio is recorded business expenses divided by gross commission income, and the brokerage split is taken off separately.",
 };
 
+// The phone answer, used by the FAQ on the page and its JSON-LD. The wording
+// that was here gave a range of business-use percentages as commonly
+// considered reasonable; CRA's guide gives none, so the page gives none.
+const PHONE_FAQ = {
+  question: "How does CRA treat a phone used for both personal and business?",
+  portion: "Per CRA, only the business-use portion of a mixed-use phone is deductible.",
+  airtime:
+    "CRA's guide for the self-employed gives the deductible amount as the percentage of a cellphone's airtime expenses used to earn business income",
+  noPercentage: "The guide sets no percentage, so the figure claimed rests on the agent's own records of use.",
+};
+
 export const metadata: Metadata = {
   title: "Real Estate Agent Business Expenses You Can Deduct in Canada",
   description:
@@ -137,10 +148,10 @@ const JSON_LD_FAQ = {
     },
     {
       "@type": "Question",
-      name: "How does CRA treat a phone used for both personal and business?",
+      name: PHONE_FAQ.question,
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Per CRA, only the business-use portion of a mixed-use phone is deductible. The business-use percentage is determined on a reasonable basis. For active real estate agents, percentages in the 60 to 80 percent range are commonly considered reasonable, subject to CRA's facts-and-circumstances review — the percentage applies only when it can be supported in audit.",
+        text: `${PHONE_FAQ.portion} ${PHONE_FAQ.airtime}. ${PHONE_FAQ.noPercentage}`,
       },
     },
     {
@@ -194,7 +205,7 @@ const EXPENSE_CATEGORIES = [
       "Income tax payments",
       "Penalties or fines",
     ],
-    tip: "CREA and provincial board dues commonly fall in the $2,000\u20134,000 per year range, depending on the province.",
+    tip: "Dues differ by board and province. Each board and association publishes its own fee schedule, and the annual invoices give the amounts for this line.",
   },
   {
     name: "Management & Admin Fees",
@@ -248,7 +259,8 @@ const EXPENSE_CATEGORIES = [
     ],
     critical:
       "CRA's published expectation for the vehicle claim is a logbook. Without supporting records, the deduction may be disallowed. CRA's logbook entries cover date, destination, client or business purpose, and kilometres for each business trip.",
-    tip: "Reported business-use percentages for active agents commonly fall in the 50\u201370% range. Percentages above 80% may attract closer CRA review.",
+    tip: "Per CRA, the deductible share of vehicle expenses is the kilometres driven to earn business income divided by the total kilometres driven in the year. The percentage comes from the logbook and the odometer.",
+    tipSource: 3,
   },
   {
     name: "Home Office",
@@ -330,7 +342,8 @@ const EXPENSE_CATEGORIES = [
       "Personal phone plan (only business portion is deductible)",
       "Streaming services",
     ],
-    tip: "When a single phone is used for both personal and business purposes, business-use percentages in the 60\u201380% range are commonly considered reasonable for active real estate agents, subject to CRA's facts-and-circumstances review.",
+    tip: `${PHONE_FAQ.airtime}. ${PHONE_FAQ.noPercentage}`,
+    tipSource: 7,
   },
   {
     name: "Travel",
@@ -561,6 +574,7 @@ export default function BusinessExpensesGuidePage() {
                     {/* Tip */}
                     <p className="mt-5 text-sm italic text-slate-500">
                       {cat.tip}
+                      {"tipSource" in cat && cat.tipSource && <CRACite id={cat.tipSource} />}
                     </p>
                   </div>
                 </ScrollRevealSection>
@@ -710,16 +724,12 @@ export default function BusinessExpensesGuidePage() {
                 </div>
                 <div>
                   <h3 className="text-lg font-semibold text-slate-900">
-                    How does CRA treat a phone used for both personal and business?
+                    {PHONE_FAQ.question}
                   </h3>
                   <p className="mt-2 text-base leading-relaxed text-slate-600">
-                    Per CRA, only the business-use portion of a mixed-use phone
-                    is deductible<CRACite id={2} />. The business-use
-                    percentage is determined on a reasonable basis. For active
-                    real estate agents, percentages in the 60&ndash;80% range
-                    are commonly considered reasonable, subject to CRA&apos;s
-                    facts-and-circumstances review &mdash; the percentage
-                    applies only when it can be supported in audit.
+                    {PHONE_FAQ.portion}
+                    <CRACite id={2} /> {PHONE_FAQ.airtime}
+                    <CRACite id={7} />. {PHONE_FAQ.noPercentage}
                   </p>
                 </div>
                 <div>

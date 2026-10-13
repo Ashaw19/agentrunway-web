@@ -287,9 +287,10 @@ export default function AverageCommissionMetricPage() {
                 <div className="flex items-start gap-3">
                   <span className="text-lg leading-none">💡</span>
                   <p className="text-sm leading-relaxed text-amber-900">
-                    <strong>Key insight:</strong> Moving upmarket by even $100k in average sale
-                    price can reduce the number of deals you need to close by 20–30% to hit the
-                    same income goal. Average commission is a powerful lever on your workload.
+                    <strong>Worked example:</strong> at 2.5%, a $360k average sale price is
+                    $9,000 a deal and a $460k average is $11,500. A $180,000 GCI goal takes 20
+                    deals at the first and 16 at the second. Average commission changes the
+                    workload behind the same goal.
                   </p>
                 </div>
               </div>

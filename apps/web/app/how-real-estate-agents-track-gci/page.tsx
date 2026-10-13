@@ -368,7 +368,7 @@ export default function HowRealEstateAgentsTrackGCIPage() {
                     icon: Activity,
                     color: "bg-violet-500/10 text-violet-600",
                     title: "Pipeline forecasting with weighted probability",
-                    body: "Closed deals represent certainty; active pipeline represents probability. Top agents apply close probabilities to in-progress deals — a listing with a firm accepted offer is near 100%, while a buyer showing early interest might be 20–30%. Weighted pipeline added to year-to-date GCI gives a much sharper year-end estimate.",
+                    body: "Closed deals represent certainty; active pipeline represents probability. Applying a close probability to each in-progress deal turns the pipeline into a number. As an illustration, a listing with a firm accepted offer might be counted near 100% and a buyer showing early interest at 20–30%. Weighted pipeline added to year-to-date GCI gives a much sharper year-end estimate.",
                   },
                   {
                     icon: BarChart3,

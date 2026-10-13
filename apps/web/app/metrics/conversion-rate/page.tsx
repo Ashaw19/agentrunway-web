@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowRight, ArrowUpRight, Users, CheckCircle2, XCircle, TrendingDown } from "lucide-react";
+import { ArrowRight, ArrowUpRight, Users, CheckCircle2, TrendingDown } from "lucide-react";
 import { MarketingNav } from "@/components/marketing-nav";
 import { MarketingFooter } from "@/components/marketing-footer";
 import { definedTermSchema, breadcrumbSchema } from "@/lib/schema";
@@ -69,8 +69,8 @@ export default function ConversionRateMetricPage() {
             {/* Key stat pills */}
             <div className="mt-10 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
               {[
-                { value: "20–40%", label: "healthy lead-to-client rate (referrals)" },
-                { value: "70–85%", label: "strong client-to-close rate" },
+                { value: "2 rates", label: "lead-to-client and client-to-close" },
+                { value: "23%", label: "lead-to-close in the worked example below" },
                 { value: "80 leads", label: "needed at 25% rate to close 20 deals" },
               ].map((s) => (
                 <div
@@ -109,7 +109,7 @@ export default function ConversionRateMetricPage() {
                     The % of qualified leads or referrals that become signed buyer or listing clients.
                   </p>
                   <div className="mt-3 rounded-lg bg-white border border-blue-100 px-3 py-2 text-xs font-medium text-blue-700">
-                    Healthy range: 20–40%
+                    In the worked example below: 30%
                   </div>
                 </div>
                 <div className="rounded-xl border border-purple-200 bg-purple-50 p-5">
@@ -121,7 +121,7 @@ export default function ConversionRateMetricPage() {
                     The % of active clients that result in a completed, commission-generating transaction.
                   </p>
                   <div className="mt-3 rounded-lg bg-white border border-purple-100 px-3 py-2 text-xs font-medium text-purple-700">
-                    Strong range: 70–85%
+                    In the worked example below: 78%
                   </div>
                 </div>
               </div>
@@ -217,34 +217,31 @@ export default function ConversionRateMetricPage() {
               </div>
             </div>
 
-            {/* 3. Benchmarks */}
+            {/* 3. What to compare a rate against. No ranges: none had a source. */}
             <div>
               <h2 className="text-2xl font-bold tracking-tight text-slate-900">What is a good conversion rate?</h2>
               <p className="mt-4 leading-relaxed text-slate-600">
-                Benchmarks vary by market and lead source. As a general reference for Canadian agents:
+                This page gives no range to aim for. Agent Runway has found no published Canadian
+                figure for an individual agent&apos;s conversion rate, and a rate depends on how a
+                lead is counted and where it came from. The comparison that holds up is your own
+                rate against your own earlier periods.
               </p>
 
               <div className="mt-5 overflow-hidden rounded-2xl border border-slate-200">
                 {[
                   {
-                    metric: "Lead-to-client (referrals/organic)",
-                    healthy: "20–40%",
-                    warning: "Below 15%",
-                    note: "Paid lead sources typically convert lower than referrals",
+                    metric: "Lead-to-client",
+                    note: "Track referrals and paid leads as separate rates. Blended into one number, a change in either source is hidden.",
                     color: "bg-blue-50",
                   },
                   {
                     metric: "Client-to-close",
-                    healthy: "70–85%",
-                    warning: "Below 60%",
-                    note: "Low rates often signal pricing misalignment or financing issues",
+                    note: "Compare a quarter with the same quarter a year earlier, so a seasonal swing is not read as a trend.",
                     color: "bg-purple-50",
                   },
                   {
                     metric: "Overall lead-to-close",
-                    healthy: "15–30%",
-                    warning: "Below 10%",
-                    note: "Combined product of both rates above",
+                    note: "The two rates above multiplied together. In the worked example, 30% × 78% = 23%.",
                     color: "bg-emerald-50",
                   },
                 ].map((row) => (
@@ -253,17 +250,7 @@ export default function ConversionRateMetricPage() {
                     className={`border-t border-slate-100 first:border-t-0 px-5 py-4 ${row.color}`}
                   >
                     <div className="text-sm font-semibold text-slate-900">{row.metric}</div>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-800">
-                        <CheckCircle2 className="h-3 w-3" />
-                        Healthy: {row.healthy}
-                      </span>
-                      <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-3 py-1 text-xs font-semibold text-red-800">
-                        <XCircle className="h-3 w-3" />
-                        Warning: {row.warning}
-                      </span>
-                    </div>
-                    <p className="mt-2 text-xs text-slate-500">{row.note}</p>
+                    <p className="mt-2 text-xs text-slate-600">{row.note}</p>
                   </div>
                 ))}
               </div>

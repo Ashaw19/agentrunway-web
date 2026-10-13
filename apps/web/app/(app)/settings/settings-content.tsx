@@ -1494,7 +1494,7 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
                     <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">%</span>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    85% solo (REAL keeps 15%); typically 70% on a team (leader override).
+                    85% solo (REAL keeps 15%). Lower on a team with a leader override: 70%, for example.
                   </p>
                 </div>
                 <div className="grid gap-1.5">
@@ -1504,7 +1504,7 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
                     <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">%</span>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    100% solo; typically 80% on a team. REAL charges flat fees per deal after cap.
+                    100% solo. Lower on a team where the override continues: 80%, for example. REAL charges flat fees per deal after cap.
                   </p>
                 </div>
               </div>
