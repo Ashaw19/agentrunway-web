@@ -31,7 +31,7 @@ import * as Haptics from "expo-haptics";
 import { useDataStore, type ReceiptExpense } from "@/stores/data-store";
 import { supabase } from "@/lib/supabase";
 import { validateExpenseAmount } from "@agent-runway/core/validation/input-guards";
-import { expenseNetOfItc, expenseTaxContext } from "@agent-runway/core/engines/expense-totals-engine";
+import { expenseTaxContext, receiptTotalsToDate } from "@agent-runway/core/engines/expense-totals-engine";
 import {
   useColors,
   useTheme,
@@ -86,7 +86,7 @@ const CATEGORIES: Record<string, string> = {
   other_misc:            "Miscellaneous",
 };
 
-/** Receipt cards shown under "Recent Receipts". The totals use every receipt. */
+/** Receipt cards shown under "Recent Receipts". The totals use every receipt dated this year. */
 const RECENT_RECEIPTS_SHOWN = 50;
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -184,48 +184,20 @@ export default function ScanScreen() {
 
   // ── Expense Summary Metrics ──────────────────────────────────────────────
 
-  // Totals are net of the GST/HST a registrant claims back as input tax
-  // credits (expense-totals-engine), the same figure the web Expenses page
-  // shows. Each receipt card below still shows what was paid.
+  // The three cards are RECEIPT totals: this year's, this month's and how
+  // many. The store loads receipts only, not expense_items or
+  // recurring_expenses, so this screen has no year-to-date expenses to show
+  // (`ytdExpenseTotals`, on the web) and never labels a card as one.
+  // `year.total` is the receipts part of that figure, net of the GST/HST a
+  // registrant claims back as input tax credits. Each receipt card below
+  // still shows what was paid. The store also holds last year's receipts and
+  // undated ones; the engine leaves both out, as the web does.
   const expenseTaxCtx = useMemo(() => expenseTaxContext(settings), [settings]);
 
-  const summaryMetrics = useMemo(() => {
-    const now = new Date();
-    const currentYear = now.getFullYear();
-    const currentMonth = now.getMonth();
-
-    let ytdTotal = 0;
-    let monthTotal = 0;
-    // This year's receipts, like the two totals beside it. The store also
-    // holds last year's (it loads every receipt, not the last 50).
-    let totalCount = 0;
-
-    receipts.forEach((r) => {
-      const amt = expenseNetOfItc(r.total_amount, r.tax_amount, r.category_key, expenseTaxCtx).net;
-      if (r.expense_date) {
-        const d = new Date(r.expense_date + "T00:00:00");
-        if (d.getFullYear() === currentYear) {
-          ytdTotal += amt;
-          totalCount += 1;
-          if (d.getMonth() === currentMonth) {
-            monthTotal += amt;
-          }
-        }
-      } else {
-        // If no date, count towards YTD based on created_at
-        const created = new Date(r.created_at);
-        if (created.getFullYear() === currentYear) {
-          ytdTotal += amt;
-          totalCount += 1;
-          if (created.getMonth() === currentMonth) {
-            monthTotal += amt;
-          }
-        }
-      }
-    });
-
-    return { ytdTotal, monthTotal, totalCount };
-  }, [receipts, expenseTaxCtx]);
+  const summaryMetrics = useMemo(
+    () => receiptTotalsToDate(receipts, expenseTaxCtx, new Date()),
+    [receipts, expenseTaxCtx],
+  );
 
   useEffect(() => {
     fetchReceipts();
@@ -785,30 +757,29 @@ export default function ScanScreen() {
           <SummaryCard
             icon={<DollarSign size={18} color={c.danger} />}
             iconBg={c.dangerDim}
-            label="YTD Total"
-            value={fmtCompact(summaryMetrics.ytdTotal)}
+            label="Receipts YTD"
+            value={fmtCompact(summaryMetrics.year.total)}
             valueColor={c.text}
           />
           <SummaryCard
             icon={<TrendingDown size={18} color={c.warning} />}
             iconBg={c.warningDim}
             label="This Month"
-            value={fmtCompact(summaryMetrics.monthTotal)}
+            value={fmtCompact(summaryMetrics.month.total)}
             valueColor={c.text}
           />
           <SummaryCard
             icon={<Hash size={18} color={c.primary} />}
             iconBg={c.primaryDim}
             label="Receipts"
-            value={String(summaryMetrics.totalCount)}
+            value={String(summaryMetrics.yearCount)}
             valueColor={c.text}
           />
         </View>
-        {expenseTaxCtx.gstHstRegistered && (
-          <Text style={{ ...Type.caption, color: c.textDim, marginTop: -Space.md, marginBottom: Space.xl }}>
-            Totals are net of the GST/HST claimed as input tax credits.
-          </Text>
-        )}
+        <Text style={{ ...Type.caption, color: c.textDim, marginTop: -Space.md, marginBottom: Space.xl }}>
+          Receipts dated this year. Recurring expenses and monthly figures are counted in YTD Expenses on the web.
+          {expenseTaxCtx.gstHstRegistered ? " Totals are net of the GST/HST claimed as input tax credits." : ""}
+        </Text>
 
         {/* ── Scan Buttons ── */}
         <View style={{ flexDirection: "row", gap: Space.md, marginBottom: Space.xxl }}>
@@ -875,7 +846,7 @@ export default function ScanScreen() {
               {receipts.slice(0, RECENT_RECEIPTS_SHOWN).map((r) => <ReceiptCard key={r.id} receipt={r} />)}
               {receipts.length > RECENT_RECEIPTS_SHOWN && (
                 <Text style={{ ...Type.caption, color: c.textDim, textAlign: "center" }}>
-                  Showing your {RECENT_RECEIPTS_SHOWN} most recent receipts. The totals above include all of them. See the full list on the web.
+                  Showing your {RECENT_RECEIPTS_SHOWN} most recent receipts. The totals above count every receipt dated this year. See the full list on the web.
                 </Text>
               )}
             </>

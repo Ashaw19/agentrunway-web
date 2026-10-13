@@ -251,6 +251,61 @@ export function aggregateReceiptTotals(
   return { byKey, uncategorized, total, paid: round2(paid), itc: round2(itc), homeOfficeCosts };
 }
 
+// ── Receipts to date, from a list that holds more than the year ────────────
+//
+// The phone's Expenses screen loads one list (this year's receipts, last
+// year's and the undated ones) and shows three cards above it: "Receipts
+// YTD", "This Month" and a count. Those are RECEIPT figures. The phone does
+// not load `expense_items` or `recurring_expenses`, so it has no year-to-date
+// expenses to show; that is `ytdExpenseTotals`, on the web.
+//
+// Until 2026-10-13 the first card was labelled "YTD Total" and the screen
+// summed the list itself, counting an undated receipt by the day it was
+// captured. On an account with recurring expenses or monthly figures it read
+// lower than "YTD Expenses" on the web under a label that said it was the
+// same thing.
+
+export interface DatedReceiptTotalsRow extends ReceiptTotalsRow {
+  /** `receipt_expenses.expense_date`, YYYY-MM-DD. */
+  expense_date?: string | null;
+}
+
+export interface ReceiptTotalsToDate {
+  /**
+   * Receipts dated on or after Jan 1 of `now`'s year: the rows every web
+   * surface reads for year to date (`.gte("expense_date", "<year>-01-01")`),
+   * so `year.total` is `ytdExpenseTotals(...).receiptYTD` for the same account.
+   */
+  year: ReceiptTotals;
+  /** Of those, the receipts dated in `now`'s month. */
+  month: ReceiptTotals;
+  /** How many receipts `year` is the total of. */
+  yearCount: number;
+}
+
+/**
+ * Receipt totals for the year and the month `now` falls in, net of ITCs.
+ * A receipt with no date is in no year, so it is in neither total and not in
+ * the count, as on the web (where it is listed and totalled nowhere).
+ *
+ * @param now the device's clock on a phone; server callers pass atlanticNoon().
+ */
+export function receiptTotalsToDate(
+  rows: readonly DatedReceiptTotalsRow[] | null | undefined,
+  ctx: ExpenseTaxContext,
+  now: Date,
+): ReceiptTotalsToDate {
+  const yearStart = `${now.getFullYear()}-01-01`;
+  const monthPrefix = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-`;
+  const inYear = (rows ?? []).filter((r) => !!r.expense_date && r.expense_date >= yearStart);
+  const inMonth = inYear.filter((r) => (r.expense_date ?? "").startsWith(monthPrefix));
+  return {
+    year: aggregateReceiptTotals(inYear, ctx),
+    month: aggregateReceiptTotals(inMonth, ctx),
+    yearCount: inYear.length,
+  };
+}
+
 // ── Recurring expenses ─────────────────────────────────────────────────────
 //
 // `amount` is what is charged each time; `hst_amount` is the GST/HST inside
