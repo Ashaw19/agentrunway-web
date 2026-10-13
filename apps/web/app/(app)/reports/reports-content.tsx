@@ -120,6 +120,8 @@ interface Props {
   /** T2125 tab data */
   ccaAssets?: CcaAsset[];
   expenseAmounts?: Record<string, number>;
+  /** Home Office bills by key, in full (before the home office share). */
+  homeOfficeCosts?: Record<string, number>;
   mileageLogs?: { km: number; deduction: number; trip_date: string }[];
   taxYear?: number;
   userId?: string;
@@ -235,6 +237,7 @@ export function ReportsContent({
   uncategorizedReceiptYTD = 0,
   ccaAssets = [],
   expenseAmounts = {},
+  homeOfficeCosts = {},
   mileageLogs = [],
   taxYear,
   userId = "",
@@ -732,6 +735,7 @@ export function ReportsContent({
           settings={settings}
           transactions={transactions.filter((tx) => tx.date.startsWith(String(taxYear ?? new Date().getFullYear())))}
           expenseAmounts={expenseAmounts}
+          homeOfficeCosts={homeOfficeCosts}
           ccaAssets={ccaAssets}
           mileageLogs={mileageLogs}
           taxYear={taxYear ?? new Date().getFullYear()}

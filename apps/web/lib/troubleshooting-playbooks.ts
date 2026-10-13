@@ -368,12 +368,17 @@ What comes off one expense (always the same ITC the GST34 summary claims, via it
 | Meals & entertainment | Half (CRA's 50% ITC limit) | Amount before GST/HST plus the other half; the 50% deduction limit then applies to that |
 | Vehicle, business use over 10% | All of it: the business share is the ITC, the personal share is a personal cost | Amount before GST/HST; the business-use % then applies to that |
 | Vehicle, business use 10% or less | None (no ITC) | Full amount paid |
+| Home Office bill, home office % over 10% | All of it: the home office share is the ITC, the rest is a household cost | The home office share of the amount before GST/HST. Nothing else: the household share of the bill is not a business expense |
+| Home Office bill, home office % 10% or less | None (no ITC) | The home office share of the full amount paid |
 | No GST/HST amount entered (tax blank or 0) | None | Full amount paid |
 
 Worked example, 15% HST, $115 paid with $15 HST:
 - Office supplies: counts as $100.
 - Client meal: counts as $107.50; $53.75 is deductible (50%).
 - Fuel at 80% business use: counts as $100; $80 is deductible. The ITC is $12; the other $3 of HST is personal use.
+- Power bill (Home Office) at a 15% home office share: counts as $15.00 and all $15.00 is the line 9945 amount. The ITC is $2.25. Not registered: counts as $17.25.
+
+Home Office bills are the one case where the total is NOT the whole expense. Vehicle costs stay whole in the totals and take their business-use % only in the deductible figures; a home bill counts at the home office share everywhere, because most of it is a household cost.
 
 Recurring expenses work the same way: amount is what is charged, hst_amount is the GST/HST inside it, and the vehicle toggle applies the vehicle rule.
 
@@ -396,7 +401,7 @@ Source of truth: packages/core/engines/t2125-engine.ts (CATEGORY_MAPPINGS). Mirr
 | 9270 | Other Expenses | Business gifts, courses & coaching, conferences, books & materials, misc catch-all |
 | 9281 → CCA Class 10/10.1 | Vehicle CCA | Tracked separately on the CCA schedule, not in 9281 above |
 | 9936 | Total CCA | Sum of all CCA classes |
-| 9945 | Business-Use-of-Home | Actual-cost method only (Canada has no IRS-style $5/sqft) |
+| 9945 | Business-Use-of-Home | Actual-cost method only (Canada has no IRS-style $5/sqft). Fed by the Home Office expense category (home_utilities, home_internet, home_insurance, home_maintenance, home_property_tax, home_mortgage_interest, home_rent, home_condo_fees) and/or the home office estimates, × home office %. Never part of 9369 |
 | 8200 | Gross Commission Income | Reported revenue line |
 | 9369 | Total Expenses | Sum of expense lines (engine variable: line9369_totalExpenses) |
 | 8270 | Net Business Income | 8200 − 9369 − 9936 − 9945 |
@@ -1080,6 +1085,19 @@ All figures are a snapshot of the REAL income deck and are user-editable — if 
 - Business-use % = office area ÷ total home area
 - Deduction = (sum of annualized actual costs) × business-use %
 - Eligibility: principal place of business OR used exclusively and regularly to meet clients
+- Real bills instead of estimates (since 2026-10-13): the Expenses page has a **Home Office** category (Electricity, Heat & Water; Home Internet; Home Insurance; Repairs & Maintenance; Property Tax; Mortgage Interest; Rent; Condo Fees). Each bill is logged for its FULL amount like any receipt. For each kind of cost, bills logged this year REPLACE the estimate above (never added to it); the T2125 tab says so under that field ("Using $X from the bills you logged under Home Office"). Mortgage interest and rent share the "rent or mortgage interest" cost; home internet counts with utilities.
+- The business-use % can be set in either place: the Home Office category on the Expenses page ("Home office share") or the T2125 tab. Same setting (home_office_business_use_pct).
+- In every expense total a Home Office bill counts at that share only (expense-totals-engine.ts), so logging a $300 power bill at 15% adds $45 to YTD Expenses, not $300. The receipt log still shows $300.
+- Home Office rows have no "/mo" box on the Expenses page: home bills vary, so each one is logged. A home cost that really is the same every month can go in the Recurring Expenses list under a Home Office item; it counts at the share too.
+- CRA (T4002, business-use-of-home expenses): mortgage interest counts, principal does not; these expenses cannot create or increase a business loss and the unused part carries forward to the next year. Agent Runway does not track the carry-forward.
+
+**"I logged my power bill and my expenses barely moved" / "Home Office shows $0"**
+1. Expected: only the home office share of a home bill counts. Check home_office_business_use_pct.
+2. If it is 0, home bills count for $0 and the Home Office category shows "Set your home office %". Point them to Expenses → Home Office → "Home office share".
+3. The row shows the share, with "of $X in bills" under it for the full bills.
+
+**"Why is the HST on my power bill not all in my ITCs?"**
+→ GST34 line 107 takes off the household share: the ITC on a home bill is the home office share of its GST/HST (10% or less = none, 90% or more = all). The line 107 note says "personal-use share of home bill ITCs (business use of home N%)". Rent, mortgage interest, property tax, home insurance and condo fees normally have no GST/HST to claim.
 
 ### GST/HST Registration
 - Toggle: registered or not

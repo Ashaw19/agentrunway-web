@@ -176,6 +176,8 @@ export interface UserSettings {
    */
   gst_hst_registered: boolean | null;
   vehicle_business_use_pct: number | null;
+  /** Workspace share of the home: what a Home Office bill counts for. */
+  home_office_business_use_pct: number | null;
   /**
    * AI Voice & Identity blobs. Defined in
    * `packages/core/types/database.ts`. Mobile reads them through the
@@ -453,7 +455,9 @@ interface DataStore {
 //   users repopulate `settings` from the broader `select()` in `fetchAll`.
 // v5 (2026-10-13): added `gst_hst_registered` + `vehicle_business_use_pct` on
 //   `settings` so expense totals are net of ITCs for registrants, as on web.
-const CACHE_VERSION = 5;
+// v6 (2026-10-13): added `home_office_business_use_pct` on `settings` so a
+//   Home Office bill counts at the workspace share, as on web.
+const CACHE_VERSION = 6;
 const CACHE_KEY = "data_store_cache";
 const CACHE_VERSION_KEY = "data_store_cache_version";
 
@@ -641,7 +645,9 @@ export const useDataStore = create<DataStore>((set, get) => {
                   // returning users repopulate from the wider select.
                   // 2026-10-13: gst_hst_registered, vehicle_business_use_pct
                   // (expense totals net of ITCs). CACHE_VERSION 5.
-                  "user_id, display_name, avatar_url, goal_gci, goal_transactions, split_preset, province, experience_years, subscription_tier, cash_reserve, growth_goal_year_pcts, monthly_brokerage_fee, gst_hst_registered, vehicle_business_use_pct, runway_score_snapshot, communication_profile, business_identity, agent_goals, ai_voice_guide"
+                  // 2026-10-13: home_office_business_use_pct (Home Office
+                  // bills count at the workspace share). CACHE_VERSION 6.
+                  "user_id, display_name, avatar_url, goal_gci, goal_transactions, split_preset, province, experience_years, subscription_tier, cash_reserve, growth_goal_year_pcts, monthly_brokerage_fee, gst_hst_registered, vehicle_business_use_pct, home_office_business_use_pct, runway_score_snapshot, communication_profile, business_identity, agent_goals, ai_voice_guide"
                 )
                 .eq("user_id", user.id)
                 .single(),

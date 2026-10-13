@@ -276,7 +276,7 @@ export async function buildDiagnostics(
   // Math.max(receipts, legacy monthly × months elapsed) + recurring_expenses YTD).
   // Receipts and recurring are net of the GST/HST a registrant claims back as
   // ITCs (expense-totals-engine).
-  const taxCtx = expenseTaxContext(settings as Pick<CanonicalUserSettings, "gst_hst_registered" | "vehicle_business_use_pct">);
+  const taxCtx = expenseTaxContext(settings as Pick<CanonicalUserSettings, "gst_hst_registered" | "vehicle_business_use_pct" | "home_office_business_use_pct">);
   let legacyMonthlyRecurring = 0;
   for (const cat of expenses) {
     for (const item of cat.expense_items ?? []) {

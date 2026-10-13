@@ -75,6 +75,14 @@ const CATEGORIES: Record<string, string> = {
   meals_team:            "Team Meals",
   ent_client:            "Client Entertainment",
   ent_events:            "Events & Tickets",
+  home_utilities:        "Home: Electricity, Heat & Water",
+  home_internet:         "Home: Internet",
+  home_insurance:        "Home: Insurance",
+  home_maintenance:      "Home: Repairs & Maintenance",
+  home_property_tax:     "Home: Property Tax",
+  home_mortgage_interest: "Home: Mortgage Interest",
+  home_rent:             "Home: Rent",
+  home_condo_fees:       "Home: Condo Fees",
   other_misc:            "Miscellaneous",
 };
 
