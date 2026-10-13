@@ -185,6 +185,7 @@ import { useVoiceDraft } from "@/lib/voice/voice-draft-context";
 import type { VoiceDraft } from "@/lib/voice/types";
 import { toast } from "sonner";
 import { markMemoryStaleClient } from "@/lib/ai/mark-memory-stale";
+import { dealFieldFeedsMemory } from "@/lib/ai/client-memory-deals";
 import { CompleteItemDialog } from "@/components/checklist/complete-item-dialog";
 import { AddToChecklistButton } from "@/components/checklist/add-to-checklist-button";
 import { validateClient, FIELD_LIMITS } from "@agent-runway/core/validation/input-guards";
@@ -2098,6 +2099,10 @@ export function ClientsContent({
           prev.map((r) => (r.id === recordId ? { ...r, [field]: prevValue } : r)),
         );
         toast.error("Failed to save changes");
+      } else if (prevRecord?.client_id && dealFieldFeedsMemory(field)) {
+        // The memory profile reads this field: a deal marked Collapsed is no
+        // longer one of the client's closed deals. Outdate the stored profile.
+        markMemoryStaleClient(prevRecord.client_id);
       }
     },
     [localRecords, userId],

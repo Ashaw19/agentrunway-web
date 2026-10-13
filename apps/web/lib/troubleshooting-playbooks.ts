@@ -851,7 +851,7 @@ Flight Control also includes a newsletter builder for mass updates (market repor
 
 **"Log Activity says Failed to log activity"**
 → From 2026-04-12 to 2026-10-06 every activity save failed because of a database bug, fixed 2026-10-06. If it still fails, the browser console shows the cause, logged under "[crm] contact_activities insert failed".
-4. Memory-powered cards need a current memory profile: CRM, open the client, Flight Crew tab, "What Agent Runway remembers", Build profile / Refresh. Editing the client marks the profile outdated until it is refreshed.
+4. Memory-powered cards need a current memory profile: CRM, open the client, Flight Crew tab, "What Agent Runway remembers", Build profile / Refresh. Editing the client marks the profile outdated until it is refreshed. So does changing a deal's status in Deal History (to Collapsed, for example).
 
 **"How do I get leads from my website into Agent Runway?"**
 → Settings → Website leads → Connect my website. Copy the key (it's shown once) and add it to your website's settings as AGENT_RUNWAY_INBOUND_KEY. From then on each sign-up, message and unsubscribe arrives as it happens: new people as clients tagged Website, what they did as a note on their Activity tab, and the ones worth a call on your Checklist. The card shows when the last event arrived. Making a new key replaces the old one, so the website stops sending until the new key is pasted in.
@@ -870,6 +870,9 @@ Flight Control also includes a newsletter builder for mass updates (market repor
 
 **"Who do I send the newsletter to?" / "Why are some past clients listed under Recipients?"**
 → Agent Runway doesn't build or send to a recipient list. The agent pastes their own list into their email tool's To or BCC field. The Recipients note lists past clients whose last deal closed more than 2 years ago: under CASL, implied consent from a purchase lasts 2 years, so it no longer covers them. Agent Runway doesn't record express consent, so it can't tell who else has given it. This is general information about the rule, not legal advice.
+
+**"What Agent Runway remembers says my client bought (or sold) a home, but that deal fell through"**
+→ The memory profile counts every deal in the client's Deal History as closed unless its status is Collapsed. Client profile, Deals tab, Deal History: set that deal's status to Collapsed. The profile is marked outdated; Flight Crew tab, "What Agent Runway remembers", Refresh rebuilds it. A Collapsed deal is remembered as one that fell through (useful context for the next conversation), never as a purchase or sale, and its GCI is left out. Before 2026-10-13 the profile listed collapsed deals as closed.
 
 **"Ask for Referral / Request Review says 'No closed deal on record for this client'"**
 → Both are written around the client's most recent closed deal. A collapsed deal doesn't count, and neither does one whose close date hasn't arrived yet. Add the closed deal to the client's record (or link the existing deal to them), then click again. For a client who hasn't bought or sold with the agent, Check In is the better fit. If Flight Control already drafted one for that deal (it drafts review requests about 3 weeks after closing and referral asks about 6 weeks after), clicking doesn't make a second copy: the existing draft is waiting in Flight Control.
