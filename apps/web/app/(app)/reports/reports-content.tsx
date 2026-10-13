@@ -61,7 +61,6 @@ import {
   type Transaction,
   type PipelineDeal,
   type UserSettings,
-  type ExpenseCategoryWithItems,
   type HistoryItem,
   type ListingAppointment,
 } from "@/lib/types/database";
@@ -95,7 +94,6 @@ import { compare, COHORT_LABELS } from "@/lib/engines/benchmark-engine";
 import { calculateCorporateTax } from "@/lib/engines/corporate-tax-engine";
 import { survivalResult, riskColorBand, type RiskLevel, type RiskColorBand } from "@/lib/engines/survival-engine";
 import { computeEffectiveCashForSurvival, computePipelineMonthlyIncome } from "@/lib/engines/effective-cash";
-import { remainingYearExpenses } from "@agent-runway/core/engines/expense-totals-engine";
 import {
   compute as computeRunwayScore,
 } from "@/lib/engines/runway-score-engine";
@@ -114,15 +112,17 @@ interface Props {
   transactions: Transaction[];
   pipelineDeals: PipelineDeal[];
   listingAppointments?: ListingAppointment[];
-  expenseCategories: ExpenseCategoryWithItems[];
   isPro?: boolean;
   historyItems?: HistoryItem[];
-  receiptTotalsByKey?: Record<string, number>;
-  /** Current-year receipts with a NULL category_key — excluded from the per-key map. */
-  uncategorizedReceiptYTD?: number;
+  /** Year-to-date expenses: ytdExpenseTotals(...).expensesYTD, the Expenses page's total. */
+  expensesYTD?: number;
+  /** Expected each month: ytdExpenseTotals(...).monthlyRecurring. */
+  monthlyRecurring?: number;
+  /** One row per expense category, then what has no category. They add up to the two totals. */
+  expenseRows?: { key: string | null; title: string; ytd: number; monthly: number }[];
   /** T2125 tab data */
   ccaAssets?: CcaAsset[];
-  /** Expenses to date for the T2125 lines: buildT2125Expenses(...).entries. */
+  /** Expenses to date for the T2125 lines: ytdExpenseTotals(...).tracked.entries. */
   t2125Expenses?: T2125ExpenseEntry[];
   /** Home Office bills by key, in full (before the home office share). */
   homeOfficeCosts?: Record<string, number>;
@@ -133,10 +133,8 @@ interface Props {
   userId?: string;
   /** Referral summary for PDF Page 7 */
   referralSummary?: { inboundCount: number; outboundCount: number; feesEarned: number; feesPaid: number };
-  recurringExpMonthly?: number;
-  recurringExpYTD?: number;
-  /** Pre-computed: what the recurring_expenses table is still to charge this year */
-  recurringExpRemaining: number;
+  /** Still to come this year: ytdExpenseTotals(...).expensesRemaining. expensesYTD + this = the year's expenses. */
+  expensesRemaining: number;
 }
 
 // ── buildHealthReport imported from @/lib/engines/health-report ──────────────
@@ -238,11 +236,11 @@ export function ReportsContent({
   transactions,
   pipelineDeals,
   listingAppointments = [],
-  expenseCategories,
   isPro: isPro = false,
   historyItems = [],
-  receiptTotalsByKey = {},
-  uncategorizedReceiptYTD = 0,
+  expensesYTD = 0,
+  monthlyRecurring = 0,
+  expenseRows = [],
   ccaAssets = [],
   t2125Expenses = [],
   homeOfficeCosts = {},
@@ -251,9 +249,7 @@ export function ReportsContent({
   taxYear,
   userId = "",
   referralSummary,
-  recurringExpMonthly = 0,
-  recurringExpYTD = 0,
-  recurringExpRemaining,
+  expensesRemaining,
 }: Props) {
   const [downloading, setDownloading] = useState(false);
   const [histReportOpen, setHistReportOpen] = useState(false);
@@ -341,30 +337,15 @@ export function ReportsContent({
   const agentNet = planYtd.grossAfterPlan - brokerageFeeYTD;
 
   // ── Expenses ──────────────────────────────────────────────────────────────────
-  // Includes both legacy expense_items.monthly_recurring AND new recurring_expenses table
-  // Per-key totals + the uncategorized remainder. Summing only the per-key map
-  // would silently drop every receipt saved without a category and understate
-  // expensesYTD against the dashboard.
-  const receiptTotal =
-    Object.values(receiptTotalsByKey).reduce((s, v) => s + v, 0) + uncategorizedReceiptYTD;
-  const legacyMonthlyRecurring = expenseCategories.reduce(
-    (sum, cat) => sum + cat.items.reduce((s, i) => s + Number(i.monthly_recurring), 0),
-    0,
-  );
-  const monthlyRecurring = legacyMonthlyRecurring + recurringExpMonthly;
-  // Integer months elapsed (1-12) — matches the dashboard. See
-  // dashboard_metric_divergence_fix_2026-06-26.md.
-  const monthsElapsed = now.getMonth() + 1;
-  const legacyRecurringYTDEstimate = legacyMonthlyRecurring * monthsElapsed;
-  // Receipts and legacy recurring may overlap (same expenses tracked both ways).
-  // Take the higher of the two, then add new-style recurring expenses — matches Forecast page.
-  const expensesYTD = Math.max(receiptTotal, legacyRecurringYTDEstimate) + recurringExpYTD;
+  // `expensesYTD` and `monthlyRecurring` arrive from the page's one engine
+  // call (ytdExpenseTotals, t2125-expenses-engine): receipts, the per-item
+  // monthly figures and the Recurring Expenses list. Nothing here combines
+  // them, so this headline is the Expenses page's and the dashboard's.
   const netPreTax = agentNet - expensesYTD;
   const expenseRatio = ytdGCI > 0 ? (expensesYTD / ytdGCI) * 100 : 0;
 
   // ── Tax ───────────────────────────────────────────────────────────────────────
   // The year's expenses: to date + what is still to come (matches the dashboard).
-  const expensesRemaining = remainingYearExpenses(legacyMonthlyRecurring, recurringExpRemaining, now);
   const annualExpenses = expensesYTD + expensesRemaining;
   const projectedNet = computeProjectedNet(projectedGCI, settings, projectedDeals);
   const netForTax = Math.max(0, projectedNet - annualExpenses);
@@ -440,11 +421,9 @@ export function ReportsContent({
   });
 
   // ── Expense Donut ─────────────────────────────────────────────────────────────
-  const donutData: DonutDataPoint[] = expenseCategories
-    .map((cat) => ({
-      name: cat.title,
-      value: cat.items.reduce((s, i) => s + (receiptTotalsByKey[i.key] ?? 0), 0),
-    }))
+  // The category rows add up to expensesYTD, so the slices do too.
+  const donutData: DonutDataPoint[] = expenseRows
+    .map((row) => ({ name: row.title, value: row.ytd }))
     .filter((d) => d.value > 0);
 
   // ── Advisor Cards ─────────────────────────────────────────────────────────────
@@ -609,9 +588,8 @@ export function ReportsContent({
 
         // Expenses
         expenseRatio,
-        expenseCategories,
+        expenseRows,
         monthlyRecurring,
-        receiptTotalsByKey,
 
         // Projections
         bands,
@@ -1616,21 +1594,14 @@ export function ReportsContent({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {expenseCategories.map((cat) => {
-                    const catYTD = cat.items.reduce(
-                      (s, i) => s + (receiptTotalsByKey[i.key] ?? 0),
-                      0,
-                    );
-                    const catMonthly = cat.items.reduce(
-                      (s, i) => s + Number(i.monthly_recurring),
-                      0,
-                    );
-                    if (catYTD === 0 && catMonthly === 0) return null;
+                  {/* Rows at $0 are hidden; the rest still add up to the Total row. */}
+                  {expenseRows.map((row) => {
+                    if (row.ytd === 0 && row.monthly === 0) return null;
                     return (
-                      <TableRow key={cat.id}>
-                        <TableCell>{cat.title}</TableCell>
-                        <TableCell className="text-right">{fmtCurrency(catYTD)}</TableCell>
-                        <TableCell className="text-right">{fmtCurrency(catMonthly)}</TableCell>
+                      <TableRow key={row.key ?? "unfiled"}>
+                        <TableCell>{row.title}</TableCell>
+                        <TableCell className="text-right">{fmtCurrency(row.ytd)}</TableCell>
+                        <TableCell className="text-right">{fmtCurrency(row.monthly)}</TableCell>
                       </TableRow>
                     );
                   })}

@@ -154,7 +154,7 @@ export function getAnalyticsTools(supabase: SupabaseClient, userId: string): Mcp
         const listingWeighted = computeListingWeightedGCI(listings);
 
         // YTD expenses: the dashboard's `expensesYTD`, net of the GST/HST a
-        // registrant claims as ITCs (ytdExpenseTotals, expense-totals-engine).
+        // registrant claims as ITCs (ytdExpenseTotals, t2125-expenses-engine).
         const ytdExpenses = expenseInputs.totals.expensesYTD;
 
         const goalGCI = settings?.goal_gci ?? 0;

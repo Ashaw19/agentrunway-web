@@ -34,7 +34,7 @@ type Line = Pick<TrackedExpenseLine, "key" | "rawAmount" | "source">;
 const categoryKeys = (categories: readonly ExpenseCategoryRow[] | null | undefined) =>
   (categories ?? []).map((cat) => ({ key: cat.key, items: cat.expense_items ?? [] }));
 
-/** Every expense item of every category: `buildT2125Expenses({ expenseItems })`. */
+/** Every expense item of every category: `ytdExpenseTotals({ expenseItems })`. */
 export function expenseItemsOf(categories: readonly ExpenseCategoryRow[] | null | undefined) {
   return (categories ?? []).flatMap((cat) =>
     (cat.expense_items ?? []).map((item) => ({ key: item.key, monthly_recurring: item.monthly_recurring ?? null })),
@@ -180,7 +180,7 @@ export interface ExpenseCategoryYtd {
 /**
  * The tracked lines by category title, largest first: the Expenses page's
  * category rows. They add up to that page's "YTD Expenses"
- * (`buildT2125Expenses(...).ytdTotal`).
+ * (`ytdExpenseTotals(...).expensesYTD`, the figure every surface shows).
  */
 export function expenseCategoryBreakdown(
   lines: readonly Line[],

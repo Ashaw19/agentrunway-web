@@ -14,14 +14,15 @@ import { ArrowRight, FlaskConical } from "lucide-react";
 import { SidebarNav } from "@/components/sidebar-nav";
 import { MobileNav } from "@/components/mobile-nav";
 import { DashboardContent } from "@/app/(app)/dashboard/dashboard-content";
+import { expenseTaxContext } from "@agent-runway/core/engines/expense-totals-engine";
+import { ytdExpenseTotals } from "@agent-runway/core/engines/t2125-expenses-engine";
+import { atlanticNoon } from "@agent-runway/core/lib/local-date";
 import type {
   Transaction,
   PipelineDeal,
   UserSettings,
   ExpenseCategoryWithItems,
 } from "@/lib/types/database";
-import { expenseTaxContext } from "@agent-runway/core/engines/expense-totals-engine";
-import { buildT2125Expenses } from "@agent-runway/core/engines/t2125-expenses-engine";
 import { deductionTrackingFlags } from "@agent-runway/core/engines/tax-optimization-engine";
 import type { Metadata } from "next";
 
@@ -511,22 +512,27 @@ const DEMO_EXPENSE_CATEGORIES: ExpenseCategoryWithItems[] = [
   },
 ];
 
-// The tax cards ask which expense categories are tracked. Same engine call as
-// the real dashboard page, from the sample monthly figures above (the demo
-// has no receipts or recurring expenses).
-const DEMO_DEDUCTION_TRACKING = deductionTrackingFlags(
-  buildT2125Expenses({
-    receiptTotals: { byKey: {}, uncategorized: 0, homeOfficeCosts: {} },
-    expenseItems: DEMO_EXPENSE_CATEGORIES.flatMap((cat) => cat.items),
-    recurringExpenses: [],
-    ctx: expenseTaxContext(DEMO_SETTINGS),
-  }).lines,
-  DEMO_EXPENSE_CATEGORIES,
-);
-
 // ── Page ──────────────────────────────────────────────────────────────────────
 
+// The sample expenses are monthly figures × months elapsed, so the page is
+// rebuilt daily: without this a static build would hold the month it was
+// deployed in.
+export const revalidate = 86400;
+
 export default function DemoDashboardPage() {
+  // The same engine call as the real dashboard (dashboard/page.tsx), from the
+  // sample monthly figures above (the demo has no receipts or recurring
+  // expenses): year-to-date expenses, the monthly figure, and which expense
+  // categories the tax cards treat as tracked.
+  const demoExpenses = ytdExpenseTotals({
+    receipts: [],
+    recurring: [],
+    expenseItems: DEMO_EXPENSE_CATEGORIES.flatMap((cat) => cat.items),
+    ctx: expenseTaxContext(DEMO_SETTINGS),
+    now: atlanticNoon(),
+  });
+  const demoDeductionTracking = deductionTrackingFlags(demoExpenses.tracked.lines, DEMO_EXPENSE_CATEGORIES);
+
   return (
     <div className="flex h-screen overflow-hidden" data-color-theme="blue">
       {/* Sidebar (same as real app; nav links redirect to /login for unauthenticated visitors) */}
@@ -564,9 +570,10 @@ export default function DemoDashboardPage() {
               transactions={DEMO_TRANSACTIONS}
               pipelineDeals={DEMO_PIPELINE}
               settings={DEMO_SETTINGS}
-              expenseCategories={DEMO_EXPENSE_CATEGORIES}
-              recurringExpRemaining={0}
-              deductionTracking={DEMO_DEDUCTION_TRACKING}
+              expensesYTD={demoExpenses.expensesYTD}
+              monthlyRecurring={demoExpenses.monthlyRecurring}
+              expensesRemaining={demoExpenses.expensesRemaining}
+              deductionTracking={demoDeductionTracking}
               initialDashboardView="standard"
               isPro={true}
               showUpgradeBanner={false}

@@ -21,7 +21,7 @@ import {
   computePipelineMonthlyIncome,
   computeProjectedNetForTax,
 } from "../effective-cash";
-import { ytdExpenseTotals } from "../expense-totals-engine";
+import { ytdExpenseTotals } from "../t2125-expenses-engine";
 import { createTestSettings } from "./test-data";
 import type { RecurringExpense } from "../../types/database";
 
@@ -272,7 +272,7 @@ describe("computeProjectedNetForTax", () => {
     };
     const ctx = { gstHstRegistered: false, vehicleBusinessUsePct: 0.8, homeOfficeBusinessUsePct: 0 };
     const netForTaxOn = (now: Date) => {
-      const t = ytdExpenseTotals({ receipts: [], recurring: [lease], legacyItems: [], ctx, now });
+      const t = ytdExpenseTotals({ receipts: [], recurring: [lease], expenseItems: [], ctx, now });
       return computeProjectedNetForTax({
         projectedGCI: 200_000,
         expensesYTD: t.expensesYTD,

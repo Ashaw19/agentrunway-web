@@ -2,10 +2,7 @@ import type { SupabaseClient } from "npm:@supabase/supabase-js@2";
 import type { McpTool } from "./index.ts";
 import { CANONICAL_TAX_DISCLAIMER_SHORT } from "../lib/constants.ts";
 import { loadExpenseInputs } from "../lib/expense-inputs.ts";
-import {
-  recurringMonthlyEquivalent,
-  recurringYTD,
-} from "../../_shared/core/engines/recurring-expense-engine.ts";
+import { expenseCategoryResolver } from "../../_shared/core/engines/t2125-expenses-engine.ts";
 import { atlanticYear } from "../../_shared/core/lib/local-date.ts";
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -22,13 +19,14 @@ export function getExpenseTools(supabase: SupabaseClient, userId: string): McpTo
   return [
     // ── get_expenses ─────────────────────────────────────────────────────
     // Totals are the dashboard's (lib/expense-inputs.ts → ytdExpenseTotals),
-    // so `total_ytd` equals get_dashboard_kpis' `ytd_expenses`. Until
-    // 2026-10-13 this tool listed `expense_items.ytd_amount`, a column the
-    // app no longer writes: receipts and recurring expenses were missing.
+    // so `total_ytd` equals get_dashboard_kpis' `ytd_expenses`, and the lines
+    // are the engine's own (`totals.tracked.lines`), so they add up to it.
+    // Until 2026-10-13 this tool listed `expense_items.ytd_amount`, a column
+    // the app no longer writes: receipts and recurring expenses were missing.
     {
       name: "get_expenses",
       description:
-        "Returns the agent's YTD business expenses by category and line item (receipts and recurring expenses), plus monthly recurring totals. For a GST/HST registrant the amounts are net of the GST/HST claimed as input tax credits. Home Office bills count at the home office share. ESTIMATE ONLY — not tax advice.",
+        "Returns the agent's YTD business expenses by category and line item (receipts, monthly estimates and recurring expenses), plus monthly recurring totals. For a GST/HST registrant the amounts are net of the GST/HST claimed as input tax credits. Home Office bills count at the home office share. ESTIMATE ONLY — not tax advice.",
       inputSchema: { type: "object", properties: {}, additionalProperties: false },
       annotations: {
         title: "Business Expenses",
@@ -37,72 +35,58 @@ export function getExpenseTools(supabase: SupabaseClient, userId: string): McpTo
         openWorldHint: false,
       },
       handler: async () => {
-        const { taxCtx, today, todayISO, recurringNet, items, totals } =
+        const { taxCtx, today, todayISO, recurring, items, totals } =
           await loadExpenseInputs(supabase, userId);
 
         const itemByKey = new Map(items.map((i) => [i.key, i]));
-        // A receipt or recurring expense is filed under an item key
-        // ("vehicle_fuel") or, on older rows, a category key ("vehicle").
+        // Which category a key sits under is the engine's rule, the one the
+        // web's category tables use (expenseCategoryResolver): the agent's own
+        // item with that key, a category key itself (older rows), or the
+        // seeded category a standard key belongs to when the agent has no
+        // item row for it.
         const categoryTitleByKey = new Map<string, string>();
+        const itemKeysByCategory = new Map<string, { key: string }[]>();
         for (const item of items) {
-          if (item.expense_categories) {
-            categoryTitleByKey.set(item.expense_categories.key, item.expense_categories.title);
-          }
+          if (!item.expense_categories) continue;
+          categoryTitleByKey.set(item.expense_categories.key, item.expense_categories.title);
+          const keys = itemKeysByCategory.get(item.expense_categories.key) ?? [];
+          keys.push({ key: item.key });
+          itemKeysByCategory.set(item.expense_categories.key, keys);
         }
+        const categoryKeyOf = expenseCategoryResolver(
+          [...itemKeysByCategory].map(([key, categoryItems]) => ({ key, items: categoryItems })),
+        );
         const categoryOf = (key: string | null) =>
-          (key && (itemByKey.get(key)?.expense_categories?.title ?? categoryTitleByKey.get(key))) || "Other";
+          categoryTitleByKey.get(categoryKeyOf(key) ?? "") ?? "Other";
 
-        // One line per expense item: this year's receipts filed under it, and
-        // any monthly estimate typed on it (the older way to enter a cost).
-        const lines: ExpenseLine[] = items.map((item) => ({
-          key: item.key,
-          title: item.title,
-          category: item.expense_categories?.title ?? "Other",
-          ytd_amount: totals.receipts.byKey[item.key] ?? 0,
-          monthly_recurring: Number(item.monthly_recurring ?? 0),
-        }));
-
-        // Receipts filed under a key that has no expense item, and receipts
-        // saved with no category at all: both are in the total, so both get
-        // a line.
-        for (const [key, amount] of Object.entries(totals.receipts.byKey)) {
-          if (itemByKey.has(key)) continue;
-          lines.push({ key, title: key, category: categoryOf(key), ytd_amount: amount, monthly_recurring: 0 });
-        }
-        if (totals.receipts.uncategorized > 0) {
-          lines.push({
-            key: null,
-            title: "Uncategorized receipts",
-            category: "Uncategorized",
-            ytd_amount: totals.receipts.uncategorized,
-            monthly_recurring: 0,
-          });
-        }
-
-        // One line per active recurring expense, under its item's category.
-        for (const re of recurringNet) {
-          lines.push({
-            key: re.category_key,
-            title: re.name,
-            category: categoryOf(re.category_key),
-            ytd_amount: recurringYTD(re, today),
-            monthly_recurring: recurringMonthlyEquivalent(re),
-          });
-        }
-
-        // The total takes the larger of receipts and the monthly estimates.
-        // When the estimates are larger, the difference is in the total but
-        // on no line above: list it, so the lines always add up to total_ytd.
-        const estimatesAboveReceipts = totals.legacyRecurringYTDEstimate - totals.receiptYTD;
-        if (estimatesAboveReceipts > 0) {
-          lines.push({
-            key: null,
-            title: "Monthly estimates above receipts",
-            category: "Monthly estimates",
-            ytd_amount: estimatesAboveReceipts,
-            monthly_recurring: 0,
-          });
-        }
+        // The engine's lines, which total_ytd and total_monthly_recurring are
+        // the sums of. Per expense item: this year's receipts filed under it,
+        // or its monthly estimate × months so far where that is larger (the
+        // estimate and the receipts describe the same spending). Then
+        // receipts saved with no category, and each active recurring expense.
+        const recurringName = new Map(recurring.map((re) => [re.id, re.name]));
+        const lines: ExpenseLine[] = totals.tracked.lines.map((line) => {
+          if (line.source === "uncategorized") {
+            return {
+              key: null,
+              title: "Uncategorized receipts",
+              category: "Uncategorized",
+              ytd_amount: line.rawAmount,
+              monthly_recurring: 0,
+            };
+          }
+          const title = line.source === "recurring"
+            ? (recurringName.get(line.recurringId ?? "") ?? "Recurring expense")
+            // A key with no expense item (a category-level key, an item since removed).
+            : (itemByKey.get(line.key ?? "")?.title ?? line.key ?? "Other");
+          return {
+            key: line.key,
+            title,
+            category: categoryOf(line.key),
+            ytd_amount: line.rawAmount,
+            monthly_recurring: line.monthlyAmount,
+          };
+        });
 
         // What the amounts are: a home bill is never "as paid", it counts at
         // the home office share (expense-totals-engine).
@@ -148,14 +132,14 @@ export function getExpenseTools(supabase: SupabaseClient, userId: string): McpTo
               total_ytd: round2(totals.expensesYTD),
               total_monthly_recurring: round2(totals.monthlyRecurring),
               projected_annual_recurring: round2(totals.monthlyRecurring * 12),
-              // How total_ytd is built. The lines below are receipts and
-              // recurring expenses, plus one line for the monthly estimates
-              // when they exceed the receipts.
+              // How total_ytd is built. An expense item's line is its
+              // receipts, or its monthly estimate × months so far where that
+              // is larger; the excess over receipts is listed here.
               ytd_components: {
                 receipts: round2(totals.receiptYTD),
+                monthly_estimates_above_receipts: round2(totals.estimatesAboveReceipts),
                 recurring: round2(totals.recurringYTD),
-                monthly_estimates: round2(totals.legacyRecurringYTDEstimate),
-                formula: "total_ytd = the larger of receipts and monthly_estimates, plus recurring",
+                formula: "total_ytd = receipts + monthly_estimates_above_receipts + recurring. Per expense item, the larger of its receipts and its monthly estimate x months so far counts.",
               },
               by_category: categorySummary,
               all_items: allItems,

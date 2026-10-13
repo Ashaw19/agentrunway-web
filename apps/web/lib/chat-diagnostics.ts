@@ -30,14 +30,8 @@ import {
   computeEffectiveCashForSurvival,
   computeProjectedNetForTax,
 } from "@agent-runway/core/engines/effective-cash";
-import {
-  aggregateReceiptTotals,
-  expenseTaxContext,
-  recurringExpensesNetOfItc,
-  remainingYearExpenses,
-} from "@agent-runway/core/engines/expense-totals-engine";
-import { totalRecurringMonthly, totalRecurringRemaining, totalRecurringYTD } from "@agent-runway/core/engines/recurring-expense-engine";
-import { buildT2125Expenses } from "@agent-runway/core/engines/t2125-expenses-engine";
+import { expenseTaxContext } from "@agent-runway/core/engines/expense-totals-engine";
+import { ytdExpenseTotals, ytdExpensesGstHstIncluded } from "@agent-runway/core/engines/t2125-expenses-engine";
 import { expenseCategoryBreakdown, expenseItemsOf, type ExpenseCategoryYtd } from "@/lib/ai/expense-tax-intel";
 import type { UserSettings as CanonicalUserSettings, RecurringExpense } from "@agent-runway/core/types/database";
 import {
@@ -102,9 +96,11 @@ interface ExpenseCategory {
   // came back undefined.
   key: string;
   title: string;
+  // `ytd_amount` is not read: nothing has written it since receipts replaced
+  // it. The year-to-date figures come from the engine lines.
   expense_items?: {
     key: string;
-    monthly_recurring?: number | string;
+    monthly_recurring?: number | string | null;
   }[];
 }
 
@@ -143,14 +139,16 @@ interface DiagContext {
   monthlyRecurring: number;
   /** Net of the ITCs a GST/HST registrant claims (expense-totals-engine). */
   expensesYTD: number;
-  /** Expenses still to come this year, net the same way (remainingYearExpenses). */
+  /** Expenses still to come this year, net the same way (ytdExpenseTotals). */
   expensesRemaining: number;
-  /** The same expenses as paid, GST/HST included. */
+  /** The same expenses with the GST/HST left in (what a non-registrant would see). */
   expensesPaidYTD: number;
-  /** Tracked expense lines by category, largest first (the Expenses page's category rows). */
+  /**
+   * Tracked expense lines by category, largest first (the Expenses page's
+   * category rows). They add up to `expensesYTD`: it is the sum of the same
+   * lines.
+   */
   expenseCategoryYTD: ExpenseCategoryYtd[];
-  /** What those lines add up to: the Expenses page's "YTD Expenses". */
-  expenseLinesYTD: number;
 }
 
 // ─── Main Diagnostic Builder ──────────────────────────────────────────────────
@@ -213,7 +211,8 @@ export async function buildDiagnostics(
       .from("receipt_expenses")
       .select("category_key, total_amount, tax_amount")
       .eq("user_id", userId)
-      .gte("expense_date", `${currentYear}-01-01`),
+      .gte("expense_date", `${currentYear}-01-01`)
+      .limit(10000),
     supabase
       .from("referrals")
       .select("direction, status, referral_fee_pct, estimated_value, actual_fee_paid")
@@ -232,7 +231,8 @@ export async function buildDiagnostics(
       .from("recurring_expenses")
       .select("*")
       .eq("user_id", userId)
-      .eq("is_active", true),
+      .eq("is_active", true)
+      .limit(10000),
   ]);
 
   if (!settings) return "\n[DIAGNOSTIC: No user settings found — user may not have completed onboarding]";
@@ -281,39 +281,26 @@ export async function buildDiagnostics(
       : [0.25, 0.25, 0.25, 0.25]);
   const engineFraction = seasonalFractionElapsed(engineSeasonalWeights);
 
-  // Compute total YTD expenses and monthly recurring (same formula as dashboard:
-  // Math.max(receipts, legacy monthly × months elapsed) + recurring_expenses YTD).
-  // Receipts and recurring are net of the GST/HST a registrant claims back as
-  // ITCs (expense-totals-engine).
-  const taxCtx = expenseTaxContext(settings as Pick<CanonicalUserSettings, "gst_hst_registered" | "vehicle_business_use_pct" | "home_office_business_use_pct">);
-  let legacyMonthlyRecurring = 0;
-  for (const cat of expenses) {
-    for (const item of cat.expense_items ?? []) {
-      legacyMonthlyRecurring += Number(item.monthly_recurring ?? 0);
-    }
-  }
-  const recurringRowsTyped = (recurringRows ?? []) as RecurringExpense[];
-  const recurringNet = recurringExpensesNetOfItc(recurringRowsTyped, taxCtx);
-  const monthlyRecurring = legacyMonthlyRecurring + totalRecurringMonthly(recurringNet);
-  const receiptTotals = aggregateReceiptTotals(receiptExpenses, taxCtx);
-  const expMonthsElapsed = today.getMonth() + 1; // 1-12, consistent with dashboard engine
-  const legacyRecurringYTDEstimate = legacyMonthlyRecurring * expMonthsElapsed;
-  const expensesYTD = Math.max(receiptTotals.total, legacyRecurringYTDEstimate) + totalRecurringYTD(recurringNet, today);
-  const expensesRemaining = remainingYearExpenses(legacyMonthlyRecurring, totalRecurringRemaining(recurringNet, today), today);
-  const expensesPaidYTD = Math.max(receiptTotals.paid, legacyRecurringYTDEstimate) + totalRecurringYTD(recurringRowsTyped, today);
-
-  // Per-category lines for the expense diagnostic: the tracked expense lines
-  // behind the Expenses page and the T2125 (receipts, the per-item monthly
-  // figure, the Recurring Expenses list). Until 2026-10-13 they were sums of
-  // expense_items.ytd_amount, a column the app stopped writing, so they
-  // contradicted the total above.
-  const trackedExpenses = buildT2125Expenses({
-    receiptTotals,
+  // Year-to-date expenses and the monthly figure: the dashboard's one engine
+  // call (ytdExpenseTotals, t2125-expenses-engine). Receipts, the per-item
+  // monthly figures and the Recurring Expenses list, net of the GST/HST a
+  // registrant claims back as ITCs. Nothing here combines them.
+  const expenseInputs = {
+    receipts: receiptExpenses,
+    recurring: (recurringRows ?? []) as RecurringExpense[],
     expenseItems: expenseItemsOf(expenses),
-    recurringExpenses: recurringRowsTyped,
-    ctx: taxCtx,
+    ctx: expenseTaxContext(settings as Pick<CanonicalUserSettings, "gst_hst_registered" | "vehicle_business_use_pct" | "home_office_business_use_pct">),
     now: today,
-  });
+  };
+  const expenseTotals = ytdExpenseTotals(expenseInputs);
+  const { expensesYTD, monthlyRecurring, expensesRemaining } = expenseTotals;
+  const expensesPaidYTD = ytdExpensesGstHstIncluded(expenseInputs);
+
+  // Per-category lines for the expense diagnostic: the lines that total is
+  // the sum of (receipts, the per-item monthly figure, the Recurring Expenses
+  // list). Until 2026-10-13 they were sums of expense_items.ytd_amount, a
+  // column the app stopped writing, so they contradicted the total above.
+  const trackedExpenses = expenseTotals.tracked;
 
   const ctx: DiagContext = {
     settings: s,
@@ -332,7 +319,6 @@ export async function buildDiagnostics(
     expensesRemaining,
     expensesPaidYTD,
     expenseCategoryYTD: expenseCategoryBreakdown(trackedExpenses.lines, expenses),
-    expenseLinesYTD: trackedExpenses.ytdTotal,
   };
 
   const diagnosticParts: string[] = [];
@@ -565,7 +551,7 @@ ${stageLines || "  (empty pipeline)"}`;
  * v1.2: 35 when GCI > 0 but no expenses (not 50).
  */
 function diagExpenses(ctx: DiagContext): string {
-  const { ytdGCI, expensesYTD, expensesPaidYTD, monthlyRecurring, expenseCategoryYTD, expenseLinesYTD } = ctx;
+  const { ytdGCI, expensesYTD, expensesPaidYTD, monthlyRecurring, expenseCategoryYTD } = ctx;
 
   const ratio = ytdGCI > 0 ? (expensesYTD / ytdGCI) * 100 : 0;
 
@@ -602,18 +588,10 @@ function diagExpenses(ctx: DiagContext): string {
     .map((c) => `  ${c.name}: YTD ${fmtCurrency(c.ytd)}`)
     .join("\n");
 
-  // The category lines are the Expenses page's: per expense item, the larger
-  // of its receipts and its monthly figure. YTD Expenses above is the
-  // dashboard's: the larger of ALL receipts and ALL monthly figures. They are
-  // the same number unless monthly figures are typed on expense items.
-  const linesNote = Math.abs(expenseLinesYTD - expensesYTD) >= 0.01
-    ? `\nCategory lines add up to ${fmtCurrency(expenseLinesYTD)} (the Expenses page's YTD Expenses: per expense item, the larger of its receipts and its monthly figure x months elapsed, plus recurring expenses to date). YTD Expenses above (the dashboard's) takes the larger of all receipts and all monthly figures, plus recurring. The two differ only when monthly figures are typed on expense items.`
-    : "";
-
   // Registrant: totals are net of the GST/HST claimed as ITCs. Say so, with
   // the amount paid, so the gap to the user's receipts can be explained.
   const basisLine = ctx.settings.gst_hst_registered
-    ? `\nBasis: GST/HST registrant. Expense totals are net of the GST/HST claimed as input tax credits on the GST34 (CRA T4002 ch. 3). Amount paid including GST/HST: ${fmtCurrency(expensesPaidYTD)}. Receipts with no GST/HST amount recorded count in full.`
+    ? `\nBasis: GST/HST registrant. Expense totals are net of the GST/HST claimed as input tax credits on the GST34 (CRA T4002 ch. 3). The same expenses with GST/HST included: ${fmtCurrency(expensesPaidYTD)}. Receipts with no GST/HST amount recorded count in full.`
     : `\nBasis: not a GST/HST registrant. Expense totals are the amounts paid, GST/HST included (no input tax credits to claim).`;
 
   return `[EXPENSE DIAGNOSTIC]
@@ -622,8 +600,8 @@ Monthly Recurring: ${fmtCurrency(monthlyRecurring)}
 Expense Ratio: ${ratio.toFixed(1)}% (ratio bucket: ${ratioBucket})
 Expense Sub-Score: ${expenseScore}/100
 YTD GCI (denominator): ${fmtCurrency(ytdGCI)}
-Top Categories (year to date; receipts, monthly figures and recurring expenses included):
-${catLines || "  (no expenses logged)"}${linesNote}`;
+Top Categories (year to date; receipts, monthly figures and recurring expenses included; with any others they add up to YTD Expenses above):
+${catLines || "  (no expenses logged)"}`;
 }
 
 /**

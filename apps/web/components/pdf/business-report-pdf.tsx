@@ -29,7 +29,6 @@ import {
   computeGCI,
   PROVINCE_LABELS,
   type Transaction,
-  type ExpenseCategoryWithItems,
 } from "@/lib/types/database";
 import type { BenchmarkResult } from "@/lib/engines/benchmark-engine";
 import { riskColorBand, type SurvivalResult, type RiskLevel, type RiskColorBand } from "@/lib/engines/survival-engine";
@@ -1179,9 +1178,13 @@ export interface BusinessReportPDFProps {
 
   // Expenses
   expenseRatio: number;
-  expenseCategories: ExpenseCategoryWithItems[];
+  /**
+   * One row per expense category, then what has no category: the Reports
+   * page's "Expenses by Category" rows (lib/expenses/category-lines). They
+   * add up to `expensesYTD` and `monthlyRecurring`.
+   */
+  expenseRows: { key: string | null; title: string; ytd: number; monthly: number }[];
   monthlyRecurring: number;
-  receiptTotalsByKey: Record<string, number>;
 
   // Projections
   bands: { p10: number; p25: number; p50: number; p75: number; p90: number };
@@ -1243,9 +1246,8 @@ export function BusinessReportPDF({
   gstHstCollectedYTD,
   gstHstLabel,
   expenseRatio,
-  expenseCategories,
+  expenseRows,
   monthlyRecurring,
-  receiptTotalsByKey,
   bands,
   monthlyData,
   benchmark,
@@ -1268,14 +1270,9 @@ export function BusinessReportPDF({
   // Max GCI for bar chart scaling
   const maxMonthlyGCI = Math.max(...monthlyData.map((m) => m.gci), 1);
 
-  // Expense categories with receipt totals (non-zero only)
-  const filteredExpenses = expenseCategories
-    .map((cat) => ({
-      ...cat,
-      receiptYTD: cat.items.reduce((s, i) => s + (receiptTotalsByKey[i.key] ?? 0), 0),
-      catMonthly: cat.items.reduce((s, i) => s + Number(i.monthly_recurring), 0),
-    }))
-    .filter((cat) => cat.receiptYTD > 0 || cat.catMonthly > 0);
+  // Expense categories with an amount. The hidden rows are all $0, so the
+  // ones shown still add up to the Total row.
+  const filteredExpenses = expenseRows.filter((row) => row.ytd > 0 || row.monthly > 0);
 
   // Probability bands helpers
   const p90 = bands.p90 > 0 ? bands.p90 : 1;
@@ -1671,38 +1668,38 @@ export function BusinessReportPDF({
           color={expenseRatio <= 30 ? C.emerald : expenseRatio <= 40 ? C.amber : C.rose}
         />
 
-        {/* Category table with receipt totals */}
+        {/* Category table: the rows add up to the Total row */}
         {filteredExpenses.length > 0 ? (
           <View style={s.table}>
             <View style={s.tHead}>
               <Text style={[s.tHeadCell, { flex: 2 }]}>Category</Text>
-              <Text style={[s.tHeadCell, s.tHeadRight, { flex: 1.5 }]}>YTD (Receipts)</Text>
+              <Text style={[s.tHeadCell, s.tHeadRight, { flex: 1.5 }]}>YTD</Text>
               <Text style={[s.tHeadCell, s.tHeadRight, { flex: 1 }]}>Monthly Recurring</Text>
               <Text style={[s.tHeadCell, s.tHeadRight, { flex: 1 }]}>% of GCI</Text>
             </View>
             {filteredExpenses.map((cat, idx) => {
-              const pctOfGCI = ytdGCI > 0 ? (cat.receiptYTD / ytdGCI) * 100 : 0;
-              const maxCatYTD = Math.max(...filteredExpenses.map((c) => c.receiptYTD), 1);
+              const pctOfGCI = ytdGCI > 0 ? (cat.ytd / ytdGCI) * 100 : 0;
+              const maxCatYTD = Math.max(...filteredExpenses.map((c) => c.ytd), 1);
               return (
-                <View key={cat.id} style={[s.tRow, idx % 2 === 1 ? s.tRowStripe : {}]}>
+                <View key={cat.key ?? "unfiled"} style={[s.tRow, idx % 2 === 1 ? s.tRowStripe : {}]}>
                   <View style={{ flex: 2 }}>
                     <Text style={s.tCell}>{cat.title}</Text>
-                    {cat.receiptYTD > 0 && (
+                    {cat.ytd > 0 && (
                       <View style={s.miniBarTrack}>
                         <View
                           style={[
                             s.miniBarFill,
-                            { width: `${Math.min(100, (cat.receiptYTD / maxCatYTD) * 100)}%` },
+                            { width: `${Math.min(100, (cat.ytd / maxCatYTD) * 100)}%` },
                           ]}
                         />
                       </View>
                     )}
                   </View>
                   <Text style={[s.tCell, s.tCellRight, { flex: 1.5 }]}>
-                    {fmtCurrency(cat.receiptYTD)}
+                    {fmtCurrency(cat.ytd)}
                   </Text>
                   <Text style={[s.tCell, s.tCellRight, s.tCellMuted, { flex: 1 }]}>
-                    {cat.catMonthly > 0 ? fmtCurrency(cat.catMonthly) : "—"}
+                    {cat.monthly > 0 ? fmtCurrency(cat.monthly) : "—"}
                   </Text>
                   <Text style={[s.tCell, s.tCellRight, { flex: 1 }]}>
                     {pctOfGCI > 0 ? `${pctOfGCI.toFixed(1)}%` : "—"}
@@ -1726,7 +1723,7 @@ export function BusinessReportPDF({
         ) : (
           <View style={[s.assessmentBox, { marginBottom: 16 }]}>
             <Text style={s.assessmentText}>
-              No receipt-based expenses have been logged yet. Track your business expenses in the Expenses section to see a detailed breakdown here.
+              No expenses have been logged yet. Track your business expenses in the Expenses section to see a detailed breakdown here.
             </Text>
           </View>
         )}
