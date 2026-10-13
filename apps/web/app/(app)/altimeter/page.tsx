@@ -90,6 +90,7 @@ export default async function AltimeterPage() {
       isPro={await computeIsPro(supabase, user.id, settings)}
       recurringExpMonthly={expenseTotals.monthlyRecurring}
       expensesYTD={expenseTotals.expensesYTD}
+      expensesRemaining={expenseTotals.expensesRemaining}
     />
   );
 }

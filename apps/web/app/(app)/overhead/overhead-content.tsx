@@ -517,6 +517,8 @@ interface Props {
   pipelineDeals?: PipelineDeal[];
   isPro?: boolean;
   scenarioSeed?: ScenarioSeedData | null;
+  /** Still to come this year: ytdExpenseTotals(...).expensesRemaining. expensesYTD + this = the year's expenses. */
+  expensesRemaining: number;
 }
 
 type OverheadTab = "overview" | "scenarios";
@@ -579,6 +581,7 @@ export function OverheadContent({
   pipelineDeals = [],
   isPro: isPro = false,
   scenarioSeed = null,
+  expensesRemaining,
 }: Props) {
   const [activeTab, setActiveTab] = useState<OverheadTab>("overview");
   const now = new Date();
@@ -628,8 +631,8 @@ export function OverheadContent({
   // monthly figures and the Recurring Expenses list. Nothing here combines
   // them, so this is the dashboard's and the Expenses page's figure.
 
-  const expRemainingMonths = Math.max(0, 12 - (now.getMonth() + 1));
-  const annualExpenses = expensesYTD + monthlyRecurring * expRemainingMonths;
+  // The year's expenses: to date + what is still to come (matches the dashboard).
+  const annualExpenses = expensesYTD + expensesRemaining;
 
   // ── Agent net (after split/fees) — plan-aware (REAL waterfall or legacy) ──
   const ytdPlan = settings

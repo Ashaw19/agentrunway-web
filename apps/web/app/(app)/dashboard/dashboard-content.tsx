@@ -231,6 +231,8 @@ interface Props {
   aiProfilePromptDismissedAt?: string | null;
   activeListings?: ListingAppointment[];
   teamWelcome?: { orgName: string } | null;
+  /** Still to come this year: ytdExpenseTotals(...).expensesRemaining. expensesYTD + this = the year's expenses. */
+  expensesRemaining: number;
   /** ISO timestamp the server loaded this data — drives the freshness line. */
   dataAsOf?: string;
   /** income_goals rows (00169/00170): one goal per calendar year. */
@@ -337,6 +339,7 @@ export function DashboardContent({
   aiProfilePromptDismissedAt = null,
   activeListings,
   teamWelcome = null,
+  expensesRemaining,
   dataAsOf,
   incomeGoals: initialIncomeGoals = [],
 }: Props) {
@@ -657,10 +660,11 @@ export function DashboardContent({
   const pipelineMonthlyEst = fraction > 0 ? pipelineWeightedGCI / remainingMonths : 0;
 
   // ── Tax estimate ──────────────────────────────────────────────────────
-  // Project full-year expenses: actual YTD + remaining months of recurring.
-  // Using expRemainingMonths avoids double-counting recurring costs already in expensesYTD.
-  const expRemainingMonths = Math.max(0, 12 - (now.getMonth() + 1));
-  const annualExpenses = expensesYTD + monthlyRecurring * expRemainingMonths;
+  // Project full-year expenses: actual YTD + what is still to come (the
+  // monthly figures for the months after this one, and the recurring list's
+  // charges after today), so nothing in expensesYTD is counted twice. Both
+  // arrive from the page's one engine call.
+  const annualExpenses = expensesYTD + expensesRemaining;
   // Per-deal tax portion is more useful against projected deal count, not just YTD.
   // Declared BEFORE projectedNet: the plan-aware chain needs it for REAL per-deal fees.
   const projectedDealCount = projectedYearEndTransactions(ytdDealCount, pipelineCount, fraction);

@@ -132,6 +132,7 @@ export default async function ForecastPage() {
       deductionTracking={deductionTracking}
       mileageKmTotal={mileageKmTotal}
       ccaAssetCount={ccaAssetCount}
+      expensesRemaining={expenseTotals.expensesRemaining}
     />
   );
 }

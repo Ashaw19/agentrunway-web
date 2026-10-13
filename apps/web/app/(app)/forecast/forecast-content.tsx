@@ -91,6 +91,8 @@ interface Props {
   deductionTracking: DeductionTrackingFlags;
   mileageKmTotal?: number;
   ccaAssetCount?: number;
+  /** Still to come this year: ytdExpenseTotals(...).expensesRemaining. expensesYTD + this = the year's expenses. */
+  expensesRemaining: number;
 }
 
 export function ForecastContent({
@@ -105,6 +107,7 @@ export function ForecastContent({
   deductionTracking,
   mileageKmTotal = 0,
   ccaAssetCount = 0,
+  expensesRemaining,
 }: Props) {
   // ── Scenario selector (Conservative −15% / Base / Optimistic +15%) ────
   const [scenario, setScenario] = useState<"conservative" | "base" | "optimistic">("base");
@@ -196,9 +199,8 @@ export function ForecastContent({
   // monthly figures and the Recurring Expenses list. Nothing here combines
   // them, so this is the dashboard's and the Expenses page's figure.
   const _now = new Date();
-  // Project full-year: actual YTD + remaining months of recurring
-  const remainingMonths = Math.max(0, 12 - (_now.getMonth() + 1));
-  const annualExpenses = expensesYTD + monthlyRecurring * remainingMonths;
+  // Project full-year: actual YTD + what is still to come (matches the dashboard)
+  const annualExpenses = expensesYTD + expensesRemaining;
 
   // ── Tax estimate ──────────────────────────────────────────────────────
   const netForTax = Math.max(0, projectedNet - annualExpenses);
@@ -267,7 +269,7 @@ export function ForecastContent({
     settings,
     ytdGCI,
     expensesYTD,
-    monthlyRecurring,
+    expensesRemaining,
     projectedGCI,
     projectedDealCount: projectedDeals,
     fraction,
@@ -291,7 +293,7 @@ export function ForecastContent({
     splitPreset: settings.split_preset,
     seasonalWeights,
     expensesYTD,
-    monthlyRecurringExpenses: monthlyRecurring,
+    expensesRemaining,
     projectedYearEndGCI: projectedGCI,
     marketYoYGrowth: settings.market_yoy_growth_pct / 100,
     benchmarkPercentile: benchmark.percentile,

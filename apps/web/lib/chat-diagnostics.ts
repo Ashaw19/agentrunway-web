@@ -139,6 +139,8 @@ interface DiagContext {
   monthlyRecurring: number;
   /** Net of the ITCs a GST/HST registrant claims (expense-totals-engine). */
   expensesYTD: number;
+  /** Expenses still to come this year, net the same way (ytdExpenseTotals). */
+  expensesRemaining: number;
   /** The same expenses with the GST/HST left in (what a non-registrant would see). */
   expensesPaidYTD: number;
   /**
@@ -291,7 +293,7 @@ export async function buildDiagnostics(
     now: today,
   };
   const expenseTotals = ytdExpenseTotals(expenseInputs);
-  const { expensesYTD, monthlyRecurring } = expenseTotals;
+  const { expensesYTD, monthlyRecurring, expensesRemaining } = expenseTotals;
   const expensesPaidYTD = ytdExpensesGstHstIncluded(expenseInputs);
 
   // Per-category lines for the expense diagnostic: the lines that total is
@@ -314,6 +316,7 @@ export async function buildDiagnostics(
     engineFraction,
     monthlyRecurring,
     expensesYTD,
+    expensesRemaining,
     expensesPaidYTD,
     expenseCategoryYTD: expenseCategoryBreakdown(trackedExpenses.lines, expenses),
   };
@@ -401,7 +404,7 @@ function diagRunwayScore(ctx: DiagContext): string {
     settings: s as unknown as CanonicalUserSettings,
     ytdGCI,
     expensesYTD,
-    monthlyRecurring,
+    expensesRemaining: ctx.expensesRemaining,
     projectedGCI: projGCI,
     projectedDealCount: projDeals,
     fraction: engineFraction,
@@ -446,7 +449,7 @@ Weakest: ${weakest.label} (${weakest.score}/100, contributing ${(weakest.score *
  * Shows step-by-step values but all final numbers come from the engine.
  */
 function diagTax(ctx: DiagContext): string {
-  const { settings: s, closedTx, ytdGCI, engineFraction, expensesYTD, monthlyRecurring } = ctx;
+  const { settings: s, closedTx, ytdGCI, engineFraction, expensesYTD } = ctx;
 
   const splitMatch = s.split_preset?.match(/p(\d+)_(\d+)/);
   const agentPct = splitMatch ? Number(splitMatch[1]) / 100 : 1;
@@ -466,7 +469,7 @@ function diagTax(ctx: DiagContext): string {
   const netSEIncome = computeProjectedNetForTax({
     projectedGCI: projGCI,
     expensesYTD,
-    monthlyRecurring,
+    expensesRemaining: ctx.expensesRemaining,
     settings: s as unknown as CanonicalUserSettings,
     now: ctx.today,
   });
@@ -787,7 +790,7 @@ function diagSurvival(ctx: DiagContext): string {
     settings: s as unknown as CanonicalUserSettings,
     ytdGCI,
     expensesYTD,
-    monthlyRecurring,
+    expensesRemaining: ctx.expensesRemaining,
     projectedGCI: projGCIforSurvival,
     projectedDealCount: projDealsForSurvival,
     fraction: engineFraction,

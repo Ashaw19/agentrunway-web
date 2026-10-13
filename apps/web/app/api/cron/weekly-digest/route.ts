@@ -309,7 +309,9 @@ export async function GET(req: NextRequest) {
         .eq("user_id", user.user_id)
         .eq("is_active", true)
         .limit(10000);
-      const { expensesYTD, monthlyRecurring } = ytdExpenseTotals({
+      // `expensesRemaining`: still to come this year. With expensesYTD, the
+      // dashboard's annualExpenses.
+      const { expensesYTD, monthlyRecurring, expensesRemaining } = ytdExpenseTotals({
         receipts: receiptYTDQuery.data,
         recurring: (recurringExpRows ?? []) as RecurringExpense[],
         expenseItems: expenseItemRows,
@@ -342,7 +344,7 @@ export async function GET(req: NextRequest) {
         settings: user as UserSettings,
         ytdGCI,
         expensesYTD,
-        monthlyRecurring,
+        expensesRemaining,
         projectedGCI,
         projectedDealCount,
         fraction,

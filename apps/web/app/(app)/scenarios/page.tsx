@@ -31,6 +31,8 @@ export interface ScenarioSeedData {
   monthlyRecurring: number;
   /** Year-to-date expenses: ytdExpenseTotals(...).expensesYTD (matches dashboard) */
   expensesYTD: number;
+  /** Expenses still to come this year (remainingYearExpenses): with expensesYTD, the year's expenses */
+  expensesRemaining: number;
   /** Monthly brokerage fee from settings */
   monthlyBrokerageFee: number;
   /** Baseline cash for Survival — cashPosition.effectiveCash (matches dashboard/chat).
@@ -126,11 +128,11 @@ export default async function ScenariosPage() {
       0,
     );
 
-    // Year-to-date expenses and the monthly figure: the dashboard's one
-    // engine call (t2125-expenses-engine). Receipts, the per-item monthly
-    // figures and the Recurring Expenses list, net of the ITCs a registrant
-    // claims.
-    const { expensesYTD, monthlyRecurring } = ytdExpenseTotals({
+    // Year-to-date expenses, the monthly figure and what is still to come
+    // this year: the dashboard's one engine call (t2125-expenses-engine).
+    // Receipts, the per-item monthly figures and the Recurring Expenses list,
+    // net of the ITCs a registrant claims.
+    const { expensesYTD, monthlyRecurring, expensesRemaining } = ytdExpenseTotals({
       receipts: receiptResult.data,
       recurring: (recurringExpResult.data ?? []) as RecurringExpense[],
       expenseItems: expItemResult.data,
@@ -152,7 +154,7 @@ export default async function ScenariosPage() {
           settings: settingsRow,
           ytdGCI,
           expensesYTD,
-          monthlyRecurring,
+          expensesRemaining,
           projectedGCI: projectedAnnualGCI,
           projectedDealCount,
           fraction,
@@ -169,6 +171,7 @@ export default async function ScenariosPage() {
     pipelineWeightedGCI,
     monthlyRecurring,
     expensesYTD,
+    expensesRemaining,
     monthlyBrokerageFee: settingsRow?.monthly_brokerage_fee ?? 0,
     cashReserve: scenarioBaselineCash,
     isIncorporated: settingsRow?.is_incorporated ?? false,

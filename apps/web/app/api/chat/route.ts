@@ -371,7 +371,9 @@ export async function POST(req: NextRequest) {
         now: today,
       };
       const expenseTotals = ytdExpenseTotals(expenseInputs);
-      const { expensesYTD, monthlyRecurring } = expenseTotals;
+      // `expensesRemaining`: still to come this year. With expensesYTD, the
+      // dashboard's annualExpenses.
+      const { expensesYTD, monthlyRecurring, expensesRemaining } = expenseTotals;
       // The same expenses with the GST/HST left in: context only, so Flight
       // Crew can say how much of a registrant's total was claimed back.
       const expensesPaidYTD = ytdExpensesGstHstIncluded(expenseInputs);
@@ -609,7 +611,7 @@ export async function POST(req: NextRequest) {
         const projectedNetIncome = computeProjectedNetForTax({
           projectedGCI: projGCI,
           expensesYTD,
-          monthlyRecurring,
+          expensesRemaining,
           settings,
           projectedDealCount: projDeals,
           now: today,

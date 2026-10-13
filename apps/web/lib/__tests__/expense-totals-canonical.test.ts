@@ -34,7 +34,14 @@
  *      summary, the exports and the mobile totals went short without an
  *      error. A list for display pages on screen; it is not capped in the
  *      query
- *   7. a YEAR-TO-DATE total combined by hand. Receipts, the per-item monthly
+ *   7. (recurring charge dates, same day) the year's expenses projected as a
+ *      monthly figure × months left. Year to date counts a recurring expense
+ *      by its charge dates, so what is still to come has to be counted the
+ *      same way (`remainingYearExpenses`, `totals.expensesRemaining`):
+ *      otherwise a charge due later this month is in neither, and an annual
+ *      fee is a twelfth per month left whether it has been charged or not.
+ *      Eight surfaces carried their own copy of that multiplication
+ *   8. a YEAR-TO-DATE total combined by hand. Receipts, the per-item monthly
  *      figure (`expense_items.monthly_recurring`) and the Recurring Expenses
  *      list are combined in one place, `ytdExpenseTotals`
  *      (t2125-expenses-engine), whose total is the sum of the Expenses
@@ -43,7 +50,7 @@
  *      which compared the two totals and dropped the smaller side whole: an
  *      account with monthly figures on some items and receipts on others read
  *      lower on its dashboard than on its Expenses page
- *   8. a category table built from receipts alone (`receiptTotalsByKey`)
+ *   9. a category table built from receipts alone (`receiptTotalsByKey`)
  *      under a Total that holds all three sources, so the rows come short of
  *      it. Category rows come from `expenseCategoryRows`
  *      (lib/expenses/category-lines)
@@ -79,6 +86,16 @@ const SUMS_TOTAL_AMOUNT = /(?:\+=|\+)\s*(?:Number\(\s*)?\(?\s*[A-Za-z_$][\w$]*\.
 
 /** A recurring-expense total from recurring-expense-engine. */
 const RECURRING_TOTAL = /\b(?:totalRecurringMonthly|totalRecurringYTD|projectedAnnualRecurring)\s*\(/;
+
+/**
+ * `monthlyRecurring * expRemainingMonths`, `input.monthlyRecurringExpenses * remainingMonths`:
+ * a monthly recurring figure times the months left in the year.
+ */
+const MONTHLY_TIMES_MONTHS_LEFT =
+  /\b(?:monthlyRecurring|monthlyRecurringExpenses|recurringExpMonthly|recurringMonthly)\s*\*\s*(?:\w+\.)?(?:expRemainingMonths|remainingMonths|monthsRemaining|monthsLeft)\b/g;
+
+/** Engines that project the year too (effective-cash, advisor-engine). */
+const CORE_ENGINES = "packages/core/engines";
 
 /** `.from("receipt_expenses").select("…")` with the column list captured. */
 const RECEIPT_SELECT = /\.from\(\s*["']receipt_expenses["']\s*\)\s*\.select\(\s*["'`]([^"'`]*)["'`]/g;
@@ -388,6 +405,36 @@ describe("REGRESSION — expense totals are net of ITCs through expense-totals-e
     expect(read("apps/web/app/(app)/expenses/expenses-content.tsx")).toMatch(/\bgroupExpenseLinesByCategory\s*\(/);
   });
 
+  it("nothing projects the year's expenses as a monthly figure × months left", () => {
+    const engineFiles = sourceFiles(CORE_ENGINES);
+    expect(engineFiles.map(rel)).toContain("packages/core/engines/effective-cash.ts");
+    const offenders: string[] = [];
+    for (const file of [...files, ...engineFiles]) {
+      const src = readFileSync(file, "utf8");
+      for (const m of src.matchAll(MONTHLY_TIMES_MONTHS_LEFT)) offenders.push(`${rel(file)}:${lineOf(src, m.index ?? 0)}`);
+    }
+    expect(offenders).toEqual([]);
+    // The surfaces that project the year take what is still to come from the
+    // engine: `expensesRemaining`, from the same ytdExpenseTotals call that
+    // gives them year to date. The four client components are handed it.
+    const read = (r: string) => readFileSync(path.join(REPO_ROOT, r), "utf8");
+    for (const receiver of YTD_EXPENSE_RECEIVERS) {
+      expect(read(receiver), receiver).toMatch(/^  expensesRemaining,$/m);
+      expect(read(receiver), receiver).toContain("expensesYTD + expensesRemaining");
+      expect(read(receiver), receiver).not.toContain("remainingYearExpenses(");
+    }
+    for (const surface of [
+      "apps/web/app/api/chat/route.ts",
+      "apps/web/app/api/cron/weekly-digest/route.ts",
+      "apps/web/lib/chat-diagnostics.ts",
+    ]) {
+      expect(read(surface), surface).toMatch(/\{ expensesYTD, monthlyRecurring, expensesRemaining \} = /);
+      expect(read(surface), surface).not.toContain("remainingYearExpenses(");
+    }
+    // One place adds the two parts of "still to come" together.
+    expect(read("packages/core/engines/t2125-expenses-engine.ts")).toContain("expensesRemaining: remainingYearExpenses(");
+  });
+
   it("the regexes catch the hand-rolled shapes and spare the canonical ones", () => {
     const badYtd = [
       `const expensesYTD = Math.max(receiptTotal, legacyRecurringYTDEstimate) + recurringExpYTD;`,
@@ -399,13 +446,26 @@ describe("REGRESSION — expense totals are net of ITCs through expense-totals-e
     ];
     const goodYtd = [
       `const { expensesYTD, monthlyRecurring } = ytdExpenseTotals({ receipts, recurring, expenseItems, ctx, now: today });`,
-      `const annualExpenses = expensesYTD + monthlyRecurring * expRemainingMonths;`,
+      `const annualExpenses = expensesYTD + expensesRemaining;`,
       `projected_annual_recurring: round2(totals.monthlyRecurring * 12),`,
       `monthly_recurring: line.monthlyAmount,`,
       `const maxCatYTD = Math.max(...filteredExpenses.map((c) => c.ytd), 1);`,
     ];
     for (const s of badYtd) expect([...s.matchAll(HAND_ROLLED_YTD)].length, s).toBeGreaterThan(0);
     for (const s of goodYtd) expect([...s.matchAll(HAND_ROLLED_YTD)], s).toHaveLength(0);
+
+    const monthsLeft = (s: string) => [...s.matchAll(MONTHLY_TIMES_MONTHS_LEFT)].length;
+    for (const s of [
+      `const annualExpenses = expensesYTD + monthlyRecurring * expRemainingMonths;`,
+      `const annualExpenses = expensesYTD + monthlyRecurring * remainingMonths;`,
+      `const annualExpenses = input.expensesYTD + input.monthlyRecurringExpenses * remainingMonths;`,
+    ]) expect(monthsLeft(s), s).toBe(1);
+    for (const s of [
+      `const annualExpenses = expensesYTD + expensesRemaining;`,
+      `return legacyMonthlyRecurring * monthsLeft + recurringRemaining;`,
+      `expensesYTD + expensesRemaining + (monthlyRecurring - baselineMonthlyRecurring) * expRemainingMonths;`,
+      `const expenses = Math.max(0, monthlyRecurring) * 12;`,
+    ]) expect(monthsLeft(s), s).toBe(0);
 
     const badSums = [
       `rows.reduce((sum, r) => sum + Number(r.total_amount ?? 0), 0)`,

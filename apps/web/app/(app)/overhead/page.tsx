@@ -115,7 +115,7 @@ export default async function OverheadPage() {
     ctx: expenseTaxContext(rawSettings),
     now: today,
   });
-  const { expensesYTD, monthlyRecurring } = expenseTotals;
+  const { expensesYTD, monthlyRecurring, expensesRemaining } = expenseTotals;
 
   // Which expense categories the agent tracks, for the tax cards: the lines
   // the two totals above are the sums of.
@@ -150,7 +150,7 @@ export default async function OverheadPage() {
         settings: rawSettings,
         ytdGCI,
         expensesYTD,
-        monthlyRecurring,
+        expensesRemaining,
         projectedGCI,
         projectedDealCount: overheadProjectedDealCount,
         fraction,
@@ -169,6 +169,7 @@ export default async function OverheadPage() {
     pipelineWeightedGCI,
     monthlyRecurring,
     expensesYTD,
+    expensesRemaining,
     monthlyBrokerageFee: rawSettings?.monthly_brokerage_fee ?? 0,
     cashReserve: overheadBaselineCash,
     isIncorporated: rawSettings?.is_incorporated ?? false,
@@ -197,6 +198,7 @@ export default async function OverheadPage() {
       pipelineDeals={pipelineDeals}
       isPro={await computeIsPro(supabase, user.id, rawSettings)}
       scenarioSeed={scenarioSeed}
+      expensesRemaining={expensesRemaining}
     />
   );
 }

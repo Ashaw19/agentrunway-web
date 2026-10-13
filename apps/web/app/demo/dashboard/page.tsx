@@ -572,6 +572,7 @@ export default function DemoDashboardPage() {
               settings={DEMO_SETTINGS}
               expensesYTD={demoExpenses.expensesYTD}
               monthlyRecurring={demoExpenses.monthlyRecurring}
+              expensesRemaining={demoExpenses.expensesRemaining}
               deductionTracking={demoDeductionTracking}
               initialDashboardView="standard"
               isPro={true}

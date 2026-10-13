@@ -120,6 +120,8 @@ const LISTINGS = [
 
 const EXPENSES_YTD = 18_000;
 const MONTHLY_RECURRING = 1_200;
+// Still to come after July 15: the five whole months left.
+const EXPENSES_REMAINING = MONTHLY_RECURRING * 5;
 
 // ── Shared input derivation (the canonical chain every surface must run) ──────
 
@@ -145,7 +147,7 @@ function deriveInputs() {
     settings: SETTINGS,
     ytdGCI,
     expensesYTD: EXPENSES_YTD,
-    monthlyRecurring: MONTHLY_RECURRING,
+    expensesRemaining: EXPENSES_REMAINING,
     projectedGCI: projGCI,
     projectedDealCount: projDeals,
     fraction,
@@ -469,10 +471,10 @@ describe("net-for-tax uses the canonical helper on the listing-inclusive project
   it("is deterministic across surfaces", () => {
     const { projGCI } = deriveInputs();
     const a = computeProjectedNetForTax({
-      projectedGCI: projGCI, expensesYTD: EXPENSES_YTD, monthlyRecurring: MONTHLY_RECURRING, settings: SETTINGS, now: NOW,
+      projectedGCI: projGCI, expensesYTD: EXPENSES_YTD, expensesRemaining: EXPENSES_REMAINING, settings: SETTINGS, now: NOW,
     });
     const b = computeProjectedNetForTax({
-      projectedGCI: projGCI, expensesYTD: EXPENSES_YTD, monthlyRecurring: MONTHLY_RECURRING, settings: SETTINGS, now: NOW,
+      projectedGCI: projGCI, expensesYTD: EXPENSES_YTD, expensesRemaining: EXPENSES_REMAINING, settings: SETTINGS, now: NOW,
     });
     expect(a).toBe(b);
     expect(a).toBeGreaterThan(0);

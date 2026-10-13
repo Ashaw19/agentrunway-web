@@ -133,6 +133,8 @@ interface Props {
   userId?: string;
   /** Referral summary for PDF Page 7 */
   referralSummary?: { inboundCount: number; outboundCount: number; feesEarned: number; feesPaid: number };
+  /** Still to come this year: ytdExpenseTotals(...).expensesRemaining. expensesYTD + this = the year's expenses. */
+  expensesRemaining: number;
 }
 
 // ── buildHealthReport imported from @/lib/engines/health-report ──────────────
@@ -247,6 +249,7 @@ export function ReportsContent({
   taxYear,
   userId = "",
   referralSummary,
+  expensesRemaining,
 }: Props) {
   const [downloading, setDownloading] = useState(false);
   const [histReportOpen, setHistReportOpen] = useState(false);
@@ -342,8 +345,8 @@ export function ReportsContent({
   const expenseRatio = ytdGCI > 0 ? (expensesYTD / ytdGCI) * 100 : 0;
 
   // ── Tax ───────────────────────────────────────────────────────────────────────
-  const expRemainingMonths = Math.max(0, 12 - (now.getMonth() + 1));
-  const annualExpenses = expensesYTD + monthlyRecurring * expRemainingMonths;
+  // The year's expenses: to date + what is still to come (matches the dashboard).
+  const annualExpenses = expensesYTD + expensesRemaining;
   const projectedNet = computeProjectedNet(projectedGCI, settings, projectedDeals);
   const netForTax = Math.max(0, projectedNet - annualExpenses);
   const personalTaxResult = calculateTax(netForTax, settings.province, Math.max(projectedDeals, 1));
@@ -381,7 +384,7 @@ export function ReportsContent({
     settings,
     ytdGCI,
     expensesYTD,
-    monthlyRecurring,
+    expensesRemaining,
     projectedGCI,
     projectedDealCount: projectedDeals,
     fraction,
@@ -436,7 +439,7 @@ export function ReportsContent({
     splitPreset: settings.split_preset,
     seasonalWeights,
     expensesYTD,
-    monthlyRecurringExpenses: monthlyRecurring,
+    expensesRemaining,
     projectedYearEndGCI: projectedGCI,
     marketYoYGrowth: (settings.market_yoy_growth_pct ?? 0) / 100,
     benchmarkPercentile: benchmark.percentile,

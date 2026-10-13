@@ -890,6 +890,10 @@ export function ExpensesContent({
   const expensesProjectedDeals = projectedYearEndTransactions(
     transactions.length, liveExpensesPipelineDeals.length, expensesFraction,
   );
+  // Still to come this year, the dashboard's figure from the same engine
+  // call: the per-item monthly figures for the months after this one, and
+  // the Recurring Expenses list's charges after today (net of ITC).
+  const expensesRemaining = expenseTotals.expensesRemaining;
   const survival = settings
     ? survivalResult(
         settings.monthly_brokerage_fee ?? 0,
@@ -898,7 +902,7 @@ export function ExpensesContent({
           settings,
           ytdGCI,
           expensesYTD: effectiveTotal,
-          monthlyRecurring: monthlyTotal,
+          expensesRemaining,
           projectedGCI: expensesProjectedGCI,
           projectedDealCount: expensesProjectedDeals,
           fraction: expensesFraction,

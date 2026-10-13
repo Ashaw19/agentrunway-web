@@ -166,6 +166,7 @@ export default async function ReportsPage() {
       taxYear={year}
       userId={user.id}
       referralSummary={referralSummary}
+      expensesRemaining={expenseTotals.expensesRemaining}
     />
   );
 }

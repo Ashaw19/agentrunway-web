@@ -298,6 +298,7 @@ export default async function DashboardPage({
       aiProfilePromptDismissedAt={settingsRow?.ai_profile_prompt_dismissed_at ?? null}
       activeListings={(listingResult.data ?? []) as ListingAppointment[]}
       teamWelcome={teamWelcome}
+      expensesRemaining={expenseTotals.expensesRemaining}
       dataAsOf={new Date().toISOString()}
       scoreHistory={scoreHistory}
       incomeGoals={(incomeGoalsResult.data ?? []) as IncomeGoalRow[]}

@@ -45,12 +45,14 @@
 
 import {
   aggregateReceiptTotals,
+  recurringExpensesNetOfItc,
   recurringNetOfItc,
+  remainingYearExpenses,
   type ExpenseTaxContext,
   type ReceiptTotals,
   type ReceiptTotalsRow,
 } from "./expense-totals-engine";
-import { recurringMonthlyEquivalent, recurringYTD } from "./recurring-expense-engine";
+import { recurringMonthlyEquivalent, recurringYTD, totalRecurringRemaining } from "./recurring-expense-engine";
 import {
   HOME_OFFICE_CATEGORY_KEY,
   expenseItemKeyFor,
@@ -254,6 +256,14 @@ export interface YtdExpenseTotals {
   recurringMonthly: number;
   /** Expected each month, both kinds: `tracked.monthlyTotal`. */
   monthlyRecurring: number;
+  /** Active recurring expenses' charges after today, through Dec 31, net. */
+  recurringRemaining: number;
+  /**
+   * Expenses still to come this year (`remainingYearExpenses`): the monthly
+   * figures for the whole months after this one, plus `recurringRemaining`.
+   * expensesYTD + this = the year's expenses.
+   */
+  expensesRemaining: number;
 }
 
 export function ytdExpenseTotals(inputs: YtdExpenseInputs): YtdExpenseTotals {
@@ -280,6 +290,13 @@ export function ytdExpenseTotals(inputs: YtdExpenseInputs): YtdExpenseTotals {
     }
   }
 
+  // Still to come: the same recurring rows the lines count to date, by the
+  // charge dates after today, so each charge of the year is in exactly one.
+  const recurringRemaining = totalRecurringRemaining(
+    recurringExpensesNetOfItc(inputs.recurring, inputs.ctx),
+    inputs.now,
+  );
+
   return {
     receipts,
     tracked,
@@ -290,6 +307,8 @@ export function ytdExpenseTotals(inputs: YtdExpenseInputs): YtdExpenseTotals {
     legacyMonthlyRecurring,
     recurringMonthly,
     monthlyRecurring: tracked.monthlyTotal,
+    recurringRemaining,
+    expensesRemaining: remainingYearExpenses(legacyMonthlyRecurring, recurringRemaining, inputs.now),
   };
 }
 
