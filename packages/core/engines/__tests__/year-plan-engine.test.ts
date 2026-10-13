@@ -10,6 +10,8 @@ import {
 import { TEST_PIPELINE, EXPECTED_PIPELINE, createTestSettings } from "./test-data";
 import { computePlanGross } from "../real-compensation-engine";
 import { calculate } from "../canadian-tax-engine";
+import { ytdExpenseTotals } from "../t2125-expenses-engine";
+import type { RecurringExpense } from "../../types/database";
 
 /**
  * Dashboard "next year" planning view (Andrew, 2026-10-07): "On the dashboard,
@@ -105,7 +107,7 @@ describe("planTakeHome", () => {
   const settings = createTestSettings();
 
   it("runs the same plan, fee, expense and tax chain as the forecast", () => {
-    const r = planTakeHome({ gci: 80_000, settings, monthlyRecurring: 1_000, dealCount: 6, year: 2027 });
+    const r = planTakeHome({ gci: 80_000, settings, expenses: 12_000, dealCount: 6, year: 2027 });
     const { grossAfterPlan } = computePlanGross(settings, 80_000, { dealCount: 6, asOf: `2027-${PLAN_AS_OF_MONTH_DAY}` });
     const netForTax = grossAfterPlan - settings.monthly_brokerage_fee * 12 - 12_000;
     const tax = calculate(netForTax, settings.province, 6).totalBurden;
@@ -120,9 +122,102 @@ describe("planTakeHome", () => {
     expect(r.takeHome).toBeLessThan(r.gci);
   });
 
+  it("takes the year's expenses as given: it does not multiply them", () => {
+    const r = planTakeHome({ gci: 80_000, settings, expenses: 1_000, dealCount: 6, year: 2027 });
+    expect(r.expenses).toBe(1_000);
+  });
+
   it("never goes negative when costs exceed income", () => {
-    const r = planTakeHome({ gci: 5_000, settings, monthlyRecurring: 5_000, dealCount: 1, year: 2027 });
+    const r = planTakeHome({ gci: 5_000, settings, expenses: 60_000, dealCount: 1, year: 2027 });
     expect(r.netForTax).toBe(0);
     expect(r.takeHome).toBe(0);
+  });
+
+  it("treats a negative expense figure as none", () => {
+    expect(planTakeHome({ gci: 80_000, settings, expenses: -500, dealCount: 6, year: 2027 }).expenses).toBe(0);
+  });
+});
+
+/**
+ * The plan's "Business expenses" row (2026-10-13). It used to be today's
+ * monthly recurring figure × 12, so a recurring expense known to stop before
+ * next year was counted for all twelve months of it until Jan 1, and one
+ * starting in July for the whole year.
+ *
+ * It is now next year's own figure, `ytdExpenseTotals(...).expensesNextYear`:
+ * each Recurring Expenses row by the charge dates that fall in that year,
+ * plus twelve months of the per-item monthly figures (which have no dates).
+ * These run the dashboard's chain: the page's one engine call, then the plan.
+ */
+describe("planTakeHome — business expenses are next year's charge dates", () => {
+  const settings = createTestSettings();
+  const OCT_13_2026 = new Date(2026, 9, 13, 12);
+  const NOT_REGISTERED = { gstHstRegistered: false, vehicleBusinessUsePct: 0.8, homeOfficeBusinessUsePct: 0 };
+
+  function recurring(overrides: Partial<RecurringExpense>): RecurringExpense {
+    return {
+      id: "re-1",
+      user_id: "u1",
+      name: "Office lease",
+      amount: 400,
+      category_key: "office_rent",
+      frequency: "monthly",
+      day_of_month: 1,
+      month_of_year: null,
+      hst_included: false,
+      hst_amount: 0,
+      vehicle_pct_applicable: false,
+      notes: "",
+      start_date: "2025-01-01",
+      end_date: null,
+      is_active: true,
+      created_at: "2025-01-01T12:00:00Z",
+      updated_at: "2025-01-01T12:00:00Z",
+      ...overrides,
+    };
+  }
+
+  function plan2027(rows: RecurringExpense[], expenseItems: { key: string; monthly_recurring: number }[] = []) {
+    const totals = ytdExpenseTotals({ receipts: [], recurring: rows, expenseItems, ctx: NOT_REGISTERED, now: OCT_13_2026 });
+    const plan = planTakeHome({ gci: 80_000, settings, expenses: totals.expensesNextYear, dealCount: 6, year: 2027 });
+    return { plan, monthlyRecurringToday: totals.monthlyRecurring };
+  }
+
+  it("a row with no end date is twelve charges", () => {
+    expect(plan2027([recurring({})]).plan.expenses).toBe(4_800);
+  });
+
+  it("a lease that ends on Dec 31 this year costs nothing next year", () => {
+    const { plan, monthlyRecurringToday } = plan2027([recurring({ end_date: "2026-12-31" })]);
+    expect(plan.expenses).toBe(0);
+    // It is still being paid in October, so the old row read 400 × 12.
+    expect(monthlyRecurringToday * 12).toBe(4_800);
+  });
+
+  it("a row that ends in the middle of next year counts up to its end date", () => {
+    expect(plan2027([recurring({ end_date: "2027-06-30" })]).plan.expenses).toBe(2_400);
+  });
+
+  it("a row that starts in the middle of next year counts from its start date", () => {
+    const { plan, monthlyRecurringToday } = plan2027([recurring({ start_date: "2027-07-01" })]);
+    expect(plan.expenses).toBe(2_400);
+    expect(monthlyRecurringToday * 12).toBe(4_800);
+  });
+
+  it("an annual fee counts once, in full", () => {
+    const dues = recurring({ frequency: "annual", amount: 1_200, month_of_year: 11, day_of_month: 1 });
+    expect(plan2027([dues]).plan.expenses).toBe(1_200);
+  });
+
+  it("a per-item monthly figure has no dates, so it stays × 12", () => {
+    expect(plan2027([], [{ key: "office_phone", monthly_recurring: 50 }]).plan.expenses).toBe(600);
+  });
+
+  it("the tax estimate is on the plan's own net: a lease that has ended is no longer deducted", () => {
+    const ended = plan2027([recurring({ end_date: "2026-12-31" })]).plan;
+    const running = plan2027([recurring({})]).plan;
+    expect(ended.netForTax - running.netForTax).toBeCloseTo(4_800, 6);
+    expect(ended.incomeTaxAndCpp).toBeGreaterThan(running.incomeTaxAndCpp);
+    expect(ended.takeHome).toBeGreaterThan(running.takeHome);
   });
 });

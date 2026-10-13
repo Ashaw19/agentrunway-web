@@ -233,6 +233,14 @@ interface Props {
   teamWelcome?: { orgName: string } | null;
   /** Still to come this year: ytdExpenseTotals(...).expensesRemaining. expensesYTD + this = the year's expenses. */
   expensesRemaining: number;
+  /**
+   * Next year's business expenses, for the next-year plan:
+   * ytdExpenseTotals(...).expensesNextYear. Each recurring expense by its
+   * charge dates in that year, plus twelve months of the monthly figures.
+   * Not the monthly figure above times twelve: that counts a recurring
+   * expense with an end date for the whole year.
+   */
+  expensesNextYear: number;
   /** ISO timestamp the server loaded this data — drives the freshness line. */
   dataAsOf?: string;
   /** income_goals rows (00169/00170): one goal per calendar year. */
@@ -340,6 +348,7 @@ export function DashboardContent({
   activeListings,
   teamWelcome = null,
   expensesRemaining,
+  expensesNextYear,
   dataAsOf,
   incomeGoals: initialIncomeGoals = [],
 }: Props) {
@@ -2518,7 +2527,7 @@ export function DashboardContent({
           seasonalWeights={seasonalWeights}
           seasonalSource={seasonalSource}
           settings={settings}
-          monthlyRecurring={monthlyRecurring}
+          expensesNextYear={expensesNextYear}
         />
       ) : (
       <>

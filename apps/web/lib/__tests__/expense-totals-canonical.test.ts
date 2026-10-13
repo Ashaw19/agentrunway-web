@@ -62,6 +62,14 @@
  *      card is "Receipts YTD" (`receiptTotalsToDate`); a mobile file may
  *      carry a year-to-date expenses label only if it calls
  *      `ytdExpenseTotals`
+ *  11. a year's recurring expenses worked out as a monthly figure × 12. The
+ *      dashboard's next-year plan did that until 2026-10-13, so a lease with
+ *      an end date of Dec 31 was counted for all twelve months of the next
+ *      year until Jan 1, and a row starting in July for the whole year. A
+ *      recurring expense has dates: a year costs the charge dates that fall
+ *      in it (`totalRecurringInYear`). Next year's figure is
+ *      `ytdExpenseTotals(...).expensesNextYear`, and the plan
+ *      (year-plan-engine `planTakeHome`) is handed it
  *
  * A regex can't prove a total is right, only that it didn't bypass the
  * engine. The numbers are tested in
@@ -93,7 +101,7 @@ const ROOTS = [
 const SUMS_TOTAL_AMOUNT = /(?:\+=|\+)\s*(?:Number\(\s*)?\(?\s*[A-Za-z_$][\w$]*\.total_amount\b/g;
 
 /** A recurring-expense total from recurring-expense-engine. */
-const RECURRING_TOTAL = /\b(?:totalRecurringMonthly|totalRecurringYTD|projectedAnnualRecurring)\s*\(/;
+const RECURRING_TOTAL = /\b(?:totalRecurringMonthly|totalRecurringYTD|totalRecurringInYear|projectedAnnualRecurring)\s*\(/;
 
 /**
  * `monthlyRecurring * expRemainingMonths`, `input.monthlyRecurringExpenses * remainingMonths`:
@@ -101,6 +109,21 @@ const RECURRING_TOTAL = /\b(?:totalRecurringMonthly|totalRecurringYTD|projectedA
  */
 const MONTHLY_TIMES_MONTHS_LEFT =
   /\b(?:monthlyRecurring|monthlyRecurringExpenses|recurringExpMonthly|recurringMonthly)\s*\*\s*(?:\w+\.)?(?:expRemainingMonths|remainingMonths|monthsRemaining|monthsLeft)\b/g;
+
+/**
+ * `monthlyRecurring * 12`, `Math.max(0, monthlyRecurring) * 12`,
+ * `totals.monthlyRecurring * 12`, `totalRecurringMonthly(list, now) * 12`: a
+ * monthly recurring figure multiplied out into a year.
+ */
+const MONTHLY_TIMES_TWELVE =
+  /\b(?:monthlyRecurring|monthlyRecurringExpenses|recurringExpMonthly|recurringMonthly|recurringListMonthly|monthlyTotal)\)?\s*\*\s*12\b|\b(?:totalRecurringMonthly|recurringMonthlyRunRate|recurringMonthlyEquivalent|recurringMonthlyForCategory)\s*\((?:[^()]|\([^()]*\))*\)\s*\*\s*12\b/g;
+
+const ALLOWED_MONTHLY_TIMES_TWELVE: Record<string, { count: number; why: string }> = {
+  "apps/web/app/(app)/expenses/expenses-content.tsx": {
+    count: 1,
+    why: "Footer of the Recurring Expenses list: \"Annual total\" beside \"Monthly avg\", the list's monthly figure as charged, annualised. It names no year and feeds no other figure.",
+  },
+};
 
 /** Engines that project the year too (effective-cash, advisor-engine). */
 const CORE_ENGINES = "packages/core/engines";
@@ -508,6 +531,60 @@ describe("REGRESSION — expense totals are net of ITCs through expense-totals-e
     expect(read("packages/core/engines/t2125-expenses-engine.ts")).toContain("expensesRemaining: remainingYearExpenses(");
   });
 
+  it("no year's recurring expenses are a monthly figure × 12: next year's plan is handed its own figure", () => {
+    const engineFiles = sourceFiles(CORE_ENGINES);
+    expect(engineFiles.map(rel)).toContain("packages/core/engines/year-plan-engine.ts");
+    const offenders: string[] = [];
+    const allowedSeen: Record<string, number> = {};
+    for (const file of [...files, ...engineFiles]) {
+      const r = rel(file);
+      const src = codeOnly(readFileSync(file, "utf8"));
+      for (const m of src.matchAll(MONTHLY_TIMES_TWELVE)) {
+        if (ALLOWED_MONTHLY_TIMES_TWELVE[r]) {
+          allowedSeen[r] = (allowedSeen[r] ?? 0) + 1;
+          continue;
+        }
+        offenders.push(`${r}:${lineOf(src, m.index ?? 0)} ${m[0]}`);
+      }
+    }
+    expect(offenders).toEqual([]);
+    for (const [r, { count }] of Object.entries(ALLOWED_MONTHLY_TIMES_TWELVE)) {
+      expect({ file: r, matches: allowedSeen[r] ?? 0 }).toEqual({ file: r, matches: count });
+    }
+
+    const read = (r: string) => readFileSync(path.join(REPO_ROOT, r), "utf8");
+    // One place builds next year's figure, from the charge dates in that year.
+    const engine = read("packages/core/engines/t2125-expenses-engine.ts");
+    expect(engine).toContain("totalRecurringInYear(recurringNet, inputs.now.getFullYear() + 1)");
+    expect(engine).toContain("expensesNextYear: fullYearExpenses(legacyMonthlyRecurring, recurringNextYear),");
+    const callsHelper = files.filter((file) => /\bfullYearExpenses\s*\(/.test(codeOnly(readFileSync(file, "utf8")))).map(rel);
+    expect(callsHelper).toEqual([]);
+
+    // The plan takes the year's expenses whole.
+    const plan = codeOnly(read("packages/core/engines/year-plan-engine.ts"));
+    expect(plan).toContain("const expenses = Math.max(0, input.expenses);");
+    expect(plan).not.toMatch(/\bmonthlyRecurring\b/);
+
+    // The dashboard hands it down from the page's one engine call: both
+    // pages that render the dashboard, the component, then the plan view.
+    for (const page of ["apps/web/app/(app)/dashboard/page.tsx", "apps/web/app/demo/dashboard/page.tsx"]) {
+      expect(read(page), page).toMatch(/\bexpensesNextYear=\{\w+\.expensesNextYear\}/);
+    }
+    const content = read("apps/web/app/(app)/dashboard/dashboard-content.tsx");
+    expect(content).toMatch(/^  expensesNextYear,$/m);
+    expect(content).toContain("expensesNextYear={expensesNextYear}");
+    const view = codeOnly(read("apps/web/app/(app)/dashboard/next-year-plan.tsx"));
+    expect(view).toMatch(/planTakeHome\(\{[^}]*\bexpenses: expensesNextYear\b/);
+    expect(view).not.toMatch(/\bmonthlyRecurring\b/);
+    // The row no longer says it is today's figure × 12.
+    expect(view).not.toContain("current recurring × 12");
+
+    // The Connector reports the same figure, not its own multiplication.
+    const mcp = codeOnly(read("apps/web/supabase/functions/mcp-server/tools/expenses.ts"));
+    expect(mcp).toContain("total: round2(totals.expensesNextYear),");
+    expect(mcp).not.toContain("projected_annual_recurring");
+  });
+
   it("the regexes catch the hand-rolled shapes and spare the canonical ones", () => {
     const badYtd = [
       `const expensesYTD = Math.max(receiptTotal, legacyRecurringYTDEstimate) + recurringExpYTD;`,
@@ -520,7 +597,7 @@ describe("REGRESSION — expense totals are net of ITCs through expense-totals-e
     const goodYtd = [
       `const { expensesYTD, monthlyRecurring } = ytdExpenseTotals({ receipts, recurring, expenseItems, ctx, now: today });`,
       `const annualExpenses = expensesYTD + expensesRemaining;`,
-      `projected_annual_recurring: round2(totals.monthlyRecurring * 12),`,
+      `total: round2(totals.expensesNextYear),`,
       `monthly_recurring: line.monthlyAmount,`,
       `const maxCatYTD = Math.max(...filteredExpenses.map((c) => c.ytd), 1);`,
     ];
@@ -551,8 +628,25 @@ describe("REGRESSION — expense totals are net of ITCs through expense-totals-e
       `const annualExpenses = expensesYTD + expensesRemaining;`,
       `return legacyMonthlyRecurring * monthsLeft + recurringRemaining;`,
       `expensesYTD + expensesRemaining + (monthlyRecurring - baselineMonthlyRecurring) * expRemainingMonths;`,
-      `const expenses = Math.max(0, monthlyRecurring) * 12;`,
+      `const expenses = Math.max(0, input.expenses);`,
     ]) expect(monthsLeft(s), s).toBe(0);
+
+    const timesTwelve = (s: string) => [...s.matchAll(MONTHLY_TIMES_TWELVE)].length;
+    for (const s of [
+      `const expenses = Math.max(0, monthlyRecurring) * 12;`,
+      `projected_annual_recurring: round2(totals.monthlyRecurring * 12),`,
+      `const nextYear = monthlyRecurringExpenses * 12;`,
+      `const annual = totalRecurringMonthly(recurringExpensesNetOfItc(list, ctx), now) * 12;`,
+      `rows.reduce((s, re) => s + recurringMonthlyRunRate(re, now) * 12, 0)`,
+    ]) expect(timesTwelve(s), s).toBe(1);
+    for (const s of [
+      `const expenses = Math.max(0, input.expenses);`,
+      `return legacyMonthlyRecurring * 12 + recurringInYear;`,
+      `const brokerageFees = settings.monthly_brokerage_fee * 12;`,
+      `const annualBurn = monthlyBurn * 12;`,
+      `expensesNextYear: fullYearExpenses(legacyMonthlyRecurring, recurringNextYear),`,
+      `const recurringNextYear = totalRecurringInYear(recurringNet, inputs.now.getFullYear() + 1);`,
+    ]) expect(timesTwelve(s), s).toBe(0);
 
     const badSums = [
       `rows.reduce((sum, r) => sum + Number(r.total_amount ?? 0), 0)`,

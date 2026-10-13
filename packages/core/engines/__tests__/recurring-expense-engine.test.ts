@@ -9,12 +9,14 @@
 import { describe, expect, it } from "vitest";
 import {
   projectedAnnualRecurring,
+  recurringChargesInYear,
   recurringHasEnded,
   recurringMonthlyForCategory,
   recurringMonthlyRunRate,
   recurringRemainingThisYear,
   recurringYTD,
   totalRecurringHSTYTD,
+  totalRecurringInYear,
   totalRecurringMonthly,
   totalRecurringRemaining,
   totalRecurringYTD,
@@ -360,5 +362,115 @@ describe("totalRecurringMonthly and recurringMonthlyForCategory read the end dat
     expect(recurringMonthlyForCategory(all, "professional_mls", OCT_13)).toBe(100 + 40 + 60);
     expect(recurringMonthlyForCategory(all, "professional_mls", at(6, 30))).toBe(100 + 250 + 40 + 60);
     expect(recurringMonthlyForCategory(all, "marketing_digital", OCT_13)).toBe(75);
+  });
+});
+
+// ── A whole calendar year ──────────────────────────────────────────────────
+//
+// Next year's plan (year-plan-engine) counts the charge dates that fall in
+// that year: the same occurrences as every other dated total. Until
+// 2026-10-13 it was today's monthly run-rate × 12, so a lease ending Dec 31
+// was counted for all twelve months of the next year until Jan 1 came.
+describe("recurringChargesInYear: the charge dates that fall in one calendar year", () => {
+  it("a monthly row with no end date is charged twelve times", () => {
+    expect(recurringChargesInYear(expense({}), 2027)).toBe(1200);
+  });
+
+  it("a row that ends on Dec 31 of the year before is charged nothing", () => {
+    const lease = expense({ end_date: "2026-12-31" });
+    expect(recurringChargesInYear(lease, 2027)).toBe(0);
+    // It is still running today, so today's run-rate carries it.
+    expect(recurringMonthlyRunRate(lease, OCT_13) * 12).toBe(1200);
+  });
+
+  it("a row that ends part-way through the year is charged up to its end date", () => {
+    // Charged on the 1st: January through June.
+    expect(recurringChargesInYear(expense({ end_date: "2027-06-30" }), 2027)).toBe(600);
+    // Charged on the 20th and ended on the 15th: June's charge never happens.
+    expect(recurringChargesInYear(expense({ day_of_month: 20, end_date: "2027-06-15" }), 2027)).toBe(500);
+  });
+
+  it("a row that starts part-way through the year is charged from its start date", () => {
+    expect(recurringChargesInYear(expense({ start_date: "2027-07-01" }), 2027)).toBe(600);
+    // Starts on the 15th, charged on the 10th: the first charge is August's.
+    expect(recurringChargesInYear(expense({ day_of_month: 10, start_date: "2027-07-15" }), 2027)).toBe(500);
+  });
+
+  it("a row that starts and ends inside the year is charged between the two dates", () => {
+    expect(recurringChargesInYear(expense({ start_date: "2027-03-01", end_date: "2027-05-31" }), 2027)).toBe(300);
+  });
+
+  it("a row that starts after the year is charged nothing", () => {
+    expect(recurringChargesInYear(expense({ start_date: "2028-01-01" }), 2027)).toBe(0);
+  });
+
+  it("an annual fee is charged once, in full", () => {
+    const dues = expense({ frequency: "annual", amount: 1200, month_of_year: 11, day_of_month: 1 });
+    expect(recurringChargesInYear(dues, 2027)).toBe(1200);
+  });
+
+  it("an annual fee that ends before its renewal date is not charged", () => {
+    const dues = expense({ frequency: "annual", amount: 1200, month_of_year: 11, day_of_month: 1, end_date: "2027-06-30" });
+    expect(recurringChargesInYear(dues, 2027)).toBe(0);
+    // A twelfth a month × 12 would have counted all of it.
+    expect(recurringMonthlyRunRate(dues, OCT_13) * 12).toBe(1200);
+  });
+
+  it("an annual fee that starts after its renewal date first counts the year after", () => {
+    const dues = expense({ frequency: "annual", amount: 1200, month_of_year: 3, day_of_month: 1, start_date: "2027-07-01" });
+    expect(recurringChargesInYear(dues, 2027)).toBe(0);
+    expect(recurringChargesInYear(dues, 2028)).toBe(1200);
+  });
+
+  it("a quarterly row is charged four times, and up to its end date", () => {
+    const quarterly = expense({ frequency: "quarterly", amount: 300, month_of_year: 2, day_of_month: 15 });
+    expect(recurringChargesInYear(quarterly, 2027)).toBe(1200);
+    // Feb 15 and May 15 fall before the end date; Aug 15 and Nov 15 do not.
+    expect(recurringChargesInYear({ ...quarterly, end_date: "2027-06-30" }, 2027)).toBe(600);
+  });
+
+  it("for the current year it is year to date plus what is still to come", () => {
+    const rows = [
+      expense({}),
+      expense({ day_of_month: 20, end_date: "2026-11-30" }),
+      expense({ start_date: "2026-11-01" }),
+      expense({ frequency: "annual", amount: 1200, month_of_year: 11, day_of_month: 1 }),
+      expense({ frequency: "quarterly", amount: 300, month_of_year: 2, day_of_month: 15 }),
+    ];
+    for (const re of rows) {
+      expect(recurringChargesInYear(re, 2026)).toBe(recurringYTD(re, OCT_13) + recurringRemainingThisYear(re, OCT_13));
+    }
+  });
+});
+
+describe("totalRecurringInYear", () => {
+  const running = expense({ id: "run", amount: 100 });
+  const endsDec31 = expense({ id: "lease", amount: 400, end_date: "2026-12-31" });
+  const endsMidYear = expense({ id: "mid", amount: 50, end_date: "2027-06-30" });
+  const startsMidYear = expense({ id: "soon", amount: 60, start_date: "2027-07-01" });
+  const annual = expense({ id: "dues", frequency: "annual", amount: 900, month_of_year: 11, day_of_month: 1 });
+  const paused = expense({ id: "paused", amount: 500, is_active: false });
+  const all = [running, endsDec31, endsMidYear, startsMidYear, annual, paused];
+
+  it("adds up the active rows' charges in that year", () => {
+    expect(totalRecurringInYear(all, 2027)).toBe(1200 + 0 + 300 + 360 + 900);
+  });
+
+  it("is not today's monthly run-rate × 12", () => {
+    // The run-rate counts the lease and the mid-year row whole, and a twelfth of the dues.
+    expect(totalRecurringMonthly(all, OCT_13) * 12).toBe((100 + 400 + 50 + 60 + 75) * 12);
+    expect(totalRecurringInYear(all, 2027)).toBe(2760);
+  });
+
+  it("skips paused rows", () => {
+    expect(totalRecurringInYear([paused], 2027)).toBe(0);
+  });
+
+  it("for the current year it is projectedAnnualRecurring", () => {
+    expect(totalRecurringInYear(all, 2026)).toBe(projectedAnnualRecurring(all, OCT_13));
+  });
+
+  it("is 0 for an empty list", () => {
+    expect(totalRecurringInYear([], 2027)).toBe(0);
   });
 });

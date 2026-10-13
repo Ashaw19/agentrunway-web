@@ -153,3 +153,28 @@ describe("classifyTopicMulti — ending a recurring expense reaches the Recurrin
     expect(topTwo("what is the expected close date on the Main St deal")).not.toContain("recurring-expenses");
   });
 });
+
+// An end date still ahead, and next year's plan (2026-10-13). The plan counts
+// a recurring expense by its charge dates in that year, so the question an
+// agent asks is about an expense that is going to stop, in the future tense.
+describe("classifyTopicMulti — an expense that is going to end reaches the Recurring Expenses playbook", () => {
+  const topTwo = (message: string) => classifyTopicMulti(message).slice(0, 2).map((m) => m.topic);
+
+  const cases = [
+    "my car lease ends in December, why is it still in my 2027 plan",
+    "my lease ends December 31, will next year's plan still count it",
+    "my Canva subscription ends in March, is it counted in my expenses next year",
+    "what are my expenses for next year if my subscription ends in June",
+  ];
+  for (const message of cases) {
+    it(`"${message}"`, () => {
+      expect(topTwo(message)).toContain("recurring-expenses");
+    });
+  }
+
+  it("does not pull in questions that only share a word", () => {
+    expect(topTwo("my client's lease ends in March, draft them a note")).not.toContain("recurring-expenses");
+    expect(topTwo("how do I set my goal for next year")).not.toContain("recurring-expenses");
+    expect(topTwo("what is my GCI goal next year")).not.toContain("recurring-expenses");
+  });
+});
