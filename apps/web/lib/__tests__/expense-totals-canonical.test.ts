@@ -54,6 +54,14 @@
  *      under a Total that holds all three sources, so the rows come short of
  *      it. Category rows come from `expenseCategoryRows`
  *      (lib/expenses/category-lines)
+ *  10. a card that reads as the year's expenses ("YTD Total", "YTD
+ *      Expenses") on a screen that never loads all three sources. The mobile
+ *      Expenses screen showed this year's receipts under "YTD Total": the
+ *      phone's store holds receipts only, so an account with recurring
+ *      expenses or monthly figures read lower there than on the web. The
+ *      card is "Receipts YTD" (`receiptTotalsToDate`); a mobile file may
+ *      carry a year-to-date expenses label only if it calls
+ *      `ytdExpenseTotals`
  *
  * A regex can't prove a total is right, only that it didn't bypass the
  * engine. The numbers are tested in
@@ -158,6 +166,31 @@ const ALLOWED_RECEIPTS_BY_KEY: Record<string, { count: number; why: string }> = 
     why: "Accountant share page, switched off (see above).",
   },
 };
+
+/**
+ * A label that reads as ALL of the year's expenses: "YTD Total", "YTD
+ * Expenses", "Year-to-date expenses", "Total Expenses".
+ */
+const YTD_EXPENSES_LABEL = /\b(?:YTD|Year[- ]to[- ][Dd]ate) (?:Total|Expenses|expenses)\b|\bTotal Expenses\b/g;
+
+/** The phone's Expenses screen: receipts only, and labelled as receipts. */
+const MOBILE_EXPENSES_SCREEN = "apps/mobile/app/(app)/profile/expenses.tsx";
+
+/** Allowed only where the match opens `phrase`, so the label on a figure is never excused. */
+const ALLOWED_YTD_EXPENSES_LABELS: Record<string, { count: number; phrase: string; why: string }> = {
+  [MOBILE_EXPENSES_SCREEN]: {
+    count: 1,
+    phrase: "YTD Expenses on the web",
+    why: "The caption under the cards, which says the web's YTD Expenses also counts recurring expenses and monthly figures. It names the web's card; it is not a label on a figure.",
+  },
+};
+
+/**
+ * Source with its comments blanked, so a rule's own explanation can't trip or
+ * satisfy it. Line breaks are kept: a match's line number is the file's.
+ */
+const codeOnly = (src: string) =>
+  src.replace(/\/\*[\s\S]*?\*\//g, (comment) => comment.replace(/[^\n]/g, "")).replace(/^[ \t]*\/\/.*$/gm, "");
 
 /** Every surface that shows or uses year-to-date expenses. Each makes the one engine call. */
 const YTD_EXPENSE_SURFACES = [
@@ -366,8 +399,7 @@ describe("REGRESSION — expense totals are net of ITCs through expense-totals-e
     }
     // The line builder is called through ytdExpenseTotals, so a surface can't
     // total its own subset of the three sources.
-    const code = (src: string) => src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
-    const callsBuilder = files.filter((file) => /\bbuildT2125Expenses\s*\(/.test(code(readFileSync(file, "utf8")))).map(rel);
+    const callsBuilder = files.filter((file) => /\bbuildT2125Expenses\s*\(/.test(codeOnly(readFileSync(file, "utf8")))).map(rel);
     expect(callsBuilder).toEqual([]);
     for (const receiver of YTD_EXPENSE_RECEIVERS) {
       const file = byRel.get(receiver);
@@ -404,6 +436,46 @@ describe("REGRESSION — expense totals are net of ITCs through expense-totals-e
     expect(read("apps/web/app/(app)/reports/reports-content.tsx")).toMatch(/\bexpenseRows\b/);
     expect(read("apps/web/components/pdf/business-report-pdf.tsx")).toMatch(/\bexpenseRows\b/);
     expect(read("apps/web/app/(app)/expenses/expenses-content.tsx")).toMatch(/\bgroupExpenseLinesByCategory\s*\(/);
+  });
+
+  it("the phone shows receipt totals as receipts: no year-to-date expenses label without ytdExpenseTotals", () => {
+    const mobile = files.filter((file) => rel(file).startsWith("apps/mobile/"));
+    expect(mobile.length).toBeGreaterThan(20);
+    const offenders: string[] = [];
+    const allowedSeen: Record<string, number> = {};
+    for (const file of mobile) {
+      const r = rel(file);
+      const src = codeOnly(readFileSync(file, "utf8"));
+      if (/\bytdExpenseTotals\s*\(/.test(src)) continue;
+      for (const m of src.matchAll(YTD_EXPENSES_LABEL)) {
+        if (ALLOWED_YTD_EXPENSES_LABELS[r] && src.startsWith(ALLOWED_YTD_EXPENSES_LABELS[r].phrase, m.index)) {
+          allowedSeen[r] = (allowedSeen[r] ?? 0) + 1;
+          continue;
+        }
+        offenders.push(`${r}:${lineOf(src, m.index ?? 0)} ${m[0]}`);
+      }
+    }
+    expect(offenders).toEqual([]);
+    for (const [r, { count }] of Object.entries(ALLOWED_YTD_EXPENSES_LABELS)) {
+      expect({ file: r, matches: allowedSeen[r] ?? 0 }).toEqual({ file: r, matches: count });
+    }
+
+    // The Expenses screen's cards come from the engine, which decides which
+    // receipts are in the year and the month. The screen works out no net
+    // amount of its own to add up.
+    const screen = codeOnly(readFileSync(path.join(REPO_ROOT, MOBILE_EXPENSES_SCREEN), "utf8"));
+    expect(screen).toMatch(/\breceiptTotalsToDate\s*\(/);
+    expect(screen).toContain('label="Receipts YTD"');
+    expect(screen).not.toMatch(/\bexpenseNetOfItc\s*\(/);
+    // The phone's store still has no expense_items or recurring_expenses to
+    // total. The day it loads them, this screen can show year-to-date
+    // expenses: call ytdExpenseTotals, add the screen to YTD_EXPENSE_SURFACES
+    // and drop this check.
+    const store = codeOnly(readFileSync(path.join(REPO_ROOT, "apps/mobile/stores/data-store.ts"), "utf8"));
+    expect(
+      store,
+      "the mobile store now loads the other expense sources: see the comment above this check",
+    ).not.toMatch(/\.from\(\s*["'](?:expense_items|recurring_expenses)["']\s*\)/);
   });
 
   it("nothing projects the year's expenses as a monthly figure × months left", () => {
@@ -454,6 +526,20 @@ describe("REGRESSION — expense totals are net of ITCs through expense-totals-e
     ];
     for (const s of badYtd) expect([...s.matchAll(HAND_ROLLED_YTD)].length, s).toBeGreaterThan(0);
     for (const s of goodYtd) expect([...s.matchAll(HAND_ROLLED_YTD)], s).toHaveLength(0);
+
+    const ytdLabels = (s: string) => [...s.matchAll(YTD_EXPENSES_LABEL)].length;
+    for (const s of [
+      `label="YTD Total"`,
+      `label="YTD Expenses"`,
+      `<Text>Year-to-date expenses</Text>`,
+      `title: "Total Expenses",`,
+    ]) expect(ytdLabels(s), s).toBe(1);
+    for (const s of [
+      `label="Receipts YTD"`,
+      `label="This Month"`,
+      `label="YTD GCI"`,
+      `const ytdTotal = expenseTotals.receiptYTD;`,
+    ]) expect(ytdLabels(s), s).toBe(0);
 
     const monthsLeft = (s: string) => [...s.matchAll(MONTHLY_TIMES_MONTHS_LEFT)].length;
     for (const s of [
