@@ -80,6 +80,20 @@ export const metadata: Metadata = {
     shortcut: "/favicon.ico",
   },
 
+  // Added to an iPhone or iPad Home Screen (Safari → Share → Add to Home
+  // Screen), the site opens full-screen under this name. The manifest
+  // (app/manifest.ts) says the same for every platform; these are the tags
+  // older iOS versions read. "default" keeps a normal status bar above the
+  // page, so nothing sits under the clock or the notch.
+  appleWebApp: {
+    capable: true,
+    title: "Agent Runway",
+    statusBarStyle: "default",
+  },
+  other: {
+    "apple-mobile-web-app-capable": "yes",
+  },
+
   robots: {
     index: true,
     follow: true,

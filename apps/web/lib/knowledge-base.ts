@@ -31,7 +31,7 @@ Platform for Canadian real estate agents: income, expenses, pipeline, clients, t
 
 **REPORTS** — Overview (score, benchmark, waterfall, tables), Benchmark (industry cohort), Tax/T2125 (CRA lines, CCA, home office, mileage).
 
-**OVERHEAD** — Tax estimates (federal+provincial+CPP), per-deal set-aside, income tax instalments (Mar15/Jun15/Sep15/Dec15), GST/HST (collected vs ITCs vs net; quarterly filing deadlines: Q1 Apr30, Q2 Jul31, Q3 Oct31, Q4 Mar31-next-year — separate from income tax instalment dates), deduction summary by T2125 line, CCA schedule, home office, paycheque allocation. Time Value card (effective hourly rate/hr, hours per deal, break-even deal count — requires Settings → Weekly Hours).
+**OVERHEAD** — Tax estimates (federal+provincial+CPP), per-deal set-aside, income tax instalments (Mar15/Jun15/Sep15/Dec15), GST/HST (collected vs ITCs vs net; quarterly filing deadlines: Q1 Apr30, Q2 Jul31, Q3 Oct31, Q4 Jan31-next-year, each one month after the quarter ends — separate from income tax instalment dates), deduction summary by T2125 line, CCA schedule, home office, paycheque allocation. Time Value card (effective hourly rate/hr, hours per deal, break-even deal count — requires Settings → Weekly Hours).
 
 **ALTIMETER** — Personal records (best year/month/deal), YoY comparison, all insights ranked by $impact, performance bands (Launching/Climbing/Competitive/Advancing/Leading), deviation detection (>=20% from baseline), Runway Score breakdown (Pace 35%/Pipeline 30%/Expense 15%/Survival 15%/Benchmark 5%).
 
@@ -42,6 +42,8 @@ Platform for Canadian real estate agents: income, expenses, pipeline, clients, t
 **SOCIAL STUDIO** — Instagram month-in-review carousel builder with templates and Canva export.
 
 **SETTINGS** — Province, business structure, compensation plan (simple_split | real — see COMMISSION STRUCTURE), split (70/30-100/0), brokerage fees (monthly+per-deal+cap+post-cap), cash reserve, experience years, GCI goal per calendar year (pick the year; this year's goal drives pace/projections, next year's takes over Jan 1, $0 = no goal that year; years are separate, a year nobody set has no goal and nothing carries forward; the dashboard has a This year | Next year switch, and the next-year view is a planning view), vehicle %, home office method/sqft, GST/HST registration, filing frequency, brokerage withholds HST toggle, seasonality, AI Voice Guide, estimated weekly hours + vacation weeks (unlocks Time Value card on Overhead).
+
+**ON A PHONE** — Agent Runway runs in the phone's browser and can be added to the Home Screen so it opens full-screen like an app. No App Store or install is involved. iPhone/iPad: open agentrunway.ca in Safari → Share → Add to Home Screen. Android: Chrome → menu → Add to Home screen (or Install app). Sign in once inside it: a Home Screen app keeps its own sign-in, separate from the browser's. Everything on the website is there, including receipt capture, which opens the phone's camera (Expenses → Add Receipt). It needs a connection; there is no offline mode. An icon added before 2026-10-13 still opens as a browser tab: remove it and add it again.
 
 **PROFILE** — Name, brokerage, avatar, 15 themes, dark mode, production stats.
 
