@@ -14,6 +14,8 @@ import {
 import { cn } from "@/lib/utils";
 import { fmtCompact } from "@/lib/formatters";
 import { CockpitStrip, SEMANTIC } from "@/components/cockpit-ui";
+import { lastTouchLabel } from "@/lib/crm/relative-date";
+import { localDaysSince } from "@agent-runway/core/lib/local-date";
 import type {
   Client,
   ClientRecord,
@@ -36,23 +38,23 @@ interface PipelineTabProps {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
+/**
+ * Whole 24-hour blocks since an instant: the "no contact in 14+ days" and
+ * 30-day rules below, and the row colour. Not for a label; a row's
+ * "Today / Yesterday / 3d ago" is lastTouchLabel, by calendar day.
+ */
 function daysSince(iso: string | null | undefined): number | null {
   if (!iso) return null;
   const diff = Date.now() - new Date(iso).getTime();
   return Math.floor(diff / (1000 * 60 * 60 * 24));
 }
 
-function contactAge(client: Client): number | null {
-  return daysSince(client.last_contact_at ?? client.created_at);
+function lastTouch(client: Client): string | null {
+  return client.last_contact_at ?? client.created_at;
 }
 
-function fmtAge(days: number | null): string {
-  if (days === null) return "No contact on record";
-  if (days === 0)    return "Today";
-  if (days === 1)    return "Yesterday";
-  if (days < 7)     return `${days}d ago`;
-  if (days < 30)    return `${Math.floor(days / 7)}w ago`;
-  return `${Math.floor(days / 30)}mo ago`;
+function contactAge(client: Client): number | null {
+  return daysSince(lastTouch(client));
 }
 
 function StatusBadge({ status }: { status: string }) {
@@ -98,14 +100,16 @@ function ClientRow({
         "text-[10px] shrink-0 font-medium tabular-nums mt-0.5",
         age !== null && age >= 30 ? "text-red-500" : age !== null && age >= 14 ? "text-amber-500" : "text-muted-foreground",
       )}>
-        {fmtAge(age)}
+        {lastTouchLabel(lastTouch(client))}
       </div>
     </div>
   );
 }
 
 function ListingRow({ appt, clientName }: { appt: ListingAppointment; clientName?: string }) {
-  const daysActive = daysSince(appt.appointment_date);
+  // appointment_date is a date-only column: count from that day, not from
+  // its UTC midnight (the evening before, in Atlantic time).
+  const daysActive = localDaysSince(appt.appointment_date);
   return (
     <div className="flex items-start gap-3 py-2.5 px-3 rounded-lg border bg-white/50 border-border/40 dark:bg-muted/20">
       <CalendarDays className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />

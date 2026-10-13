@@ -27,7 +27,7 @@
  * the two can't compute different dates.
  */
 
-import { addDaysISO, atlanticISODate } from "@agent-runway/core/lib/local-date";
+import { addDaysISO, atlanticISODate, daysBetweenISO } from "@agent-runway/core/lib/local-date";
 import { opportunityKey, type OpportunityKeyParts } from "./dismissed-opportunities";
 
 export const FIRST_CONTACT_TYPES = ["new_client_welcome", "contact_anniversary"] as const;
@@ -75,15 +75,6 @@ function addYearsISO(iso: string, years: number): string {
   const [y, m, d] = iso.split("-").map(Number);
   const dt = new Date(Date.UTC(y + years, m - 1, d));
   return `${dt.getUTCFullYear()}-${pad2(dt.getUTCMonth() + 1)}-${pad2(dt.getUTCDate())}`;
-}
-
-/** Whole calendar days from `from` to `to`, both YYYY-MM-DD. */
-function daysBetweenISO(from: string, to: string): number {
-  const utc = (iso: string) => {
-    const [y, m, d] = iso.split("-").map(Number);
-    return Date.UTC(y, m - 1, d);
-  };
-  return Math.round((utc(to) - utc(from)) / 86_400_000);
 }
 
 /**

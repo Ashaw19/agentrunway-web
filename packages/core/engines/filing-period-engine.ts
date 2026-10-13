@@ -13,6 +13,7 @@
  */
 
 import type { FilingFrequency, FilingPeriod } from "../types/database";
+import { daysBetweenISO, localISODate } from "../lib/local-date";
 
 const MONTH_NAMES = [
   "Jan", "Feb", "Mar", "Apr", "May", "Jun",
@@ -145,17 +146,18 @@ export function getFilingPeriodOptions(
 /**
  * Format a deadline with urgency context. `today` is the calendar anchor
  * (server callers pass atlanticNoon()).
+ *
+ * daysUntil is whole calendar days from the anchor's day. Two local
+ * midnights rounded up are not: across the autumn clock change they are a
+ * whole number of days plus an hour apart, and the count came out a day long.
  */
 export function deadlineUrgency(deadline: string, today: Date = new Date()): {
   label: string;
   daysUntil: number;
   urgency: "overdue" | "urgent" | "soon" | "ok";
 } {
-  const now = new Date(today);
-  now.setHours(0, 0, 0, 0);
   const dl = new Date(deadline + "T00:00:00");
-  const diffMs = dl.getTime() - now.getTime();
-  const daysUntil = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+  const daysUntil = daysBetweenISO(localISODate(today), deadline);
 
   let urgency: "overdue" | "urgent" | "soon" | "ok";
   let label: string;
