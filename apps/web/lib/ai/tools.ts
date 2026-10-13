@@ -57,6 +57,11 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { OutreachOpportunityType, NewsletterTemplateType } from "@agent-runway/core/types/database";
 import { FIELD_LIMITS } from "@agent-runway/core/validation/input-guards";
 import { ACTIVE_PIPELINE_STAGES } from "@agent-runway/core/types/database";
+import {
+  aggregateReceiptTotals,
+  expenseTaxContext,
+  type ExpenseTaxContext,
+} from "@agent-runway/core/engines/expense-totals-engine";
 import { incomeGoalCurrentYear, saveIncomeGoal } from "@/lib/income-goals";
 import {
   draftOutreachForClient as draftOutreachForClientService,
@@ -232,6 +237,23 @@ const ARCHIVE_REASONS = ["deceased", "moved_away", "do_not_contact", "other"] as
  * Pass the result directly to streamText({ tools: createAgentTools(...) }).
  */
 export function createAgentTools(supabase: SupabaseClient, userId: string): ToolSet {
+  // Expense totals are net of the GST/HST a registrant claims back as ITCs
+  // (expense-totals-engine), same as the dashboard. One settings read per
+  // tool set, shared by every tool that totals receipts.
+  let expenseTaxCtxPromise: Promise<ExpenseTaxContext> | null = null;
+  const getExpenseTaxCtx = (): Promise<ExpenseTaxContext> =>
+    (expenseTaxCtxPromise ??= (async () => {
+      const { data } = await supabase
+        .from("user_settings")
+        .select("gst_hst_registered, vehicle_business_use_pct")
+        .eq("user_id", userId)
+        .maybeSingle();
+      return expenseTaxContext(data);
+    })());
+  /** Appended to a receipt total so the basis is stated, never implied. */
+  const expenseBasisNote = (ctx: ExpenseTaxContext) =>
+    ctx.gstHstRegistered ? " (net of GST/HST claimed as input tax credits)" : "";
+
   return {
 
     // ── SEARCH: Find clients by name ─────────────────────────────────────────
@@ -2227,7 +2249,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
 
           const { data, error } = await supabase
             .from("receipt_expenses")
-            .select("category_key, total_amount")
+            .select("category_key, total_amount, tax_amount")
             .eq("user_id", userId)
             .gte("expense_date", start)
             .lte("expense_date", end);
@@ -2235,17 +2257,19 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
           if (error) return `Failed to fetch expenses: ${error.message}`;
           if (!data || data.length === 0) return `No expenses found for ${startDate ? `${start} to ${end}` : currentYear}.`;
 
-          // Aggregate by category
+          // Aggregate by category (canonical: net of ITCs for a registrant)
+          const taxCtx = await getExpenseTaxCtx();
+          const totals = aggregateReceiptTotals(data, taxCtx);
           const byCategory: Record<string, { total: number; count: number }> = {};
-          let grandTotal = 0;
-
           for (const exp of data) {
             const key = exp.category_key || "uncategorized";
             if (!byCategory[key]) byCategory[key] = { total: 0, count: 0 };
-            byCategory[key].total += Number(exp.total_amount);
             byCategory[key].count += 1;
-            grandTotal += Number(exp.total_amount);
           }
+          for (const key of Object.keys(byCategory)) {
+            byCategory[key].total = key === "uncategorized" ? totals.uncategorized : totals.byKey[key] ?? 0;
+          }
+          const grandTotal = totals.total;
 
           // Sort by total descending
           const sorted = Object.entries(byCategory)
@@ -2269,7 +2293,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
             return `• **${categoryLabels[key] || key}**: $${total.toFixed(2)} (${count} entries, ${pct}%)`;
           }).join("\n");
 
-          return `${header}\n${list}\n\n**Total**: $${grandTotal.toFixed(2)} across ${data.length} entries`;
+          return `${header}\n${list}\n\n**Total**: $${grandTotal.toFixed(2)} across ${data.length} entries${expenseBasisNote(taxCtx)}`;
         } catch {
           return "Failed to generate expense breakdown. Please try again.";
         }
@@ -2333,7 +2357,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
               .lte("date", end),
             supabase
               .from("receipt_expenses")
-              .select("total_amount, category_key")
+              .select("category_key, total_amount, tax_amount")
               .eq("user_id", userId)
               .gte("expense_date", start)
               .lte("expense_date", end),
@@ -2369,7 +2393,8 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
             const raw = Number(t.sale_price) * Number(t.commission_pct);
             return s + (t.team_split_pct != null && Number(t.team_split_pct) > 0 ? raw * Number(t.team_split_pct) : raw);
           }, 0);
-          const totalExpenses = expenses.reduce((s: number, e: { total_amount: number }) => s + Number(e.total_amount || 0), 0);
+          const taxCtx = await getExpenseTaxCtx();
+          const totalExpenses = aggregateReceiptTotals(expenses, taxCtx).total;
           const totalKm = mileage.reduce((s: number, m: { km: number }) => s + Number(m.km || 0), 0);
           const totalMileageDed = mileage.reduce((s: number, m: { deduction: number }) => s + Number(m.deduction || 0), 0);
           const pipelineValue = newDeals.reduce((s: number, d: { estimated_price: number }) => s + Number(d.estimated_price || 0), 0);
@@ -2398,7 +2423,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
           // Expenses
           if (expenses.length > 0) {
             const expenseRatio = totalGCI > 0 ? ((totalExpenses / totalGCI) * 100).toFixed(1) : "N/A";
-            sections.push(`💸 **Expenses**: $${totalExpenses.toFixed(2)} across ${expenses.length} entries${totalGCI > 0 ? ` (${expenseRatio}% expense ratio)` : ""}`);
+            sections.push(`💸 **Expenses**: $${totalExpenses.toFixed(2)} across ${expenses.length} entries${totalGCI > 0 ? ` (${expenseRatio}% expense ratio)` : ""}${expenseBasisNote(taxCtx)}`);
           }
 
           // Activities
@@ -2477,10 +2502,11 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
             };
           }
 
+          const taxCtx = await getExpenseTaxCtx();
           async function getPeriodData(start: string, end: string) {
             const [txResult, expResult, actResult] = await Promise.allSettled([
               supabase.from("transactions").select("sale_price, commission_pct, gci_override, team_split_pct").eq("user_id", userId).gte("date", start).lte("date", end),
-              supabase.from("receipt_expenses").select("total_amount").eq("user_id", userId).gte("expense_date", start).lte("expense_date", end),
+              supabase.from("receipt_expenses").select("category_key, total_amount, tax_amount").eq("user_id", userId).gte("expense_date", start).lte("expense_date", end),
               supabase.from("contact_activities").select("id").eq("user_id", userId).gte("activity_date", `${start}T00:00:00`).lte("activity_date", `${end}T23:59:59`),
             ]);
 
@@ -2495,7 +2521,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
                 const raw = Number(t.sale_price) * Number(t.commission_pct);
                 return s + (t.team_split_pct != null && Number(t.team_split_pct) > 0 ? raw * Number(t.team_split_pct) : raw);
               }, 0),
-              expenses: expData.reduce((s: number, e: { total_amount: number }) => s + Number(e.total_amount || 0), 0),
+              expenses: aggregateReceiptTotals(expData, taxCtx).total,
               activities: actData.length,
             };
           }
@@ -2523,6 +2549,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
             `| Expenses | $${dataA.expenses.toFixed(2)} | $${dataB.expenses.toFixed(2)} | ${delta(dataA.expenses, dataB.expenses)} |`,
             `| Activities | ${dataA.activities} | ${dataB.activities} | ${delta(dataA.activities, dataB.activities)} |`,
             `| Net (GCI-Exp) | $${(dataA.gci - dataA.expenses).toFixed(2)} | $${(dataB.gci - dataB.expenses).toFixed(2)} | ${delta(dataA.gci - dataA.expenses, dataB.gci - dataB.expenses)} |`,
+            ...(taxCtx.gstHstRegistered ? ["", "Expenses are net of GST/HST claimed as input tax credits."] : []),
           ].join("\n");
         } catch {
           return "Failed to compare periods. Please try again.";
@@ -2950,10 +2977,11 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
               return `Your YTD GCI is **$${total.toLocaleString()}** from ${data?.length ?? 0} closed deals.`;
             }
             case "ytd_expenses": {
-              const { data, error } = await supabase.from("receipt_expenses").select("total_amount").eq("user_id", userId).gte("expense_date", ytdStart);
+              const { data, error } = await supabase.from("receipt_expenses").select("category_key, total_amount, tax_amount").eq("user_id", userId).gte("expense_date", ytdStart);
               if (error) return `Query failed: ${error.message}`;
-              const total = (data ?? []).reduce((s: number, e: { total_amount: number }) => s + Number(e.total_amount || 0), 0);
-              return `Your YTD expenses total **$${total.toLocaleString()}** across ${data?.length ?? 0} entries.`;
+              const taxCtx = await getExpenseTaxCtx();
+              const total = aggregateReceiptTotals(data, taxCtx).total;
+              return `Your YTD expenses total **$${total.toLocaleString()}** across ${data?.length ?? 0} entries${expenseBasisNote(taxCtx)}.`;
             }
             case "open_tasks": {
               const { count, error } = await supabase.from("contact_tasks").select("id", { count: "exact", head: true }).eq("user_id", userId).is("completed_at", null);

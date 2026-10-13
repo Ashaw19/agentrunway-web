@@ -96,6 +96,8 @@ export interface ExpenseExportPdfProps {
   deductFull: number;
   deductMeals: number;
   deductVehicle: number;
+  /** GST/HST registrant: the summary totals are net of ITCs (expense-totals-engine). */
+  netOfItc?: boolean;
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -111,6 +113,7 @@ export function ExpenseExportPdf({
   deductFull,
   deductMeals,
   deductVehicle,
+  netOfItc = false,
 }: ExpenseExportPdfProps) {
   const totalYtd = Object.values(receiptTotals).reduce((s, v) => s + v, 0);
   const province = settings?.province
@@ -190,6 +193,11 @@ export function ExpenseExportPdf({
           </View>
         </View>
         <View style={S.divider} />
+        {netOfItc && (
+          <Text style={[S.subText, { marginBottom: 6 }]}>
+            Summary totals are net of the GST/HST claimed as input tax credits. The receipt log lists the amounts paid, GST/HST included.
+          </Text>
+        )}
 
         {/* Category Summary */}
         <Text style={S.sectionTitle}>Expense Categories</Text>

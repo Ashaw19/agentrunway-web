@@ -13,7 +13,7 @@
 // route (apps/web/app/api/chat/route.ts) both open-code the full chain:
 //   agentGross → tx fees → brokerage fees → ytdAgentNet
 //   tax projection → ytdTaxSetAside (annual burden * min(fraction, 1))
-//   HST collected on commissions + HST ITCs on expenses
+//   HST collected on commissions (ITCs are already out of the expenses)
 //   → computeCashPosition(...) → effectiveCash
 //
 // Every other surface that calls `survivalResult(...)` has to mirror that
@@ -52,7 +52,6 @@ export interface EffectiveCashInputs {
     | "monthly_brokerage_fee"
     | "cash_reserve"
     | "gst_hst_registered"
-    | "gst_hst_paid_on_expenses"
     | "brokerage_withholds_hst"
     | "is_incorporated"
     | "compensation_method"
@@ -67,9 +66,12 @@ export interface EffectiveCashInputs {
    * simulation on `ytdGCI` (documented approximation).
    */
   transactions?: RealDealInput[];
-  /** YTD business expenses (receipts + recurring). */
+  /**
+   * YTD business expenses (receipts + recurring), net of the ITCs a GST/HST
+   * registrant claims on them: build it from expense-totals-engine.
+   */
   expensesYTD: number;
-  /** Monthly recurring expenses (used to project remaining-year expenses for tax). */
+  /** Monthly recurring expenses, net of ITCs the same way (projects remaining-year expenses for tax). */
   monthlyRecurring: number;
   /** Projected year-end GCI (from projection-engine). */
   projectedGCI: number;
@@ -269,7 +271,7 @@ export function computeEffectiveCashForSurvival(
   const ytdBrokerageFees = settings.monthly_brokerage_fee * (now.getMonth() + 1);
   const ytdAgentNet = Math.max(0, ytdGrossAfterPlan - ytdBrokerageFees);
 
-  // ── HST collected / ITCs on expenses ────────────────────────────────────
+  // ── HST collected ───────────────────────────────────────────────────────
   // D-4 fix (Audit 1 2026-04-22): canonical HST helper. Returns 0 if not
   // registered OR brokerage withholds. See hst-engine.ts.
   const hstRateValue = gstHstRate(settings.province);
@@ -279,11 +281,12 @@ export function computeEffectiveCashForSurvival(
     isRegistered: settings.gst_hst_registered ?? false,
     brokerageWithholdsHst: settings.brokerage_withholds_hst ?? false,
   });
-  // NOTE: dashboard treats `gst_hst_paid_on_expenses` as truthy (a 0 dollar
-  // field disables the ITC adjustment). Preserve that behavior exactly.
-  const ytdHstOnExpenses = settings.gst_hst_paid_on_expenses
-    ? expensesYTD * (hstRateValue / (1 + hstRateValue))
-    : 0;
+  // `expensesYTD` is already net of the ITCs a registrant claims
+  // (expense-totals-engine), so there is nothing further to take off the HST
+  // owing: doing both would count the same GST/HST twice. Until 2026-10-13
+  // this estimated ITCs as the HST share of ALL YTD expenses, and only when
+  // `gst_hst_paid_on_expenses` held a non-zero dollar amount.
+  const ytdHstOnExpenses = 0;
 
   // ── Cash Position ──────────────────────────────────────────────────────
   const cashPosition = computeCashPosition({

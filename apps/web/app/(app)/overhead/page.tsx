@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { OverheadContent } from "./overhead-content";
 import type { HistoryItem, Transaction, PipelineDeal, SplitPreset, RecurringExpense } from "@/lib/types/database";
 import { totalRecurringMonthly, totalRecurringYTD } from "@agent-runway/core/engines/recurring-expense-engine";
+import { aggregateReceiptTotals, expenseTaxContext, recurringExpensesNetOfItc } from "@agent-runway/core/engines/expense-totals-engine";
 import { computeGCI, computeWeightedGCI, activePipelineDeals } from "@/lib/types/database";
 import { projectedYearEndGCI, projectedYearEndTransactions, seasonalFractionElapsed } from "@/lib/engines/projection-engine";
 import { computeEffectiveCashForSurvival } from "@/lib/engines/effective-cash";
@@ -60,7 +61,7 @@ export default async function OverheadPage() {
       .limit(10000),
     supabase
       .from("receipt_expenses")
-      .select("total_amount")
+      .select("category_key, total_amount, tax_amount")
       .eq("user_id", user.id)
       .gte("expense_date", `${currentYear}-01-01`)
       .limit(10000),
@@ -94,7 +95,12 @@ export default async function OverheadPage() {
       .limit(10000),
   ]);
 
-  const recurringExpenses = (recurringExpResult.data ?? []) as RecurringExpense[];
+  // Net of the GST/HST a registrant claims back as ITCs (expense-totals-engine).
+  const taxCtx = expenseTaxContext(rawSettings);
+  const recurringExpenses = recurringExpensesNetOfItc(
+    (recurringExpResult.data ?? []) as RecurringExpense[],
+    taxCtx,
+  );
   const recurringExpMonthly = totalRecurringMonthly(recurringExpenses);
   const recurringExpYTD = totalRecurringYTD(recurringExpenses, today);
 
@@ -107,10 +113,7 @@ export default async function OverheadPage() {
     items: expenseItems.filter((i) => i.category_id === cat.id),
   }));
 
-  const receiptYTD = (receiptTotalsResult.data ?? []).reduce(
-    (sum, r) => sum + Number(r.total_amount ?? 0),
-    0,
-  );
+  const receiptYTD = aggregateReceiptTotals(receiptTotalsResult.data, taxCtx).total;
 
   const mileageKmTotal = (mileageResult.data ?? []).reduce(
     (sum, r) => sum + Number(r.km ?? 0),

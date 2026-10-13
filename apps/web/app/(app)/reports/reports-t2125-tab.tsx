@@ -202,7 +202,11 @@ export function ReportsT2125Tab({
     setSaving(false);
     if (error) toast.error("Failed to save your tax data. Please try again.");
     else toast.success("Saved");
-  }, [localSettings, supabase, userId]);
+    // The expense lines are built on the server, net of ITCs for a registrant
+    // (expense-totals-engine). Changing registration changes that basis, so
+    // reload them instead of showing lines on the old one.
+    if (!error && "gst_hst_registered" in updates) router.refresh();
+  }, [localSettings, supabase, userId, router]);
 
   // ── Add CCA asset ─────────────────────────────────────────────────────────
   const [newAsset, setNewAsset] = useState({
@@ -498,7 +502,11 @@ export function ReportsT2125Tab({
             <SectionHeader
               icon={CreditCard}
               label="Deductible Expenses (Lines 8521–9369)"
-              subtitle="Auto-filled from your expense tracking"
+              subtitle={
+                localSettings.gst_hst_registered
+                  ? "Auto-filled from your expense tracking, net of the GST/HST claimed as input tax credits"
+                  : "Auto-filled from your expense tracking"
+              }
               color="text-slate-600"
             />
             <div className="flex items-center gap-2">

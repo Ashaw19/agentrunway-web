@@ -31,6 +31,7 @@ import * as Haptics from "expo-haptics";
 import { useDataStore, type ReceiptExpense } from "@/stores/data-store";
 import { supabase } from "@/lib/supabase";
 import { validateExpenseAmount } from "@agent-runway/core/validation/input-guards";
+import { expenseNetOfItc, expenseTaxContext } from "@agent-runway/core/engines/expense-totals-engine";
 import {
   useColors,
   useTheme,
@@ -146,7 +147,7 @@ function categoryColor(key: string | null): string {
 // ── Component ──────────────────────────────────────────────────────────────────
 
 export default function ScanScreen() {
-  const { receipts, fetchReceipts } = useDataStore();
+  const { receipts, fetchReceipts, settings } = useDataStore();
   const [state, setState] = useState<ScreenState>("idle");
   const [refreshing, setRefreshing] = useState(false);
   const [permission, requestPermission] = useCameraPermissions();
@@ -172,6 +173,11 @@ export default function ScanScreen() {
 
   // ── Expense Summary Metrics ──────────────────────────────────────────────
 
+  // Totals are net of the GST/HST a registrant claims back as input tax
+  // credits (expense-totals-engine), the same figure the web Expenses page
+  // shows. Each receipt card below still shows what was paid.
+  const expenseTaxCtx = useMemo(() => expenseTaxContext(settings), [settings]);
+
   const summaryMetrics = useMemo(() => {
     const now = new Date();
     const currentYear = now.getFullYear();
@@ -182,7 +188,7 @@ export default function ScanScreen() {
     const totalCount = receipts.length;
 
     receipts.forEach((r) => {
-      const amt = r.total_amount ?? 0;
+      const amt = expenseNetOfItc(r.total_amount, r.tax_amount, r.category_key, expenseTaxCtx).net;
       if (r.expense_date) {
         const d = new Date(r.expense_date + "T00:00:00");
         if (d.getFullYear() === currentYear) {
@@ -204,7 +210,7 @@ export default function ScanScreen() {
     });
 
     return { ytdTotal, monthTotal, totalCount };
-  }, [receipts]);
+  }, [receipts, expenseTaxCtx]);
 
   useEffect(() => {
     fetchReceipts();
@@ -783,6 +789,11 @@ export default function ScanScreen() {
             valueColor={c.text}
           />
         </View>
+        {expenseTaxCtx.gstHstRegistered && (
+          <Text style={{ ...Type.caption, color: c.textDim, marginTop: -Space.md, marginBottom: Space.xl }}>
+            Totals are net of the GST/HST claimed as input tax credits.
+          </Text>
+        )}
 
         {/* ── Scan Buttons ── */}
         <View style={{ flexDirection: "row", gap: Space.md, marginBottom: Space.xxl }}>
