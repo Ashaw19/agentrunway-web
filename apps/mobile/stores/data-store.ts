@@ -799,12 +799,20 @@ export const useDataStore = create<DataStore>((set, get) => {
       } = await supabase.auth.getUser();
       if (!user) return;
 
+      // Every receipt dated this year or last (and any with no date), newest
+      // capture first. NOT "the last 50": the Expenses screen totals the year
+      // and the month from this list, so a cap made both totals go short as
+      // soon as an agent passed 50 receipts (found 2026-10-13, same bug as
+      // the web Expenses page). The screen shows only the most recent ones.
+      // `ocr_raw` is left out: it is large and nothing on mobile reads it.
+      const year = new Date().getFullYear();
       const { data } = await supabase
         .from("receipt_expenses")
-        .select("*")
+        .select("id, vendor, expense_date, total_amount, tax_amount, subtotal, currency, category_key, notes, receipt_path, ocr_confidence, created_at")
         .eq("user_id", user.id)
+        .or(`expense_date.gte.${year - 1}-01-01,expense_date.is.null`)
         .order("created_at", { ascending: false })
-        .limit(50);
+        .limit(10000);
 
       if (data) {
         set({ receipts: data as ReceiptExpense[] });
