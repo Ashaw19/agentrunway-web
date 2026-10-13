@@ -32,7 +32,15 @@ import {
   type Transaction,
 } from "@/lib/types/database";
 import type { BenchmarkResult } from "@/lib/engines/benchmark-engine";
-import { riskColorBand, type SurvivalResult, type RiskLevel, type RiskColorBand } from "@/lib/engines/survival-engine";
+import {
+  riskColorBand,
+  RISK_BAND_LADDER,
+  RISK_BAND_RANGE,
+  RISK_LEVEL_LABEL,
+  type SurvivalResult,
+  type RiskLevel,
+  type RiskColorBand,
+} from "@/lib/engines/survival-engine";
 import type { RunwayScoreResult } from "@/lib/engines/runway-score-engine";
 import type { AdvisorCard } from "@/lib/engines/advisor-engine";
 
@@ -128,12 +136,11 @@ function generateAssessment(
   };
 
   const weakest = runwayScore.components.reduce((a, b) => (a.score < b.score ? a : b));
+  // The band the survival engine puts the runway in, in the engine's words.
   const survivalNote =
-    survival.riskLevel === "critical" || survival.riskLevel === "warning"
-      ? ` Your cash runway of ${survival.months.toFixed(1)} months is below the commonly cited 4-month safety buffer — building your reserve should be a near-term priority.`
-      : survival.riskLevel === "strong"
-      ? ` Your cash runway is strong, giving you the financial stability to take calculated risks and invest in growth.`
-      : "";
+    survival.riskLevel === "notConfigured"
+      ? ""
+      : ` Your cash runway of ${survival.label} is in the ${RISK_LEVEL_LABEL[survival.riskLevel]} range (${RISK_BAND_RANGE[survival.riskLevel]}).`;
 
   const benchmarkNote =
     benchmark.percentile >= 75
@@ -1095,21 +1102,27 @@ function ProgressBar({
   label,
   value,
   max,
+  valueText,
   note,
   color,
 }: {
   label: string;
   value: number;
   max: number;
+  /** The figure printed right of the label. Left out, it is value as a share
+   *  of max. Pass it when max is the bar's scale, not the value's own 100%. */
+  valueText?: string;
   note?: string;
   color?: string;
 }) {
-  const pct = max > 0 ? Math.min(100, (value / max) * 100) : 0;
+  const share = max > 0 ? (value / max) * 100 : 0;
+  // The fill stops at the end of the track. The printed figure does not.
+  const pct = Math.min(100, share);
   return (
     <View style={s.progressWrap}>
       <View style={s.progressHeader}>
         <Text style={s.progressLabel}>{label}</Text>
-        <Text style={s.progressValue}>{Math.round(pct)}%</Text>
+        <Text style={s.progressValue}>{valueText ?? `${Math.round(share)}%`}</Text>
       </View>
       <View style={s.progressTrack}>
         <View
@@ -1669,11 +1682,12 @@ export function BusinessReportPDF({
 
         <Text style={[s.sectionTitle, s.sectionTitleFirst]}>Expense Analysis — YTD {year}</Text>
 
-        {/* Expense ratio progress */}
+        {/* Expense ratio progress: drawn on a 0–50% scale, so the fill is not the ratio */}
         <ProgressBar
           label={`Expense Ratio · ${expenseRatio.toFixed(1)}% of GCI (target: 25–30%)`}
           value={expenseRatio}
           max={50}
+          valueText={`${expenseRatio.toFixed(1)}%`}
           note="YTD expenses divided by YTD GCI. The target range is 25–30%."
           color={expenseRatio <= 30 ? C.emerald : expenseRatio <= 40 ? C.amber : C.rose}
         />
@@ -1790,28 +1804,18 @@ export function BusinessReportPDF({
             },
           ]}
         >
+          {/* Months come from the engine's label ("24+ months" at the cap); not configured has none */}
           <Text style={[s.assessmentTitle, { color: riskColor(survival.riskLevel) }]}>
-            {survival.months.toFixed(1)} Months Cash Runway ·{" "}
-            {survival.riskLevel === "strong"
-              ? "Strong"
-              : survival.riskLevel === "healthy"
-              ? "Healthy"
-              : survival.riskLevel === "warning"
-              ? "Warning"
-              : survival.riskLevel === "notConfigured"
-              ? "Not Set"
-              : "Critical"}
+            {survival.riskLevel === "notConfigured"
+              ? RISK_LEVEL_LABEL.notConfigured
+              : `${survival.label} of cash runway · ${RISK_LEVEL_LABEL[survival.riskLevel]}`}
           </Text>
           <Text style={s.assessmentText}>
             Based on your cash reserve of {fmtCurrency(survival.cashReserve)} and a monthly burn
-            rate of {fmtCurrency(survival.monthlyBurn)}.
-            {survival.riskLevel === "critical"
-              ? " Immediate action required — build at minimum 2 months of reserves."
-              : survival.riskLevel === "warning"
-              ? " Consider increasing your reserve to 4+ months for professional security."
-              : survival.riskLevel === "notConfigured"
-              ? " Add your cash reserve and monthly costs in Settings to see your runway."
-              : " You are within the recommended 4–6+ month safety buffer."}
+            rate of {fmtCurrency(survival.monthlyBurn)}.{" "}
+            {survival.riskLevel === "notConfigured"
+              ? "Add your cash reserve and monthly costs in Settings to see your runway."
+              : RISK_BAND_LADDER}
           </Text>
         </View>
 

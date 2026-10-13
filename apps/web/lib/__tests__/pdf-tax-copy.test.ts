@@ -22,13 +22,27 @@
  * type-check under React 19), so nothing but a real render catches a typo in
  * them. Each is rendered to a PDF here, and its element tree is read for the
  * text it prints.
+ *
+ * Display defects fixed the same day, found by looking at the rendered pages:
+ *   - The business report's expense ratio bar printed its fill beside its
+ *     label: "66%" next to "Expense Ratio · 33.0% of GCI". The goal bar printed
+ *     "100%" beside "$250,000 of $200,000".
+ *   - The T2125 PDF's three footer lines printed on top of each other on every
+ *     page, the last one past the page edge. Where text lands is read back from
+ *     the rendered PDF with pdf.js (`textBoxes`).
+ *   - The business report's Cash Runway box gave instructions ("Immediate
+ *     action required", "Consider increasing your reserve") and called a
+ *     12-month runway "within the recommended 4–6+ month safety buffer". It
+ *     now states the survival engine's bands, in the engine's words.
  */
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import { createElement, isValidElement, type ReactNode } from "react";
 import { readFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { renderToBuffer, Text } from "@react-pdf/renderer";
+import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 import {
   CANONICAL_TAX_DISCLAIMER_SHORT,
   INCOME_TAX_INSTALMENT_DUE_DATES,
@@ -36,13 +50,21 @@ import {
   validateTaxCopy,
 } from "@agent-runway/core/tax-copy";
 import { compare } from "@agent-runway/core/engines/benchmark-engine";
-import { survivalResult } from "@agent-runway/core/engines/survival-engine";
+import {
+  RISK_BAND_LADDER,
+  RISK_BAND_RANGE,
+  RISK_LEVEL_LABEL,
+  survivalResult,
+  type SurvivalResult,
+} from "@agent-runway/core/engines/survival-engine";
 import { buildHealthReport } from "@agent-runway/core/engines/health-report";
 import { compute as computeRunwayScore } from "@agent-runway/core/engines/runway-score-engine";
 import { computeT2125 } from "@agent-runway/core/engines/t2125-engine";
 import { createTestSettings, TEST_TRANSACTIONS, TEST_YEAR } from "@agent-runway/core/engines/__tests__/test-data";
+import type { CcaAsset } from "@agent-runway/core/types/database";
 import { BusinessReportPDF } from "@/components/pdf/business-report-pdf";
 import { T2125Pdf } from "@/components/pdf/t2125-pdf";
+import { GuidePdf } from "@/components/pdf/guide-pdf";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const WEB = path.resolve(HERE, "../.."); // apps/web/
@@ -77,6 +99,19 @@ function textBlocks(node: ReactNode, out: string[] = []): string[] {
   return textBlocks(props.children, out);
 }
 
+/** The props of every element of the named component in a document's tree. */
+function propsOf(node: ReactNode, name: string, out: Record<string, unknown>[] = []): Record<string, unknown>[] {
+  if (Array.isArray(node)) {
+    for (const child of node) propsOf(child, name, out);
+    return out;
+  }
+  if (!isValidElement(node)) return out;
+  const { type, props } = node as { type: unknown; props: Record<string, unknown> & { children?: ReactNode } };
+  if (typeof type !== "function") return propsOf(props.children, name, out);
+  if (type.name === name) out.push(props);
+  return propsOf((type as (p: unknown) => ReactNode)(props), name, out);
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const blocksOf = (component: any, props: Record<string, unknown>) => textBlocks(createElement(component, props));
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -84,12 +119,62 @@ const renders = (component: any, props: Record<string, unknown>) => renderToBuff
 
 const errorsIn = (text: string) => validateTaxCopy(text).filter((d) => d.level === "error");
 
+// ── Reading where a PDF's text lands ────────────────────────────────────────
+// The element tree says what is printed, not where. For layout the rendered
+// PDF is read back with pdf.js: one box per run of text, in points from the
+// page's bottom-left corner.
+
+interface TextBox {
+  page: number;
+  text: string;
+  left: number;
+  right: number;
+  bottom: number;
+  top: number;
+}
+
+// The PDFs use Helvetica, one of the 14 standard fonts a PDF does not embed.
+const STANDARD_FONTS = `${path.dirname(createRequire(import.meta.url).resolve("pdfjs-dist/package.json"))}/standard_fonts/`;
+
+async function textBoxes(pdf: Buffer): Promise<TextBox[]> {
+  const doc = await getDocument({ data: new Uint8Array(pdf), standardFontDataUrl: STANDARD_FONTS }).promise;
+  const boxes: TextBox[] = [];
+  for (let n = 1; n <= doc.numPages; n++) {
+    const { items } = await (await doc.getPage(n)).getTextContent();
+    for (const item of items) {
+      if (!("str" in item) || !item.str.trim()) continue;
+      const [left, bottom] = item.transform.slice(4) as number[];
+      boxes.push({ page: n, text: item.str, left, right: left + item.width, bottom, top: bottom + item.height });
+    }
+  }
+  await doc.destroy();
+  return boxes;
+}
+
+const sharedHeight = (a: TextBox, b: TextBox) => Math.min(a.top, b.top) - Math.max(a.bottom, b.bottom);
+const sharedWidth = (a: TextBox, b: TextBox) => Math.min(a.right, b.right) - Math.max(a.left, b.left);
+
+/** Pairs of text runs printed on top of each other, by more than a point each way. */
+function overprints(boxes: TextBox[]): string[] {
+  const hits: string[] = [];
+  boxes.forEach((a, i) => {
+    for (const b of boxes.slice(i + 1)) {
+      if (a.page === b.page && sharedWidth(a, b) > 1 && sharedHeight(a, b) > 1) {
+        hits.push(`page ${a.page}: "${a.text}" over "${b.text}"`);
+      }
+    }
+  });
+  return hits;
+}
+
+const LETTER_WIDTH = 612;
+
 // ── Business report PDF ─────────────────────────────────────────────────────
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 function reportProps(over: Record<string, unknown> = {}) {
-  const ytdGCI = 120_000;
+  const ytdGCI = (over.ytdGCI as number | undefined) ?? 120_000;
   const goalGCI = 200_000;
   const fraction = 0.75;
   const projectedGCI = 160_000;
@@ -97,7 +182,7 @@ function reportProps(over: Record<string, unknown> = {}) {
   const expenseRatio = (over.expenseRatio as number | undefined) ?? 33;
   const expensesYTD = (ytdGCI * expenseRatio) / 100;
   const benchmark = compare(projectedGCI, 6);
-  const survival = survivalResult(500, 2_000, 30_000, 0);
+  const survival = (over.survival as SurvivalResult | undefined) ?? survivalResult(500, 2_000, 30_000, 0);
   const runwayScore = computeRunwayScore(
     buildHealthReport(ytdGCI, goalGCI, fraction, pipelineWeighted, expensesYTD),
     benchmark.percentile,
@@ -217,13 +302,134 @@ describe("business report PDF: expense ratio wording", () => {
   });
 });
 
+// A bar prints its label, then one figure to the right of it.
+function barOf(blocks: string[], labelStart: string) {
+  const at = blocks.findIndex((block) => block.startsWith(labelStart));
+  return { label: blocks[at], figure: blocks[at + 1] };
+}
+
+describe("business report PDF: a bar's figure is the one its label gives", () => {
+  // The expense ratio bar is drawn on a 0–50% scale, so its fill is twice the
+  // ratio. The fill used to be the figure: 33.0% printed "66%".
+  it.each([
+    [12, "12.0%"],
+    [33, "33.0%"],
+    [47, "47.0%"],
+    [60, "60.0%"],
+  ])("an expense ratio of %i prints %s", (ratio, figure) => {
+    const bar = barOf(blocksOf(BusinessReportPDF, reportProps({ expenseRatio: ratio })), "Expense Ratio ·");
+    expect(bar.label).toContain(`Expense Ratio · ${figure} of GCI`);
+    expect(bar.figure).toBe(figure);
+  });
+
+  // The fill stops at the end of the bar. The figure does not stop with it.
+  it.each([
+    [120_000, "60%"],
+    [200_000, "100%"],
+    [250_000, "125%"],
+  ])("GCI of %i against a 200,000 goal prints %s", (ytdGCI, figure) => {
+    const bar = barOf(blocksOf(BusinessReportPDF, reportProps({ ytdGCI })), "Annual GCI Goal Progress ·");
+    expect(bar.label).toContain("of $200,000");
+    expect(bar.figure).toBe(figure);
+  });
+});
+
+describe("business report PDF: cash runway is stated against the engine's bands", () => {
+  // Brokerage fee 500 + recurring 2,000 = 2,500 a month.
+  const RUNWAYS = [
+    { level: "critical", months: "1.2 months", survival: survivalResult(500, 2_000, 3_000, 0) },
+    { level: "warning", months: "3.0 months", survival: survivalResult(500, 2_000, 7_500, 0) },
+    { level: "healthy", months: "4.5 months", survival: survivalResult(500, 2_000, 11_250, 0) },
+    { level: "strong", months: "12.0 months", survival: survivalResult(500, 2_000, 30_000, 0) },
+    { level: "strong", months: "24+ months", survival: survivalResult(500, 2_000, 90_000, 0) },
+  ] as const;
+  const NOT_SET = survivalResult(0, 0, 0, 0);
+
+  it.each(RUNWAYS)("$months: the box names the band and lists all four", ({ level, months, survival }) => {
+    expect(survival.riskLevel).toBe(level);
+    const blocks = blocksOf(BusinessReportPDF, reportProps({ survival }));
+    const title = `${months} of cash runway · ${RISK_LEVEL_LABEL[level]}`;
+    expect(blocks).toContain(title);
+    const body = blocks.find((block) => block.startsWith("Based on your cash reserve of"));
+    expect(body).toMatch(/^Based on your cash reserve of \$[\d,]+ and a monthly burn rate of \$2,500\. /);
+    expect(body?.endsWith(` ${RISK_BAND_LADDER}`)).toBe(true);
+    expect(`${title} ${body}`).not.toContain("—");
+  });
+
+  it.each(RUNWAYS)("$months: the assessment says which range that is", ({ level, months, survival }) => {
+    const all = blocksOf(BusinessReportPDF, reportProps({ survival })).join("\n");
+    expect(all).toContain(
+      ` Your cash runway of ${months} is in the ${RISK_LEVEL_LABEL[level]} range (${RISK_BAND_RANGE[level]}).`,
+    );
+  });
+
+  it.each([...RUNWAYS.map((r) => r.survival), NOT_SET])("no instruction is left ($label)", (survival) => {
+    const all = blocksOf(BusinessReportPDF, reportProps({ survival })).join("\n");
+    expect(all).not.toMatch(/immediate action required/i);
+    expect(all).not.toMatch(/increasing your reserve|building your reserve/i);
+    expect(all).not.toMatch(/professional security|safety buffer|near-term priority|calculated risks/i);
+    expect(all).not.toMatch(/recommended 4/i);
+  });
+
+  it("with no reserve and no costs entered, the box says Not Set and prints no month count", () => {
+    expect(NOT_SET.riskLevel).toBe("notConfigured");
+    const blocks = blocksOf(BusinessReportPDF, reportProps({ survival: NOT_SET }));
+    expect(blocks).toContain(RISK_LEVEL_LABEL.notConfigured);
+    expect(blocks).toContain(
+      "Based on your cash reserve of $0 and a monthly burn rate of $0. Add your cash reserve and monthly costs in Settings to see your runway.",
+    );
+    const all = blocks.join("\n");
+    expect(all).not.toMatch(/-1\.0/); // the engine's "not configured" sentinel
+    expect(all).not.toContain("Your cash runway of");
+    expect(all).not.toContain(RISK_BAND_LADDER);
+  });
+
+  it.each([...RUNWAYS.map((r) => r.survival), NOT_SET])("renders to a PDF ($label)", async (survival) => {
+    const pdf = await renders(BusinessReportPDF, reportProps({ survival }));
+    expect(pdf.subarray(0, 5).toString()).toBe("%PDF-");
+  });
+});
+
+describe("the bands are worded once, in the survival engine", () => {
+  it("the Guide PDF states the same four bands", () => {
+    const blocks = blocksOf(GuidePdf, { province: "newBrunswick", businessStructure: "sole_prop", splitPreset: "p80_20" });
+    expect(blocks).toContain(`Cash Reserve \u00F7 Net Monthly Burn. ${RISK_BAND_LADDER}`);
+  });
+
+  it("the Reports page's badge takes the band's word from the engine, as its PDF does", () => {
+    const page = source("app/(app)/reports/reports-content.tsx");
+    expect(page).toContain("label: RISK_LEVEL_LABEL[level]");
+    expect(page).not.toMatch(/const RISK_LABEL\b/);
+  });
+});
+
 // ── T2125 PDF ───────────────────────────────────────────────────────────────
 
-function t2125Props() {
+function t2125Props(ccaAssets: CcaAsset[] = []) {
   const settings = createTestSettings({ gst_hst_registered: true });
-  const result = computeT2125({ settings, transactions: TEST_TRANSACTIONS, expenses: [], ccaAssets: [], taxYear: TEST_YEAR });
+  const result = computeT2125({ settings, transactions: TEST_TRANSACTIONS, expenses: [], ccaAssets, taxYear: TEST_YEAR });
   return { result, settings, taxYear: TEST_YEAR };
 }
+
+// One row in the PDF's Capital Cost Allowance table.
+const OFFICE_ASSET: CcaAsset = {
+  id: "asset",
+  user_id: "user",
+  cca_class: 8,
+  class_rate: 0.2,
+  class_half_year: true,
+  description: "Office equipment",
+  acquisition_date: `${TEST_YEAR}-03-01`,
+  original_cost: 2_000,
+  business_use_pct: 1,
+  opening_ucc: 0,
+  additions_this_year: 2_000,
+  disposals_this_year: 0,
+  cca_claimed_prior: 0,
+  notes: null,
+  created_at: `${TEST_YEAR}-03-01T12:00:00Z`,
+  updated_at: `${TEST_YEAR}-03-01T12:00:00Z`,
+};
 
 describe("T2125 PDF: instalment tracker", () => {
   const blocks = blocksOf(T2125Pdf, t2125Props());
@@ -246,6 +452,99 @@ describe("T2125 PDF: instalment tracker", () => {
   it("renders to a PDF", async () => {
     const pdf = await renders(T2125Pdf, t2125Props());
     expect(pdf.subarray(0, 5).toString()).toBe("%PDF-");
+  });
+});
+
+describe("T2125 PDF: layout at LETTER width", () => {
+  const MARGIN = 40;
+  const LONG_NAME = "Alexandria Montgomery-Featherstonehaugh Personal Real Estate Corporation";
+  const footerLines = (name: string) => [
+    `Agent Runway · T2125 Summary · ${name} · ${TEST_YEAR} Tax Year`,
+    "ESTIMATES ONLY — NOT PROFESSIONAL TAX ADVICE — CONSULT YOUR ACCOUNTANT",
+    "© 2026 Agent Runway Inc. · Canada Corporation No. 1786542-2",
+  ];
+  // A long line may wrap, and react-pdf hyphenates where it breaks a word.
+  const squash = (text: string) => text.replace(/[\s-]/g, "");
+
+  /** Section headers that a page break cut in two, or cut off from the first line under them. */
+  function strandedHeaders(props: ReturnType<typeof t2125Props>, boxes: TextBox[]): string[] {
+    const headers = propsOf(createElement(T2125Pdf, props), "SectionHeader");
+    expect(headers.length).toBeGreaterThan(5);
+    // The footer is drawn last on each page, so it sits between one page's text and the next's.
+    const footer = footerLines(props.result.agentName).map(squash);
+    const flowing = boxes.filter((box) => !footer.some((line) => line.includes(squash(box.text))));
+    return headers.flatMap(({ title }) => {
+      const at = flowing.findIndex((box) => squash(box.text) === squash(String(title).toUpperCase()));
+      expect(at, String(title)).toBeGreaterThanOrEqual(0);
+      const [heading, subtitle, firstLine] = flowing.slice(at, at + 3);
+      const pages = [heading.page, subtitle.page, firstLine.page];
+      return new Set(pages).size === 1 ? [] : [`${title}: pages ${pages.join(", ")}`];
+    });
+  }
+
+  describe.each([
+    ["a short agent name", "Sample Agent"],
+    ["a long agent name", LONG_NAME],
+  ])("%s", (_, name) => {
+    const base = t2125Props();
+    const props = { ...base, result: { ...base.result, agentName: name } };
+    let boxes: TextBox[] = [];
+    beforeAll(async () => {
+      boxes = await textBoxes(await renders(T2125Pdf, props));
+    });
+
+    it("no text is printed over other text", () => {
+      expect(overprints(boxes)).toEqual([]);
+    });
+
+    it("no text runs past the page margins", () => {
+      const outside = boxes.filter((box) => box.left < MARGIN - 0.5 || box.right > LETTER_WIDTH - MARGIN + 0.5);
+      expect(outside.map((box) => `page ${box.page}: "${box.text}"`)).toEqual([]);
+    });
+
+    it("every page carries the three footer lines, whole", () => {
+      const pages = [...new Set(boxes.map((box) => box.page))];
+      expect(pages.length).toBeGreaterThan(1);
+      for (const page of pages) {
+        const printed = squash(boxes.filter((box) => box.page === page).map((box) => box.text).join(""));
+        for (const line of footerLines(name)) expect(printed, `page ${page}`).toContain(squash(line));
+      }
+    });
+
+    // The footer needs room at the foot of the page, which moves the page
+    // breaks. A break must not land inside a section header or right after one.
+    it("a section header stays on one page with the first line under it", () => {
+      expect(strandedHeaders(props, boxes)).toEqual([]);
+    });
+
+    it("a line's note stands clear of the amount beside it", () => {
+      const notes = boxes.filter((box) => /^\* User-declared %$|^Gross: /.test(box.text));
+      expect(notes.length).toBeGreaterThan(0);
+      for (const note of notes) {
+        const amount = boxes.find(
+          (box) => box.page === note.page && /^\$[\d,.]+$/.test(box.text) && box.left >= note.left && sharedHeight(box, note) > 1,
+        );
+        expect(amount, note.text).toBeDefined();
+        expect(amount!.left - note.right, note.text).toBeGreaterThanOrEqual(4);
+      }
+    });
+  });
+
+  // Each asset adds a row above the last sections of the page, so the sweep
+  // walks every header on that page across the page break.
+  it("wherever the page break falls, no section header is cut in two or left behind", async () => {
+    const stranded: string[] = [];
+    for (let assets = 0; assets <= 8; assets++) {
+      const props = t2125Props(Array.from({ length: assets }, (_, i) => ({ ...OFFICE_ASSET, id: `asset-${i}` })));
+      const found = strandedHeaders(props, await textBoxes(await renders(T2125Pdf, props)));
+      stranded.push(...found.map((header) => `${assets} assets: ${header}`));
+    }
+    expect(stranded).toEqual([]);
+  }, 30_000);
+
+  it("the footer's wording is unchanged", () => {
+    const blocks = blocksOf(T2125Pdf, t2125Props());
+    for (const line of footerLines("Sarah Chen")) expect(blocks).toContain(line);
   });
 });
 
