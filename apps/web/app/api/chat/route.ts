@@ -77,6 +77,7 @@ import { selectModelTier, personaEffort } from "@/lib/ai/router";
 import { buildPromptParts, injectCanary, validateNavigatorOutput } from "@/lib/ai/security";
 import { fetchMemories, addMemory } from "@/lib/ai/memory";
 import { createPersonaAgentTools, NEEDS_APPROVAL_TOOLS, APPROVAL_DESCRIPTIONS } from "@/lib/ai/tools";
+import { seasonalCommissionPatternLine } from "@/lib/ai/seasonal-tax-intel";
 import type { Province, Transaction as CoreTransaction, ContactActivity } from "@agent-runway/core/types/database";
 
 /** Returns a safe user-facing message for AI stream errors without leaking internal details. */
@@ -940,13 +941,15 @@ export async function POST(req: NextRequest) {
           });
           const receiptDetails = (receiptDetailsRows ?? []) as { total_amount?: number | null; tax_amount?: number | null; category_key?: string | null }[];
           // Same limits as the GST34 pre-fill (itcForExpense): half of meals
-          // and entertainment, and the business-use share of vehicle costs.
-          // Vehicle use is the same figure the expense totals above were netted with.
+          // and entertainment, and the business-use share of vehicle costs
+          // and of Home Office bills. Both shares are the same figures the
+          // expense totals above were netted with.
           const vehicleUse = expenseTaxCtx.vehicleBusinessUsePct;
+          const homeUse = expenseTaxCtx.homeOfficeBusinessUsePct;
           const receiptITCs = receiptDetails.reduce(
-            (sum, r) => sum + itcForExpense(Number(r.tax_amount ?? 0), r.category_key, vehicleUse).claimable, 0);
+            (sum, r) => sum + itcForExpense(Number(r.tax_amount ?? 0), r.category_key, vehicleUse, false, homeUse).claimable, 0);
           const recurringITCs = recurringHSTEntriesForPeriod(recurringExps, `${todayISO.slice(0, 4)}-01-01`, todayISO)
-            .reduce((sum, e) => sum + itcForExpense(e.tax_amount, e.category_key, vehicleUse, e.vehicle_use).claimable, 0);
+            .reduce((sum, e) => sum + itcForExpense(e.tax_amount, e.category_key, vehicleUse, e.vehicle_use, homeUse).claimable, 0);
           const totalITCsClaimed = receiptITCs + recurringITCs;
           const netHST = totalHSTCollected - totalITCsClaimed;
           if (ytdGCI > 0) {
@@ -1029,32 +1032,18 @@ export async function POST(req: NextRequest) {
         }
 
         // 7. Seasonal Tax Set-Aside Adjustments
-        {
-          const currentQ = getCurrentQuarter(today);
-          const qFraction = engineSeasonalWeights[currentQ - 1];
-          if (qFraction > 0.30 && ytdTx.length > 0) {
-            // This is a heavy quarter — agent earning disproportionately
-            const qDeals = ytdTx.filter((tx: { date: string }) => {
-              // Local-noon anchor — `tx.date` is date-only, so a bare `new Date()`
-              // pushes every Jan 1 / Apr 1 / Jul 1 / Oct 1 close into the previous
-              // quarter and under-counts the quarter this nudge is reasoning about.
-              const m = new Date(tx.date + "T12:00:00").getMonth();
-              return Math.floor(m / 3) + 1 === currentQ;
-            }).length;
-            if (qDeals >= 2) {
-              // Estimate Q-specific tax liability at marginal rate against Q's share of projected year-end GCI
-              const qProjectedGCI = projGCI * qFraction;
-              const qEstimatedTaxLiability = qProjectedGCI * taxResult.effectiveRate;
-              taxIntelLines.push(
-                `[SEASONAL COMMISSION PATTERN] Q${currentQ} seasonal weight: ${(qFraction * 100).toFixed(0)}% of annual. ` +
-                `Agent closed ${qDeals} deals in Q${currentQ}. ` +
-                `Estimated tax liability on this quarter's projected GCI at marginal rate ${(taxResult.effectiveRate * 100).toFixed(1)}%: ~${fmtCurrency(qEstimatedTaxLiability)}. ` +
-                `Per-deal equivalent: ${fmtCurrency(taxResult.perDealSetAside)}. ` +
-                `State the math only — describe no action.`,
-              );
-            }
-          }
-        }
+        // A heavy quarter — agent earning disproportionately. The quarter is
+        // derived from `today` inside the helper (0-based index, 1-based label).
+        taxIntelLines.push(
+          seasonalCommissionPatternLine({
+            today,
+            seasonalWeights: engineSeasonalWeights,
+            ytdTx,
+            projectedGCI: projGCI,
+            effectiveRate: taxResult.effectiveRate,
+            perDealSetAside: taxResult.perDealSetAside,
+          }),
+        );
 
         // 8. CCA (Depreciation) Reminders
         {

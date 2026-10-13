@@ -102,16 +102,21 @@ type ItemRow = {
 interface Fixture {
   /** Every table, as the fake client serves it. */
   tables: Record<string, Row[]>;
-  settings: { user_id: string; gst_hst_registered: boolean; vehicle_business_use_pct: number };
+  settings: {
+    user_id: string;
+    gst_hst_registered: boolean;
+    vehicle_business_use_pct: number;
+    home_office_business_use_pct: number;
+  };
   receipts: ReceiptRow[];
   recurring: RecurringExpense[];
   items: ItemRow[];
 }
 
 /**
- * A New Brunswick agent (15% HST) at 50% vehicle business use. 50% is not
- * the column default (80%), so a tool that forgets to read
- * `vehicle_business_use_pct` gets different numbers.
+ * A New Brunswick agent (15% HST) at 50% vehicle business use and a 20%
+ * home office. Neither is the column default (80% and 0%), so a tool that
+ * forgets to read one of them gets different numbers.
  */
 function fixtures({ registered = true, legacyMonthly = 20 }: FixtureOptions = {}): Fixture {
   const settings = {
@@ -119,6 +124,7 @@ function fixtures({ registered = true, legacyMonthly = 20 }: FixtureOptions = {}
     province: "newBrunswick",
     gst_hst_registered: registered,
     vehicle_business_use_pct: 0.5,
+    home_office_business_use_pct: 0.2,
     brokerage_withholds_hst: false,
     filing_frequency: "quarterly",
     // The manually typed number get_hst_status used to report as the ITCs.
@@ -310,8 +316,10 @@ describe("get_dashboard_kpis — expenses are the dashboard's", () => {
     expect(items.columns).not.toContain("ytd_amount");
 
     const settingsColumns = db.queriesFor("user_settings").map((q) => q.columns).join(", ");
+    // The three inputs of expenseTaxContext.
     expect(settingsColumns).toContain("gst_hst_registered");
     expect(settingsColumns).toContain("vehicle_business_use_pct");
+    expect(settingsColumns).toContain("home_office_business_use_pct");
   });
 
   it("on Dec 31 evening (already Jan 1 in UTC) the year is still the Atlantic one", async () => {
@@ -462,6 +470,42 @@ describe("get_expenses — the same total, with its lines", () => {
     expect(registrant.amounts).toMatch(/net of the GST\/HST/i);
     expect(notRegistered.amounts).toMatch(/as paid/i);
     expect(notRegistered.total_ytd).toBe(6938.5);
+  });
+});
+
+// ── Home Office bills ──────────────────────────────────────────────────────
+
+describe("Home Office bills count at the workspace share, as on the dashboard", () => {
+  // A $230 power bill with $30 HST, at a 20% workspace. Registrant: ITC 6,
+  // the bill before tax is 200, and 20% of it (40) is the expense.
+  function withPowerBill(options: FixtureOptions = {}): Fixture {
+    const fx = fixtures(options);
+    // `fx.receipts` is the array the fake client serves as receipt_expenses.
+    fx.receipts.push({ user_id: USER, expense_date: "2026-03-03", category_key: "home_utilities", total_amount: 230, tax_amount: 30 });
+    return fx;
+  }
+
+  it("get_dashboard_kpis and get_expenses: 40 of the 230, not 230 and not 0", async () => {
+    const fx = withPowerBill();
+    const kpis = await callTool(await analytics(fakeSupabase(fx.tables)), "get_dashboard_kpis");
+    const out = await callTool<ExpensesOutput>(await expenses(fakeSupabase(fx.tables)), "get_expenses");
+
+    expect(dashboardExpenses(fx).expensesYTD).toBe(6043.75 + 40);
+    expect(kpis.ytd_expenses).toBe(6084);
+    expect(out.total_ytd).toBe(6083.75);
+    expect(out.all_items.find((i) => i.key === "home_utilities")).toMatchObject({ ytd_amount: 40 });
+  });
+
+  it("get_hst_status: the ITC on the bill is the workspace share of its HST", async () => {
+    const out = await callTool(await analytics(fakeSupabase(withPowerBill().tables)), "get_hst_status");
+    expect(out.itcs_paid_on_expenses).toBe(511); // 504.75 + 30 × 20%
+  });
+
+  it("not registered: 20% of the whole bill, HST included", async () => {
+    const fx = withPowerBill({ registered: false });
+    const kpis = await callTool(await analytics(fakeSupabase(fx.tables)), "get_dashboard_kpis");
+    expect(dashboardExpenses(fx).expensesYTD).toBe(6938.5 + 46);
+    expect(kpis.ytd_expenses).toBe(Math.round(6938.5 + 46));
   });
 });
 

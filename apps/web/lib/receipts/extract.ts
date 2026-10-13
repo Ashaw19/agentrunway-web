@@ -56,6 +56,14 @@ Category keys (pick the most specific match):
 - meals_team:       Team lunch or dinner
 - ent_client:       Client entertainment, golf, spa
 - ent_events:       Event tickets, concerts, sports events, Ticketmaster
+- home_utilities:   A HOME power, heating, natural gas, heating oil, propane or water bill (NB Power, Saint John Energy, Hydro One, Enbridge, Nova Scotia Power)
+- home_internet:    A HOME internet bill (only when the bill is clearly residential internet)
+- home_insurance:   Home or tenant insurance premiums
+- home_maintenance: Repairs or upkeep to the home (plumber, furnace service, roof repair)
+- home_property_tax: Municipal property tax bill
+- home_mortgage_interest: Mortgage statement showing interest paid
+- home_rent:        Residential rent receipt
+- home_condo_fees:  Condo or strata fees
 - other_misc:       Anything that doesn't fit the above
 
 Rules:

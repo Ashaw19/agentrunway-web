@@ -9,7 +9,9 @@
  * CRA References:
  *   T2125 form: https://www.canada.ca/en/revenue-agency/services/forms-publications/forms/t2125.html
  *   Industry Code 531210: Real Estate Agents
- *   Home office: actual-cost method (business-use % of home costs)
+ *   Home office: actual-cost method (business-use % of home costs). Home
+ *     bills logged under the Home Office expense category are those costs;
+ *     a cost type with no logged bills falls back to the estimate in settings.
  *   Meals & Entertainment: 50% deductible
  *   Half-year CCA rule applies to most asset classes
  *
@@ -30,6 +32,12 @@ export interface T2125LineMap {
   lineName: string;
   deductiblePct: number; // 1.0 = fully deductible, 0.5 = 50% meals rule
   applyVehicleUse: boolean; // multiply by vehicle_business_use_pct
+  /**
+   * A home bill (heat, insurance, mortgage interest...). Only the home
+   * business-use share is a business cost, and it is claimed on line 9945
+   * (business-use-of-home), never on an expense line or in line 9369.
+   */
+  applyHomeUse?: boolean;
   t2125Part: "expenses" | "vehicle" | "home_office" | "professional" | "other";
 }
 
@@ -71,7 +79,54 @@ export const EXPENSE_KEY_TO_T2125: Record<string, T2125LineMap> = {
 
   // Other (CRA T2125 line 9270)
   other_misc: { lineNumber: "9270", lineName: "Other expenses",           deductiblePct: 1.0, applyVehicleUse: false, t2125Part: "other" },
+
+  // Business-use-of-home (CRA T2125 line 9945) — actual home bills, multiplied
+  // by home_office_business_use_pct. See HOME_OFFICE_KEY_TO_COST below.
+  home_utilities:         { lineNumber: "9945", lineName: "Home electricity, heat & water", deductiblePct: 1.0, applyVehicleUse: false, applyHomeUse: true, t2125Part: "home_office" },
+  home_internet:          { lineNumber: "9945", lineName: "Home internet",                  deductiblePct: 1.0, applyVehicleUse: false, applyHomeUse: true, t2125Part: "home_office" },
+  home_insurance:         { lineNumber: "9945", lineName: "Home insurance",                 deductiblePct: 1.0, applyVehicleUse: false, applyHomeUse: true, t2125Part: "home_office" },
+  home_maintenance:       { lineNumber: "9945", lineName: "Home repairs & maintenance",     deductiblePct: 1.0, applyVehicleUse: false, applyHomeUse: true, t2125Part: "home_office" },
+  home_property_tax:      { lineNumber: "9945", lineName: "Property tax",                   deductiblePct: 1.0, applyVehicleUse: false, applyHomeUse: true, t2125Part: "home_office" },
+  home_mortgage_interest: { lineNumber: "9945", lineName: "Mortgage interest",              deductiblePct: 1.0, applyVehicleUse: false, applyHomeUse: true, t2125Part: "home_office" },
+  home_rent:              { lineNumber: "9945", lineName: "Rent",                           deductiblePct: 1.0, applyVehicleUse: false, applyHomeUse: true, t2125Part: "home_office" },
+  home_condo_fees:        { lineNumber: "9945", lineName: "Condo fees",                     deductiblePct: 1.0, applyVehicleUse: false, applyHomeUse: true, t2125Part: "home_office" },
 };
+
+// ── Home bills → business-use-of-home cost types ─────────────────────────────
+// The Home Office expense category (migration 00174) holds the real bills.
+// Each key feeds one of the cost types the T2125 home office section already
+// had as a settings estimate. Mortgage interest and rent share one (the
+// settings field has always been "rent or mortgage interest"); home internet
+// is counted with utilities.
+
+export type HomeOfficeCostType =
+  | "rent"
+  | "utilities"
+  | "propertyTax"
+  | "insurance"
+  | "maintenance"
+  | "condoFees";
+
+export const HOME_OFFICE_CATEGORY_KEY = "home_office";
+
+export const HOME_OFFICE_KEY_TO_COST: Record<string, HomeOfficeCostType> = {
+  home_utilities: "utilities",
+  home_internet: "utilities",
+  home_insurance: "insurance",
+  home_maintenance: "maintenance",
+  home_property_tax: "propertyTax",
+  home_mortgage_interest: "rent",
+  home_rent: "rent",
+  home_condo_fees: "condoFees",
+  // A recurring expense can carry the category key instead of an item key.
+  [HOME_OFFICE_CATEGORY_KEY]: "maintenance",
+};
+
+/** A home bill: only the home business-use share of it is a business cost. */
+export function isHomeOfficeKey(key: string | null | undefined): boolean {
+  if (!key) return false;
+  return key in HOME_OFFICE_KEY_TO_COST;
+}
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -108,6 +163,11 @@ export interface HomeOfficeResult {
   totalAnnualHomeCosts: number;
   businessUsePct: number;
   deduction: number;             // totalAnnualHomeCosts × businessUsePct
+  /**
+   * Cost types whose amount above is the total of bills logged under the
+   * Home Office expense category. The rest are the settings estimate.
+   */
+  loggedCostTypes: HomeOfficeCostType[];
 }
 
 export interface GstHstResult {
@@ -197,6 +257,12 @@ export interface T2125Input {
   settings: UserSettings;
   transactions: Transaction[];         // closed deals, current year
   expenseAmounts: Record<string, number>; // key → YTD amount (receipts + recurring)
+  /**
+   * Home bills logged this year, by expense key: the WHOLE bill, before the
+   * business-use share (`ReceiptTotals.homeOfficeCosts`). Home keys in
+   * `expenseAmounts` are ignored: that map carries them at the business share.
+   */
+  homeOfficeCosts?: Record<string, number>;
   ccaAssets: CcaAsset[];
   taxYear?: number;
   otherIncome?: number;                // user-entered other business income (referrals, etc.)
@@ -220,7 +286,8 @@ export function computeT2125(input: T2125Input): T2125Result {
   const vehicleUsePct = Math.min(1, Math.max(0, settings.vehicle_business_use_pct ?? 0));
 
   const expenseLines: ExpenseLineItem[] = Object.entries(expenseAmounts)
-    .filter(([key, amount]) => amount > 0 && EXPENSE_KEY_TO_T2125[key])
+    // Home bills are not expense lines: they are the costs behind line 9945.
+    .filter(([key, amount]) => amount > 0 && EXPENSE_KEY_TO_T2125[key] && !isHomeOfficeKey(key))
     .map(([key, rawAmount]) => {
       const mapping = EXPENSE_KEY_TO_T2125[key];
       const effectiveVehicleUse = mapping.applyVehicleUse ? vehicleUsePct : 1.0;
@@ -312,12 +379,26 @@ export function computeT2125(input: T2125Input): T2125Result {
   // actual home costs × business-use percentage.
   const homeOfficePct = Math.min(1, Math.max(0, settings.home_office_business_use_pct ?? 0));
 
-  const annualRent = (settings.home_office_rent_monthly ?? 0) * 12;
-  const annualUtilities = (settings.home_office_utilities_monthly ?? 0) * 12;
-  const annualPropertyTax = settings.home_office_property_tax_annual ?? 0;
-  const annualInsurance = (settings.home_office_insurance_monthly ?? 0) * 12;
-  const annualMaintenance = settings.home_office_maintenance_annual ?? 0;
-  const annualCondoFees = (settings.home_office_condo_fees_monthly ?? 0) * 12;
+  // Bills logged under the Home Office expense category, by cost type. Where
+  // a cost type has logged bills they ARE the cost; the settings figure is an
+  // estimate for someone who hasn't logged any, and adding the two would
+  // count the same heat or insurance twice.
+  const logged: Record<HomeOfficeCostType, number> = {
+    rent: 0, utilities: 0, propertyTax: 0, insurance: 0, maintenance: 0, condoFees: 0,
+  };
+  for (const [key, amount] of Object.entries(input.homeOfficeCosts ?? {})) {
+    const type = HOME_OFFICE_KEY_TO_COST[key];
+    if (type && Number.isFinite(amount) && amount > 0) logged[type] += amount;
+  }
+  const cost = (type: HomeOfficeCostType, estimate: number) =>
+    logged[type] > 0 ? logged[type] : estimate;
+
+  const annualRent = cost("rent", (settings.home_office_rent_monthly ?? 0) * 12);
+  const annualUtilities = cost("utilities", (settings.home_office_utilities_monthly ?? 0) * 12);
+  const annualPropertyTax = cost("propertyTax", settings.home_office_property_tax_annual ?? 0);
+  const annualInsurance = cost("insurance", (settings.home_office_insurance_monthly ?? 0) * 12);
+  const annualMaintenance = cost("maintenance", settings.home_office_maintenance_annual ?? 0);
+  const annualCondoFees = cost("condoFees", (settings.home_office_condo_fees_monthly ?? 0) * 12);
   const totalAnnualHomeCosts =
     annualRent + annualUtilities + annualPropertyTax +
     annualInsurance + annualMaintenance + annualCondoFees;
@@ -333,6 +414,7 @@ export function computeT2125(input: T2125Input): T2125Result {
     totalAnnualHomeCosts,
     businessUsePct: homeOfficePct,
     deduction: homeOfficeDeduction,
+    loggedCostTypes: (Object.keys(logged) as HomeOfficeCostType[]).filter((t) => logged[t] > 0),
   };
 
   // ── 5. Net business income ─────────────────────────────────────────────────

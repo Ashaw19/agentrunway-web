@@ -65,6 +65,21 @@ export const RECEIPT_CATEGORY_GROUPS = [
       { key: "ent_events", label: "Events & Tickets" },
     ],
   },
+  // Home bills (migration 00174). Logged for the full amount; only the home
+  // business-use share counts as an expense (expense-totals-engine).
+  {
+    group: "Home Office",
+    items: [
+      { key: "home_utilities",         label: "Electricity, Heat & Water" },
+      { key: "home_internet",          label: "Home Internet" },
+      { key: "home_insurance",         label: "Home Insurance" },
+      { key: "home_maintenance",       label: "Repairs & Maintenance" },
+      { key: "home_property_tax",      label: "Property Tax" },
+      { key: "home_mortgage_interest", label: "Mortgage Interest" },
+      { key: "home_rent",              label: "Rent" },
+      { key: "home_condo_fees",        label: "Condo Fees" },
+    ],
+  },
   {
     group: "Other",
     items: [

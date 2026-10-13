@@ -10,7 +10,10 @@
 //                       expense_date on or after Jan 1 of the Atlantic year
 //   recurring_expenses  every column, is_active = true
 //   expense_items       monthly_recurring (the legacy monthly estimate)
-//   user_settings       gst_hst_registered, vehicle_business_use_pct
+//   user_settings       gst_hst_registered, vehicle_business_use_pct,
+//                       home_office_business_use_pct (the three inputs of
+//                       expenseTaxContext; without the last one a home bill
+//                       counts for $0 here and at its share on the dashboard)
 //
 // `expense_items.ytd_amount` is deliberately not read. The app stopped
 // writing it when receipts replaced it; until 2026-10-13 every MCP expense
@@ -45,7 +48,7 @@ export interface ExpenseItemRow {
 }
 
 export interface ExpenseInputs {
-  /** Who claims ITCs and at what vehicle business use (user_settings). */
+  /** Who claims ITCs, and the vehicle and home office business-use shares (user_settings). */
   taxCtx: ExpenseTaxContext;
   /** Calendar anchor: noon on the Atlantic day. */
   today: Date;
@@ -78,7 +81,7 @@ export async function loadExpenseInputs(
   const [settingsRes, receiptRes, recurringRes, itemRes] = await Promise.all([
     supabase
       .from("user_settings")
-      .select("gst_hst_registered, vehicle_business_use_pct")
+      .select("gst_hst_registered, vehicle_business_use_pct, home_office_business_use_pct")
       .eq("user_id", userId)
       .maybeSingle(),
     supabase

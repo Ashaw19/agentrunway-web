@@ -20,6 +20,14 @@
  *      projectedAnnualRecurring) in a file that never nets the list
  *   3. a `receipt_expenses` select that reads `total_amount` without
  *      `tax_amount` (the engine then has no tax to take off)
+ *   4. (Home Office bills, same day) a `receipt_expenses` select that reads
+ *      `total_amount` without `category_key`: the engine can't tell a home
+ *      bill from any other expense, so a $300 power bill counts as $300
+ *      instead of the home office share
+ *   5. a `user_settings` select that reads `vehicle_business_use_pct` (the
+ *      slice an expense context is built from) without
+ *      `home_office_business_use_pct`: home bills then count for $0 on that
+ *      surface and at the share on every other
  *
  * A regex can't prove a total is right, only that it didn't bypass the
  * engine. The numbers are tested in
@@ -37,6 +45,9 @@ const ROOTS = [
   "apps/web/app",
   "apps/web/components",
   "apps/web/lib",
+  // The MCP server (Deno). Its totals come from the same engine through
+  // mcp-server/lib/expense-inputs.ts.
+  "apps/web/supabase/functions",
   "apps/mobile/app",
   "apps/mobile/components",
   "apps/mobile/stores",
@@ -63,6 +74,9 @@ const ALLOWED_SUMS: Record<string, { count: number; why: string }> = {
   },
 };
 
+/** `.from("user_settings").select("…")` with the column list captured. */
+const SETTINGS_SELECT = /\.from\(\s*["']user_settings["']\s*\)\s*\.select\(\s*(?:\/\/[^\n]*\n\s*)*["'`]([^"'`]*)["'`]/g;
+
 const ALLOWED_SELECTS: Record<string, { count: number; why: string }> = {
   "apps/web/lib/ai/tools.ts": {
     count: 2,
@@ -81,7 +95,8 @@ function sourceFiles(dir: string): string[] {
       return; // an optional root (apps/mobile/lib) that doesn't exist
     }
     for (const entry of entries) {
-      if (entry === "node_modules" || entry === "dist" || entry === "__tests__" || entry.startsWith(".")) continue;
+      // _shared/core is a generated copy of packages/core (pnpm build:mcp-shared).
+      if (entry === "node_modules" || entry === "dist" || entry === "__tests__" || entry === "_shared" || entry.startsWith(".")) continue;
       const full = path.join(d, entry);
       if (statSync(full).isDirectory()) walk(full);
       else if (/\.tsx?$/.test(entry) && !/\.test\.tsx?$/.test(entry)) out.push(full);
@@ -104,6 +119,7 @@ describe("REGRESSION — expense totals are net of ITCs through expense-totals-e
       "apps/web/app/(app)/expenses/expenses-content.tsx",
       "apps/web/app/api/chat/route.ts",
       "apps/web/lib/ai/tools.ts",
+      "apps/web/supabase/functions/mcp-server/lib/expense-inputs.ts",
       "apps/mobile/app/(app)/profile/expenses.tsx",
     ]) {
       expect(files.map(rel)).toContain(must);
@@ -162,6 +178,45 @@ describe("REGRESSION — expense totals are net of ITCs through expense-totals-e
     }
   });
 
+  it("every receipt_expenses read of total_amount also reads category_key (home bills count at a share)", () => {
+    const offenders: string[] = [];
+    const allowedSeen: Record<string, number> = {};
+    for (const file of files) {
+      const r = rel(file);
+      const src = readFileSync(file, "utf8");
+      for (const m of src.matchAll(RECEIPT_SELECT)) {
+        const cols = m[1];
+        if (cols.trim() === "*" || !/\btotal_amount\b/.test(cols) || /\bcategory_key\b/.test(cols)) continue;
+        // The per-receipt reads allowed above show one receipt's amount paid.
+        if (ALLOWED_SELECTS[r] && !/\btax_amount\b/.test(cols)) {
+          allowedSeen[r] = (allowedSeen[r] ?? 0) + 1;
+          continue;
+        }
+        offenders.push(`${r}:${lineOf(src, m.index ?? 0)} select("${cols}")`);
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+
+  it("every user_settings slice an expense context is built from includes the home office %", () => {
+    const offenders: string[] = [];
+    let slices = 0;
+    for (const file of files) {
+      const src = readFileSync(file, "utf8");
+      for (const m of src.matchAll(SETTINGS_SELECT)) {
+        const cols = m[1];
+        if (cols.trim() === "*" || !/\bvehicle_business_use_pct\b/.test(cols)) continue;
+        slices += 1;
+        if (!/\bhome_office_business_use_pct\b/.test(cols)) {
+          offenders.push(`${rel(file)}:${lineOf(src, m.index ?? 0)}`);
+        }
+      }
+    }
+    expect(offenders).toEqual([]);
+    // Flight Crew's tool set and the mobile store: guards against a regex that matches nothing.
+    expect(slices).toBeGreaterThanOrEqual(2);
+  });
+
   it("the regexes catch the hand-rolled shapes and spare the canonical ones", () => {
     const badSums = [
       `rows.reduce((sum, r) => sum + Number(r.total_amount ?? 0), 0)`,
@@ -177,6 +232,14 @@ describe("REGRESSION — expense totals are net of ITCs through expense-totals-e
     ];
     for (const s of badSums) expect([...s.matchAll(SUMS_TOTAL_AMOUNT)], s).toHaveLength(1);
     for (const s of goodSums) expect([...s.matchAll(SUMS_TOTAL_AMOUNT)], s).toHaveLength(0);
+
+    const settingsSelect = (s: string) => [...s.matchAll(SETTINGS_SELECT)].map((m) => m[1]);
+    expect(settingsSelect(`supabase.from("user_settings").select("gst_hst_registered, vehicle_business_use_pct")`)).toEqual([
+      "gst_hst_registered, vehicle_business_use_pct",
+    ]);
+    expect(settingsSelect(`.from("user_settings")\n  .select(\n    // a comment about the columns\n    "user_id, vehicle_business_use_pct"\n  )`)).toEqual([
+      "user_id, vehicle_business_use_pct",
+    ]);
 
     const select = (s: string) => [...s.matchAll(RECEIPT_SELECT)].map((m) => m[1]);
     expect(select(`supabase.from("receipt_expenses").select("total_amount").eq("user_id", id)`)).toEqual(["total_amount"]);

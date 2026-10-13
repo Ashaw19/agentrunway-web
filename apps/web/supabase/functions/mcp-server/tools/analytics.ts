@@ -655,7 +655,8 @@ export function getAnalyticsTools(supabase: SupabaseClient, userId: string): Mcp
           | "annual";
         // ITCs: what the GST34 pre-fill claims on this year's receipts plus
         // the recurring expenses charged to date (inputTaxCreditsForPeriod:
-        // itcForExpense's 50% meal limit and vehicle business-use share).
+        // itcForExpense's 50% meal limit and the business-use share on
+        // vehicle costs and home bills).
         // Zero for someone who is not registered. Until 2026-10-13 this was
         // a number typed into Settings, which recorded receipts never changed.
         const itcsPaidOnExpenses = expenseInputs.itcs.total;
@@ -702,7 +703,7 @@ export function getAnalyticsTools(supabase: SupabaseClient, userId: string): Mcp
               ytd_collected: Math.round(collected),
               itcs_paid_on_expenses: Math.round(itcsPaidOnExpenses),
               itcs_basis: isRegistered
-                ? `Estimated from the ${label} recorded on this year's receipts and on recurring expenses charged to date. CRA limits applied: 50% on meals and entertainment, the business-use share on vehicle costs.`
+                ? `Estimated from the ${label} recorded on this year's receipts and on recurring expenses charged to date. CRA limits applied: 50% on meals and entertainment, the business-use share on vehicle costs and on home bills.`
                 : `Not registered for ${label}: no input tax credits are claimed.`,
               net_owing: Math.round(netOwing),
               next_filing_period: nextFilingPeriod,

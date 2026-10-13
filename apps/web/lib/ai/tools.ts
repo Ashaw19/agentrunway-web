@@ -226,7 +226,25 @@ export const APPROVAL_DESCRIPTIONS: Record<string, (args: Record<string, unknown
 const CLIENT_STATUSES = ["boarding", "scheduled", "in_flight", "cruising"] as const;
 const ACTIVITY_TYPES = ["call", "email", "text", "showing", "meeting", "offer", "note"] as const;
 const PIPELINE_STAGES = ["lead", "showing", "offer", "conditional", "firm", "closed"] as const;
-const EXPENSE_CATEGORY_KEYS = ["vehicle", "marketing", "office_tech", "professional_fees", "travel_meals", "insurance_licenses", "education_dev", "other"] as const;
+// Bills for the agent's own home (Home Office expense category, migration
+// 00174). Logged in full; expense-totals-engine counts the home office share.
+const HOME_OFFICE_EXPENSE_LABELS = {
+  home_utilities: "Home: Electricity, Heat & Water",
+  home_internet: "Home: Internet",
+  home_insurance: "Home: Insurance",
+  home_maintenance: "Home: Repairs & Maintenance",
+  home_property_tax: "Home: Property Tax",
+  home_mortgage_interest: "Home: Mortgage Interest",
+  home_rent: "Home: Rent",
+  home_condo_fees: "Home: Condo Fees",
+} as const;
+const HOME_OFFICE_EXPENSE_KEYS = Object.keys(HOME_OFFICE_EXPENSE_LABELS) as (keyof typeof HOME_OFFICE_EXPENSE_LABELS)[];
+const HOME_OFFICE_KEY_HINT =
+  "For a bill for the agent's OWN HOME (power, heat, water, home internet, home insurance, home repairs, property tax, mortgage interest, rent, condo fees) use the matching home_* key and the FULL bill amount: only the agent's home office share of it counts as a business expense.";
+const EXPENSE_CATEGORY_KEYS = [
+  "vehicle", "marketing", "office_tech", "professional_fees", "travel_meals", "insurance_licenses", "education_dev", "other",
+  ...HOME_OFFICE_EXPENSE_KEYS,
+] as const;
 const TRANSACTION_SIDES = ["buyer", "seller", "both"] as const;
 const ARCHIVE_REASONS = ["deceased", "moved_away", "do_not_contact", "other"] as const;
 
@@ -245,7 +263,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
     (expenseTaxCtxPromise ??= (async () => {
       const { data } = await supabase
         .from("user_settings")
-        .select("gst_hst_registered, vehicle_business_use_pct")
+        .select("gst_hst_registered, vehicle_business_use_pct, home_office_business_use_pct")
         .eq("user_id", userId)
         .maybeSingle();
       return expenseTaxContext(data);
@@ -253,6 +271,11 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
   /** Appended to a receipt total so the basis is stated, never implied. */
   const expenseBasisNote = (ctx: ExpenseTaxContext) =>
     ctx.gstHstRegistered ? " (net of GST/HST claimed as input tax credits)" : "";
+  /** Said whenever a total includes Home Office bills, which count at a share. */
+  const homeOfficeBasisNote = (ctx: ExpenseTaxContext) =>
+    ctx.homeOfficeBusinessUsePct > 0
+      ? ` Home Office bills count at the agent's ${Math.round(ctx.homeOfficeBusinessUsePct * 1000) / 10}% home office share, not in full.`
+      : " Home Office bills count for $0 until the agent sets a home office % (Expenses page, Home Office category).";
 
   return {
 
@@ -832,7 +855,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
 
     // ── LOG EXPENSE (confirm required) ────────────────────────────────────────
     logExpense: tool({
-      description: "Log a business expense. Category keys: vehicle, marketing, office_tech, professional_fees, travel_meals, insurance_licenses, education_dev, other.",
+      description: `Log a business expense. Category keys: vehicle, marketing, office_tech, professional_fees, travel_meals, insurance_licenses, education_dev, other, or a home_* key. ${HOME_OFFICE_KEY_HINT}`,
       inputSchema: z.object({
         vendor: z.string().describe("Business or vendor name (e.g. 'Shell', 'Facebook Ads', 'Rogers')"),
         amount: z.number().positive().describe("Expense total in dollars"),
@@ -851,6 +874,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
           insurance_licenses: "Insurance & Licenses",
           education_dev: "Education & Development",
           other: "Other",
+          ...HOME_OFFICE_EXPENSE_LABELS,
         };
 
         try {
@@ -868,7 +892,10 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
 
           if (error) return `Failed to log expense: ${error.message}`;
 
-          return `✓ $${amount.toLocaleString()} expense logged — ${vendor} (${categoryLabels[categoryKey] ?? categoryKey}) on ${expenseDate}.`;
+          const homeNote = categoryKey.startsWith("home_")
+            ? homeOfficeBasisNote(await getExpenseTaxCtx())
+            : "";
+          return `✓ $${amount.toLocaleString()} expense logged — ${vendor} (${categoryLabels[categoryKey] ?? categoryKey}) on ${expenseDate}.${homeNote}`;
         } catch {
           return "Failed to log expense. Please try again.";
         }
@@ -1498,7 +1525,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
 
     // ── CREATE RECURRING EXPENSE ─────────────────────────────────────────────
     createRecurringExpense: tool({
-      description: "Set up a recurring monthly business expense. Use when the agent says 'I pay $X/month for...' or 'set up a recurring expense for...'",
+      description: `Set up a recurring monthly business expense. Use when the agent says 'I pay $X/month for...' or 'set up a recurring expense for...'. ${HOME_OFFICE_KEY_HINT} Home bills that change from month to month are logged one at a time with logExpense, not as a recurring expense.`,
       inputSchema: z.object({
         name: z.string().describe("Business or vendor name (e.g. 'Canva', 'Rogers', 'Desjardins Insurance')"),
         amount: z.number().positive().describe("Expense amount per month in dollars"),
@@ -2285,7 +2312,9 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
             education_dev: "Education & Development",
             other: "Other",
             uncategorized: "Uncategorized",
+            ...HOME_OFFICE_EXPENSE_LABELS,
           };
+          const hasHomeBills = Object.keys(totals.homeOfficeCosts).length > 0;
 
           const header = `Expense Breakdown (${startDate ? `${start} to ${end}` : currentYear}):`;
           const list = sorted.map(([key, { total, count }]) => {
@@ -2293,7 +2322,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
             return `• **${categoryLabels[key] || key}**: $${total.toFixed(2)} (${count} entries, ${pct}%)`;
           }).join("\n");
 
-          return `${header}\n${list}\n\n**Total**: $${grandTotal.toFixed(2)} across ${data.length} entries${expenseBasisNote(taxCtx)}`;
+          return `${header}\n${list}\n\n**Total**: $${grandTotal.toFixed(2)} across ${data.length} entries${expenseBasisNote(taxCtx)}${hasHomeBills ? homeOfficeBasisNote(taxCtx) : ""}`;
         } catch {
           return "Failed to generate expense breakdown. Please try again.";
         }

@@ -37,6 +37,17 @@
  *      is then applied to the cost before tax, which is the business part
  *      of the cost less the ITC claimed on it.
  *
+ * HOME BILLS (the Home Office expense category, added 2026-10-13) are the
+ * one kind of expense that is not mostly a business cost. A power bill or a
+ * mortgage interest statement is a household bill, and only the workspace
+ * share of it (user_settings.home_office_business_use_pct) belongs to the
+ * business. So for a home bill `net` is that share alone, and every total
+ * built on this engine counts it that way: a $300 heating bill at 15% is $45
+ * of expenses, not $300. The whole bill is kept in `homeCost` for the T2125
+ * business-use-of-home section, which shows the costs and then the share.
+ * This is deliberately different from vehicle costs, which stay whole in the
+ * totals and take their business-use share only in the deductible figures.
+ *
  * GST/HST not recorded (`tax_amount` null or 0): no ITC is claimed for that
  * expense anywhere in the app, so nothing comes off. Tax is never inferred
  * from a rate: insurance, most dues and out-of-province purchases would be
@@ -49,6 +60,7 @@ import {
   totalRecurringMonthly,
   totalRecurringYTD,
 } from "./recurring-expense-engine";
+import { isHomeOfficeKey } from "./t2125-engine";
 import type { RecurringExpense } from "../types/database";
 
 // ── Who claims ITCs ────────────────────────────────────────────────────────
@@ -58,6 +70,12 @@ export interface ExpenseTaxContext {
   gstHstRegistered: boolean;
   /** user_settings.vehicle_business_use_pct, 0–1. */
   vehicleBusinessUsePct: number;
+  /**
+   * user_settings.home_office_business_use_pct, 0–1: the share of a home
+   * bill that is a business cost. 0 (the column default) means home bills
+   * count for nothing until the workspace share is set.
+   */
+  homeOfficeBusinessUsePct: number;
 }
 
 /** The column default (migration 00015), for a settings row that isn't loaded. */
@@ -69,17 +87,24 @@ export function expenseTaxContext(
     | {
         gst_hst_registered?: boolean | null;
         vehicle_business_use_pct?: number | string | null;
+        /** Required key: a typed slice that didn't select it won't compile. */
+        home_office_business_use_pct: number | string | null | undefined;
       }
     | null
     | undefined,
 ): ExpenseTaxContext {
   const raw = settings?.vehicle_business_use_pct;
   const pct = raw == null || raw === "" ? DEFAULT_VEHICLE_BUSINESS_USE_PCT : Number(raw);
+  // Column default is 0 (migration 00001). A query that selects a slice of
+  // user_settings has to include home_office_business_use_pct, or home bills
+  // drop out of that surface's totals while the others count them.
+  const home = Number(settings?.home_office_business_use_pct ?? 0);
   return {
     gstHstRegistered: settings?.gst_hst_registered === true,
     vehicleBusinessUsePct: Number.isFinite(pct)
       ? Math.min(1, Math.max(0, pct))
       : DEFAULT_VEHICLE_BUSINESS_USE_PCT,
+    homeOfficeBusinessUsePct: Number.isFinite(home) ? Math.min(1, Math.max(0, home)) : 0,
   };
 }
 
@@ -93,8 +118,15 @@ export interface ExpenseAmounts {
   /**
    * The expense: paid, less the GST/HST that is claimed back or is personal.
    * The T2125 limits (50% meals, vehicle business use) apply to THIS amount.
+   * For a home bill it is the workspace share only (see the header).
    */
   net: number;
+  /**
+   * Home bills only: the whole bill before the workspace share, less any
+   * GST/HST that is claimed back or is personal. `net` = homeCost × the
+   * share. Absent for every other expense.
+   */
+  homeCost?: number;
 }
 
 type Numeric = number | string | null | undefined;
@@ -119,10 +151,24 @@ export function expenseNetOfItc(
   vehicleUse = false,
 ): ExpenseAmounts {
   const paid = toNumber(totalAmount);
-  if (!ctx.gstHstRegistered || paid <= 0) return { paid, itc: 0, net: paid };
-
   // GST/HST can't be more than the amount it is part of.
-  const tax = Math.min(Math.max(0, toNumber(taxAmount)), paid);
+  const tax = ctx.gstHstRegistered && paid > 0
+    ? Math.min(Math.max(0, toNumber(taxAmount)), paid)
+    : 0;
+
+  if (isHomeOfficeKey(categoryKey)) {
+    const share = Math.min(1, Math.max(0, ctx.homeOfficeBusinessUsePct || 0));
+    const itc = tax > 0
+      ? Math.max(0, itcForExpense(tax, categoryKey, ctx.vehicleBusinessUsePct, false, share).claimable)
+      : 0;
+    // With an ITC, the rest of the bill's GST/HST is personal use, so the
+    // cost the share applies to is the bill before tax. With none (not
+    // registered, no tax recorded, or 10% business use or less) the tax is
+    // part of the cost.
+    const homeCost = itc > 0 ? paid - tax : paid;
+    return { paid, itc, net: homeCost * share, homeCost };
+  }
+
   if (tax === 0) return { paid, itc: 0, net: paid };
 
   const split = itcForExpense(tax, categoryKey, ctx.vehicleBusinessUsePct, vehicleUse);
@@ -158,6 +204,12 @@ export interface ReceiptTotals {
   paid: number;
   /** ITCs on every row. */
   itc: number;
+  /**
+   * Home bills by key: the whole bill before the workspace share
+   * (`ExpenseAmounts.homeCost`). `byKey` and `total` carry home bills at the
+   * share; this is what the T2125 business-use-of-home section starts from.
+   */
+  homeOfficeCosts: Record<string, number>;
 }
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -172,6 +224,7 @@ export function aggregateReceiptTotals(
   ctx: ExpenseTaxContext,
 ): ReceiptTotals {
   const byKey: Record<string, number> = {};
+  const homeOfficeCosts: Record<string, number> = {};
   let uncategorized = 0;
   let paid = 0;
   let itc = 0;
@@ -184,6 +237,9 @@ export function aggregateReceiptTotals(
     itc += amounts.itc;
     if (r.category_key) {
       byKey[r.category_key] = round2((byKey[r.category_key] ?? 0) + amounts.net);
+      if (amounts.homeCost) {
+        homeOfficeCosts[r.category_key] = round2((homeOfficeCosts[r.category_key] ?? 0) + amounts.homeCost);
+      }
     } else {
       uncategorized += amounts.net;
     }
@@ -194,7 +250,7 @@ export function aggregateReceiptTotals(
     Object.values(byKey).reduce((s, v) => s + v, 0) + uncategorized,
   );
 
-  return { byKey, uncategorized, total, paid: round2(paid), itc: round2(itc) };
+  return { byKey, uncategorized, total, paid: round2(paid), itc: round2(itc), homeOfficeCosts };
 }
 
 // ── Recurring expenses ─────────────────────────────────────────────────────
@@ -232,6 +288,7 @@ export function recurringExpensesNetOfItc<T extends RecurringExpense>(
 //
 //   receipts          `receipt_expenses` dated this calendar year, net.
 //   recurring         active `recurring_expenses`, net, year to date.
+//                     (Net as above: a home bill at the workspace share.)
 //   legacy estimate   `expense_items.monthly_recurring` × months elapsed: the
 //                     older "monthly amount per line" entry. It stands in for
 //                     the receipts only when it is the larger of the two, so
@@ -317,7 +374,8 @@ export interface PeriodInputTaxCredits {
 
 /**
  * The ITCs a registrant claims for a period: GST34 line 108 for the same
- * receipts and recurring expenses (the same `itcForExpense` limits, and
+ * receipts and recurring expenses (the same `itcForExpense` limits: 50% on
+ * meals, the business-use share on vehicle costs and on home bills; and
  * `recurringHSTEntriesForPeriod` for what was charged in the period).
  * Someone who is not registered claims none.
  *
@@ -334,14 +392,16 @@ export function inputTaxCreditsForPeriod(
 ): PeriodInputTaxCredits {
   if (!ctx.gstHstRegistered) return { receipts: 0, recurring: 0, total: 0 };
 
+  const vehicleUse = ctx.vehicleBusinessUsePct;
+  const homeUse = ctx.homeOfficeBusinessUsePct;
   const onReceipts = (receipts ?? []).reduce(
     (sum, r) =>
-      sum + itcForExpense(toNumber(r.tax_amount), r.category_key, ctx.vehicleBusinessUsePct).claimable,
+      sum + itcForExpense(toNumber(r.tax_amount), r.category_key, vehicleUse, false, homeUse).claimable,
     0,
   );
   const onRecurring = recurringHSTEntriesForPeriod([...(recurring ?? [])], startDate, endDate).reduce(
     (sum, e) =>
-      sum + itcForExpense(e.tax_amount, e.category_key, ctx.vehicleBusinessUsePct, e.vehicle_use).claimable,
+      sum + itcForExpense(e.tax_amount, e.category_key, vehicleUse, e.vehicle_use, homeUse).claimable,
     0,
   );
 

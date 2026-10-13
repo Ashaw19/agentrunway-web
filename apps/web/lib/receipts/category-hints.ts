@@ -24,6 +24,23 @@ interface HintRule {
  * First match wins.
  */
 const HINT_RULES: HintRule[] = [
+  // ── Home bills ─────────────────────────────────────────────────────────────
+  // Ahead of the fuel rule: "heating fuel" and an oil company's home-heating
+  // delivery would otherwise match it. Named utilities and unambiguous bill
+  // wording only; the review form lets the agent change it.
+  {
+    pattern: /nb power|énergie nb|energie nb|saint john energy|nova scotia power|maritime electric|newfoundland power|hydro[- ]?qu[eé]bec|hydro one|hydro ottawa|toronto hydro|alectra|bc hydro|manitoba hydro|saskpower|saskenergy|fortis|epcor|enmax|atco|enbridge|liberty utilities|\bhydro bill|electricity bill|power bill|heating oil|furnace oil|home heat|water (?:&|and) sewer|water bill/i,
+    categoryKey: "home_utilities",
+  },
+  {
+    pattern: /property tax|municipal tax bill/i,
+    categoryKey: "home_property_tax",
+  },
+  {
+    pattern: /condo fees?|strata fees?|condominium corporation/i,
+    categoryKey: "home_condo_fees",
+  },
+
   // ── Vehicle / Fuel ─────────────────────────────────────────────────────────
   {
     pattern: /shell|esso|petro.?canada|irving oil|husky|pioneer|ultramar|sunoco|chevron|mobil|bp\s|co-op gas|fas gas|cardlock|circle\s*k|couche.?tard|flying j|pilot travel|kwik trip|fuel|gasoline|diesel|gas station|gas bar|car wash/i,
@@ -106,6 +123,8 @@ const VALID_KEYS = new Set([
   "edu_courses", "edu_conferences", "edu_books",
   "meals_client", "meals_team",
   "ent_client", "ent_events",
+  "home_utilities", "home_internet", "home_insurance", "home_maintenance",
+  "home_property_tax", "home_mortgage_interest", "home_rent", "home_condo_fees",
   "other_misc",
 ]);
 
