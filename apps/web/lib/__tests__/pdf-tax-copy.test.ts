@@ -54,6 +54,7 @@ import {
   RISK_BAND_LADDER,
   RISK_BAND_RANGE,
   RISK_LEVEL_LABEL,
+  runwayBasisSentence,
   survivalResult,
   type SurvivalResult,
 } from "@agent-runway/core/engines/survival-engine";
@@ -382,6 +383,37 @@ describe("business report PDF: cash runway is stated against the engine's bands"
     expect(`${title} ${body}`).not.toContain("—");
   });
 
+  // The months are cash ÷ (burn − pipeline income). The box used to name the
+  // cash and the burn only, so with pipeline its own figures did not divide to
+  // the months it was headed with.
+  it.each(RUNWAYS)("$months: the box's first sentence is the engine's account of the figure", ({ survival }) => {
+    const body = blocksOf(BusinessReportPDF, reportProps({ survival })).find((block) =>
+      block.startsWith("Based on your cash reserve of"),
+    );
+    expect(body).toBe(`${runwayBasisSentence(survival)} ${RISK_BAND_LADDER}`);
+  });
+
+  describe("with pipeline income", () => {
+    // 7,500 ÷ (2,500 − 1,000) = 5.0 months. 7,500 ÷ 2,500 would be 3.0.
+    const WITH_PIPELINE = survivalResult(500, 2_000, 7_500, 1_000);
+
+    it("the box names the pipeline income its months are after", () => {
+      expect(WITH_PIPELINE.label).toBe("5.0 months");
+      const blocks = blocksOf(BusinessReportPDF, reportProps({ survival: WITH_PIPELINE }));
+      expect(blocks).toContain(`5.0 months of cash runway · ${RISK_LEVEL_LABEL.healthy}`);
+      expect(blocks).toContain(
+        "Based on your cash reserve of $7,500 and a monthly burn rate of $2,500, " +
+          `less an estimated $1,000 a month of pipeline income. ${RISK_BAND_LADDER}`,
+      );
+    });
+
+    it("the longer sentence prints clear of the text around it", async () => {
+      const boxes = await textBoxes(await renders(BusinessReportPDF, reportProps({ survival: WITH_PIPELINE })));
+      expect(boxes.some((box) => box.text.includes("pipeline income"))).toBe(true);
+      expect(overprints(boxes).filter((hit) => /cash reserve|pipeline income|burn rate|is critical/.test(hit))).toEqual([]);
+    });
+  });
+
   it.each(RUNWAYS)("$months: the assessment says which range that is", ({ level, months, survival }) => {
     const all = blocksOf(BusinessReportPDF, reportProps({ survival })).join("\n");
     expect(all).toContain(
@@ -426,6 +458,20 @@ describe("the bands are worded once, in the survival engine", () => {
     const page = source("app/(app)/reports/reports-content.tsx");
     expect(page).toContain("label: RISK_LEVEL_LABEL[level]");
     expect(page).not.toMatch(/const RISK_LABEL\b/);
+  });
+
+  it("the Reports page's Cash Runway card states the bands as its PDF does, and gives no instruction", () => {
+    const page = source("app/(app)/reports/reports-content.tsx");
+    expect(page).toContain("{RISK_BAND_LADDER}");
+    expect(page).not.toMatch(/Consider building your reserve|at least 4 months/);
+  });
+
+  it("the Reports page's Cash Runway card shows the pipeline income its months are after", () => {
+    const page = source("app/(app)/reports/reports-content.tsx");
+    expect(page).toContain("survival.monthlyIncome > 0");
+    expect(page).toContain("netMonthlyBurn(survival)");
+    // "Estimated months without commission income" described cash ÷ burn.
+    expect(page).not.toContain("without commission income");
   });
 });
 

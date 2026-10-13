@@ -14,7 +14,29 @@
  */
 
 import { EXPENSE_RATIO_COPY, expenseRatioBandsList } from "@agent-runway/core/engines/expense-ratio-bands";
+import {
+  RISK_BAND_FLOOR_MONTHS,
+  RISK_BAND_LADDER,
+  RISK_BAND_LEVELS,
+  RISK_BAND_RANGE,
+  RISK_LEVEL_LABEL,
+  riskBandPhrase,
+  riskColorBand,
+  type RiskColorBand,
+} from "@agent-runway/core/engines/survival-engine";
 import type { TroubleshootingTopic } from "./troubleshooting-classifier";
+
+// The cash runway bands as Flight Crew's table, highest first, built from the
+// survival engine so the table cannot state an edge, a word or a colour the
+// screens do not use.
+const RUNWAY_COLOUR_WORD: Record<RiskColorBand, string> = { red: "Red", amber: "Amber", emerald: "Green", slate: "Gray" };
+const RUNWAY_BAND_ROWS = [...RISK_BAND_LEVELS]
+  .reverse()
+  .map((level) => {
+    const range = RISK_BAND_RANGE[level];
+    return `| ${range[0].toUpperCase()}${range.slice(1)} | ${RISK_LEVEL_LABEL[level]} | ${RUNWAY_COLOUR_WORD[riskColorBand(level)]} |`;
+  })
+  .join("\n");
 
 export function getPlaybook(topic: TroubleshootingTopic): string {
   return PLAYBOOKS[topic] ?? "";
@@ -70,7 +92,7 @@ The Runway Score is a weighted composite of 5 sub-scores, each 0–100:
 - If no GCI yet: 50 (neutral — agent hasn't started)
 - If has GCI but zero expenses logged: 35 (incomplete data penalty — no real estate agent has zero expenses, so this signals missing data)
 
-**Survival Score** (15%) — v1.3, anchored to the published "6+ months is strong" standard:
+**Survival Score** (15%) — v1.3, anchored to the cash runway bands' top edge (${RISK_BAND_RANGE.strong} is ${RISK_LEVEL_LABEL.strong}). This ladder is the score's own, a step per month; the bands on the screens are in the Survival playbook:
 - ≥6 months → 95 (Strong)
 - ≥5 months → 58 (Building / watch)
 - ≥4 months → 50 (Building / watch — a 4.2-month account lands here)
@@ -1294,18 +1316,25 @@ All figures are a snapshot of the REAL income deck and are user-editable — if 
   - This is what should be in the account if the agent has been disciplined
 - If no closed deals yet: Manual Cash Reserve only (from Settings)
 
-**Risk Levels**:
+**Risk Levels** (survival-engine.ts; every screen, the report PDFs and the public page agentrunway.ca/metrics/financial-runway read these):
 | Months | Level | Color |
 |--------|-------|-------|
-| ≥6 | Strong | Green |
-| 4–6 | Healthy | Amber |
-| 2–4 | Warning | Amber |
-| <2 | Critical | Red |
-| Not configured | Not Set | Gray |
+${RUNWAY_BAND_ROWS}
+| Not configured | ${RISK_LEVEL_LABEL.notConfigured} | ${RUNWAY_COLOUR_WORD[riskColorBand("notConfigured")]} |
 
-Each band runs from its lower figure up to, not including, the next one (exactly 4.0 months is Healthy, exactly 6.0 is Strong). Healthy and Warning share amber on every screen and in the business report PDF (survival-engine.ts, riskColorBand): only Strong is green. The word on the badge tells them apart.
+In one sentence, as the screens print it: "${RISK_BAND_LADDER}" Each band runs from its lower figure up to, not including, the next one (exactly ${RISK_BAND_FLOOR_MONTHS.healthy}.0 months is ${RISK_LEVEL_LABEL.healthy}, exactly ${RISK_BAND_FLOOR_MONTHS.strong}.0 is ${RISK_LEVEL_LABEL.strong}). ${RISK_LEVEL_LABEL.healthy} and ${RISK_LEVEL_LABEL.warning} share amber on every screen and in the business report PDF (survival-engine.ts, riskColorBand): only ${RISK_LEVEL_LABEL.strong} is green. The word on the badge tells them apart.
 
-**What the business report PDF says about cash runway** (changed 2026-10-13). The Cash Runway box on its Expenses page is headed with the months and the band ("3.0 months of cash runway · Warning"; "24+ months of cash runway · Strong" at the cap; "Not Set" when no reserve or costs are entered). Under that it gives the cash reserve and monthly burn, then the four bands in one sentence: "Under 2 months is critical, 2–4 is warning, 4–6 is healthy, 6+ is strong." The Assessment paragraph on the last page says which range the runway is in ("Your cash runway of 3.0 months is in the Warning range (2–4 months)."). The PDF states where the runway sits and gives no instruction. A PDF downloaded before that date said "Immediate action required", "Consider increasing your reserve to 4+ months" or "You are within the recommended 4–6+ month safety buffer" (also printed for a Strong runway), and showed "-1.0 Months" when nothing was set. The months and the band were calculated the same way then; only the wording changed.
+**Which runways are flagged** (one rule: survival-engine.ts, isFlaggedRiskLevel). A runway is flagged when it is ${RISK_LEVEL_LABEL.critical} or ${RISK_LEVEL_LABEL.warning} (under ${RISK_BAND_FLOOR_MONTHS.healthy} months). ${RISK_LEVEL_LABEL.healthy} and ${RISK_LEVEL_LABEL.strong} runways are not flagged, and nothing is flagged before a reserve or costs are entered. The same rule drives:
+- **Dashboard alert** (above the Daily Briefing): red for ${RISK_LEVEL_LABEL.critical}, amber for ${RISK_LEVEL_LABEL.warning}. Its title is "Cash runway is ${riskBandPhrase("warning")}" or "Cash runway is ${riskBandPhrase("critical")}". Its body gives the months the cash covers, adds "after the income estimated from your pipeline" when pipeline income is netted, then lists the four bands.
+- **Daily Briefing "Runway" row**: red for ${RISK_LEVEL_LABEL.critical}, amber for ${RISK_LEVEL_LABEL.warning} and ${RISK_LEVEL_LABEL.healthy}, plain for ${RISK_LEVEL_LABEL.strong}.
+- **Business Health card** (dashboard): a ${RISK_LEVEL_LABEL.critical} runway makes the card's status Critical and a ${RISK_LEVEL_LABEL.warning} runway makes it At Risk (the Runway Score grade and pace can set those too). Its sentences state the months, the band and its range, and what the band above takes in cash at the current burn.
+- **Advisor card "Low Cash Runway"** (Reports, category "Cash Runway"): lists the current runway, its band's range and where the next band starts.
+- **Scenarios page**: the note under the current column says which range the runway is in.
+- **Reports page, Cash Runway card**: the badge carries the band's word. Under the cash reserve and monthly burn it shows "Pipeline income (estimate)" and "Net monthly burn" rows when pipeline income is netted, then the four bands in one sentence. It gives no instruction.
+
+Changed 2026-10-13: until then these screens used cut-offs of their own, so they could disagree with the badge. The dashboard alert was red ("Cash runway is critically low") under 3 months and amber ("Runway is getting thin") from 3 to under 5; the Daily Briefing row used the same 3 and 5; the Business Health card was Critical under 1 month and At Risk under 3; the advisor card (then in a category called "Survival Warning", with "Recommended minimum: 3–6 months of fixed costs") and the Scenarios note appeared under 3 months; the Reports card showed "Consider building your reserve to at least 4 months of operating costs" in a red box under 4 months; the public page listed Critical under 1 month, Warning 1–3, Healthy 3–6 and Strong 6+. So on that date, with no change in the user's data: a runway of 2 to under 3 months went from a red alert to an amber one; a runway of 4 to under 5 months lost its amber alert; a runway of 3 to under 4 months gained the advisor card and the Scenarios note; a runway of 1 to under 2 months turned the Business Health card Critical. The months and the band on the badge were calculated the same way before and after: only which screens flag a runway, and their wording, changed.
+
+**What the business report PDF says about cash runway** (changed 2026-10-13). The Cash Runway box on its Expenses page is headed with the months and the band ("3.0 months of cash runway · Warning"; "24+ months of cash runway · Strong" at the cap; "Not Set" when no reserve or costs are entered). Under that it gives the cash reserve and monthly burn ("Based on your cash reserve of $7,500 and a monthly burn rate of $2,500."; when pipeline income is netted the sentence continues ", less an estimated $1,000 a month of pipeline income."), then the four bands in one sentence: "${RISK_BAND_LADDER}" The Assessment paragraph on the last page says which range the runway is in ("Your cash runway of 3.0 months is ${riskBandPhrase("warning")}."). The PDF states where the runway sits and gives no instruction. A PDF downloaded before that date said "Immediate action required", "Consider increasing your reserve to 4+ months" or "You are within the recommended 4–6+ month safety buffer" (also printed for a Strong runway), and showed "-1.0 Months" when nothing was set. The months and the band were calculated the same way then; only the wording changed.
 
 **Cap**: Runway is capped at 24 months maximum (to avoid infinity when burn ≤ 0).
 
@@ -1317,10 +1346,9 @@ Each band runs from its lower figure up to, not including, the next one (exactly
 - Cash reserve $0 with positive net burn: Runway = 0 (critical).
 
 ### Survival Impact on Other Metrics
-1. **Runway Score**: Survival is 15% of composite score
-2. **Advisor Cards**: Flags when <3 months
-3. **Insights Engine**: "Survival warning" insight
-4. **Dashboard**: Survival status indicator card
+1. **Runway Score**: Survival is 15% of composite score. The top Survival sub-score starts where the ${RISK_LEVEL_LABEL.strong} band does.
+2. **Advisor Cards**: "Low Cash Runway" appears for a flagged runway (${RISK_LEVEL_LABEL.critical} or ${RISK_LEVEL_LABEL.warning})
+3. **Dashboard**: the Cash Runway number beside the Runway Score, the alert, the Daily Briefing row and the Business Health card (see "Which runways are flagged")
 
 ### Common Problems & Diagnostics
 

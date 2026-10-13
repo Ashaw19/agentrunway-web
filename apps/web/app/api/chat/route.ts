@@ -37,7 +37,13 @@ import {
   trendDirection,
   currentQuarter as getCurrentQuarter,
 } from "@agent-runway/core/engines/projection-engine";
-import { survivalResult, type SurvivalResult } from "@agent-runway/core/engines/survival-engine";
+import {
+  survivalResult,
+  RISK_BAND_LADDER,
+  RISK_BAND_RANGE,
+  RISK_LEVEL_LABEL,
+  type SurvivalResult,
+} from "@agent-runway/core/engines/survival-engine";
 import { computeCashPosition, type CashPositionResult } from "@agent-runway/core/engines/cash-position-engine";
 import {
   computePipelineMonthlyIncome,
@@ -835,8 +841,12 @@ export async function POST(req: NextRequest) {
             return lines.join("\n");
           })(),
           "",
-          `Survival: ${survival.label} (Risk: ${survival.riskLevel === "notConfigured" ? "Not Configured" : survival.riskLevel.charAt(0).toUpperCase() + survival.riskLevel.slice(1)}, includes pipeline income estimate)`,
+          `Survival: ${survival.label} (Risk: ${survival.riskLevel === "notConfigured" ? "Not Configured" : `${RISK_LEVEL_LABEL[survival.riskLevel]}, ${RISK_BAND_RANGE[survival.riskLevel]}`}, includes pipeline income estimate)`,
+          `  Bands shown on the user's screens: ${RISK_BAND_LADDER}`,
           survival.monthlyBurn > 0 ? `  Monthly Burn: ${fmtCurrency(survival.monthlyBurn)}` : null,
+          survival.monthlyBurn > 0 && survival.monthlyIncome > 0
+            ? `  Pipeline income estimate: ${fmtCurrency(survival.monthlyIncome)}/mo (the months above are cash ÷ (burn − this estimate))`
+            : null,
           "",
           `Tax Estimates (${settings.business_structure ?? "sole proprietor"}, ${settings.province}):`,
           `  - Projected Net Self-Employment Income: ${fmtCurrency(projectedNetIncome)}`,
@@ -1386,7 +1396,7 @@ When the agent's data shows any of these patterns, surface them naturally in you
 - Expense ratio above Agent Runway's target (${EXPENSE_RATIO_COPY.target}) → flag it and offer to dig into the cause
 - Stale active clients (30+ days no contact) exist → suggest Flight Control outreach sweep
 - Pipeline is thin relative to goal → recommend adding pipeline deals or outreach
-- Cash / survival runway under 3 months → state the Survival engine's own label (the engine emits its classification); do not editorialize or add alarmist commentary
+- Cash / survival runway in the ${RISK_LEVEL_LABEL.critical} or ${RISK_LEVEL_LABEL.warning} band (${RISK_BAND_RANGE.critical}; ${RISK_BAND_RANGE.warning}) → state the band given on the Survival line, in those words; do not editorialize or add alarmist commentary
 - If they're close to hitting their annual goal → acknowledge momentum positively
 - Tax Intelligence items tagged [MISSING DEDUCTIONS], [INSTALMENT PLANNING], [GST/HST FORECAST], [DOCUMENTATION], [FILING DEADLINE], [OVERDUE FILING], etc. → surface these naturally when discussing finances, taxes, or expenses. Don't dump all at once — weave them in when contextually relevant.
 - Missing deductions or low documentation → frame as "you may want to capture receipts for..." not "you should claim..."
