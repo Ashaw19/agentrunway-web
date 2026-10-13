@@ -1,5 +1,13 @@
 import type { SupabaseClient } from "npm:@supabase/supabase-js@2";
 import type { McpTool } from "./index.ts";
+import { atlanticISODate } from "../../_shared/core/lib/local-date.ts";
+
+/**
+ * A timestamptz as the agent's calendar day. Cutting the string at "T" gives
+ * the UTC date, which from 8 pm Atlantic is already tomorrow.
+ */
+const atlanticDay = (ts: string | null | undefined) =>
+  ts ? atlanticISODate(new Date(ts)) : undefined;
 
 export function getCrmTools(supabase: SupabaseClient, userId: string): McpTool[] {
   return [
@@ -56,7 +64,7 @@ export function getCrmTools(supabase: SupabaseClient, userId: string): McpTool[]
           property_interest_type: c.property_interest_type,
           timeframe: c.timeframe,
           preferred_contact: c.preferred_contact,
-          last_updated: c.updated_at?.split("T")[0],
+          last_updated: atlanticDay(c.updated_at),
         }));
 
         // Status breakdown
@@ -158,7 +166,7 @@ export function getCrmTools(supabase: SupabaseClient, userId: string): McpTool[]
         const activities = (activitiesRes.data ?? []).map((a) => ({
           type: a.type,
           note: a.description,
-          date: (a.activity_date as string)?.split("T")[0],
+          date: atlanticDay(a.activity_date as string),
         }));
 
         const pipelineDeals = (pipelineRes.data ?? []).map((d) => ({
@@ -183,8 +191,8 @@ export function getCrmTools(supabase: SupabaseClient, userId: string): McpTool[]
               property_interest_type: clientData.property_interest_type,
               timeframe: clientData.timeframe,
               preferred_contact: clientData.preferred_contact,
-              created_at: (clientData.created_at as string)?.split("T")[0],
-              last_updated: (clientData.updated_at as string)?.split("T")[0],
+              created_at: atlanticDay(clientData.created_at as string),
+              last_updated: atlanticDay(clientData.updated_at as string),
               recent_activities: activities,
               active_pipeline_deals: pipelineDeals,
             }, null, 2),

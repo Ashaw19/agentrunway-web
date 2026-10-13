@@ -46,7 +46,7 @@ export async function generateMetadata({
     .join(", ");
   const agentId = page.agent_display_name || "Your REALTOR®";
   const dateStr = page.open_house_date
-    ? new Date(page.open_house_date).toLocaleDateString("en-CA", {
+    ? new Date(page.open_house_date + "T12:00:00").toLocaleDateString("en-CA", {
         weekday: "long",
         month:   "long",
         day:     "numeric",

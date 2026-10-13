@@ -160,6 +160,15 @@ function hoursBetween(a: Date, b: Date): number {
   return Math.abs(a.getTime() - b.getTime()) / 3_600_000;
 }
 
+/**
+ * Whole calendar days from `from` to `to`, both local noon on their day.
+ * Negative when `to` is the earlier day. Rounded: across a DST change two
+ * noons are 23 or 25 hours apart.
+ */
+function calendarDaysUntil(to: Date, from: Date): number {
+  return Math.round((to.getTime() - from.getTime()) / 86_400_000);
+}
+
 function median(values: number[]): number | null {
   if (values.length === 0) return null;
   const sorted = [...values].sort((a, b) => a - b);
@@ -481,14 +490,24 @@ export function computeSourceFunnel(
 //   - Closing anniversaries (next 14 days)
 //   - Active leads with no email or phone on file
 //   - Possible duplicate records (same email or phone)
+//
+// Two clocks. Elapsed-time rules (days without contact, lead age, import
+// grace) measure from the current instant. Rules on date-only columns
+// (birthdate, close_date, appointment_date) count calendar days from `today`,
+// of which only the local year, month and day are read. It defaults to the
+// runtime's own day, which is the user's day in the browser. Server callers
+// run in UTC and pass atlanticNoon() (lib/local-date.ts): from 8 pm Atlantic
+// the UTC day, and on Dec 31 the UTC year, is already the next one.
 
 export function computeIntelligenceBriefing(
   clients: Client[],
   activities: ContactActivity[],
   records: ClientRecord[],
   listingAppointments?: ListingAppointment[],
+  today: Date = new Date(),
 ): IntelligenceBriefingResult {
   const now = new Date();
+  const todayNoon = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 12);
   const items: BriefingItem[] = [];
 
   // ── Pre-compute last activity date per client ──────────────────────────────
@@ -624,12 +643,12 @@ export function computeIntelligenceBriefing(
         const mm = parseInt(parts[1]) - 1;
         const dd = parseInt(parts[2]);
         if (!isNaN(mm) && !isNaN(dd) && mm >= 0 && mm <= 11 && dd >= 1 && dd <= 31) {
-          const thisYearBday = new Date(now.getFullYear(), mm, dd);
+          const thisYearBday = new Date(todayNoon.getFullYear(), mm, dd, 12);
           const nextBday =
-            thisYearBday.getTime() < now.getTime() - 86_400_000
-              ? new Date(now.getFullYear() + 1, mm, dd)
+            thisYearBday < todayNoon
+              ? new Date(todayNoon.getFullYear() + 1, mm, dd, 12)
               : thisYearBday;
-          const daysUntil = Math.floor((nextBday.getTime() - now.getTime()) / 86_400_000);
+          const daysUntil = calendarDaysUntil(nextBday, todayNoon);
           if (daysUntil <= 14) {
             const label =
               daysUntil <= 0 ? "today!" : daysUntil === 1 ? "tomorrow" : `in ${daysUntil} days`;
@@ -651,12 +670,12 @@ export function computeIntelligenceBriefing(
     // ── 5. Closing anniversaries (next 14 days) ────────────────────────────────
     const closeDates = closeDatesByClient.get(client.id) ?? [];
     for (const cd of closeDates) {
-      const thisYearAnn = new Date(now.getFullYear(), cd.getMonth(), cd.getDate());
+      const thisYearAnn = new Date(todayNoon.getFullYear(), cd.getMonth(), cd.getDate(), 12);
       const nextAnn =
-        thisYearAnn.getTime() < now.getTime() - 86_400_000
-          ? new Date(now.getFullYear() + 1, cd.getMonth(), cd.getDate())
+        thisYearAnn < todayNoon
+          ? new Date(todayNoon.getFullYear() + 1, cd.getMonth(), cd.getDate(), 12)
           : thisYearAnn;
-      const daysUntil = Math.floor((nextAnn.getTime() - now.getTime()) / 86_400_000);
+      const daysUntil = calendarDaysUntil(nextAnn, todayNoon);
       const yearsAgo = nextAnn.getFullYear() - cd.getFullYear();
       if (daysUntil <= 14 && yearsAgo >= 1) {
         const label =
@@ -776,15 +795,14 @@ export function computeIntelligenceBriefing(
       (a, b) => b.getTime() - a.getTime(),
     )[0];
     const yearsSince =
-      (now.getTime() - latestClose.getTime()) / (365.25 * 86_400_000);
+      (todayNoon.getTime() - latestClose.getTime()) / (365.25 * 86_400_000);
     const renewalDate = new Date(
       latestClose.getFullYear() + 5,
       latestClose.getMonth(),
       latestClose.getDate(),
+      12,
     );
-    const daysUntilRenewal = Math.floor(
-      (renewalDate.getTime() - now.getTime()) / 86_400_000,
-    );
+    const daysUntilRenewal = calendarDaysUntil(renewalDate, todayNoon);
 
     if (yearsSince >= 4.5 && yearsSince < 5.5) {
       const label =
@@ -804,9 +822,7 @@ export function computeIntelligenceBriefing(
         daysValue: Math.max(0, daysUntilRenewal),
       });
     } else if (yearsSince >= 3 && yearsSince < 4.5) {
-      const monthsUntil = Math.round(
-        (renewalDate.getTime() - now.getTime()) / (30.44 * 86_400_000),
-      );
+      const monthsUntil = Math.round(daysUntilRenewal / 30.44);
       items.push({
         id: `renewal_window_${client.id}_${latestClose.toISOString().slice(0, 7)}`,
         type: "mortgage_renewal_window",
@@ -815,9 +831,7 @@ export function computeIntelligenceBriefing(
         clientName: client.name,
         title: `${client.name}: renewal window (~${monthsUntil} months)`,
         detail: `Start the renewal conversation, review rate options`,
-        daysValue: Math.round(
-          (renewalDate.getTime() - now.getTime()) / 86_400_000,
-        ),
+        daysValue: daysUntilRenewal,
       });
     }
   }
@@ -834,10 +848,9 @@ export function computeIntelligenceBriefing(
           cd.getFullYear() + yr,
           cd.getMonth(),
           cd.getDate(),
+          12,
         );
-        const daysUntil = Math.floor(
-          (milestoneDate.getTime() - now.getTime()) / 86_400_000,
-        );
+        const daysUntil = calendarDaysUntil(milestoneDate, todayNoon);
         if (daysUntil >= 15 && daysUntil <= 30) {
           items.push({
             id: `value_${client.id}_${yr}yr_${cd.toISOString().slice(0, 7)}`,
@@ -904,7 +917,7 @@ export function computeIntelligenceBriefing(
       // Overdue scheduled appointments (past appointment_date, still "scheduled")
       if (la.status === "scheduled" && la.appointment_date) {
         const apptDate = new Date(la.appointment_date + "T12:00:00");
-        const daysOverdue = Math.floor((now.getTime() - apptDate.getTime()) / 86_400_000);
+        const daysOverdue = calendarDaysUntil(todayNoon, apptDate);
         if (daysOverdue >= 3) {
           items.push({
             id: `listing_overdue_${la.id}`,
@@ -921,7 +934,7 @@ export function computeIntelligenceBriefing(
       // Stale active listings (active 45+ days without selling)
       if (la.status === "active" && la.appointment_date) {
         const listDate = new Date(la.appointment_date + "T12:00:00");
-        const daysActive = Math.floor((now.getTime() - listDate.getTime()) / 86_400_000);
+        const daysActive = calendarDaysUntil(todayNoon, listDate);
         if (daysActive >= 45) {
           items.push({
             id: `listing_stale_${la.id}`,

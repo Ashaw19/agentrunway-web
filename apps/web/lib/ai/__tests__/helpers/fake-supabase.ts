@@ -54,6 +54,23 @@ export function fakeSupabase(tables: Record<string, Row[]>) {
       in(k: string, vs: readonly unknown[]) { rows = rows.filter((r) => vs.includes(r[k])); return builder; },
       gte(k: string, v: unknown) { rows = rows.filter((r) => String(r[k]) >= String(v)); return builder; },
       lt(k: string, v: unknown) { rows = rows.filter((r) => String(r[k]) < String(v)); return builder; },
+      lte(k: string, v: unknown) { rows = rows.filter((r) => String(r[k]) <= String(v)); return builder; },
+      // "%sam%" style patterns only: a case-insensitive substring match.
+      ilike(k: string, pattern: string) {
+        const needle = pattern.replace(/%/g, "").toLowerCase();
+        rows = rows.filter((r) => String(r[k] ?? "").toLowerCase().includes(needle));
+        return builder;
+      },
+      contains(k: string, vs: readonly unknown[]) {
+        rows = rows.filter((r) => Array.isArray(r[k]) && vs.every((v) => (r[k] as unknown[]).includes(v)));
+        return builder;
+      },
+      // "a.eq.x,b.eq.y" only: rows where any column equals its value.
+      or(filters: string) {
+        const any = filters.split(",").map((f) => f.split(".eq."));
+        rows = rows.filter((r) => any.some(([k, v]) => String(r[k]) === v));
+        return builder;
+      },
       limit(n: number) { rows = rows.slice(0, n); return builder; },
       is(k: string, v: unknown) { rows = rows.filter((r) => (r[k] ?? null) === v); return builder; },
       not(k: string, _op: string, v: unknown) { rows = rows.filter((r) => (r[k] ?? null) !== v); return builder; },
@@ -75,8 +92,8 @@ export function fakeSupabase(tables: Record<string, Row[]>) {
   }
 
   // A test double for the external client, not fixture data: the service only
-  // touches from/select/eq/in/gte/lt/is/not/order/limit/insert/upsert/update/
-  // delete/single/maybeSingle.
+  // touches from/select/eq/in/gte/lt/lte/ilike/contains/or/is/not/order/limit/
+  // insert/upsert/update/delete/single/maybeSingle.
   const client = { from } as unknown as SupabaseClient;
   return { client, writes };
 }

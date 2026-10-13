@@ -7,6 +7,8 @@
  * Returns plain-text and HTML versions to pass to Resend.
  */
 
+import { APP_TIME_ZONE } from "@agent-runway/core/lib/local-date";
+
 interface TrialWelcomeOptions {
   /** Display name shown in the greeting — falls back to "there" if unavailable */
   firstName?: string | null;
@@ -202,10 +204,14 @@ https://agentrunway.ca
 
 /**
  * Format a Unix timestamp (seconds) as a human-readable date string.
- * e.g. 1742000000 → "March 10, 2025"
+ * e.g. 1742000000 → "March 14, 2025"
+ *
+ * The Atlantic day: this runs in the Stripe webhook, where the runtime's
+ * zone is UTC and an evening trial end would read as the next day.
  */
 export function formatTrialEndDate(unixTimestamp: number): string {
   return new Date(unixTimestamp * 1000).toLocaleDateString("en-CA", {
+    timeZone: APP_TIME_ZONE,
     year: "numeric",
     month: "long",
     day: "numeric",
