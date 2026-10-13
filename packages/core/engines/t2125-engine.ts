@@ -170,6 +170,14 @@ const CATEGORY_KEY_TO_ITEM_KEY: Record<string, string> = {
   client_meals: "meals_client",
 };
 
+/**
+ * The expense item a category-level key stands for (the table above), or
+ * the key itself when it is not one.
+ */
+export function expenseItemKeyFor(key: string): string {
+  return hasOwn(CATEGORY_KEY_TO_ITEM_KEY, key) ? CATEGORY_KEY_TO_ITEM_KEY[key] : key;
+}
+
 const HOME_OFFICE_CATEGORY_LINE: T2125LineMap = {
   lineNumber: "9945", lineName: "Home office costs", deductiblePct: 1.0, applyVehicleUse: false, applyHomeUse: true, t2125Part: "home_office",
 };

@@ -20,6 +20,9 @@ import type {
   UserSettings,
   ExpenseCategoryWithItems,
 } from "@/lib/types/database";
+import { expenseTaxContext } from "@agent-runway/core/engines/expense-totals-engine";
+import { buildT2125Expenses } from "@agent-runway/core/engines/t2125-expenses-engine";
+import { deductionTrackingFlags } from "@agent-runway/core/engines/tax-optimization-engine";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -508,6 +511,19 @@ const DEMO_EXPENSE_CATEGORIES: ExpenseCategoryWithItems[] = [
   },
 ];
 
+// The tax cards ask which expense categories are tracked. Same engine call as
+// the real dashboard page, from the sample monthly figures above (the demo
+// has no receipts or recurring expenses).
+const DEMO_DEDUCTION_TRACKING = deductionTrackingFlags(
+  buildT2125Expenses({
+    receiptTotals: { byKey: {}, uncategorized: 0, homeOfficeCosts: {} },
+    expenseItems: DEMO_EXPENSE_CATEGORIES.flatMap((cat) => cat.items),
+    recurringExpenses: [],
+    ctx: expenseTaxContext(DEMO_SETTINGS),
+  }).lines,
+  DEMO_EXPENSE_CATEGORIES,
+);
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function DemoDashboardPage() {
@@ -549,6 +565,7 @@ export default function DemoDashboardPage() {
               pipelineDeals={DEMO_PIPELINE}
               settings={DEMO_SETTINGS}
               expenseCategories={DEMO_EXPENSE_CATEGORIES}
+              deductionTracking={DEMO_DEDUCTION_TRACKING}
               initialDashboardView="standard"
               isPro={true}
               showUpgradeBanner={false}
