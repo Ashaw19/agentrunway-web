@@ -13,6 +13,7 @@ import {
   View,
   StyleSheet,
 } from "@react-pdf/renderer";
+import { RISK_BAND_LADDER } from "@/lib/engines/survival-engine";
 import { PROVINCE_LABELS } from "@/lib/types/database";
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -405,7 +406,7 @@ export function GuidePdf({ province, businessStructure, splitPreset }: Props) {
 
         <Text style={S.sectionSubtitle}>What is survival runway?</Text>
         <Text style={S.body}>
-          Cash Reserve {"\u00F7"} Net Monthly Burn. Under 2 months is critical, 2–4 is warning, 4–6 is healthy, 6+ is strong.
+          Cash Reserve {"\u00F7"} Net Monthly Burn. {RISK_BAND_LADDER}
         </Text>
 
         <Text style={S.sectionSubtitle}>How do probability bands work?</Text>

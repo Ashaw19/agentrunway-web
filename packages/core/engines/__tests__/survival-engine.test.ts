@@ -13,6 +13,10 @@ import {
   survivalResult,
   riskLevelFromMonths,
   riskColorBand,
+  RISK_BAND_FLOOR_MONTHS,
+  RISK_BAND_RANGE,
+  RISK_BAND_LADDER,
+  RISK_LEVEL_LABEL,
 } from "../survival-engine";
 
 // ── runwayMonths ─────────────────────────────────────────────────────────────
@@ -83,6 +87,50 @@ describe("riskLevelFromMonths", () => {
     expect(riskLevelFromMonths(6)).toBe("strong");
     expect(riskLevelFromMonths(12)).toBe("strong");
     expect(riskLevelFromMonths(24)).toBe("strong");
+  });
+});
+
+// ── Band wording ─────────────────────────────────────────────────────────────
+// What a surface prints about a band comes from here, so a sentence cannot
+// name an edge the classification does not use (the business report PDF once
+// called both healthy and strong "the recommended 4–6+ month safety buffer").
+
+describe("band wording", () => {
+  it("names the edges riskLevelFromMonths classifies on", () => {
+    // The first month, in steps of 0.01, at which each level is returned.
+    const firstMonthAt = (level: string) => {
+      for (let hundredths = 0; hundredths <= 2400; hundredths++) {
+        if (riskLevelFromMonths(hundredths / 100) === level) return hundredths / 100;
+      }
+      return null;
+    };
+    expect(firstMonthAt("critical")).toBe(0);
+    expect(firstMonthAt("warning")).toBe(RISK_BAND_FLOOR_MONTHS.warning);
+    expect(firstMonthAt("healthy")).toBe(RISK_BAND_FLOOR_MONTHS.healthy);
+    expect(firstMonthAt("strong")).toBe(RISK_BAND_FLOOR_MONTHS.strong);
+  });
+
+  it("gives each level its range in months", () => {
+    expect(RISK_BAND_RANGE).toEqual({
+      critical: "under 2 months",
+      warning: "2–4 months",
+      healthy: "4–6 months",
+      strong: "6+ months",
+    });
+  });
+
+  it("states the four bands in one sentence", () => {
+    expect(RISK_BAND_LADDER).toBe("Under 2 months is critical, 2–4 is warning, 4–6 is healthy, 6+ is strong.");
+  });
+
+  it("has one word for each level", () => {
+    expect(RISK_LEVEL_LABEL).toEqual({
+      critical: "Critical",
+      warning: "Warning",
+      healthy: "Healthy",
+      strong: "Strong",
+      notConfigured: "Not Set",
+    });
   });
 });
 

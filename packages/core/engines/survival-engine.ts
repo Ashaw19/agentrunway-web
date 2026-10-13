@@ -5,12 +5,44 @@
 
 export type RiskLevel = "critical" | "warning" | "healthy" | "strong" | "notConfigured";
 
+/** The month count at which each band above critical starts. */
+export const RISK_BAND_FLOOR_MONTHS = { warning: 2, healthy: 4, strong: 6 } as const;
+
 export function riskLevelFromMonths(months: number): RiskLevel {
-  if (months < 2) return "critical";
-  if (months < 4) return "warning";
-  if (months < 6) return "healthy";
+  if (months < RISK_BAND_FLOOR_MONTHS.warning) return "critical";
+  if (months < RISK_BAND_FLOOR_MONTHS.healthy) return "warning";
+  if (months < RISK_BAND_FLOOR_MONTHS.strong) return "healthy";
   return "strong";
 }
+
+// ── Band wording ──────────────────────────────────────────────────────────────
+// What a surface prints about a band is built from the edges above, so copy
+// cannot name a band the classification does not use. Each band runs from its
+// floor up to, not including, the next one.
+
+/** The word printed for a level (Reports badge, business report PDF). */
+export const RISK_LEVEL_LABEL: Record<RiskLevel, string> = {
+  critical: "Critical",
+  warning: "Warning",
+  healthy: "Healthy",
+  strong: "Strong",
+  notConfigured: "Not Set",
+};
+
+const { warning: WARNING_FROM, healthy: HEALTHY_FROM, strong: STRONG_FROM } = RISK_BAND_FLOOR_MONTHS;
+
+/** Each level's range, for a sentence about one runway. */
+export const RISK_BAND_RANGE: Record<Exclude<RiskLevel, "notConfigured">, string> = {
+  critical: `under ${WARNING_FROM} months`,
+  warning: `${WARNING_FROM}–${HEALTHY_FROM} months`,
+  healthy: `${HEALTHY_FROM}–${STRONG_FROM} months`,
+  strong: `${STRONG_FROM}+ months`,
+};
+
+/** The four bands in one sentence (Guide PDF, business report PDF). */
+export const RISK_BAND_LADDER =
+  `Under ${WARNING_FROM} months is critical, ${WARNING_FROM}–${HEALTHY_FROM} is warning, ` +
+  `${HEALTHY_FROM}–${STRONG_FROM} is healthy, ${STRONG_FROM}+ is strong.`;
 
 // ── Risk color band ───────────────────────────────────────────────────────────
 
