@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "npm:@supabase/supabase-js@2";
 import type { McpTool } from "./index.ts";
+import { CANONICAL_TAX_DISCLAIMER_SHORT } from "../lib/constants.ts";
 import { loadExpenseInputs } from "../lib/expense-inputs.ts";
 import {
   recurringMonthlyEquivalent,
@@ -27,7 +28,7 @@ export function getExpenseTools(supabase: SupabaseClient, userId: string): McpTo
     {
       name: "get_expenses",
       description:
-        "Returns the agent's YTD business expenses by category and line item (receipts and recurring expenses), plus monthly recurring totals. For a GST/HST registrant the amounts are net of the GST/HST claimed as input tax credits.",
+        "Returns the agent's YTD business expenses by category and line item (receipts and recurring expenses), plus monthly recurring totals. For a GST/HST registrant the amounts are net of the GST/HST claimed as input tax credits. Home Office bills count at the home office share. ESTIMATE ONLY — not tax advice.",
       inputSchema: { type: "object", properties: {}, additionalProperties: false },
       annotations: {
         title: "Business Expenses",
@@ -89,6 +90,32 @@ export function getExpenseTools(supabase: SupabaseClient, userId: string): McpTo
           });
         }
 
+        // The total takes the larger of receipts and the monthly estimates.
+        // When the estimates are larger, the difference is in the total but
+        // on no line above: list it, so the lines always add up to total_ytd.
+        const estimatesAboveReceipts = totals.legacyRecurringYTDEstimate - totals.receiptYTD;
+        if (estimatesAboveReceipts > 0) {
+          lines.push({
+            key: null,
+            title: "Monthly estimates above receipts",
+            category: "Monthly estimates",
+            ytd_amount: estimatesAboveReceipts,
+            monthly_recurring: 0,
+          });
+        }
+
+        // What the amounts are: a home bill is never "as paid", it counts at
+        // the home office share (expense-totals-engine).
+        const homeSharePct = Math.round(taxCtx.homeOfficeBusinessUsePct * 1000) / 10;
+        const amountsNote = [
+          taxCtx.gstHstRegistered
+            ? "Net of the GST/HST claimed as input tax credits (GST/HST registrant)."
+            : "As paid, GST/HST included (not registered for GST/HST).",
+          homeSharePct > 0
+            ? `Home Office bills count at the ${homeSharePct}% home office share, not in full.`
+            : "No home office share is set, so Home Office bills count for $0.",
+        ].join(" ");
+
         const allItems = lines
           .filter((l) => l.ytd_amount > 0 || l.monthly_recurring > 0)
           .sort((a, b) => b.ytd_amount - a.ytd_amount)
@@ -114,17 +141,16 @@ export function getExpenseTools(supabase: SupabaseClient, userId: string): McpTo
           content: [{
             type: "text" as const,
             text: JSON.stringify({
+              disclaimer: CANONICAL_TAX_DISCLAIMER_SHORT,
               as_of: todayISO,
               year: today.getFullYear(),
-              amounts: taxCtx.gstHstRegistered
-                ? "Net of the GST/HST claimed as input tax credits (GST/HST registrant)."
-                : "As paid, GST/HST included (not registered for GST/HST).",
+              amounts: amountsNote,
               total_ytd: round2(totals.expensesYTD),
               total_monthly_recurring: round2(totals.monthlyRecurring),
               projected_annual_recurring: round2(totals.monthlyRecurring * 12),
               // How total_ytd is built. The lines below are receipts and
-              // recurring expenses; a monthly estimate counts toward the
-              // total only when the estimates exceed the receipts.
+              // recurring expenses, plus one line for the monthly estimates
+              // when they exceed the receipts.
               ytd_components: {
                 receipts: round2(totals.receiptYTD),
                 recurring: round2(totals.recurringYTD),

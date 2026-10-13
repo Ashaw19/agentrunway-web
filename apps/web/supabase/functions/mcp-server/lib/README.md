@@ -27,6 +27,18 @@ resolve, and `expense-parity.test.ts` runs the real tool handlers.
 `filing-period-engine` (`getFilingPeriods`). Its hand copy had kept Q4's
 deadline at Mar 31 after the engine was corrected to Jan 31.
 
+### Deploying
+
+Rebuild the copy first, every time, from the repo root:
+
+```bash
+pnpm build:mcp-shared
+```
+
+Then deploy `mcp-server`. The copy is gitignored, so nothing keeps it current.
+A stale one is worse than none: if a tool imports an engine function the old
+copy doesn't have, the function fails to load and every tool returns an error.
+
 ## 2. Deliberate duplicates (older)
 
 The files below are **deliberate copies** of a canonical engine from

@@ -30,8 +30,17 @@ const ENTRY = path.join(FUNCTIONS_DIR, "mcp-server/index.ts");
 /** `import … from "x"`, `export … from "x"`, `import "x"`. */
 const STATIC_IMPORT = /(?:^|[\n;])\s*(?:import|export)\b[^'"`;]*?\bfrom\s*["']([^"']+)["']|(?:^|[\n;])\s*import\s*["']([^"']+)["']/g;
 const DYNAMIC_IMPORT = /\bimport\s*\(/;
-/** The build script's rewrite rule (scripts/build-mcp-shared.js). */
-const BUILD_SCRIPT_REWRITES = /((?:from|import)\s+["'])(\.\.?\/[^"']+?)(["'])/g;
+/**
+ * The build script's rewrite rule, read from scripts/build-mcp-shared.js so
+ * this test follows the script instead of a copy of it.
+ */
+function buildScriptRewriteRule(): RegExp {
+  const script = readFileSync(path.resolve(WEB_ROOT, "../../scripts/build-mcp-shared.js"), "utf8");
+  const literal = script.match(/const EXTENSIONLESS_RELATIVE_IMPORT = \/(.+)\/g;/);
+  if (!literal) throw new Error("build-mcp-shared.js: EXTENSIONLESS_RELATIVE_IMPORT not found");
+  return new RegExp(literal[1], "g");
+}
+const BUILD_SCRIPT_REWRITES = buildScriptRewriteRule();
 const DENO_REMOTE = /^(?:npm|jsr|node|https?):/;
 
 const stripComments = (src: string) => src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
@@ -76,8 +85,10 @@ function walk(entry: string): Graph {
 
       let target: string;
       if (core) {
-        // packages/core omits extensions; the copy gets `.ts` appended.
+        // packages/core omits extensions; the copy gets `.ts` appended. The
+        // script copies `.ts` files only, so nothing else can be imported.
         if (!rewritten.has(spec)) problems.push(`${rel(file)}: "${spec}" is not matched by the build script's rewrite`);
+        if (/\.(?:tsx|json)$/.test(spec)) problems.push(`${rel(file)}: "${spec}" is not a .ts file; build-mcp-shared.js would not copy it`);
         target = path.resolve(path.dirname(file), /\.(?:ts|tsx|json)$/.test(spec) ? spec : `${spec}.ts`);
       } else {
         if (!spec.endsWith(".ts")) problems.push(`${rel(file)}: "${spec}" needs an explicit .ts extension for Deno`);
@@ -130,5 +141,7 @@ describe("MCP edge function — imports resolve under Deno", () => {
     expect(DYNAMIC_IMPORT.test(`const m = await import("./x");`)).toBe(true);
     expect(DENO_REMOTE.test("npm:@supabase/supabase-js@2")).toBe(true);
     expect(DENO_REMOTE.test("zod")).toBe(false);
+    // The rule read from the build script rewrites an extensionless relative import.
+    expect([...`import { a } from "./a";`.matchAll(BUILD_SCRIPT_REWRITES)].map((m) => m[2])).toEqual(["./a"]);
   });
 });

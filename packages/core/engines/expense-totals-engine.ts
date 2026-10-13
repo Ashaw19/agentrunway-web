@@ -379,6 +379,12 @@ export interface PeriodInputTaxCredits {
  * `recurringHSTEntriesForPeriod` for what was charged in the period).
  * Someone who is not registered claims none.
  *
+ * Like the GST34 pre-fill it takes `tax_amount` as recorded. `expenseNetOfItc`
+ * is stricter with bad data (it caps the tax at the amount paid and skips a
+ * row with no total), so on such a row the ITC here can exceed what came off
+ * the expense. Changing that here alone would make this disagree with line
+ * 108 instead.
+ *
  * @param receipts  `receipt_expenses` rows already limited to the period.
  * @param recurring `recurring_expenses` rows as stored: `hst_amount` is read,
  *                  so never pass the net copies.

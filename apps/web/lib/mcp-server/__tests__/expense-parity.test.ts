@@ -231,6 +231,7 @@ function dashboardExpenses(fx: Fixture) {
 
 type ExpenseLine = { key: string | null; title: string; category: string; ytd_amount: number; monthly_recurring: number };
 type ExpensesOutput = {
+  disclaimer: string;
   amounts: string;
   total_ytd: number;
   total_monthly_recurring: number;
@@ -457,6 +458,19 @@ describe("get_expenses — the same total, with its lines", () => {
     expect(out.all_items.find((i) => i.title === "Car wash")).toMatchObject({ category: "Vehicle", ytd_amount: 200 });
   });
 
+  it("when the monthly estimates exceed the receipts, the difference is its own line and the lines still add up", async () => {
+    const fx = fixtures({ legacyMonthly: 100 });
+    const out = await callTool<ExpensesOutput>(await expenses(fakeSupabase(fx.tables)), "get_expenses");
+
+    // 100 × 10 months = 1,000 of estimates against 443.75 of receipts.
+    expect(out.total_ytd).toBe(6600);
+    expect(out.all_items.find((i) => i.title === "Monthly estimates above receipts")).toMatchObject({
+      key: null, category: "Monthly estimates", ytd_amount: 556.25,
+    });
+    expect(out.all_items.reduce((s, i) => s + i.ytd_amount, 0)).toBeCloseTo(out.total_ytd, 2);
+    expect(out.by_category.reduce((s, c) => s + c.ytd_total, 0)).toBeCloseTo(out.total_ytd, 2);
+  });
+
   it("never reports the dead ytd_amount column", async () => {
     const db = fakeSupabase(fixtures().tables);
     const out = await callTool(await expenses(db), "get_expenses");
@@ -470,6 +484,42 @@ describe("get_expenses — the same total, with its lines", () => {
     expect(registrant.amounts).toMatch(/net of the GST\/HST/i);
     expect(notRegistered.amounts).toMatch(/as paid/i);
     expect(notRegistered.total_ytd).toBe(6938.5);
+    // A home bill is never "as paid": the label says what share it counts at.
+    expect(notRegistered.amounts).toContain("Home Office bills count at the 20% home office share, not in full.");
+    expect(registrant.disclaimer).toMatch(/^Estimate only\./);
+
+    const noShare = fixtures();
+    noShare.tables.user_settings = noShare.tables.user_settings.map((s) => ({ ...s, home_office_business_use_pct: 0 }));
+    const out = await callTool<ExpensesOutput>(await expenses(fakeSupabase(noShare.tables)), "get_expenses");
+    expect(out.amounts).toContain("No home office share is set, so Home Office bills count for $0.");
+  });
+});
+
+// ── Failed reads ───────────────────────────────────────────────────────────
+
+describe("a failed expense read is an error, never $0 of expenses", () => {
+  // With the expenses silently missing, net income and the tax estimate
+  // would come out too high and look valid. protocol.ts turns the throw into
+  // a JSON-RPC error.
+  it.each(["receipt_expenses", "recurring_expenses", "expense_items", "user_settings"])(
+    "%s: the expense tools reject",
+    async (table) => {
+      const db = () => fakeSupabase(fixtures().tables, { failTables: [table] });
+      await expect(callTool(await analytics(db()), "get_dashboard_kpis")).rejects.toMatchObject({
+        message: `simulated read failure on ${table}`,
+      });
+      await expect(callTool(await analytics(db()), "get_tax_estimate")).rejects.toBeDefined();
+      await expect(callTool(await analytics(db()), "get_hst_status")).rejects.toBeDefined();
+      await expect(callTool(await expenses(db()), "get_expenses")).rejects.toBeDefined();
+    },
+  );
+
+  it("a brand-new account (no settings row, no expenses) gets zeros, not an error", async () => {
+    const db = fakeSupabase({});
+    expect(await callTool(await analytics(db), "get_dashboard_kpis")).toMatchObject({ ytd_expenses: 0, ytd_net_income: 0 });
+    expect(await callTool(await analytics(db), "get_hst_status")).toMatchObject({ itcs_paid_on_expenses: 0, net_owing: 0 });
+    expect(await callTool<ExpensesOutput>(await expenses(db), "get_expenses")).toMatchObject({ total_ytd: 0, all_items: [] });
+    expect(await callTool(await analytics(db), "get_tax_estimate")).toMatchObject({ projected_net_income: 0 });
   });
 });
 

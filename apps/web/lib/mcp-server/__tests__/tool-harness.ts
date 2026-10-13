@@ -21,8 +21,11 @@
  *     filters a tool read.
  *
  * This is a unit harness for the handlers with stubbed inputs, not an
- * integration test: nothing here proves a column exists in Postgres. Column
- * names are checked against the migrations when a query is written.
+ * integration test: nothing here proves a column exists in Postgres (a
+ * column the fixture lacks comes back null, where PostgREST would return a
+ * 400). Column names are checked against the migrations when a query is
+ * written. Server limits are not modelled either: PostgREST caps a response
+ * at `max_rows` (1000) whatever `.limit()` asks for.
  *
  * A test helper, not a test (no `.test.ts` suffix).
  */
@@ -43,7 +46,12 @@ export interface RecordedQuery {
 
 interface QueryResult {
   data: unknown;
-  error: null;
+  error: { message: string } | null;
+}
+
+export interface FakeSupabaseOptions {
+  /** Tables whose reads come back as a PostgREST error (`data: null`). */
+  failTables?: string[];
 }
 
 interface QueryBuilder extends PromiseLike<QueryResult> {
@@ -103,7 +111,10 @@ const compare = (a: unknown, b: unknown) => {
   return x < y ? -1 : x > y ? 1 : 0;
 };
 
-export function fakeSupabase(tables: Record<string, Row[]>): FakeSupabase {
+export function fakeSupabase(
+  tables: Record<string, Row[]>,
+  { failTables = [] }: FakeSupabaseOptions = {},
+): FakeSupabase {
   const queries: RecordedQuery[] = [];
 
   const from = (table: string): QueryBuilder => {
@@ -112,6 +123,9 @@ export function fakeSupabase(tables: Record<string, Row[]>): FakeSupabase {
     queries.push(query);
 
     const selected = (): Row[] => rows.map((r) => project(r, query.columns));
+    const failure: QueryResult | null = failTables.includes(table)
+      ? { data: null, error: { message: `simulated read failure on ${table}` } }
+      : null;
 
     const builder: QueryBuilder = {
       select(columns) {
@@ -159,10 +173,10 @@ export function fakeSupabase(tables: Record<string, Row[]>): FakeSupabase {
         return builder;
       },
       maybeSingle() {
-        return Promise.resolve({ data: selected()[0] ?? null, error: null });
+        return Promise.resolve(failure ?? { data: selected()[0] ?? null, error: null });
       },
       then(onfulfilled, onrejected) {
-        const result: QueryResult = { data: selected(), error: null };
+        const result: QueryResult = failure ?? { data: selected(), error: null };
         return Promise.resolve(result).then(onfulfilled, onrejected);
       },
     };
