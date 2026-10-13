@@ -36,7 +36,7 @@ const s = StyleSheet.create({
     fontSize: 9,
     color: "#1a1a2e",
     paddingTop: 36,
-    paddingBottom: 48,
+    paddingBottom: 60, // clears the footer when a long agent name wraps its second row
     paddingHorizontal: 40,
     backgroundColor: "#ffffff",
   },
@@ -130,7 +130,7 @@ const s = StyleSheet.create({
     justifyContent: "space-between",
   },
   idLabel: { fontSize: 8, color: "#64748b" },
-  idValue: { fontSize: 8, fontFamily: "Helvetica-Bold", color: "#1a1a2e" },
+  idValue: { fontSize: 8, fontFamily: "Helvetica-Bold", color: "#1a1a2e", flex: 1, textAlign: "right", marginLeft: 8 },
   // Line rows
   lineRow: {
     flexDirection: "row",
@@ -144,7 +144,7 @@ const s = StyleSheet.create({
   lineLeft: { flexDirection: "row", alignItems: "center", flex: 1 },
   lineNum: { fontSize: 7, color: "#94A3B8", width: 32, fontFamily: "Helvetica" },
   lineLabel: { fontSize: 8.5, color: "#334155", flex: 1 },
-  lineNote: { fontSize: 7, color: "#F59E0B", marginLeft: 4 },
+  lineNote: { fontSize: 7, color: "#F59E0B", marginLeft: 4, marginRight: 6 },
   lineValue: { fontSize: 8.5, color: "#1a1a2e", fontFamily: "Helvetica-Bold", textAlign: "right" },
   lineRowHighlight: {
     flexDirection: "row",
@@ -243,7 +243,8 @@ const s = StyleSheet.create({
     borderRadius: 3,
     marginTop: 4,
   },
-  // Footer
+  // Footer: the disclaimer on its own row, then the document line and the
+  // corporation line side by side. Three texts in one row do not fit LETTER.
   footer: {
     position: "absolute",
     bottom: 20,
@@ -252,11 +253,16 @@ const s = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: "#E2E8F0",
     paddingTop: 6,
+  },
+  footerRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
+    alignItems: "flex-start",
+    marginTop: 2,
   },
   footerText: { fontSize: 7, color: "#94A3B8" },
+  footerDisclaimer: { textAlign: "center" },
+  footerDocument: { flex: 1, marginRight: 12 }, // takes the room left over, and wraps in it
   pageNum: { fontSize: 7, color: "#94A3B8" },
 });
 
@@ -293,8 +299,10 @@ function LineHighlight({ lineNum, label, value }: {
 function SectionHeader({ title, subtitle, color = "#3B82F6" }: {
   title: string; subtitle?: string; color?: string;
 }) {
+  // Kept whole, and kept with what follows: a page break never lands inside a
+  // header or between a header and its first line.
   return (
-    <View style={[s.sectionHeader, { borderLeftColor: color }]}>
+    <View style={[s.sectionHeader, { borderLeftColor: color }]} wrap={false} minPresenceAhead={40}>
       <Text style={s.sectionTitle}>{title}</Text>
       {subtitle && <Text style={s.sectionSubtitle}>{subtitle}</Text>}
     </View>
@@ -304,15 +312,17 @@ function SectionHeader({ title, subtitle, color = "#3B82F6" }: {
 function Footer({ year, agentName }: { year: number; agentName: string }) {
   return (
     <View style={s.footer} fixed>
-      <Text style={s.footerText}>
-        Agent Runway · T2125 Summary · {agentName} · {year} Tax Year
-      </Text>
-      <Text style={s.footerText}>
+      <Text style={[s.footerText, s.footerDisclaimer]}>
         ESTIMATES ONLY — NOT PROFESSIONAL TAX ADVICE — CONSULT YOUR ACCOUNTANT
       </Text>
-      <Text style={s.footerText}>
-        © 2026 Agent Runway Inc. · Canada Corporation No. 1786542-2
-      </Text>
+      <View style={s.footerRow}>
+        <Text style={[s.footerText, s.footerDocument]}>
+          Agent Runway · T2125 Summary · {agentName} · {year} Tax Year
+        </Text>
+        <Text style={s.footerText}>
+          © 2026 Agent Runway Inc. · Canada Corporation No. 1786542-2
+        </Text>
+      </View>
     </View>
   );
 }
