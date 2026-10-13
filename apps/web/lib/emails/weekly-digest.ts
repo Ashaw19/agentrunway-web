@@ -5,6 +5,10 @@
  * Summarises key business metrics for the past 7 days and YTD context.
  */
 
+// The badge is the colour of the score's band, from the engine, as on the
+// dashboard. No thresholds in this file.
+import { bandColorHexForScore } from "@agent-runway/core/engines/runway-score-engine";
+
 export interface WeeklyDigestData {
   firstName: string | null;
   /** Week date range label, e.g. "Mar 17 – Mar 23, 2026" */
@@ -104,7 +108,7 @@ export function weeklyDigestEmail(data: WeeklyDigestData): { subject: string; ht
                 <tr>
                   <td style="background-color:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:16px 20px;text-align:center;">
                     <span style="font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;">Runway Score</span>
-                    <div style="font-size:36px;font-weight:800;color:${data.runwayScore >= 80 ? "#10B981" : data.runwayScore >= 60 ? "#F59E0B" : "#EF4444"};margin:4px 0 2px;">${data.runwayGrade}</div>
+                    <div style="font-size:36px;font-weight:800;color:${bandColorHexForScore(data.runwayScore)};margin:4px 0 2px;">${data.runwayGrade}</div>
                     <span style="font-size:13px;color:#94a3b8;">${data.runwayScore}/100</span>
                   </td>
                 </tr>

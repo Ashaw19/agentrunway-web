@@ -29,23 +29,6 @@ const COMPONENT_META: Record<
   Survival: { key: "survival", icon: Shield, color: "#8B5CF6" },
 };
 
-/**
- * Color band for a COMPONENT sub-score (Goal Pace, Pipeline, Expenses,
- * Benchmark, Survival — each 0-100). This is a DIFFERENT metric class from
- * the composite Runway Score; component bands have their own thresholds
- * (75/50/30) pending a formal scheme from `metrics-design-champion` (see
- * `memory/spec_runway_score_canonical_bands.md` §7 question 1).
- *
- * DO NOT use this for the composite score color — that must follow the
- * canonical stateLabel band via `bandColorHexForScore()` from the engine.
- */
-function componentScoreColor(score: number): string {
-  if (score >= 75) return "#10B981";
-  if (score >= 50) return "#3B5EF6";
-  if (score >= 30) return "#F59E0B";
-  return "#EF4444";
-}
-
 export function ScoreBreakdownSheet({
   visible,
   onClose,
@@ -87,6 +70,11 @@ export function ScoreBreakdownSheet({
           const Icon = meta.icon;
           const barWidth = Math.max(comp.score, 3);
           const weightPct = Math.round(comp.weight * 100);
+          // A component's score takes the same bands as the composite above
+          // it, from the engine, so it is the colour the web dashboard gives
+          // the same score. No thresholds here: see
+          // memory/spec_runway_score_canonical_bands.md §7 question 1.
+          const scoreColor = bandColorHexForScore(comp.score);
 
           return (
             <View key={meta.key}>
@@ -150,7 +138,7 @@ export function ScoreBreakdownSheet({
                       style={{
                         fontSize: 16,
                         fontWeight: "800",
-                        color: componentScoreColor(comp.score),
+                        color: scoreColor,
                       }}
                     >
                       {comp.score}
@@ -172,7 +160,7 @@ export function ScoreBreakdownSheet({
                         height: 4,
                         borderRadius: 2,
                         width: `${barWidth}%` as DimensionValue,
-                        backgroundColor: componentScoreColor(comp.score),
+                        backgroundColor: scoreColor,
                       }}
                     />
                   </View>
