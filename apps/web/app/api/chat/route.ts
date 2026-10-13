@@ -11,6 +11,7 @@ import { KNOWLEDGE_BASE } from "@/lib/knowledge-base";
 import { buildPersonaPrefix } from "@/lib/flight-crew/system-prompts";
 import { DEFAULT_PERSONA, type Persona } from "@/lib/flight-crew/personas";
 import { CANONICAL_TAX_DISCLAIMER } from "@/lib/flight-crew/constants";
+import { SMALL_SUPPLIER_RULE } from "@agent-runway/core/tax-copy";
 import {
   flightCrewEnabled,
   navigatorEnabled,
@@ -936,7 +937,7 @@ export async function POST(req: NextRequest) {
               ? `Brokerage withholds ${hstLabelLocal} and remits to CRA — agent-side collected view is $0. ` +
                 `The filing view (T2125 / GST34) still reports the collected amount on invoiced GCI — that's a filing matter, not a cash-flow one. `
               : !(settings.gst_hst_registered ?? false)
-                ? `Agent is not registered for ${hstLabelLocal}. CRA requires registration when taxable supplies exceed $30,000 over four consecutive calendar quarters. `
+                ? `Agent is not registered for ${hstLabelLocal}. ${SMALL_SUPPLIER_RULE} `
                 : "";
             taxIntelLines.push(
               `[GST/HST FORECAST] ${contextLine}` +

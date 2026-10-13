@@ -25,6 +25,7 @@ import {
   StyleSheet,
 } from "@react-pdf/renderer";
 import { fmtCurrency, fmtPct, fmtCompact } from "@/lib/formatters";
+import { CANONICAL_TAX_DISCLAIMER_SHORT, gstHstReportNote } from "@agent-runway/core/tax-copy";
 import {
   computeGCI,
   PROVINCE_LABELS,
@@ -141,12 +142,15 @@ function generateAssessment(
       ? ` You're tracking at or above your cohort median, keeping you competitive within your experience tier.`
       : ` Your GCI trajectory currently ranks below the cohort median — closing this gap represents a significant opportunity.`;
 
+  // Compared on the rounded figure it prints, against the same 25–30% target
+  // as the Expense Ratio bar on the Expenses page of this report.
+  const roundedRatio = Math.round(expenseRatio);
   const expenseNote =
-    expenseRatio > 35
-      ? ` Your expense ratio of ${expenseRatio.toFixed(0)}% is above the 25–30% target; identifying cost efficiencies could significantly boost your net income.`
-      : expenseRatio > 0
-      ? ` Your expense ratio of ${expenseRatio.toFixed(0)}% is within the healthy 25–30% target range, reflecting disciplined cost management.`
-      : "";
+    expenseRatio <= 0
+      ? ""
+      : ` Your expense ratio of ${roundedRatio}% is ${
+          roundedRatio > 30 ? "above" : roundedRatio >= 25 ? "within" : "under"
+        } the 25–30% target range.`;
 
   const weakNote =
     weakest.score < 60
@@ -1175,6 +1179,10 @@ export interface BusinessReportPDFProps {
   taxResult: TaxSummaryForPDF;
   gstHstCollectedYTD: number;
   gstHstLabel: string;
+  /** `user_settings.gst_hst_registered`. Never inferred from `business_number`. */
+  gstHstRegistered: boolean;
+  /** `user_settings.brokerage_withholds_hst`. */
+  brokerageWithholdsHst: boolean;
 
   // Expenses
   expenseRatio: number;
@@ -1245,6 +1253,8 @@ export function BusinessReportPDF({
   taxResult,
   gstHstCollectedYTD,
   gstHstLabel,
+  gstHstRegistered,
+  brokerageWithholdsHst,
   expenseRatio,
   expenseRows,
   monthlyRecurring,
@@ -1664,7 +1674,7 @@ export function BusinessReportPDF({
           label={`Expense Ratio · ${expenseRatio.toFixed(1)}% of GCI (target: 25–30%)`}
           value={expenseRatio}
           max={50}
-          note="Industry benchmark is 25–30%. A lower ratio means more of your GCI reaches your pocket."
+          note="YTD expenses divided by YTD GCI. The target range is 25–30%."
           color={expenseRatio <= 30 ? C.emerald : expenseRatio <= 40 ? C.amber : C.rose}
         />
 
@@ -1728,13 +1738,17 @@ export function BusinessReportPDF({
           </View>
         )}
 
-        {/* GST/HST note */}
+        {/* GST/HST note: one of three, by registration and who remits (core/tax-copy/cra-rules) */}
         <View style={s.gstNote}>
           <Text>
-            {gstHstLabel} Estimate · {fmtCurrency(gstHstCollectedYTD)} collected on YTD GCI of{" "}
-            {fmtCurrency(ytdGCI)}. As a self-employed agent, you are responsible for remitting{" "}
-            {gstHstLabel} to the CRA if your annual income exceeds $30,000. Keep a dedicated{" "}
-            account for these funds.
+            {gstHstReportNote({
+              label: gstHstLabel,
+              registered: gstHstRegistered,
+              brokerageWithholds: brokerageWithholdsHst,
+              collectedYTD: gstHstCollectedYTD,
+              ytdGCI,
+            })}{" "}
+            {CANONICAL_TAX_DISCLAIMER_SHORT}
           </Text>
         </View>
 

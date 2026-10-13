@@ -190,7 +190,7 @@ Quarterly = Total Annual Tax ÷ 4
 Required when annual tax owing >$3,000 (>$1,800 in Quebec)
 
 ### GST/HST
-- Registration mandatory when taxable revenue >$30,000 in any rolling 12-month period
+- Registration (CRA small supplier rule): required once revenue from worldwide taxable supplies, before expenses, is over $30,000 in a single calendar quarter or over the last four consecutive calendar quarters. That is commission revenue, not net income, and the periods are calendar quarters, not a calendar year or a rolling 12 months. At or under the limit a person is a small supplier and registration is optional. Source: canada.ca, "When to register for and start charging the GST/HST". Whether an agent is over the limit is their accountant's call; state the rule, do not apply it.
 - Rates: 5% (AB, BC, MB, SK, territories), 13% (ON), 14% (NS), 15% (NB, NL, PE)
 - Quebec: 5% GST + 9.975% QST = 14.975% combined
 - Input Tax Credits (ITCs) offset GST paid on business expenses
@@ -1215,7 +1215,7 @@ All figures are a snapshot of the REAL income deck and are user-editable — if 
 ### GST/HST Registration
 - Toggle: registered or not
 - If registered: GST/HST collected on GCI, ITCs claimed on expenses. Expense totals across the app are net of those ITCs.
-- If not: No GST obligations (under $30,000 threshold). Expense totals include the GST/HST paid.
+- If not: the app counts no GST/HST on commissions and no ITCs. Expense totals include the GST/HST paid. The toggle is the agent's own answer: being unregistered in Settings does not show the agent is under CRA's $30,000 small supplier limit.
 - Changing the toggle changes every expense total, the T2125 lines and the tax estimate (see the Expenses playbook, "GST/HST in expense totals").
 
 ### Vehicle Business Use
@@ -1816,12 +1816,14 @@ The Overhead page is your complete tax visibility dashboard:
    - CRA requires quarterly payments if you owe > $3,000 in tax
    - Deadlines: March 15, June 15, September 15, December 15
    - Calculated as: Estimated Annual Tax ÷ 4
+   - The T2125 tab's "CRA Tax Instalment Tracker" and the T2125 PDF list those four dates beside an "Estimated" amount (the annual estimate ÷ 4) and what the agent entered as paid. Changed 2026-10-13: before that date the tracker printed the GST/HST filing dates (Apr 30, Jul 31, Oct 31, Jan 31) and headed the column "Recommended". A PDF exported earlier shows the old dates.
 
 4. **HST/GST Tracking**
    - HST collected on commissions (13% in ON, 14% in NS, 15% in NB/NL/PE, etc.)
    - Input Tax Credits (ITCs) from business expenses
    - Net HST owing = Collected − ITCs
-   - Small supplier threshold: < $30,000 annual revenue = optional registration
+   - Small supplier limit (CRA): $30,000 of revenue from taxable supplies, measured in a single calendar quarter and over the last four consecutive calendar quarters. At or under it, registration is optional
+   - Reports → Tax Snapshot and the business report PDF (Expenses page) print one GST/HST note, chosen by Settings. Not registered: no amount, and CRA's small supplier rule. Registered: the estimate (GST/HST rate × YTD GCI) and the GCI it is on. Registered with "brokerage withholds HST" on: none counted in the agent's hands, because the brokerage remits it. Registered or not is the Settings toggle only, never the business number. Changed 2026-10-13: the PDF used to print one sentence for everyone, which gave the $30,000 limit as a yearly income figure (not CRA's rule) and told the reader to keep a separate account (a directive)
 
 5. **Deduction Summaries by T2125 Category**
    - Advertising, meals, vehicle, office, professional fees, etc.
@@ -1833,9 +1835,9 @@ The Overhead page is your complete tax visibility dashboard:
    - Shows: original cost, UCC (undepreciated capital cost), CCA claimed
    - Half-year rule: first-year CCA is 50% of the normal rate
 
-7. **Per-Deal Tax Set-Aside**
-   - Recommended amount to set aside from each commission cheque
-   - Based on your effective tax rate applied to average deal GCI
+7. **Per-Deal Tax Estimate** (shown as "Per-deal tax portion")
+   - Total annual tax estimate ÷ projected deal count
+   - An estimate of the tax each closed deal carries, not an amount to set aside
 
 ### GST/HST Return, line by line (from gst34-engine.ts)
 
@@ -1919,7 +1921,7 @@ If the card doesn't show: the agent hasn't set 'estimated_weekly_hours' in Setti
 ### Common Issues
 - **"Tax estimate seems too high/low"**: Check Settings → province, business structure (sole prop vs incorporated), and whether expenses are fully entered.
 - **"CCA not showing"**: You need to add CCA assets first — use the Flight Crew ("I bought a $2,400 laptop for work") or add manually on the Overhead page.
-- **"HST numbers wrong"**: Verify your GST/HST registration status in Settings. If you're below $30K revenue, you may not need to collect HST.
+- **"HST numbers wrong"**: Check the GST/HST registration toggle in Settings. The app counts GST/HST on commissions only when it is on, and counts none in the agent's hands when "brokerage withholds HST" is on. Whether registration is required is CRA's small supplier rule ($30,000 of revenue from taxable supplies in a single calendar quarter or over four consecutive calendar quarters); whether it applies to this agent is a question for their accountant.
 - **"Instalment amounts changed"**: They update as your estimated tax changes throughout the year based on new transactions and expenses.
 - **"What is line 109 on my GST34?"**: Net tax = GST collected on commissions minus ITCs from expenses. Positive means you owe CRA; negative means CRA refunds you.
 - **"My ITCs seem low"**: Insurance premiums are GST/HST exempt — no ITC can be claimed. Meals & entertainment ITCs are 50% disallowed.
