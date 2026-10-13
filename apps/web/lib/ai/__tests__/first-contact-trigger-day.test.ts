@@ -45,9 +45,11 @@ const OCT9_10PM_ADT = "2026-10-10T01:00:00+00:00"; // Fri Oct 9 2026, 22:00 ADT
 const OCT9_NOON_ADT = "2026-10-09T15:00:00+00:00"; // Fri Oct 9 2026, 12:00 ADT
 const NOV1_2025_1030PM_ADT = "2025-11-02T01:30:00+00:00"; // Sat Nov 1 2025, 22:30 ADT
 const DEC31_2025_10PM_AST = "2026-01-01T02:00:00+00:00"; // Wed Dec 31 2025, 22:00 AST
+const JAN5_2026_11AM_AST = "2026-01-05T15:00:00+00:00"; // Mon Jan 5 2026, 11:00 AST
 
 const OCT25_NOON = "2026-10-25T15:00:00Z"; // Sun Oct 25 2026, 12:00 ADT
 const DEC20_NOON = "2026-12-20T16:00:00Z"; // Sun Dec 20 2026, 12:00 AST
+const DEC25_NOON = "2026-12-25T16:00:00Z"; // Fri Dec 25 2026, 12:00 AST
 
 interface Scenario {
   firstContactedAt: string;
@@ -252,6 +254,30 @@ describe("contact anniversary — first contact on Dec 31 2025 at 10 pm Atlantic
 
   it("the nightly run queues it for Dec 31 2026", async () => {
     expect(await nightlyDates(ANNIV, newYearsEve, pinFor(ANNIV, "2026-12-31"))).toEqual(["2026-12-31"]);
+  });
+});
+
+describe("contact anniversary — first contact on Jan 5 2026, seen from Dec 25", () => {
+  const ANNIV = "contact_anniversary";
+  const earlyJanuary: Scenario = { firstContactedAt: JAN5_2026_11AM_AST, status: "cruising" };
+
+  beforeEach(() => {
+    vi.setSystemTime(new Date(DEC25_NOON));
+  });
+
+  // The first anniversary is 11 days out, in the next calendar year. Counted
+  // as this year minus the first-contact year the client was zero years in
+  // until Jan 1, so the card missed the first ten days of its window.
+  it("Scan shows the first anniversary on Jan 5 2027", async () => {
+    expect(await scanDates(ANNIV, earlyJanuary)).toEqual(["2027-01-05"]);
+  });
+
+  it("the nightly run queues it for Jan 5 2027, as year 1", async () => {
+    const { client, writes } = fakeSupabase(tables(earlyJanuary));
+    await detectAndDraftForUser(USER, client, { pin: pinFor(ANNIV, "2027-01-05") });
+    const upsert = writes.find((w) => w.table === "outreach_queue" && w.op === "upsert");
+    const rows = ((upsert?.payload as Row[] | undefined) ?? []).filter((r) => r.opportunity_type === ANNIV);
+    expect(rows.map((r) => [r.trigger_date, (r.context as Row).anniversary_year])).toEqual([["2027-01-05", 1]]);
   });
 });
 

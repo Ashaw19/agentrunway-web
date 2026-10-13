@@ -37,6 +37,10 @@ describe("nextBirthdayDate", () => {
     expect(next("1985-01-01", "2027-01-01T02:00:00Z")).toBe("2027-01-01");
   });
 
+  it("a Jan 5 birthday is next year's from Dec 25", () => {
+    expect(next("1985-01-05", "2026-12-25T16:00:00Z")).toBe("2027-01-05");
+  });
+
   it("defaults to the Atlantic day", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-10-10T01:00:00Z")); // Oct 9, 22:00 ADT
