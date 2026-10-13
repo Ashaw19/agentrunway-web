@@ -171,6 +171,10 @@ describe("REGRESSION — server code prints a timestamp on its Atlantic day, not
       count: 1,
       why: "\"Generated\" date; the PDF is rendered in the browser by reports-t2125-tab.tsx",
     },
+    "apps/web/components/pdf/gst34-worksheet-pdf.tsx": {
+      count: 1,
+      why: "\"Generated\" date; the PDF is rendered in the browser by expenses-content.tsx",
+    },
     "apps/web/lib/checklist/checklist.ts": {
       count: 1,
       why: "doneLabel weekday; only the checklist page's client component calls it",

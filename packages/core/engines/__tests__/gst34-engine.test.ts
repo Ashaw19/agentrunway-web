@@ -84,16 +84,20 @@ describe("computeGST34 — a quarter with no sales and only ITCs", () => {
       instalmentsPaid: 0, vehicleBusinessUsePct: 0.8,
     });
     expect(r.line101).toBe(0);
-    expect(r.line106).toBeCloseTo(566.07, 2);            // what the helper used to claim in full
+    expect(r.hstPaidOnExpenses).toBeCloseTo(566.07, 2);  // what the helper used to claim in full
     expect(r.mealItcReduction).toBeCloseTo(17.5, 2);     // half of 35.00
     expect(r.vehicleItcReduction).toBeCloseTo(72.39, 2); // 20% of (95.65 + 266.31)
+    expect(r.itcNotClaimable).toBeCloseTo(89.89, 2);
+    // CRA's line 106 is the ELIGIBLE amount; the limits are not line 107.
+    expect(r.line106).toBeCloseTo(476.18, 2);
+    expect(r.line107).toBe(0);
     expect(r.line108).toBeCloseTo(476.18, 2);
     expect(r.line109).toBeCloseTo(-476.18, 2);
-    const l107 = r.lines.find((l) => l.line === "107")!;
-    expect(l107.amount).toBeCloseTo(-89.89, 2);
-    expect(l107.note).toContain("50% of meals & entertainment ITCs");
-    expect(l107.note).toContain("business use 80%");
-    expect(r.lines.find((l) => l.line === "113")!.label).toBe("Refund claimed");
+    const l106 = r.filingLines.find((l) => l.line === "106")!;
+    expect(l106.amount).toBe(476.18);
+    expect(l106.note).toContain(`half of the ${r.taxLabel} on meals and entertainment`);
+    expect(l106.note).toContain("business use 80%");
+    expect(r.filingLines.find((l) => l.line === "114")!.label).toBe("Refund claimed");
   });
 
   it("claims vehicle HST in full at 90% business use and none at 10%", () => {
@@ -108,9 +112,11 @@ describe("computeGST34 — a quarter with no sales and only ITCs", () => {
     expect(r.mealItcReduction).toBeCloseTo(17.5, 2);
   });
 
-  it("shows no line 107 when nothing is limited", () => {
+  it("says nothing about limits on line 106 when nothing is limited", () => {
     const r = computeGST34({ province: "new_brunswick", period: Q3, frequency: "quarterly", periodTransactions: [], periodReceipts: [receipt(42, "office_supplies")], instalmentsPaid: 0, vehicleBusinessUsePct: 0.8 });
-    expect(r.lines.some((l) => l.line === "107")).toBe(false);
+    expect(r.itcNotClaimable).toBe(0);
+    expect(r.filingLines.find((l) => l.line === "106")!.note).toBe(`${r.taxLabel} paid on 1 receipt`);
+    expect(r.line106).toBe(42);
     expect(r.line108).toBe(42);
   });
 });

@@ -2,6 +2,9 @@ import { defineConfig } from "vitest/config";
 import path from "node:path";
 
 export default defineConfig({
+  // tsconfig sets `jsx: "preserve"` for Next. A test that imports a .tsx file
+  // (the PDF components) needs the JSX compiled; the runtime is React's.
+  oxc: { jsx: { runtime: "automatic" } },
   test: {
     globals: true,
     environment: "node",

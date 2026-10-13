@@ -118,14 +118,16 @@ describe("GST34 summary with home bills", () => {
     ],
   };
 
-  it("line 106 carries all the GST/HST and line 107 takes the household share back off", () => {
+  it("line 106 is the eligible ITC: the household share of a home bill's GST/HST never reaches it", () => {
     const r = computeGST34({ ...base, vehicleBusinessUsePct: 0.8, homeOfficeBusinessUsePct: 0.15 });
-    expect(r.line106).toBe(30);
+    expect(r.hstPaidOnExpenses).toBe(30);
     expect(r.homeItcReduction).toBeCloseTo(12.75, 10);
-    expect(r.line107).toBeCloseTo(-12.75, 10);
+    expect(r.itcNotClaimable).toBeCloseTo(12.75, 10);
+    expect(r.line106).toBeCloseTo(17.25, 10);
+    expect(r.line107).toBe(0);
     expect(r.line108).toBeCloseTo(17.25, 10);
-    const l107 = r.lines.find((l) => l.line === "107")!;
-    expect(l107.note).toContain("personal-use share of home bill ITCs (business use of home 15%)");
+    const l106 = r.filingLines.find((l) => l.line === "106")!;
+    expect(l106.note).toContain("the personal share of home bill HST (home office 15%)");
   });
 
   it("an older caller that passes no home share claims nothing on the home bill", () => {

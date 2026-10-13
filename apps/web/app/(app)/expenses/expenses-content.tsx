@@ -62,6 +62,7 @@ const ExpenseDonut = dynamic(() => import("@/components/expense-donut").then(m =
 const ReceiptCaptureDialog = dynamic(() => import("@/components/receipt-capture-dialog").then(m => m.ReceiptCaptureDialog), { ssr: false });
 const ReceiptViewEditDialog = dynamic(() => import("@/components/receipt-view-edit-dialog").then(m => m.ReceiptViewEditDialog), { ssr: false });
 import { ExpenseExportPdf }         from "@/components/pdf/expense-export-pdf";
+import { Gst34WorksheetPdf }        from "@/components/pdf/gst34-worksheet-pdf";
 import {
   RECEIPT_CATEGORIES,
   RECEIPT_CATEGORY_GROUPS,
@@ -107,7 +108,8 @@ import {
   deadlineUrgency,
 } from "@agent-runway/core/engines/filing-period-engine";
 import { computeGST34 } from "@agent-runway/core/engines/gst34-engine";
-import { recurringHSTEntriesForPeriod } from "@agent-runway/core/engines/recurring-expense-engine";
+import { buildGST34Worksheet } from "@agent-runway/core/engines/gst34-worksheet";
+import { recurringHSTDetailForPeriod, recurringHSTEntriesForPeriod } from "@agent-runway/core/engines/recurring-expense-engine";
 import { gstHstLabel } from "@agent-runway/core/engines/canadian-tax-engine";
 import { reconcileDeals, type ReconciliationResult, type ImportedDeal } from "@agent-runway/core/engines/reconciliation-engine";
 import { selectTaxTips, TIP_CATEGORY_LABELS } from "@agent-runway/core/engines/tax-iq-engine";
@@ -1229,6 +1231,54 @@ export function ExpensesContent({
     }
   }
 
+  // ── GST/HST return worksheet (PDF) ────────────────────────────────────────
+  // The lines come from `gst34Result` (every receipt of the year, filtered to
+  // the period). The expense-by-expense list is built from the receipt list,
+  // which carries vendor names; the worksheet prints the difference between
+  // the two if they ever disagree.
+  const [showAllGstLines, setShowAllGstLines] = useState(false);
+  const [exportingGst, setExportingGst] = useState(false);
+
+  async function downloadGstWorksheet() {
+    if (!gst34Result || !activePeriod) return;
+    setExportingGst(true);
+    try {
+      const worksheet = buildGST34Worksheet({
+        receipts: receiptsInPeriod(receipts, activePeriod),
+        recurring: recurringHSTDetailForPeriod(recurringExpenses, activePeriod.startDate, activePeriod.endDate),
+        vehicleBusinessUsePct: vehiclePct,
+        homeOfficeBusinessUsePct: homePct,
+        line106: gst34Result.line106,
+      });
+      const doc = (
+        <Gst34WorksheetPdf
+          period={activePeriod}
+          frequency={filingFreq}
+          result={gst34Result}
+          worksheet={worksheet}
+          agentName={settings?.display_name || settings?.business_name || "Agent"}
+          businessNumber={settings?.business_number || null}
+          vehiclePct={vehiclePct}
+          homePct={homePct}
+        />
+      );
+      const { pdf } = await import("@react-pdf/renderer");
+      const blob = await pdf(doc).toBlob();
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement("a");
+      a.href     = url;
+      a.download = `agent-runway-${gst34Result.taxLabel.toLowerCase().replace(/[^a-z]+/g, "-")}-return-${activePeriod.label.toLowerCase().replace(/\s+/g, "-")}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success("Worksheet downloaded");
+    } catch (err) {
+      console.error("[GST34 worksheet] generation failed:", err);
+      toast.error("Couldn't create the worksheet. Please try again.");
+    } finally {
+      setExportingGst(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -1431,81 +1481,124 @@ export function ExpensesContent({
       {/* ── Tab: Receipts ─────────────────────────────────────────────────── */}
       {tab === "receipts" && (<>
 
-      {/* ── GST34 Pre-Fill Summary ───────────────────────────────────────── */}
-      {gst34Result && activePeriod && (
+      {/* ── GST/HST return, line by line ─────────────────────────────────── */}
+      {/* The lines are CRA's (gst34-engine). Line 106 is the ELIGIBLE credit;
+          what was paid and what can't be claimed are shown under it, never as
+          line 107, which CRA's return adds to line 106. */}
+      {gst34Result && activePeriod && (() => {
+        const fmtCents = (n: number) => {
+          const abs = Math.abs(n).toLocaleString("en-CA", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+          return n < 0 ? `−$${abs}` : `$${abs}`;
+        };
+        const tax = gst34Result.taxLabel;
+        const online = gst34Result.filingLines.filter((l) => l.how !== "paper");
+        // Lines Agent Runway has nothing for (and line 110 at $0) sit behind a toggle.
+        const isQuiet = (l: (typeof online)[number]) => !l.tracked || (l.line === "110" && l.amount === 0);
+        const shown = online.filter((l) => showAllGstLines || !isQuiet(l));
+        const quietCount = online.filter(isQuiet).length;
+        const result = online[online.length - 1];
+        const refund = result.line === "114";
+        const tone = refund ? "emerald" : result.amount > 0 ? "red" : "slate";
+        return (
         <Card className="border-l-4 border-l-sky-500">
           <CardHeader className="pb-2">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <CardTitle className="text-base flex items-center gap-2">
-                  GST34 Summary — {gst34Result.periodLabel}
+                  {tax} Return: {gst34Result.periodLabel}
                 </CardTitle>
                 <CardDescription className="mt-0.5 text-xs">
-                  Pre-fill helper for your {gst34Result.taxLabel} return · CRA Form GST34
+                  Line by line, as CRA&apos;s Form GST34 asks for it
                 </CardDescription>
               </div>
               <div className="text-right">
                 <div className={cn(
                   "text-2xl font-bold tabular-nums",
-                  gst34Result.line113 > 0 ? "text-red-700" : gst34Result.line113 < 0 ? "text-emerald-700" : "text-slate-700",
+                  tone === "red" ? "text-red-700" : tone === "emerald" ? "text-emerald-700" : "text-slate-700",
                 )}>
-                  {fmtCurrency(Math.abs(gst34Result.line113))}
+                  {fmtCents(result.amount)}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  {gst34Result.line113 > 0 ? "Est. balance owing" : gst34Result.line113 < 0 ? "Est. refund" : "Net zero"}
+                  {refund ? "Est. refund" : result.amount > 0 ? "Est. balance owing" : "Net zero"}
                 </p>
               </div>
             </div>
           </CardHeader>
           <CardContent className="pt-0 space-y-3">
-            {/* Line items */}
             <div className="rounded-lg border text-sm">
-              {gst34Result.lines.map((line, i) => {
-                const isNetTax = line.line === "109";
-                const isResult = line.line === "113";
-                const isDeduction = line.line === "106" || line.line === "107" || line.line === "108" || line.line === "110";
+              {shown.map((line, i) => {
+                const isResult = line === result;
                 return (
                   <div
                     key={line.line}
                     className={cn(
-                      "flex items-center justify-between gap-3 px-4 py-2",
+                      "flex items-start justify-between gap-3 px-4 py-2",
                       i > 0 && "border-t border-border/50",
-                      isNetTax && "bg-slate-50 font-medium",
-                      isResult && (gst34Result.line113 >= 0
+                      line.line === "109" && "bg-slate-50 font-medium",
+                      !line.tracked && "bg-muted/30",
+                      isResult && (tone === "red"
                         ? "bg-red-50 border-t-2 border-t-red-200 font-bold"
-                        : "bg-emerald-50 border-t-2 border-t-emerald-200 font-bold"),
+                        : tone === "emerald"
+                        ? "bg-emerald-50 border-t-2 border-t-emerald-200 font-bold"
+                        : "bg-slate-50 border-t-2 font-bold"),
                     )}
                   >
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-mono font-semibold text-slate-500">
+                    <div className="flex items-start gap-2 min-w-0">
+                      <span className="mt-0.5 shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-mono font-semibold text-slate-500">
                         {line.line}
                       </span>
                       <div className="min-w-0">
                         <span className={cn(
                           "text-sm",
-                          isResult ? (gst34Result.line113 >= 0 ? "text-red-800" : "text-emerald-800") : "",
+                          isResult && (tone === "red" ? "text-red-800" : tone === "emerald" ? "text-emerald-800" : ""),
                         )}>
                           {line.label}
                         </span>
-                        <p className="text-[10px] text-muted-foreground/70 truncate">{line.note}</p>
+                        <p className="text-[10px] font-normal text-muted-foreground/80">{line.note}</p>
                       </div>
                     </div>
-                    <span className={cn(
-                      "shrink-0 tabular-nums text-right",
-                      isResult
-                        ? (gst34Result.line113 >= 0 ? "text-red-700" : "text-emerald-700")
-                        : isDeduction && line.amount > 0
-                        ? "text-emerald-600"
-                        : line.amount < 0
-                        ? "text-red-600"
-                        : "",
-                    )}>
-                      {isDeduction && line.amount > 0 && line.line !== "108" ? "−" : ""}
-                      {fmtCurrency(Math.abs(line.amount))}
-                    </span>
+                    <div className="shrink-0 text-right">
+                      <span className={cn(
+                        "tabular-nums",
+                        isResult && (tone === "red" ? "text-red-700" : tone === "emerald" ? "text-emerald-700" : ""),
+                      )}>
+                        {fmtCents(line.amount)}
+                      </span>
+                      <p className={cn(
+                        "text-[10px] font-normal",
+                        line.how === "enter" ? "text-sky-700" : "text-muted-foreground/70",
+                      )}>
+                        {line.how === "enter" ? "You enter" : "CRA calculates"}
+                      </p>
+                    </div>
                   </div>
                 );
               })}
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+              <button
+                type="button"
+                onClick={() => setShowAllGstLines((v) => !v)}
+                className="font-medium text-sky-700 hover:text-sky-800"
+              >
+                {showAllGstLines
+                  ? "Hide the lines left at $0"
+                  : `Show ${quietCount} more line${quietCount !== 1 ? "s" : ""} left at $0 (Agent Runway has nothing for them)`}
+              </button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={downloadGstWorksheet}
+                disabled={exportingGst}
+                className="gap-1.5"
+                title="The return line by line, with every expense behind line 106"
+              >
+                {exportingGst
+                  ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                  : <FileText className="h-3.5 w-3.5" />}
+                Download worksheet (PDF)
+              </Button>
             </div>
 
             {/* Deadline + disclaimer */}
@@ -1526,14 +1619,15 @@ export function ExpensesContent({
                 );
               })()}
               <span className="text-[10px] text-muted-foreground">
-                {gst34Result.taxLabel} rate: {gst34Result.taxRate === 0.14975 ? "14.975%" : `${(gst34Result.taxRate * 100).toFixed(0)}%`}
+                {tax} rate: {gst34Result.taxRate === 0.14975 ? "14.975%" : `${(gst34Result.taxRate * 100).toFixed(0)}%`}
               </span>
             </div>
 
             <TaxDisclaimer />
           </CardContent>
         </Card>
-      )}
+        );
+      })()}
 
       {/* ── Brokerage Statement Reconciliation ─────────────────────────────── */}
       {gst34Result && activePeriod && (
