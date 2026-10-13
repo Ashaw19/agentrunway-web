@@ -23,6 +23,7 @@ import type {
   UserSettings,
   ExpenseCategoryWithItems,
 } from "@/lib/types/database";
+import { deductionTrackingFlags } from "@agent-runway/core/engines/tax-optimization-engine";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -519,7 +520,10 @@ const DEMO_EXPENSE_CATEGORIES: ExpenseCategoryWithItems[] = [
 export const revalidate = 86400;
 
 export default function DemoDashboardPage() {
-  // The same engine call as the real dashboard (dashboard/page.tsx).
+  // The same engine call as the real dashboard (dashboard/page.tsx), from the
+  // sample monthly figures above (the demo has no receipts or recurring
+  // expenses): year-to-date expenses, the monthly figure, and which expense
+  // categories the tax cards treat as tracked.
   const demoExpenses = ytdExpenseTotals({
     receipts: [],
     recurring: [],
@@ -527,6 +531,7 @@ export default function DemoDashboardPage() {
     ctx: expenseTaxContext(DEMO_SETTINGS),
     now: atlanticNoon(),
   });
+  const demoDeductionTracking = deductionTrackingFlags(demoExpenses.tracked.lines, DEMO_EXPENSE_CATEGORIES);
 
   return (
     <div className="flex h-screen overflow-hidden" data-color-theme="blue">
@@ -565,9 +570,9 @@ export default function DemoDashboardPage() {
               transactions={DEMO_TRANSACTIONS}
               pipelineDeals={DEMO_PIPELINE}
               settings={DEMO_SETTINGS}
-              expenseCategories={DEMO_EXPENSE_CATEGORIES}
               expensesYTD={demoExpenses.expensesYTD}
               monthlyRecurring={demoExpenses.monthlyRecurring}
+              deductionTracking={demoDeductionTracking}
               initialDashboardView="standard"
               isPro={true}
               showUpgradeBanner={false}

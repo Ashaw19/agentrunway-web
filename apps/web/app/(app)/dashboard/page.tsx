@@ -5,6 +5,7 @@ import type { HistoryItem, ContactTask, Client, ContactActivity, ClientRecord, L
 import { computeIntelligenceBriefing, type BriefingItem } from "@/lib/engines/crm-analytics-engine";
 import { expenseTaxContext } from "@agent-runway/core/engines/expense-totals-engine";
 import { ytdExpenseTotals } from "@agent-runway/core/engines/t2125-expenses-engine";
+import { deductionTrackingFlags } from "@agent-runway/core/engines/tax-optimization-engine";
 import type { RecurringExpense } from "@/lib/types/database";
 import { computeIsPro } from "@/lib/compute-is-pro";
 import type { IncomeGoalRow } from "@/lib/income-goals";
@@ -181,6 +182,10 @@ export default async function DashboardPage({
     items: (expItemResult.data ?? []).filter((i) => i.category_id === cat.id),
   }));
 
+  // Which expense categories the agent tracks, for the tax cards: the lines
+  // the two totals above are the sums of.
+  const deductionTracking = deductionTrackingFlags(expenseTotals.tracked.lines, expenseCategories);
+
   const mileageKmTotal = (mileageResult.data ?? []).reduce(
     (sum, r) => sum + Number(r.km ?? 0),
     0,
@@ -270,9 +275,9 @@ export default async function DashboardPage({
       transactions={txResult.data ?? []}
       pipelineDeals={pipelineResult.data ?? []}
       settings={settingsRow}
-      expenseCategories={expenseCategories}
       expensesYTD={expenseTotals.expensesYTD}
       monthlyRecurring={expenseTotals.monthlyRecurring}
+      deductionTracking={deductionTracking}
       historyItems={(historyResult.data ?? []) as HistoryItem[]}
       initialDashboardView={settingsRow?.dashboard_view ?? "standard"}
       isPro={isPro}

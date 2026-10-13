@@ -2,6 +2,7 @@ import type { SupabaseClient } from "npm:@supabase/supabase-js@2";
 import type { McpTool } from "./index.ts";
 import { CANONICAL_TAX_DISCLAIMER_SHORT } from "../lib/constants.ts";
 import { loadExpenseInputs } from "../lib/expense-inputs.ts";
+import { expenseCategoryResolver } from "../../_shared/core/engines/t2125-expenses-engine.ts";
 import { atlanticYear } from "../../_shared/core/lib/local-date.ts";
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -38,16 +39,25 @@ export function getExpenseTools(supabase: SupabaseClient, userId: string): McpTo
           await loadExpenseInputs(supabase, userId);
 
         const itemByKey = new Map(items.map((i) => [i.key, i]));
-        // A receipt or recurring expense is filed under an item key
-        // ("vehicle_fuel") or, on older rows, a category key ("vehicle").
+        // Which category a key sits under is the engine's rule, the one the
+        // web's category tables use (expenseCategoryResolver): the agent's own
+        // item with that key, a category key itself (older rows), or the
+        // seeded category a standard key belongs to when the agent has no
+        // item row for it.
         const categoryTitleByKey = new Map<string, string>();
+        const itemKeysByCategory = new Map<string, { key: string }[]>();
         for (const item of items) {
-          if (item.expense_categories) {
-            categoryTitleByKey.set(item.expense_categories.key, item.expense_categories.title);
-          }
+          if (!item.expense_categories) continue;
+          categoryTitleByKey.set(item.expense_categories.key, item.expense_categories.title);
+          const keys = itemKeysByCategory.get(item.expense_categories.key) ?? [];
+          keys.push({ key: item.key });
+          itemKeysByCategory.set(item.expense_categories.key, keys);
         }
+        const categoryKeyOf = expenseCategoryResolver(
+          [...itemKeysByCategory].map(([key, categoryItems]) => ({ key, items: categoryItems })),
+        );
         const categoryOf = (key: string | null) =>
-          (key && (itemByKey.get(key)?.expense_categories?.title ?? categoryTitleByKey.get(key))) || "Other";
+          categoryTitleByKey.get(categoryKeyOf(key) ?? "") ?? "Other";
 
         // The engine's lines, which total_ytd and total_monthly_recurring are
         // the sums of. Per expense item: this year's receipts filed under it,

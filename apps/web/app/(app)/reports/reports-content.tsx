@@ -102,6 +102,7 @@ import { generateAdvisory, ADVISOR_CATEGORY_LABELS } from "@/lib/engines/advisor
 import { buildHealthReport } from "@/lib/engines/health-report";
 import type { CcaAsset } from "@/lib/types/database";
 import type { T2125ExpenseEntry } from "@/lib/engines/t2125-engine";
+import type { DeductionTrackingFlags } from "@/lib/engines/tax-optimization-engine";
 import { ReportsT2125Tab } from "./reports-t2125-tab";
 
 // ── Props ─────────────────────────────────────────────────────────────────────
@@ -125,6 +126,8 @@ interface Props {
   t2125Expenses?: T2125ExpenseEntry[];
   /** Home Office bills by key, in full (before the home office share). */
   homeOfficeCosts?: Record<string, number>;
+  /** Which commonly missed expense categories are already tracked (`deductionTrackingFlags`). */
+  deductionTracking: DeductionTrackingFlags;
   mileageLogs?: { km: number; deduction: number; trip_date: string }[];
   taxYear?: number;
   userId?: string;
@@ -239,6 +242,7 @@ export function ReportsContent({
   ccaAssets = [],
   t2125Expenses = [],
   homeOfficeCosts = {},
+  deductionTracking,
   mileageLogs = [],
   taxYear,
   userId = "",
@@ -718,6 +722,7 @@ export function ReportsContent({
           transactions={transactions.filter((tx) => tx.date.startsWith(String(taxYear ?? new Date().getFullYear())))}
           expenses={t2125Expenses}
           homeOfficeCosts={homeOfficeCosts}
+          deductionTracking={deductionTracking}
           ccaAssets={ccaAssets}
           mileageLogs={mileageLogs}
           taxYear={taxYear ?? new Date().getFullYear()}

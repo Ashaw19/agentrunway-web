@@ -27,10 +27,9 @@ import {
   receiptsForYear,
   receiptsInPeriod,
 } from "@/lib/expenses/receipt-list";
-import { ytdExpenseTotals, type TrackedExpenseLine } from "@agent-runway/core/engines/t2125-expenses-engine";
+import { expenseCategoryResolver, ytdExpenseTotals, type TrackedExpenseLine } from "@agent-runway/core/engines/t2125-expenses-engine";
 import {
   UNFILED_CATEGORY_TITLE,
-  expenseItemKeyToCategoryKey,
   groupExpenseLinesByCategory,
   linesDeductible,
   linesMonthly,
@@ -766,9 +765,10 @@ export function ExpensesContent({
   const [addingTo, setAddingTo] = useState<string | null>(null);
   const [newItemTitle, setNewItemTitle] = useState("");
 
-  // ── Map item-level keys (e.g. "vehicle_payment") to parent category keys (e.g. "vehicle") ──
-  // The same map the Reports "Expenses by Category" table uses (lib/expenses/category-lines).
-  const itemKeyToCatKey = useMemo(() => expenseItemKeyToCategoryKey(categories), [categories]);
+  // ── Which category an expense key sits under ("vehicle_payment" → "vehicle") ──
+  // The engine's rule, the one the Reports "Expenses by Category" table, the
+  // tax cards and Flight Crew use (expenseCategoryResolver).
+  const categoryOf = useMemo(() => expenseCategoryResolver(categories), [categories]);
 
   // ── Recurring expenses grouped by parent category key ───────────────────────
   const recurringByCatKey = useMemo(() => {
@@ -776,12 +776,12 @@ export function ExpensesContent({
     for (const re of recurringExpenses) {
       if (!re.is_active) continue;
       // Resolve item-level key to parent category key
-      const key = itemKeyToCatKey[re.category_key] ?? re.category_key;
+      const key = categoryOf(re.category_key) ?? re.category_key;
       if (!map[key]) map[key] = [];
       map[key].push(re);
     }
     return map;
-  }, [recurringExpenses, itemKeyToCatKey]);
+  }, [recurringExpenses, categoryOf]);
 
   // ── What each expense counts for ─────────────────────────────────────────
   // One call to t2125-expenses-engine gives this page its year-to-date total,
@@ -985,7 +985,6 @@ export function ExpensesContent({
         category_id: categoryId,
         key,
         title,
-        ytd_amount: 0,
         monthly_recurring: 0,
         sort_order: sortOrder,
       })

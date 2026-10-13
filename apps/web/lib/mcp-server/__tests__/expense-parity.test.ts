@@ -471,6 +471,20 @@ describe("get_expenses — the same total, with its lines", () => {
     expect(out.all_items.find((i) => i.title === "Car wash")).toMatchObject({ category: "Vehicle", ytd_amount: 200 });
   });
 
+  it("an expense under a built-in item the agent has no row for still lands in that item's category", async () => {
+    // The production shape: recurring expenses under standard vehicle keys on
+    // an account with no matching expense_items rows. The web's category
+    // tables file them under Vehicle (expenseCategoryResolver); so does this.
+    const fx = fixtures();
+    fx.tables.recurring_expenses.push({ ...recurringRow({ id: "ins", name: "Car insurance", amount: 100, category_key: "vehicle_insurance" }) });
+    const out = await callTool<ExpensesOutput>(await expenses(fakeSupabase(fx.tables)), "get_expenses");
+
+    expect(fx.items.some((i) => i.key === "vehicle_insurance")).toBe(false);
+    expect(out.all_items.find((i) => i.title === "Car insurance")).toMatchObject({ category: "Vehicle", ytd_amount: 1000 });
+    // A key under a category the agent doesn't have at all has no title to show.
+    expect(out.all_items.find((i) => i.key === "office_hardware")).toMatchObject({ category: "Other" });
+  });
+
   it("an item whose monthly estimate exceeds its receipts shows the estimate on its own line, and the lines still add up", async () => {
     const fx = fixtures({ legacyMonthly: 100 });
     const out = await callTool<ExpensesOutput>(await expenses(fakeSupabase(fx.tables)), "get_expenses");

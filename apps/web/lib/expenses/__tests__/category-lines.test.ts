@@ -16,12 +16,14 @@ import { describe, expect, it } from "vitest";
 import {
   UNFILED_CATEGORY_TITLE,
   expenseCategoryRows,
-  expenseItemKeyToCategoryKey,
   groupExpenseLinesByCategory,
   linesMonthly,
   linesYtd,
 } from "../category-lines";
-import { ytdExpenseTotals } from "@agent-runway/core/engines/t2125-expenses-engine";
+import {
+  trackedExpensesByCategory,
+  ytdExpenseTotals,
+} from "@agent-runway/core/engines/t2125-expenses-engine";
 import type { RecurringExpense } from "@agent-runway/core/types/database";
 
 const NOT_REGISTERED = { gstHstRegistered: false, vehicleBusinessUsePct: 0.8, homeOfficeBusinessUsePct: 0.2 };
@@ -156,22 +158,24 @@ describe("groupExpenseLinesByCategory", () => {
   });
 });
 
-describe("expenseItemKeyToCategoryKey", () => {
-  const map = expenseItemKeyToCategoryKey(CATEGORIES);
-
-  it("built-in item keys map to their category without a row of the user's", () => {
-    expect(map.office_supplies).toBe("office_tech");
-    expect(map.prof_board_mls).toBe("professional");
-    expect(map.home_utilities).toBe("home_office");
+describe("one rule for which category a key belongs to", () => {
+  it("a built-in item the user has no row for sits under its category, not in the unfiled row", () => {
+    // `office_supplies` is not one of this user's items; it is still Office & Tech.
+    expect(rowByTitle["Office & Tech"].lines.map((l) => l.key)).toContain("office_supplies");
   });
 
-  it("the user's own categories add custom items and map a category key to itself", () => {
-    expect(map.my_custom_item).toBe("marketing");
-    expect(map.marketing).toBe("marketing");
+  it("an older row filed under the whole category sits under that category", () => {
+    expect(rowByTitle["Marketing"].lines.map((l) => l.key)).toContain("marketing");
   });
 
-  it("the user's placement of an item wins over the built-in one", () => {
-    const moved = expenseItemKeyToCategoryKey([{ key: "marketing", items: [{ key: "office_software" }] }]);
-    expect(moved.office_software).toBe("marketing");
+  it("the user's own item is found under the category it was added to", () => {
+    expect(rowByTitle["Marketing"].lines.map((l) => l.key)).toContain("my_custom_item");
+  });
+
+  it("the tax cards and Flight Crew read the same grouping (trackedExpensesByCategory)", () => {
+    const tracked = trackedExpensesByCategory(totals.tracked.lines, CATEGORIES);
+    for (const cat of CATEGORIES) {
+      expect(tracked.categories[cat.key]?.ytd ?? 0, cat.key).toBe(rowByTitle[cat.title].ytd);
+    }
   });
 });

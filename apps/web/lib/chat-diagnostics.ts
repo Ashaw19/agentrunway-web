@@ -32,7 +32,7 @@ import {
 } from "@agent-runway/core/engines/effective-cash";
 import { expenseTaxContext } from "@agent-runway/core/engines/expense-totals-engine";
 import { ytdExpenseTotals, ytdExpensesGstHstIncluded } from "@agent-runway/core/engines/t2125-expenses-engine";
-import { expenseCategoryRows, type ExpenseCategoryRow } from "./expenses/category-lines";
+import { expenseCategoryBreakdown, expenseItemsOf, type ExpenseCategoryYtd } from "@/lib/ai/expense-tax-intel";
 import type { UserSettings as CanonicalUserSettings, RecurringExpense } from "@agent-runway/core/types/database";
 import {
   compare as benchmarkCompare,
@@ -91,10 +91,10 @@ interface PipelineDeal {
 }
 
 interface ExpenseCategory {
-  key: string;
   // Column is `title` — this shadow interface said `name`, which is why the
   // query asked for a column that does not exist and every category label
   // came back undefined.
+  key: string;
   title: string;
   // `ytd_amount` is not read: nothing has written it since receipts replaced
   // it. The year-to-date figures come from the engine lines.
@@ -124,12 +124,6 @@ interface DiagContext {
   settings: UserSettings;
   closedTx: Transaction[];
   pipelineDeals: PipelineDeal[];
-  /**
-   * Year-to-date and monthly expenses per category, then what has no
-   * category: the Reports page's "Expenses by Category" rows. They add up
-   * to `expensesYTD` and `monthlyRecurring`.
-   */
-  expenseRows: ExpenseCategoryRow[];
   clients: { id: string; status: string; last_contact_at: string | null; created_at: string }[];
   referrals: ReferralRow[];
   ytdGCI: number;
@@ -147,6 +141,12 @@ interface DiagContext {
   expensesYTD: number;
   /** The same expenses with the GST/HST left in (what a non-registrant would see). */
   expensesPaidYTD: number;
+  /**
+   * Tracked expense lines by category, largest first (the Expenses page's
+   * category rows). They add up to `expensesYTD`: it is the sum of the same
+   * lines.
+   */
+  expenseCategoryYTD: ExpenseCategoryYtd[];
 }
 
 // ─── Main Diagnostic Builder ──────────────────────────────────────────────────
@@ -286,23 +286,24 @@ export async function buildDiagnostics(
   const expenseInputs = {
     receipts: receiptExpenses,
     recurring: (recurringRows ?? []) as RecurringExpense[],
-    expenseItems: expenses.flatMap((cat) => cat.expense_items ?? []),
+    expenseItems: expenseItemsOf(expenses),
     ctx: expenseTaxContext(settings as Pick<CanonicalUserSettings, "gst_hst_registered" | "vehicle_business_use_pct" | "home_office_business_use_pct">),
     now: today,
   };
   const expenseTotals = ytdExpenseTotals(expenseInputs);
   const { expensesYTD, monthlyRecurring } = expenseTotals;
   const expensesPaidYTD = ytdExpensesGstHstIncluded(expenseInputs);
-  const expenseRows = expenseCategoryRows(
-    expenseTotals.tracked.lines,
-    expenses.map((cat) => ({ key: cat.key, title: cat.title, items: cat.expense_items ?? [] })),
-  );
+
+  // Per-category lines for the expense diagnostic: the lines that total is
+  // the sum of (receipts, the per-item monthly figure, the Recurring Expenses
+  // list). Until 2026-10-13 they were sums of expense_items.ytd_amount, a
+  // column the app stopped writing, so they contradicted the total above.
+  const trackedExpenses = expenseTotals.tracked;
 
   const ctx: DiagContext = {
     settings: s,
     closedTx,
     pipelineDeals,
-    expenseRows,
     clients: clients ?? [],
     referrals: (referralRows ?? []) as ReferralRow[],
     ytdGCI,
@@ -314,6 +315,7 @@ export async function buildDiagnostics(
     monthlyRecurring,
     expensesYTD,
     expensesPaidYTD,
+    expenseCategoryYTD: expenseCategoryBreakdown(trackedExpenses.lines, expenses),
   };
 
   const diagnosticParts: string[] = [];
@@ -546,13 +548,7 @@ ${stageLines || "  (empty pipeline)"}`;
  * v1.2: 35 when GCI > 0 but no expenses (not 50).
  */
 function diagExpenses(ctx: DiagContext): string {
-  const { expenseRows, ytdGCI, expensesYTD, expensesPaidYTD, monthlyRecurring } = ctx;
-
-  // The Reports page's category rows: each category's receipts, monthly
-  // figures and recurring expenses, so the list adds up to the totals below.
-  const categoryTotals = expenseRows
-    .filter((row) => row.ytd > 0 || row.monthly > 0)
-    .map((row) => ({ name: row.title, ytd: row.ytd, recurring: row.monthly }));
+  const { ytdGCI, expensesYTD, expensesPaidYTD, monthlyRecurring, expenseCategoryYTD } = ctx;
 
   const ratio = ytdGCI > 0 ? (expensesYTD / ytdGCI) * 100 : 0;
 
@@ -582,10 +578,11 @@ function diagExpenses(ctx: DiagContext): string {
     ratio > 30 ? "above 30%" :
     ratio > 25 ? "above 25%" : "at or below 25%";
 
-  const catLines = categoryTotals
-    .sort((a, b) => b.ytd - a.ytd)
+  // Already largest first. Recurring expenses and monthly figures are inside
+  // each category's year-to-date amount, not on top of it.
+  const catLines = expenseCategoryYTD
     .slice(0, 8)
-    .map((c) => `  ${c.name}: YTD ${fmtCurrency(c.ytd)}${c.recurring > 0 ? ` + ${fmtCurrency(c.recurring)}/mo recurring` : ""}`)
+    .map((c) => `  ${c.name}: YTD ${fmtCurrency(c.ytd)}`)
     .join("\n");
 
   // Registrant: totals are net of the GST/HST claimed as ITCs. Say so, with
@@ -600,7 +597,7 @@ Monthly Recurring: ${fmtCurrency(monthlyRecurring)}
 Expense Ratio: ${ratio.toFixed(1)}% (ratio bucket: ${ratioBucket})
 Expense Sub-Score: ${expenseScore}/100
 YTD GCI (denominator): ${fmtCurrency(ytdGCI)}
-Top Categories (year to date and expected per month; with any others they add up to the two totals above):
+Top Categories (year to date; receipts, monthly figures and recurring expenses included; with any others they add up to YTD Expenses above):
 ${catLines || "  (no expenses logged)"}`;
 }
 

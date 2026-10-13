@@ -4,7 +4,9 @@
 
 /**
  * Hierarchical category groups — each item key matches an expense_items.key
- * in the DB so that saving a receipt can directly increment ytd_amount.
+ * in the DB. A saved receipt carries it as receipt_expenses.category_key, and
+ * that row is the expense: nothing is added to the expense item itself
+ * (totals come from expense-totals-engine).
  */
 export const RECEIPT_CATEGORY_GROUPS = [
   {

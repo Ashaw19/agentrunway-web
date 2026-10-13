@@ -4,6 +4,7 @@ import { ForecastContent } from "./forecast-content";
 
 import { expenseTaxContext } from "@agent-runway/core/engines/expense-totals-engine";
 import { ytdExpenseTotals } from "@agent-runway/core/engines/t2125-expenses-engine";
+import { deductionTrackingFlags } from "@agent-runway/core/engines/tax-optimization-engine";
 import type { RecurringExpense } from "@/lib/types/database";
 import { computeIsPro } from "@/lib/compute-is-pro";
 import { atlanticNoon } from "@agent-runway/core/lib/local-date";
@@ -107,6 +108,10 @@ export default async function ForecastPage() {
     now: today,
   });
 
+  // Which expense categories the agent tracks, for the tax cards: the lines
+  // the two totals above are the sums of.
+  const deductionTracking = deductionTrackingFlags(expenseTotals.tracked.lines, expenseCategories);
+
   // Sum mileage logs for tax optimization
   const mileageKmTotal = (mileageResult.data ?? []).reduce(
     (sum, r) => sum + Number(r.km ?? 0),
@@ -120,11 +125,11 @@ export default async function ForecastPage() {
       transactions={txResult.data ?? []}
       pipelineDeals={pipelineResult.data ?? []}
       listingAppointments={listingApptResult.data ?? []}
-      expenseCategories={expenseCategories}
       historyItems={historyResult.data ?? []}
       isPro={await computeIsPro(supabase, user.id, rawSettings)}
       expensesYTD={expenseTotals.expensesYTD}
       monthlyRecurring={expenseTotals.monthlyRecurring}
+      deductionTracking={deductionTracking}
       mileageKmTotal={mileageKmTotal}
       ccaAssetCount={ccaAssetCount}
     />

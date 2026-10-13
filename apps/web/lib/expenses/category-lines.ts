@@ -7,7 +7,9 @@
  * receipts with no category, one per active recurring expense. Their amounts
  * add up to "YTD Expenses" and their monthly amounts to "Monthly Recurring".
  * This file only sorts them into category rows, so a table built from
- * `expenseCategoryRows` always adds up to those two totals.
+ * `expenseCategoryRows` always adds up to those two totals. Which category
+ * a key belongs to is the engine's rule (`expenseCategoryResolver`), the one
+ * the tax cards and Flight Crew use: nothing here decides it.
  *
  * Used by the Expenses page (category table, donut, PDF export), the Reports
  * overview ("Expenses by Category" table and donut) and the business report
@@ -16,51 +18,15 @@
  * the monthly figures, so the rows came short of the total.
  */
 
-import { RECEIPT_CATEGORY_GROUPS } from "@/lib/types/receipt";
-import type { TrackedExpenseLine } from "@agent-runway/core/engines/t2125-expenses-engine";
-
-/**
- * Receipt form group → `expense_categories.key`. An explicit lookup: the
- * names don't derive from each other ("Professional Fees" is "professional").
- */
-const GROUP_TO_CAT_KEY: Record<string, string> = {
-  "Vehicle": "vehicle",
-  "Marketing": "marketing",
-  "Office & Tech": "office_tech",
-  "Professional Fees": "professional",
-  "Education": "education",
-  "Meals": "meals",
-  "Entertainment": "entertainment",
-  "Home Office": "home_office",
-  "Other": "other",
-};
+import {
+  expenseCategoryResolver,
+  type TrackedExpenseLine,
+} from "@agent-runway/core/engines/t2125-expenses-engine";
 
 export interface CategoryWithItemKeys {
   key: string;
   title: string;
   items: readonly { key: string }[];
-}
-
-/**
- * Expense item key → the key of the category it sits under. The receipt
- * form's groups cover every built-in item key; the user's own categories
- * override them and add custom items. A category key maps to itself, for
- * older rows filed under a whole category.
- */
-export function expenseItemKeyToCategoryKey(
-  categories: readonly Pick<CategoryWithItemKeys, "key" | "items">[],
-): Record<string, string> {
-  const map: Record<string, string> = {};
-  for (const group of RECEIPT_CATEGORY_GROUPS) {
-    const catKey = GROUP_TO_CAT_KEY[group.group];
-    if (!catKey) continue;
-    for (const item of group.items) map[item.key] = catKey;
-  }
-  for (const cat of categories) {
-    map[cat.key] = cat.key;
-    for (const item of cat.items) map[item.key] = cat.key;
-  }
-  return map;
 }
 
 export interface ExpenseLinesByCategory {
@@ -82,7 +48,7 @@ export function groupExpenseLinesByCategory(
   lines: readonly TrackedExpenseLine[],
   categories: readonly Pick<CategoryWithItemKeys, "key" | "items">[],
 ): ExpenseLinesByCategory {
-  const itemKeyToCatKey = expenseItemKeyToCategoryKey(categories);
+  const categoryOf = expenseCategoryResolver(categories);
   const shownCatKeys = new Set(categories.map((c) => c.key));
   const lineByItemKey = new Map<string, TrackedExpenseLine>();
   const lineByRecurringId = new Map<string, TrackedExpenseLine>();
@@ -91,7 +57,10 @@ export function groupExpenseLinesByCategory(
   for (const line of lines) {
     if (line.source === "item" && line.key) lineByItemKey.set(line.key, line);
     if (line.recurringId) lineByRecurringId.set(line.recurringId, line);
-    const catKey = line.key ? (itemKeyToCatKey[line.key] ?? line.key) : null;
+    // A category the caller doesn't list (the Expenses page hides payroll
+    // and corporate admin until they are switched on) has no row to sit
+    // under, so its lines are unfiled rather than lost.
+    const catKey = categoryOf(line.key);
     if (catKey && shownCatKeys.has(catKey)) {
       if (!linesByCatKey[catKey]) linesByCatKey[catKey] = [];
       linesByCatKey[catKey].push(line);

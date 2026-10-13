@@ -4,6 +4,7 @@ import { OverheadContent } from "./overhead-content";
 import type { HistoryItem, Transaction, PipelineDeal, SplitPreset, RecurringExpense } from "@/lib/types/database";
 import { expenseTaxContext } from "@agent-runway/core/engines/expense-totals-engine";
 import { ytdExpenseTotals } from "@agent-runway/core/engines/t2125-expenses-engine";
+import { deductionTrackingFlags } from "@agent-runway/core/engines/tax-optimization-engine";
 import { computeGCI, computeWeightedGCI, activePipelineDeals } from "@/lib/types/database";
 import { projectedYearEndGCI, projectedYearEndTransactions, seasonalFractionElapsed } from "@/lib/engines/projection-engine";
 import { computeEffectiveCashForSurvival } from "@/lib/engines/effective-cash";
@@ -107,13 +108,18 @@ export default async function OverheadPage() {
   // Year-to-date expenses and the monthly figure: the dashboard's one engine
   // call (t2125-expenses-engine). Receipts, the per-item monthly figures and
   // the Recurring Expenses list, net of the ITCs a registrant claims.
-  const { expensesYTD, monthlyRecurring } = ytdExpenseTotals({
+  const expenseTotals = ytdExpenseTotals({
     receipts: receiptTotalsResult.data,
     recurring: (recurringExpResult.data ?? []) as RecurringExpense[],
     expenseItems,
     ctx: expenseTaxContext(rawSettings),
     now: today,
   });
+  const { expensesYTD, monthlyRecurring } = expenseTotals;
+
+  // Which expense categories the agent tracks, for the tax cards: the lines
+  // the two totals above are the sums of.
+  const deductionTracking = deductionTrackingFlags(expenseTotals.tracked.lines, expenseCategories);
 
   const mileageKmTotal = (mileageResult.data ?? []).reduce(
     (sum, r) => sum + Number(r.km ?? 0),
@@ -182,9 +188,9 @@ export default async function OverheadPage() {
     <OverheadContent
       transactions={transactions}
       settings={rawSettings}
-      expenseCategories={expenseCategories}
       expensesYTD={expensesYTD}
       monthlyRecurring={monthlyRecurring}
+      deductionTracking={deductionTracking}
       mileageKmTotal={mileageKmTotal}
       ccaAssetCount={ccaAssetCount}
       historyItems={(historyResult.data ?? []) as HistoryItem[]}

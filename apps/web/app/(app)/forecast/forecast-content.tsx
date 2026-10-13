@@ -24,7 +24,6 @@ import {
   type Transaction,
   type PipelineDeal,
   type UserSettings,
-  type ExpenseCategoryWithItems,
   type HistoryItem,
   type ListingAppointment,
 } from "@/lib/types/database";
@@ -47,7 +46,7 @@ import { survivalResult, riskColorBand, type RiskColorBand } from "@/lib/engines
 import { computeEffectiveCashForSurvival, computePipelineMonthlyIncome } from "@/lib/engines/effective-cash";
 import { compare } from "@/lib/engines/benchmark-engine";
 import { generateAdvisory, type AdvisorCard } from "@/lib/engines/advisor-engine";
-import { generateTaxOptimizations, type TaxOptimizationCard } from "@/lib/engines/tax-optimization-engine";
+import { generateTaxOptimizations, type DeductionTrackingFlags, type TaxOptimizationCard } from "@/lib/engines/tax-optimization-engine";
 import dynamic from "next/dynamic";
 import type { ProbabilityDataPoint } from "@/components/probability-chart";
 
@@ -77,7 +76,6 @@ interface Props {
   settings: UserSettings | null;
   transactions: Transaction[];
   pipelineDeals: PipelineDeal[];
-  expenseCategories: ExpenseCategoryWithItems[];
   historyItems: HistoryItem[];
   listingAppointments?: ListingAppointment[];
   isPro?: boolean;
@@ -85,6 +83,12 @@ interface Props {
   expensesYTD?: number;
   /** Expected each month: ytdExpenseTotals(...).monthlyRecurring. */
   monthlyRecurring?: number;
+  /**
+   * Which commonly missed expense categories the agent already tracks
+   * (`deductionTrackingFlags`, from receipts, the per-item monthly figure and
+   * the Recurring Expenses list). Computed by the page.
+   */
+  deductionTracking: DeductionTrackingFlags;
   mileageKmTotal?: number;
   ccaAssetCount?: number;
 }
@@ -94,11 +98,11 @@ export function ForecastContent({
   transactions,
   pipelineDeals,
   listingAppointments,
-  expenseCategories,
   historyItems,
   isPro: isPro = false,
   expensesYTD = 0,
   monthlyRecurring = 0,
+  deductionTracking,
   mileageKmTotal = 0,
   ccaAssetCount = 0,
 }: Props) {
@@ -299,11 +303,6 @@ export function ForecastContent({
   }, 3);
 
   // ── Tax Optimization Engine ─────────────────────────────────────────────
-  const hasExpensesInCategory = (key: string) =>
-    expenseCategories.some(
-      (cat) => cat.key === key && cat.items.some((i) => Number(i.ytd_amount) > 0 || Number(i.monthly_recurring) > 0),
-    );
-
   const taxOptInput = {
     netIncome: netForTax,
     projectedGCI,
@@ -339,13 +338,7 @@ export function ForecastContent({
       settings.tax_instalment_paid_q3 +
       settings.tax_instalment_paid_q4,
     cppInstalmentPaidYTD: settings.cpp_instalment_paid_ytd,
-    hasProfDevExpenses: hasExpensesInCategory("education"),
-    hasMarketingExpenses: hasExpensesInCategory("marketing"),
-    hasClientGiftExpenses: expenseCategories.some(
-      (cat) => cat.key === "marketing" && cat.items.some((i) => i.key === "marketing_gifts" && (Number(i.ytd_amount) > 0 || Number(i.monthly_recurring) > 0)),
-    ),
-    hasMealExpenses: hasExpensesInCategory("meals"),
-    hasLicensingExpenses: hasExpensesInCategory("professional"),
+    ...deductionTracking,
     ccaAssetCount,
     dismissed: (settings.tax_opt_dismissed as string[]) ?? [],
   };
