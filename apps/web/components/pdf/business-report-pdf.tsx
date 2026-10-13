@@ -167,6 +167,21 @@ function generateAssessment(
 
 // ── Styles ───────────────────────────────────────────────────────────────────
 
+// react-pdf turns a unitless lineHeight into points where it is declared (the
+// number × that style's own fontSize), and children inherit the points, not
+// the number. contentPage's 1.4 at 8pt is therefore an 11.2pt line for every
+// <Text> on a content page, whatever its size. Type over 12pt is taller than
+// that line, and the line under it is printed over it. A style that sets a
+// fontSize that large sets this with it, so its line is 1.2 × its own size.
+const OWN_LINE_HEIGHT = 1.2;
+
+// Monthly GCI chart. The tallest bar and the figure printed above it share the
+// plot's height: the figure's line at its own size, a gap, then the bar.
+const CHART_PLOT_HEIGHT = 72;
+const CHART_FIGURE_SIZE = 5;
+const CHART_FIGURE_GAP = 1;
+const CHART_BAR_MAX = CHART_PLOT_HEIGHT - CHART_FIGURE_SIZE * OWN_LINE_HEIGHT - CHART_FIGURE_GAP;
+
 const s = StyleSheet.create({
   // Pages
   coverPage: {
@@ -250,6 +265,9 @@ const s = StyleSheet.create({
     borderBottomColor: C.navyMid,
     marginBottom: 24,
   },
+  coverIdentity: {
+    flex: 1,
+  },
   coverAgentName: {
     fontSize: 20,
     fontFamily: "Helvetica-Bold",
@@ -294,9 +312,11 @@ const s = StyleSheet.create({
     paddingHorizontal: 40,
   },
   pageHeaderLeft: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
+    marginRight: 16,
   },
   pageHeaderLogo: {
     width: 32,
@@ -315,10 +335,13 @@ const s = StyleSheet.create({
   },
   pageHeaderInitialsText: {
     fontSize: 13,
+    lineHeight: OWN_LINE_HEIGHT,
     fontFamily: "Helvetica-Bold",
     color: C.white,
   },
-  pageHeaderTextBlock: {},
+  pageHeaderTextBlock: {
+    flex: 1,
+  },
   pageHeaderAgent: {
     fontSize: 9,
     fontFamily: "Helvetica-Bold",
@@ -394,6 +417,7 @@ const s = StyleSheet.create({
   },
   kpiValue: {
     fontSize: 15,
+    lineHeight: OWN_LINE_HEIGHT,
     fontFamily: "Helvetica-Bold",
     color: C.navy,
     marginBottom: 2,
@@ -547,6 +571,7 @@ const s = StyleSheet.create({
   },
   taxTileValue: {
     fontSize: 13,
+    lineHeight: OWN_LINE_HEIGHT,
     fontFamily: "Helvetica-Bold",
     color: C.navy,
     textAlign: "center",
@@ -593,7 +618,7 @@ const s = StyleSheet.create({
   barChartArea: {
     flexDirection: "row",
     alignItems: "flex-end",
-    height: 72,
+    height: CHART_PLOT_HEIGHT,
     borderBottomWidth: 1,
     borderBottomColor: C.border,
     marginBottom: 0,
@@ -607,6 +632,15 @@ const s = StyleSheet.create({
   bar: {
     width: "75%",
     borderRadius: 2,
+  },
+  // Not barLabel: its flex: 1 shares out a row's width, and in a bar's column
+  // it would leave the figure no height.
+  barValue: {
+    fontSize: CHART_FIGURE_SIZE,
+    lineHeight: OWN_LINE_HEIGHT,
+    color: C.blue,
+    textAlign: "center",
+    marginBottom: CHART_FIGURE_GAP,
   },
   barLabelRow: {
     flexDirection: "row",
@@ -715,6 +749,7 @@ const s = StyleSheet.create({
   },
   benchmarkPctText: {
     fontSize: 16,
+    lineHeight: OWN_LINE_HEIGHT,
     fontFamily: "Helvetica-Bold",
     color: C.white,
   },
@@ -797,6 +832,10 @@ const s = StyleSheet.create({
     color: C.muted,
     fontSize: 8,
   },
+  // For a column of free text: a line that fills it stops short of the next column.
+  tCellGutter: {
+    paddingRight: 8,
+  },
   tTotalRow: {
     flexDirection: "row",
     paddingVertical: 6,
@@ -856,6 +895,7 @@ const s = StyleSheet.create({
   },
   scoreGradeText: {
     fontSize: 30,
+    lineHeight: OWN_LINE_HEIGHT,
     fontFamily: "Helvetica-Bold",
     color: C.white,
   },
@@ -868,6 +908,7 @@ const s = StyleSheet.create({
   },
   scoreLabelText: {
     fontSize: 15,
+    lineHeight: OWN_LINE_HEIGHT,
     fontFamily: "Helvetica-Bold",
     color: C.navy,
     marginBottom: 3,
@@ -1351,7 +1392,7 @@ export function BusinessReportPDF({
                 </Text>
               </View>
             )}
-            <View>
+            <View style={s.coverIdentity}>
               <Text style={s.coverAgentName}>{agentName || "Your Business"}</Text>
               {!!headerBrokerage && (
                 <Text style={s.coverAgentSub}>{headerBrokerage}</Text>
@@ -1564,15 +1605,11 @@ export function BusinessReportPDF({
             {ALL_MONTHS.map((month) => {
               const m = monthlyMap.get(month);
               const gci = m?.gci ?? 0;
-              const barH = maxMonthlyGCI > 0 ? Math.max(2, (gci / maxMonthlyGCI) * 68) : 2;
+              const barH = maxMonthlyGCI > 0 ? Math.max(2, (gci / maxMonthlyGCI) * CHART_BAR_MAX) : 2;
               const barColor = gci > 0 ? C.blue : C.border;
               return (
                 <View key={month} style={s.barCol}>
-                  {gci > 0 && (
-                    <Text style={[s.barLabel, { fontSize: 5, color: C.blue, marginBottom: 1 }]}>
-                      {fmtCompact(gci)}
-                    </Text>
-                  )}
+                  {gci > 0 && <Text style={s.barValue}>{fmtCompact(gci)}</Text>}
                   <View style={[s.bar, { height: barH, backgroundColor: barColor }]} />
                 </View>
               );
@@ -1851,10 +1888,10 @@ export function BusinessReportPDF({
                 <Text style={[s.tCell, s.tCellMuted, { flex: 0.8 }]}>
                   {tx.date}
                 </Text>
-                <Text style={[s.tCell, { flex: 2 }]}>
+                <Text style={[s.tCell, s.tCellGutter, { flex: 2 }]}>
                   {tx.address || "—"}
                 </Text>
-                <Text style={[s.tCell, s.tCellMuted, { flex: 1.4 }]}>
+                <Text style={[s.tCell, s.tCellMuted, s.tCellGutter, { flex: 1.4 }]}>
                   {tx.client_name || "—"}
                 </Text>
                 <Text style={[s.tCell, { flex: 0.5 }]}>
@@ -2041,20 +2078,20 @@ export function BusinessReportPDF({
                     <Text style={{ fontSize: 7, color: C.muted, fontFamily: "Helvetica-Bold", letterSpacing: 0.5 }}>
                       {yearsSpan}-Year Growth
                     </Text>
-                    <Text style={{ fontSize: 16, fontFamily: "Helvetica-Bold", color: totalGrowth >= 0 ? C.emerald : C.rose, marginTop: 3 }}>
+                    <Text style={{ fontSize: 16, lineHeight: OWN_LINE_HEIGHT, fontFamily: "Helvetica-Bold", color: totalGrowth >= 0 ? C.emerald : C.rose, marginTop: 3 }}>
                       {totalGrowth >= 0 ? "+" : ""}{fmtPct(totalGrowth)}
                     </Text>
                   </View>
                   <View style={{ flex: 1, backgroundColor: C.offwhite, borderRadius: 6, padding: 10 }}>
                     <Text style={{ fontSize: 7, color: C.muted, fontFamily: "Helvetica-Bold", letterSpacing: 0.5 }}>CAGR</Text>
-                    <Text style={{ fontSize: 16, fontFamily: "Helvetica-Bold", color: cagr >= 0 ? C.emerald : C.rose, marginTop: 3 }}>
+                    <Text style={{ fontSize: 16, lineHeight: OWN_LINE_HEIGHT, fontFamily: "Helvetica-Bold", color: cagr >= 0 ? C.emerald : C.rose, marginTop: 3 }}>
                       {cagr >= 0 ? "+" : ""}{fmtPct(cagr)}
                     </Text>
                     <Text style={{ fontSize: 7, color: C.muted, marginTop: 2 }}>compound annual growth rate</Text>
                   </View>
                   <View style={{ flex: 1, backgroundColor: C.offwhite, borderRadius: 6, padding: 10 }}>
                     <Text style={{ fontSize: 7, color: C.muted, fontFamily: "Helvetica-Bold", letterSpacing: 0.5 }}>Avg Deal Size</Text>
-                    <Text style={{ fontSize: 16, fontFamily: "Helvetica-Bold", color: C.ink, marginTop: 3 }}>
+                    <Text style={{ fontSize: 16, lineHeight: OWN_LINE_HEIGHT, fontFamily: "Helvetica-Bold", color: C.ink, marginTop: 3 }}>
                       {fmtCurrency(last.transactions > 0 ? last.gci / last.transactions : 0)}
                     </Text>
                     <Text style={{ fontSize: 7, color: C.muted, marginTop: 2 }}>{last.year} average</Text>
@@ -2075,17 +2112,17 @@ export function BusinessReportPDF({
             <View style={{ flexDirection: "row", gap: 12, marginTop: 8 }}>
               <View style={{ flex: 1, backgroundColor: "#EFF6FF", borderRadius: 6, padding: 12, borderWidth: 1, borderColor: "#BFDBFE" }}>
                 <Text style={{ fontSize: 7, color: C.muted, fontFamily: "Helvetica-Bold", letterSpacing: 0.5 }}>Inbound Referrals</Text>
-                <Text style={{ fontSize: 20, fontFamily: "Helvetica-Bold", color: C.blue, marginTop: 3 }}>{referralSummary.inboundCount}</Text>
+                <Text style={{ fontSize: 20, lineHeight: OWN_LINE_HEIGHT, fontFamily: "Helvetica-Bold", color: C.blue, marginTop: 3 }}>{referralSummary.inboundCount}</Text>
                 <Text style={{ fontSize: 7, color: C.muted, marginTop: 2 }}>clients referred to you</Text>
               </View>
               <View style={{ flex: 1, backgroundColor: "#F5F3FF", borderRadius: 6, padding: 12, borderWidth: 1, borderColor: "#DDD6FE" }}>
                 <Text style={{ fontSize: 7, color: C.muted, fontFamily: "Helvetica-Bold", letterSpacing: 0.5 }}>Outbound Referrals</Text>
-                <Text style={{ fontSize: 20, fontFamily: "Helvetica-Bold", color: C.violet, marginTop: 3 }}>{referralSummary.outboundCount}</Text>
+                <Text style={{ fontSize: 20, lineHeight: OWN_LINE_HEIGHT, fontFamily: "Helvetica-Bold", color: C.violet, marginTop: 3 }}>{referralSummary.outboundCount}</Text>
                 <Text style={{ fontSize: 7, color: C.muted, marginTop: 2 }}>clients you referred out</Text>
               </View>
               <View style={{ flex: 1, backgroundColor: "#ECFDF5", borderRadius: 6, padding: 12, borderWidth: 1, borderColor: "#A7F3D0" }}>
                 <Text style={{ fontSize: 7, color: C.muted, fontFamily: "Helvetica-Bold", letterSpacing: 0.5 }}>Net Referral Income</Text>
-                <Text style={{ fontSize: 20, fontFamily: "Helvetica-Bold", color: C.emerald, marginTop: 3 }}>
+                <Text style={{ fontSize: 20, lineHeight: OWN_LINE_HEIGHT, fontFamily: "Helvetica-Bold", color: C.emerald, marginTop: 3 }}>
                   {fmtCurrency(referralSummary.feesEarned - referralSummary.feesPaid)}
                 </Text>
                 <Text style={{ fontSize: 7, color: C.muted, marginTop: 2 }}>
