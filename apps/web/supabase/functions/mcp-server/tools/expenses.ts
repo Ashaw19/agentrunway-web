@@ -13,6 +13,8 @@ interface ExpenseLine {
   category: string;
   ytd_amount: number;
   monthly_recurring: number;
+  /** A recurring expense's end date, when it has one. */
+  end_date?: string;
 }
 
 export function getExpenseTools(supabase: SupabaseClient, userId: string): McpTool[] {
@@ -26,7 +28,7 @@ export function getExpenseTools(supabase: SupabaseClient, userId: string): McpTo
     {
       name: "get_expenses",
       description:
-        "Returns the agent's YTD business expenses by category and line item (receipts, monthly estimates and recurring expenses), plus monthly recurring totals. For a GST/HST registrant the amounts are net of the GST/HST claimed as input tax credits. Home Office bills count at the home office share. ESTIMATE ONLY — not tax advice.",
+        "Returns the agent's YTD business expenses by category and line item (receipts, monthly estimates and recurring expenses), plus monthly recurring totals. For a GST/HST registrant the amounts are net of the GST/HST claimed as input tax credits. Home Office bills count at the home office share. A recurring expense with an end_date counts its charges up to that date; once the date has passed its monthly_recurring is 0 and it is out of the monthly totals. ESTIMATE ONLY — not tax advice.",
       inputSchema: { type: "object", properties: {}, additionalProperties: false },
       annotations: {
         title: "Business Expenses",
@@ -64,7 +66,7 @@ export function getExpenseTools(supabase: SupabaseClient, userId: string): McpTo
         // or its monthly estimate × months so far where that is larger (the
         // estimate and the receipts describe the same spending). Then
         // receipts saved with no category, and each active recurring expense.
-        const recurringName = new Map(recurring.map((re) => [re.id, re.name]));
+        const recurringById = new Map(recurring.map((re) => [re.id, re]));
         const lines: ExpenseLine[] = totals.tracked.lines.map((line) => {
           if (line.source === "uncategorized") {
             return {
@@ -75,8 +77,9 @@ export function getExpenseTools(supabase: SupabaseClient, userId: string): McpTo
               monthly_recurring: 0,
             };
           }
+          const re = line.source === "recurring" ? recurringById.get(line.recurringId ?? "") : undefined;
           const title = line.source === "recurring"
-            ? (recurringName.get(line.recurringId ?? "") ?? "Recurring expense")
+            ? (re?.name ?? "Recurring expense")
             // A key with no expense item (a category-level key, an item since removed).
             : (itemByKey.get(line.key ?? "")?.title ?? line.key ?? "Other");
           return {
@@ -84,7 +87,9 @@ export function getExpenseTools(supabase: SupabaseClient, userId: string): McpTo
             title,
             category: categoryOf(line.key),
             ytd_amount: line.rawAmount,
+            // $0 for a recurring expense whose end date has passed (the engine's rule).
             monthly_recurring: line.monthlyAmount,
+            ...(re?.end_date ? { end_date: re.end_date } : {}),
           };
         });
 

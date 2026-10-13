@@ -247,6 +247,31 @@ describe("deleteRecurringExpense — what it removes", () => {
   });
 });
 
+describe("getQuickStats — recurring_expense_count", () => {
+  it("counts the recurring expenses still running, and says how many have ended", async () => {
+    const { tools: t } = tools([
+      row({ id: CANVA, name: "Canva" }),
+      row({ id: LEASE, name: "Car lease", end_date: "2026-06-30" }),
+      row({ id: GYM, name: "Gym", end_date: "2026-12-31" }),
+      row({ id: BOARD, name: "Board dues", is_active: false }),
+    ]);
+    const out = await run(t, "getQuickStats", { stat: "recurring_expense_count" });
+
+    expect(out).toContain("**2 active recurring expenses**");
+    expect(out).toContain("1 more has ended");
+  });
+
+  it("says nothing about ended ones when there are none", async () => {
+    const out = await run(tools().tools, "getQuickStats", { stat: "recurring_expense_count" });
+    expect(out).toBe("You have **1 active recurring expenses**.");
+  });
+
+  it("counts only the user's own", async () => {
+    const out = await run(tools([row(), row({ id: GYM, user_id: "someone-else" })]).tools, "getQuickStats", { stat: "recurring_expense_count" });
+    expect(out).toContain("**1 active recurring expenses**");
+  });
+});
+
 describe("persona tool sets", () => {
   const personaTools = (persona: "captain" | "navigator" | "dispatcher") =>
     Object.keys(createPersonaAgentTools(fakeSupabase({}).client, USER, persona));

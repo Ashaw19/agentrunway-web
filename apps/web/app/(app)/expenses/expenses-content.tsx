@@ -107,7 +107,9 @@ import {
   deadlineUrgency,
 } from "@agent-runway/core/engines/filing-period-engine";
 import { computeGST34 } from "@agent-runway/core/engines/gst34-engine";
-import { recurringHSTEntriesForPeriod } from "@agent-runway/core/engines/recurring-expense-engine";
+import { recurringHSTEntriesForPeriod, recurringMonthlyRunRate } from "@agent-runway/core/engines/recurring-expense-engine";
+import { recurringEndDateError, recurringEndStatus } from "@/lib/expenses/recurring-end-date";
+import { localISODate } from "@agent-runway/core/lib/local-date";
 import { gstHstLabel } from "@agent-runway/core/engines/canadian-tax-engine";
 import { reconcileDeals, type ReconciliationResult, type ImportedDeal } from "@agent-runway/core/engines/reconciliation-engine";
 import { selectTaxTips, TIP_CATEGORY_LABELS } from "@agent-runway/core/engines/tax-iq-engine";
@@ -310,8 +312,13 @@ export function ExpensesContent({
   const [reHstAmount, setReHstAmount] = useState("");
   const [reVehicle, setReVehicle] = useState(false);
   const [reStartDate, setReStartDate] = useState(`${thisYear}-01-01`);
+  const [reEndDate, setReEndDate] = useState(""); // "" = no end date
   const [reNotes, setReNotes] = useState("");
   const [reSaving, setReSaving] = useState(false);
+  // Removing one asks what happened: it ended (keeps the charges to that
+  // date) or it was never a real expense (takes the whole entry out).
+  const [removingRecurring, setRemovingRecurring] = useState<RecurringExpense | null>(null);
+  const [removeEndDate, setRemoveEndDate] = useState("");
 
   // ── Brokerage statement reconciliation ─────────────────────────────────
   const [reconOpen, setReconOpen] = useState(false);
@@ -531,6 +538,7 @@ export function ExpensesContent({
       setReHstAmount(String(existing.hst_amount ?? 0));
       setReVehicle(existing.vehicle_pct_applicable);
       setReStartDate(existing.start_date ?? `${thisYear}-01-01`);
+      setReEndDate(existing.end_date ?? "");
       setReNotes(existing.notes ?? "");
     } else {
       setEditingRecurring(null);
@@ -544,6 +552,7 @@ export function ExpensesContent({
       setReHstAmount("");
       setReVehicle(false);
       setReStartDate(`${thisYear}-01-01`);
+      setReEndDate("");
       setReNotes("");
     }
     setRecurringDialogOpen(true);
@@ -553,6 +562,11 @@ export function ExpensesContent({
     if (savingReRef.current) return;
     if (!reName.trim() || !reAmount.trim() || !reCategory) {
       toast.error("Name, amount, and category are required.");
+      return;
+    }
+    const endDateError = recurringEndDateError(reStartDate, reEndDate);
+    if (endDateError) {
+      toast.error(endDateError);
       return;
     }
     savingReRef.current = true;
@@ -575,6 +589,8 @@ export function ExpensesContent({
       })() : 0,
       vehicle_pct_applicable: reVehicle,
       start_date: reStartDate,
+      // The row stays active: its charges up to this date keep counting.
+      end_date: reEndDate || null,
       notes: reNotes.trim(),
     };
 
@@ -622,6 +638,34 @@ export function ExpensesContent({
     setRecurringExpenses((prev) => prev.filter((r) => r.id !== id));
     toast.success("Recurring expense removed.");
     deletingReRef.current = false;
+    setRemovingRecurring(null);
+  }
+
+  function openRemoveRecurring(re: RecurringExpense) {
+    // Today, or the start date for an entry that has not started yet.
+    const today = localISODate();
+    setRemoveEndDate(re.end_date ?? (re.start_date > today ? re.start_date : today));
+    setRemovingRecurring(re);
+  }
+
+  /** The expense was real and has stopped: keep the row, with an end date. */
+  async function endRecurringExpense(re: RecurringExpense, endDate: string) {
+    if (deletingReRef.current) return;
+    const endDateError = endDate ? recurringEndDateError(re.start_date, endDate) : "Enter the last day this expense applied.";
+    if (endDateError) { toast.error(endDateError); return; }
+    deletingReRef.current = true;
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    if (!authUser) { deletingReRef.current = false; return; }
+    const { error } = await supabase
+      .from("recurring_expenses")
+      .update({ end_date: endDate, updated_at: new Date().toISOString() })
+      .eq("id", re.id)
+      .eq("user_id", authUser.id);
+    if (error) { toast.error("Failed to save the end date."); deletingReRef.current = false; return; }
+    setRecurringExpenses((prev) => prev.map((r) => r.id === re.id ? { ...r, end_date: endDate } : r));
+    toast.success("End date saved. Charges up to that date still count.");
+    deletingReRef.current = false;
+    setRemovingRecurring(null);
   }
 
   // ── Voice-to-expense ─────────────────────────────────────────────────────
@@ -775,13 +819,16 @@ export function ExpensesContent({
     const map: Record<string, RecurringExpense[]> = {};
     for (const re of recurringExpenses) {
       if (!re.is_active) continue;
+      // Ended before this year: nothing of it is in this year's figures. It
+      // stays in the Recurring Expenses list below.
+      if (re.end_date && re.end_date < `${thisYear}-01-01`) continue;
       // Resolve item-level key to parent category key
       const key = categoryOf(re.category_key) ?? re.category_key;
       if (!map[key]) map[key] = [];
       map[key].push(re);
     }
     return map;
-  }, [recurringExpenses, categoryOf]);
+  }, [recurringExpenses, categoryOf, thisYear]);
 
   // ── What each expense counts for ─────────────────────────────────────────
   // One call to t2125-expenses-engine gives this page its year-to-date total,
@@ -826,6 +873,12 @@ export function ExpensesContent({
   const monthlyTotal = expenseTotals.monthlyRecurring;
 
   const now = new Date();
+
+  // The footer under the Recurring Expenses list: its entries as entered
+  // (GST/HST included, like the rows above it), for those that have not
+  // ended. A list footer, not an expense total: those are `expenseTotals`,
+  // net of ITCs.
+  const recurringListMonthly = recurringExpenses.reduce((sum, re) => sum + recurringMonthlyRunRate(re, now), 0);
 
   // ── YTD expenses ──────────────────────────────────────────────────────
   // Every line the engine tracked: receipts (or the per-item monthly figure
@@ -2322,6 +2375,7 @@ export function ExpensesContent({
                             const ytd = line?.rawAmount ?? 0;
                             const deduct = deductibleDisplay(line);
                             const freqLabel = (re.frequency ?? "monthly") === "monthly" ? "/mo" : (re.frequency ?? "monthly") === "quarterly" ? "/qtr" : "/yr";
+                            const endStatus = recurringEndStatus(re, now);
                             return (
                               <TableRow key={`re-${re.id}`} className="group bg-indigo-50/30 hover:bg-indigo-50/50">
                                 <TableCell className="pl-12 py-1.5">
@@ -2329,6 +2383,9 @@ export function ExpensesContent({
                                     <RefreshCw className="h-3 w-3 text-indigo-400 shrink-0" />
                                     <span className="text-sm text-indigo-700">{re.name}</span>
                                     <span className="text-[10px] text-muted-foreground">{freqLabel}</span>
+                                    {endStatus?.ended && (
+                                      <span className="text-[10px] text-muted-foreground">· {endStatus.label}</span>
+                                    )}
                                     <button
                                       onClick={() => openRecurringDialog(re)}
                                       className="opacity-0 group-hover:opacity-100 transition-opacity text-indigo-400 hover:text-indigo-600"
@@ -2353,7 +2410,7 @@ export function ExpensesContent({
                                   )}
                                 </TableCell>
                                 <TableCell className="text-right py-1.5 text-sm tabular-nums text-indigo-700 font-medium">
-                                  {fmtCurrency(monthly)}
+                                  {endStatus?.ended ? <span className="text-muted-foreground/40">—</span> : fmtCurrency(monthly)}
                                 </TableCell>
                               </TableRow>
                             );
@@ -2471,7 +2528,7 @@ export function ExpensesContent({
             </Button>
           </div>
           <CardDescription className="mt-1">
-            Expenses that repeat on a schedule (e.g. vehicle lease, software subscriptions). Each one counts in your totals and deductible figures by that schedule.
+            Expenses that repeat on a schedule (e.g. vehicle lease, software subscriptions). Each one counts in your totals and deductible figures by that schedule. One that has stopped keeps its earlier charges when it is given an end date.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -2496,10 +2553,21 @@ export function ExpensesContent({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {recurringExpenses.map((re) => (
+                  {recurringExpenses.map((re) => {
+                    const endStatus = recurringEndStatus(re, now);
+                    return (
                     <TableRow key={re.id} className="group cursor-pointer" onClick={() => openRecurringDialog(re)}>
-                      <TableCell className="font-medium text-sm">
+                      <TableCell className={cn("font-medium text-sm", endStatus?.ended && "text-muted-foreground")}>
                         {re.name}
+                        {endStatus && (
+                          endStatus.ended ? (
+                            <Badge variant="outline" className="ml-2 text-[10px] font-normal text-muted-foreground">
+                              {endStatus.label}
+                            </Badge>
+                          ) : (
+                            <span className="ml-2 text-[10px] font-normal text-muted-foreground">{endStatus.label}</span>
+                          )
+                        )}
                         {re.notes && (
                           <span className="ml-1.5 text-xs text-muted-foreground">— {re.notes}</span>
                         )}
@@ -2537,32 +2605,26 @@ export function ExpensesContent({
                             size="sm"
                             variant="ghost"
                             className="h-7 w-7 p-0 text-red-500 hover:text-red-700"
-                            onClick={(e) => { e.stopPropagation(); deleteRecurringExpense(re.id); }}
+                            onClick={(e) => { e.stopPropagation(); openRemoveRecurring(re); }}
+                            title="Remove"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                           </Button>
                         </div>
                       </TableCell>
                     </TableRow>
-                  ))}
+                    );
+                  })}
                 </TableBody>
               </Table>
             </div>
           )}
           <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
             <span>
-              Monthly avg{gstHstRegistered ? " as charged" : ""}: <strong className="text-foreground">{fmtCurrency(recurringExpenses.reduce((s, r) => {
-                const freq = r.frequency ?? "monthly";
-                const amt = Number(r.amount);
-                return s + (freq === "monthly" ? amt : freq === "quarterly" ? amt / 3 : amt / 12);
-              }, 0))}</strong>
+              Monthly avg{gstHstRegistered ? " as charged" : ""}: <strong className="text-foreground">{fmtCurrency(recurringListMonthly)}</strong>
             </span>
             <span>
-              Annual total{gstHstRegistered ? " as charged" : ""}: <strong className="text-foreground">{fmtCurrency(recurringExpenses.reduce((s, r) => {
-                const freq = r.frequency ?? "monthly";
-                const amt = Number(r.amount);
-                return s + (freq === "monthly" ? amt * 12 : freq === "quarterly" ? amt * 4 : amt);
-              }, 0))}</strong>
+              Annual total{gstHstRegistered ? " as charged" : ""}: <strong className="text-foreground">{fmtCurrency(recurringListMonthly * 12)}</strong>
             </span>
           </div>
         </CardContent>
@@ -3051,6 +3113,37 @@ export function ExpensesContent({
             </div>
 
             <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="re-end-date" className="text-xs">End date (optional)</Label>
+                {reEndDate && (
+                  <button
+                    type="button"
+                    onClick={() => setReEndDate("")}
+                    className="text-[10px] text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+              <Input
+                id="re-end-date"
+                type="date"
+                min={reStartDate || undefined}
+                value={reEndDate}
+                onChange={(e) => setReEndDate(e.target.value)}
+                aria-invalid={Boolean(recurringEndDateError(reStartDate, reEndDate))}
+                className="text-sm"
+              />
+              {recurringEndDateError(reStartDate, reEndDate) ? (
+                <p className="text-[10px] text-red-600">{recurringEndDateError(reStartDate, reEndDate)}</p>
+              ) : (
+                <p className="text-[10px] text-muted-foreground">
+                  Leave empty while this expense is still being paid. With an end date, charges up to that date stay in your totals and none count after it.
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-1">
               <Label className="text-xs">Notes (optional)</Label>
               <Textarea
                 placeholder="e.g. 48-month lease through Jan 2028"
@@ -3065,7 +3158,7 @@ export function ExpensesContent({
 
             <div className="flex gap-2 pt-2">
               <Button
-                disabled={!reName.trim() || !reAmount.trim() || !reCategory || reSaving}
+                disabled={!reName.trim() || !reAmount.trim() || !reCategory || reSaving || Boolean(recurringEndDateError(reStartDate, reEndDate))}
                 onClick={saveRecurringExpense}
                 className="flex-1"
               >
@@ -3074,8 +3167,83 @@ export function ExpensesContent({
               <Button variant="ghost" onClick={() => setRecurringDialogOpen(false)}>
                 Cancel
               </Button>
+              {/* The list's remove button shows on hover only; this one is reachable by touch. */}
+              {editingRecurring && (
+                <Button
+                  variant="ghost"
+                  className="text-red-600 hover:text-red-700"
+                  onClick={() => { setRecurringDialogOpen(false); openRemoveRecurring(editingRecurring); }}
+                >
+                  Remove
+                </Button>
+              )}
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Remove a recurring expense: it ended, or it was never real ─────── */}
+      <Dialog open={removingRecurring !== null} onOpenChange={(open) => { if (!open) setRemovingRecurring(null); }}>
+        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Trash2 className="h-4 w-4" />
+              Remove {removingRecurring?.name}
+            </DialogTitle>
+          </DialogHeader>
+          {removingRecurring && (
+            <div className="space-y-3 pt-2">
+              <div className="space-y-2 rounded-lg border p-3">
+                <p className="text-sm font-medium">It ended</p>
+                <p className="text-xs text-muted-foreground">
+                  It was a real expense and it has stopped. Charges up to the end date stay in this year&apos;s totals and deductible figures. None count after it.
+                </p>
+                <div className="space-y-1">
+                  <Label htmlFor="re-remove-end-date" className="text-xs">Last day it applied</Label>
+                  <Input
+                    id="re-remove-end-date"
+                    type="date"
+                    min={removingRecurring.start_date || undefined}
+                    value={removeEndDate}
+                    onChange={(e) => setRemoveEndDate(e.target.value)}
+                    className="text-sm"
+                  />
+                  {recurringEndDateError(removingRecurring.start_date, removeEndDate) && (
+                    <p className="text-[10px] text-red-600">{recurringEndDateError(removingRecurring.start_date, removeEndDate)}</p>
+                  )}
+                </div>
+                <Button
+                  size="sm"
+                  className="w-full"
+                  disabled={!removeEndDate || Boolean(recurringEndDateError(removingRecurring.start_date, removeEndDate))}
+                  onClick={() => endRecurringExpense(removingRecurring, removeEndDate)}
+                >
+                  Save end date
+                </Button>
+              </div>
+
+              <div className="space-y-2 rounded-lg border p-3">
+                <p className="text-sm font-medium">It was never a real expense</p>
+                <p className="text-xs text-muted-foreground">
+                  It was entered by mistake. Deleting takes it out of every total, including the months already past this year.
+                </p>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="w-full border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
+                  onClick={() => deleteRecurringExpense(removingRecurring.id)}
+                >
+                  Delete it
+                </Button>
+              </div>
+
+              <TaxDisclaimer />
+
+              <Button variant="ghost" className="w-full" onClick={() => setRemovingRecurring(null)}>
+                Cancel
+              </Button>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

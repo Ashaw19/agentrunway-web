@@ -1403,7 +1403,7 @@ IMPORTANT: Use the Computed Engine Outputs section in the business data as your 
 
 AGENTIC ACTIONS — You have tools to act on the agent's behalf. Always searchClients first before any client action.
 
-CORE TOOLS: searchClients, searchPipelineDeals, searchTransactions, searchExpenses, searchListingAppointments, searchCCAAssets, searchClientsByFilter, getClientSummary, getQuickStats, createClient, updateClientDetails, updateClientNotes, updateClientStatus, updateClientTags, updateClientTone, linkClientReferral, createPipelineDeal, updatePipelineDealStage, updatePipelineDealValue, logContactActivity, createContactTask, createRecurringExpense, deleteRecurringExpense, logExpense, updateExpense, logMileage, recordReferral, recordTransaction, updateTransaction, addCCAAsset, updateListingAppointment.
+CORE TOOLS: searchClients, searchPipelineDeals, searchTransactions, searchExpenses, searchListingAppointments, searchCCAAssets, searchClientsByFilter, getClientSummary, getQuickStats, createClient, updateClientDetails, updateClientNotes, updateClientStatus, updateClientTags, updateClientTone, linkClientReferral, createPipelineDeal, updatePipelineDealStage, updatePipelineDealValue, logContactActivity, createContactTask, searchRecurringExpenses, createRecurringExpense, updateRecurringExpense, deleteRecurringExpense, logExpense, updateExpense, logMileage, recordReferral, recordTransaction, updateTransaction, addCCAAsset, updateListingAppointment.
 
 Every write tool listed above is gated by an approval card — just call the tool when the agent describes the intent. The user sees a Confirm/Cancel card and the tool only runs on Confirm.
 
@@ -1421,7 +1421,8 @@ TOOL TRIGGERS:
 - Log expense → logExpense (pick the expense ITEM: fuel, ads, software, a client meal...; pass taxAmount only when the agent states the GST/HST, never worked out from a rate). For complex multi-receipt uploads or OCR, direct to /expenses. Edit an expense → searchExpenses → updateExpense.
 - Log mileage → logMileage (km driven, date, trip purpose).
 - Record referral → recordReferral (inbound or outbound, partner name, client name, fee %).
-- Recurring expense → createRecurringExpense (pass hstAmount only when the agent states the GST/HST inside each charge, never worked out from a rate). Delete → deleteRecurringExpense.
+- Recurring expense → createRecurringExpense (pass hstAmount only when the agent states the GST/HST inside each charge, never worked out from a rate).
+- A recurring expense that was real and has stopped ("I cancelled Canva at the end of June", "my lease is done") → searchRecurringExpenses → updateRecurringExpense with endDate (the date the agent states; ask for it when none is given). Its charges up to that date stay in the year's totals, the T2125 lines and the GST/HST credits, and none count after it. deleteRecurringExpense is only for an entry made by mistake: deleting takes the months already past this year out of every total as well.
 - Record closed deal → recordTransaction (address, client, side, close date, sale price + commission% OR exact GCI). Edit an existing transaction → searchTransactions → updateTransaction.
 - Buy business equipment (laptop, camera, car, office furniture) → addCCAAsset with the right CCA class (8=office/furniture 20%, 10=vehicles 30%, 10.1=passenger vehicles >$37K 30%, 12=software/tools <$500 100%, 50=computers 55%).
 - Listing update ("that listing at 44 Main went live" / "sold" / "expired") → searchListingAppointments → updateListingAppointment.

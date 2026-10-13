@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { classifyTopic } from "@/lib/troubleshooting-classifier";
+import { classifyTopic, classifyTopicMulti } from "@/lib/troubleshooting-classifier";
 
 // Guards the REAL Brokerage comp keywords added for comp_plan = 'real'
 // (migration 00161 / real-compensation-engine.ts). Keywords are matched as
@@ -123,4 +123,33 @@ describe("classifyTopic — CRM lifetime GCI questions reach the CRM playbook", 
       expect(classifyTopic(message)).toBe("crm");
     });
   }
+});
+
+// A recurring expense can be given an end date (2026-10-13). The chat route
+// loads the playbooks of the two best topics, so a question about an expense
+// that stopped has to land "recurring-expenses" in that pair, in the words
+// an agent uses for it (a cancelled subscription, a lease that ended).
+describe("classifyTopicMulti — ending a recurring expense reaches the Recurring Expenses playbook", () => {
+  const topTwo = (message: string) => classifyTopicMulti(message).slice(0, 2).map((m) => m.topic);
+
+  const cases = [
+    "I cancelled my Canva subscription in June, do the earlier months still count?",
+    "how do I put an end date on a recurring expense",
+    "my car lease ended in June, how do I stop it without losing the months I paid",
+    "I stopped paying for Mailchimp in the spring",
+    "my Mailchimp entry says Ended but it is still in the list",
+    "what is the difference between ending and deleting a recurring expense",
+    "I no longer pay for the gym, how do I take it off",
+  ];
+  for (const message of cases) {
+    it(`"${message}"`, () => {
+      expect(topTwo(message)).toContain("recurring-expenses");
+    });
+  }
+
+  it("does not pull in questions that only share a word", () => {
+    expect(topTwo("when does my trial end")).not.toContain("recurring-expenses");
+    expect(topTwo("my client's lease ended, draft them a note")).not.toContain("recurring-expenses");
+    expect(topTwo("what is the expected close date on the Main St deal")).not.toContain("recurring-expenses");
+  });
 });

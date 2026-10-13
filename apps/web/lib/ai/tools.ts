@@ -3196,9 +3196,17 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
               return `You have **${count ?? 0} active referrals** (pending or in progress).`;
             }
             case "recurring_expense_count": {
-              const { count, error } = await supabase.from("recurring_expenses").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("is_active", true);
+              // An expense that ended keeps its row, active, with an end
+              // date. It is not one the agent is still paying.
+              const { data, error } = await supabase.from("recurring_expenses").select("end_date").eq("user_id", userId).eq("is_active", true);
               if (error) return `Query failed: ${error.message}`;
-              return `You have **${count ?? 0} active recurring expenses**.`;
+              const today = atlanticNoon();
+              const rows = (data ?? []) as { end_date: string | null }[];
+              const ended = rows.filter((r) => recurringHasEnded(r, today)).length;
+              const endedNote = ended > 0
+                ? ` ${ended} more ${ended === 1 ? "has" : "have"} ended: the charges up to the end date still count in this year's totals.`
+                : "";
+              return `You have **${rows.length - ended} active recurring expenses**.${endedNote}`;
             }
             case "cca_asset_count": {
               const { count, error } = await supabase.from("t2125_cca_assets").select("id", { count: "exact", head: true }).eq("user_id", userId);

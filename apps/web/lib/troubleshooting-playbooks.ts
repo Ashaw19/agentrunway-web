@@ -398,7 +398,7 @@ Still shown as paid (GST/HST included): each receipt, the receipt log and its CS
 ### YTD Expenses, Est. Tax Deductible YTD and the T2125 lines (one calculation)
 Source of truth: packages/core/engines/t2125-expenses-engine.ts (ytdExpenseTotals, which builds its lines with buildT2125Expenses). Every surface that shows or uses year-to-date expenses calls it, so "YTD Expenses" is one figure everywhere: the Expenses page, the dashboard, the Reports headline and its "Expenses by Category" table, Forecast, Overhead, Altimeter, Scenarios, Flight Crew's context and the [EXPENSE DIAGNOSTIC], the weekly digest and the Claude Connector. The same lines give the "Est. Tax Deductible YTD" card, the Deductible column and the T2125 expense lines. Line 9369 on the T2125 tab = the card's total less its Home Office part (Home Office is line 9945).
 
-YTD Expenses = the sum of the three sources below. Monthly Recurring = the "/mo" figures on expense items plus the monthly equivalent of each active Recurring Expenses entry, from the same call.
+YTD Expenses = the sum of the three sources below. Monthly Recurring = the "/mo" figures on expense items plus the monthly equivalent of each active Recurring Expenses entry that has not ended, from the same call. An entry with an end date leaves Monthly Recurring the day after that date and keeps its year to date (see the Recurring Expenses playbook).
 
 What it counts, to date only (no future month or charge):
 | Source | Amount |
@@ -2052,6 +2052,7 @@ An entry in the Recurring Expenses list (Expenses page) is an expense that repea
 - Expense category (T2125 category)
 - Frequency: monthly, quarterly, or annual
 - Start date
+- End date (optional): the last day the expense applies. Empty while it is still being paid. The form rejects an end date before the start date
 - Optional notes
 - "This amount includes HST" with the HST amount, for a GST/HST registrant. On this form, ticking the box fills the amount in from the province rate unless one is typed in the Override box
 - "Apply vehicle business-use % to this expense", for a vehicle cost
@@ -2062,17 +2063,24 @@ There is no confirm or skip step. An active entry counts by its charge dates: ev
 - Quarterly: every third month from its starting month, on its charge day.
 - Annual: once, on its charge date.
 - A charge counts only on or after the entry's start date. An entry that starts on the 15th with charge day 10 first counts on the 10th of the next month. An entry Flight Crew sets up starts the day it is created.
-- An entry with an end date stops there: charges up to that date stay in the year, later ones never count. The form on the Expenses page has no end-date field yet (see "How do I cancel" below).
+- An entry with an end date stops there: charges up to and including that date stay in the year, later ones never count. The entry stays in the Recurring Expenses list, marked "Ended <date>" once the date has passed, or "Ends <date>" while it is still ahead. It is still an active entry: that is what keeps its earlier charges counting.
+- The monthly figure is separate from the charge dates. Monthly Recurring, the "/mo" cells, survival burn and next year's plan use the monthly equivalent of each entry that has not ended (recurringMonthlyRunRate). An entry counts in it through its end date and leaves it the day after. Its year to date does not change when it does. An entry whose start date is still ahead already counts in the monthly figure (a cost that is scheduled is part of what lies ahead), while its year to date is $0 until its first charge date.
 - The GST34 summary's input tax credits count the same charges, so an entry's expense and its GST/HST are always the same number of charges.
 - The year's projected expenses (tax estimate, Forecast, Scenarios, Overhead, weekly digest) are the charges so far plus the charges still to come this year (totalRecurringRemaining), each counted once. A charge due later this month is in "still to come" until its day, then moves to year to date. The projected total for the year does not change when it does.
 Changed 2026-10-13: before this a monthly entry counted the current month from the 1st (or from the day of the month it started on), so year-to-date expenses could run one charge ahead of the GST34 summary until the charge day, and an end date was not read.
+Also changed 2026-10-13: the form has an End date field, removing an entry asks whether it ended or was never a real expense, and Flight Crew can set an end date. Before that nothing in the app could set one, so the only way to stop an entry was to remove it, which took its whole year to date out. The monthly figure also had no date until then.
 The Recurring Expenses list shows the amounts as charged. Totals are net of ITCs for a GST/HST registrant.
 
 ### Common Issues
 - **"Recurring expense not counting"**: Check the start date (nothing counts before it), the charge day, and that the entry is active. A monthly entry counts on its charge day, so one set up today with a charge day earlier in the month first counts next month. A quarterly or annual entry counts only after its charge date this year.
 - **"My YTD expenses went down" / "this month's subscription isn't in my expenses yet"**: Since 2026-10-13 a monthly entry counts on its charge day instead of from the 1st of the month. An entry whose charge day is still ahead this month is one charge lower in YTD Expenses, Est. Tax Deductible and the T2125 lines until that day. Nothing was lost: the charge is in the year's projected expenses the whole time, and year to date now agrees with the GST34 summary.
 - **"I changed the amount and my year-to-date changed"**: The year-to-date figure is the current amount x occurrences so far, so a new amount applies to the whole year to date. Known limitation: an entry has one amount for the year.
-- **"How do I cancel a recurring expense?"**: Deactivate or delete it in the Recurring Expenses list on the Expenses page. Known limitation: a deactivated or deleted entry no longer counts for any part of the year, including the months it ran. Logging those months as receipts keeps them in the totals. The engine keeps the charges up to an end date, but the form has no end-date field yet, so an end date can't be set from the app.
+- **"How do I cancel a recurring expense?" / "I cancelled a subscription part-way through the year"**: An end date is what stops an entry and keeps the months it ran. Three ways to set one: open the entry in the Recurring Expenses list (Expenses page) and fill in End date; use the entry's remove button and choose "It ended"; or tell Flight Crew ("I cancelled Canva on June 30", Navigator, updateRecurringExpense with endDate). The charges up to the end date stay in YTD Expenses, Est. Tax Deductible, the T2125 lines and the GST34 input tax credits. None count after it, and the entry leaves Monthly Recurring the day after.
+- **"What is the difference between ending and deleting?"**: Ending (an end date) keeps the entry and every charge up to that date. Deleting (the remove button's "It was never a real expense" choice, or Flight Crew's deleteRecurringExpense) takes the entry out of every total, including the months already past this year. Deleting fits an entry made by mistake. Pausing through Flight Crew (updateRecurringExpense, isActive false) acts like deleting while it lasts: a paused entry counts in no total until it is resumed.
+- **"My cancelled expense is still in the list" / "it says Ended but it is still there"**: Expected. An ended entry stays in the Recurring Expenses list so its earlier charges keep counting. It shows "Ended <date>" and adds nothing to Monthly Recurring or to the "Monthly avg" and "Annual total" under the list. In the Categories table its row keeps its year-to-date amount and shows a dash in the monthly column. An entry that ended before this year has no row in the Categories table (nothing of it is in this year's figures) and can be deleted from the Recurring Expenses list.
+- **"Monthly Recurring went down but I didn't change anything"**: An entry's end date has passed. It left the monthly figure the day after that date. YTD Expenses did not change.
+- **"I removed a recurring expense before and lost its months"**: Before 2026-10-13 removing an entry on the Expenses page deactivated it, so none of its charges count. The row still exists. Flight Crew can bring the months back in one step: searchRecurringExpenses lists it as Paused, and updateRecurringExpense with isActive true and endDate (the day it stopped) reactivates it with that end date. An entry Flight Crew deleted is gone: adding it again on the Expenses page with its start date and end date restores the charges between them.
+- **"The form won't accept my end date"**: The end date is before the start date. No charge could fall between them, so the form rejects it. Flight Crew rejects it the same way, and also a date that is not on the calendar.
 - **"Recurring expense not in my tax deductions" / "not on my T2125"**: Since 2026-10-13 active entries count in Est. Tax Deductible and on the T2125 lines (see the Expenses playbook, "Est. Tax Deductible YTD and the T2125 lines"). A vehicle entry counts at the vehicle business-use % and a meal at 50%.
 - **"I logged the receipt too and it counted twice"**: A receipt and a recurring entry for the same bill both count. One record per bill keeps the total right.
 - **"My recurring expense has no input tax credit" / "Flight Crew set up my subscription but its HST isn't in my GST34"**: The GST34 summary and the totals read the entry's HST amount. An entry has one only when "This amount includes HST" is on (Expenses page), or when the agent stated the GST/HST as Flight Crew set it up. Entries Flight Crew set up before 2026-10-13 have none: it could not record GST/HST on a recurring expense until then. Editing the entry in the Recurring Expenses list adds it. Some charges carry no GST/HST (insurance premiums, most government fees), so nothing comes off those.
@@ -2081,15 +2089,21 @@ The Recurring Expenses list shows the amounts as charged. Totals are net of ITCs
 - Charges to date count toward YTD expense totals and the expense ratio
 - Charges still to come this year count in the year's projected expenses (tax estimate, Forecast)
 - They count in Est. Tax Deductible and on the T2125 lines, by the entry's category
-- The monthly equivalent is part of Monthly Recurring and survival burn
+- The monthly equivalent of each entry that has not ended is part of Monthly Recurring, survival burn and next year's plan
+- An ended entry keeps its charges to date in every figure above and adds nothing to the monthly figure or to what is still to come
 - Their HST is in the GST34 summary's input tax credits for the period
 
 ### Flight Crew Integration
 - "I pay $150/month for Mailchimp" → sets up a monthly recurring expense (createRecurringExpense). The approval card names the expense item, and any GST/HST, before it is saved.
 - "I pay $115 a month for Canva, $15 of that is HST" → the $15 is recorded as the GST/HST inside each charge (hst_included on, hst_amount 15). It is in the GST34 summary's input tax credits for the period and comes off the totals for a registrant.
 - GST/HST is recorded only when the agent states the amount. Flight Crew never works it out from a rate or the province. With none stated, the entry counts in full and Flight Crew tells a GST/HST registrant that no input tax credit is counted on it.
-- Flight Crew sets up monthly entries. Changing an existing entry (amount, GST/HST, pause, quarterly or annual frequency, the vehicle box) is done in the Recurring Expenses list on the Expenses page.
-- "What are my recurring expenses?" → lists active recurring items from context
+- Flight Crew sets up monthly entries. Navigator can look entries up (searchRecurringExpenses) and change one (updateRecurringExpense: name, amount, GST/HST, expense item, end date, pause or resume, notes), each change behind the approval card. Frequency, charge day, start date and the vehicle box are changed in the Recurring Expenses list on the Expenses page. Added 2026-10-13: before that Navigator could create and delete a recurring expense but had no tool to look one up or change it.
+- "I cancelled Canva at the end of June" → Navigator finds the entry and sets its end date (updateRecurringExpense, endDate). The approval card shows the date. The entry stays active, so its charges up to that date keep counting. With no date given, Flight Crew asks for one.
+- "My lease ends December 31" → the same tool with a date still ahead. The entry counts as usual until then.
+- "Delete my Canva subscription" → deleteRecurringExpense, for an entry made by mistake. The approval card and the reply both say the months already past this year come out of the totals. For an expense that was real, Flight Crew sets an end date instead.
+- "Pause my MLS fees" → updateRecurringExpense, isActive false. A paused entry counts in no total, past months included, until it is resumed.
+- "What are my recurring expenses?" → Navigator lists them (searchRecurringExpenses), each with its own frequency and marked Active, "Ended <date>" or Paused. "How many recurring expenses do I have?" counts the ones still running and says how many have ended.
+- The Claude Connector's get_expenses lists an end_date on a recurring expense that has one, and its monthly_recurring is 0 once the date has passed.
 `,
 
   // ═══════════════════════════════════════════════════════════════════════════

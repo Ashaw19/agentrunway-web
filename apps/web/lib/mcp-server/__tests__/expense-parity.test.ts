@@ -228,7 +228,7 @@ function dashboardExpenses(fx: Fixture) {
   return { expensesYTD, monthlyRecurring, expensesRemaining, annualExpenses };
 }
 
-type ExpenseLine = { key: string | null; title: string; category: string; ytd_amount: number; monthly_recurring: number };
+type ExpenseLine = { key: string | null; title: string; category: string; ytd_amount: number; monthly_recurring: number; end_date?: string };
 type ExpensesOutput = {
   disclaimer: string;
   amounts: string;
@@ -677,6 +677,52 @@ describe("a recurring expense counts from its charge day, for expenses and ITCs 
     expect(hst.itcs_paid_on_expenses).toBe(550); // 504.75 + 3 × 15 = 549.75
     // Nothing more of it is projected for the rest of the year.
     expect(dashboardExpenses(fx).annualExpenses).toBe(7383.75 + 300);
+  });
+
+  // The monthly figure is what the list is expected to cost from here on.
+  // Until 2026-10-13 it had no date, so an ended expense stayed in it.
+  it("an ended expense is out of the monthly figures, and its line carries the end date", async () => {
+    const fx = withRow(recurringRow({ id: "ended", name: "Old CRM", amount: 115, hst_amount: 15, end_date: "2026-03-31" }));
+    const out = await callTool<ExpensesOutput>(await expenses(fakeSupabase(fx.tables)), "get_expenses");
+    const without = await callTool<ExpensesOutput>(await expenses(fakeSupabase(fixtures().tables)), "get_expenses");
+
+    expect(out.all_items.find((i) => i.title === "Old CRM")).toEqual({
+      key: "prof_board_mls", title: "Old CRM", category: "Professional",
+      ytd_amount: 300, monthly_recurring: 0, end_date: "2026-03-31",
+    });
+    expect(out.total_monthly_recurring).toBe(without.total_monthly_recurring);
+    expect(out.projected_annual_recurring).toBe(without.projected_annual_recurring);
+    expect(out.total_monthly_recurring).toBeCloseTo(dashboardExpenses(fx).monthlyRecurring, 2);
+    expect(out.all_items.reduce((s, i) => s + i.monthly_recurring, 0)).toBeCloseTo(out.total_monthly_recurring, 2);
+    // Its year to date is still in the total.
+    expect(out.total_ytd).toBe(without.total_ytd + 300);
+  });
+
+  it("an end date still ahead: the expense stays in the monthly figures until the day after", async () => {
+    const fx = withRow(recurringRow({ id: "ending", name: "Office rent", amount: 115, hst_amount: 15, end_date: "2026-10-13" }));
+    const without = await callTool<ExpensesOutput>(await expenses(fakeSupabase(fixtures().tables)), "get_expenses");
+
+    const today = await callTool<ExpensesOutput>(await expenses(fakeSupabase(fx.tables)), "get_expenses");
+    expect(today.all_items.find((i) => i.title === "Office rent")).toMatchObject({ monthly_recurring: 100, end_date: "2026-10-13" });
+    expect(today.total_monthly_recurring).toBe(without.total_monthly_recurring + 100);
+
+    vi.setSystemTime(new Date("2026-10-14T15:00:00Z"));
+    const tomorrow = await callTool<ExpensesOutput>(await expenses(fakeSupabase(fx.tables)), "get_expenses");
+    expect(tomorrow.all_items.find((i) => i.title === "Office rent")).toMatchObject({ monthly_recurring: 0, end_date: "2026-10-13" });
+    expect(tomorrow.total_monthly_recurring).toBe(without.total_monthly_recurring);
+  });
+
+  it("on the evening of its end date (already the next day in UTC) the expense is still in the monthly figure", async () => {
+    // 10 pm Atlantic on Oct 13 is 01:00 UTC on Oct 14.
+    vi.setSystemTime(new Date("2026-10-14T01:00:00Z"));
+    const fx = withRow(recurringRow({ id: "ending", name: "Office rent", amount: 115, hst_amount: 15, end_date: "2026-10-13" }));
+    const out = await callTool<ExpensesOutput>(await expenses(fakeSupabase(fx.tables)), "get_expenses");
+    expect(out.all_items.find((i) => i.title === "Office rent")).toMatchObject({ monthly_recurring: 100 });
+  });
+
+  it("a line with no end date carries none", async () => {
+    const out = await callTool<ExpensesOutput>(await expenses(fakeSupabase(fixtures().tables)), "get_expenses");
+    for (const line of out.all_items) expect(line).not.toHaveProperty("end_date");
   });
 });
 

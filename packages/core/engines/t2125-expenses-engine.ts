@@ -28,7 +28,9 @@
  *   3. Each active recurring expense: its occurrences to date
  *      (`recurringYTD`), so an annual fee due in November is not in June's
  *      figure. Its `vehicle_pct_applicable` box is honoured, as it is for
- *      the GST/HST (`itcForExpense`).
+ *      the GST/HST (`itcForExpense`). One that has ended (an `end_date`,
+ *      the row left active) keeps the occurrences up to that date and is
+ *      expected to cost nothing each month from the day after.
  *
  * A monthly figure on an item and a Recurring Expenses row filed under the
  * same item are two entries the user made, so both count (sources 1 and 3).
@@ -52,7 +54,7 @@ import {
   type ReceiptTotals,
   type ReceiptTotalsRow,
 } from "./expense-totals-engine";
-import { recurringMonthlyEquivalent, recurringYTD, totalRecurringRemaining } from "./recurring-expense-engine";
+import { recurringMonthlyRunRate, recurringYTD, totalRecurringRemaining } from "./recurring-expense-engine";
 import {
   HOME_OFFICE_CATEGORY_KEY,
   expenseItemKeyFor,
@@ -76,9 +78,11 @@ export interface TrackedExpenseLine extends ExpenseLineItem {
   recurringId?: string;
   rule: DeductionRule;
   /**
-   * What this line is expected to cost each month: the item's monthly
-   * figure, or a recurring expense's monthly equivalent net of ITC. 0 for
-   * receipts alone (nothing says they repeat).
+   * What this line is expected to cost each month from here on: the item's
+   * monthly figure, or a recurring expense's monthly equivalent net of ITC.
+   * 0 for receipts alone (nothing says they repeat), and 0 for a recurring
+   * expense whose end date has passed: its charges to that date stay in
+   * `rawAmount` (`recurringMonthlyRunRate`).
    */
   monthlyAmount: number;
 }
@@ -183,7 +187,7 @@ export function buildT2125Expenses(input: T2125ExpensesInput): T2125ExpensesResu
     track(
       "recurring",
       { key, amount: recurringYTD(net, now), vehicleUse: Boolean(re.vehicle_pct_applicable) },
-      recurringMonthlyEquivalent(net),
+      recurringMonthlyRunRate(net, now),
       re.id,
     );
     if (key && amounts.homeCost) {
@@ -252,7 +256,7 @@ export interface YtdExpenseTotals {
   recurringYTD: number;
   /** Sum of the per-item monthly figures that count. */
   legacyMonthlyRecurring: number;
-  /** Monthly equivalent of the active recurring expenses, net. */
+  /** Monthly equivalent of the active recurring expenses that have not ended, net. */
   recurringMonthly: number;
   /** Expected each month, both kinds: `tracked.monthlyTotal`. */
   monthlyRecurring: number;
