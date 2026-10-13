@@ -9,6 +9,7 @@ import { Pencil, X, Check, Plus, Tag } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ClientStatus, TaskPriority } from "@/lib/types/database";
 import { CLIENT_STATUS_LABELS, CLIENT_STATUS_COLORS, PREDEFINED_TAGS } from "@/lib/types/database";
+import { localISODate } from "@agent-runway/core/lib/local-date";
 
 // ── Summary Card ────────────────────────────────────────────────────────────
 
@@ -168,15 +169,8 @@ export function FlightStatusStrip({ current }: { current: ClientStatus }) {
 
 // ── Date Helpers ────────────────────────────────────────────────────────────
 
-export function relativeDate(isoStr: string): string {
-  const d = new Date(isoStr);
-  const now = new Date();
-  const diffDays = Math.floor((now.getTime() - d.getTime()) / 86400000);
-  if (diffDays === 0) return "Today";
-  if (diffDays === 1) return "Yesterday";
-  if (diffDays < 7) return `${diffDays} days ago`;
-  return d.toLocaleDateString("en-CA", { month: "short", day: "numeric" });
-}
+// "Today / Yesterday / 3 days ago" by calendar day: lib/crm/relative-date.ts.
+export { relativeDate } from "@/lib/crm/relative-date";
 
 export function fmtDate(iso: string): string {
   return new Date(iso + "T12:00:00").toLocaleDateString("en-CA", {
@@ -200,8 +194,7 @@ export function fmtMonthYear(iso: string): string {
  *  day, which is already tomorrow after 8 pm Atlantic: tasks due today read as
  *  overdue and new tasks defaulted to tomorrow on the CRM tab.) */
 export function todayIso(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  return localISODate();
 }
 
 /** Now as a local datetime-local value (YYYY-MM-DDTHH:mm). */

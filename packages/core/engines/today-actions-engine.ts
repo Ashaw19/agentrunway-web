@@ -12,6 +12,7 @@
 import type { BriefingItem } from "./crm-analytics-engine";
 import { effectiveOdds, type OpportunityRow } from "./opportunity-conversion-engine";
 import { computeWeightedGCI, type PipelineDeal } from "../types/database";
+import { localDaysSince } from "../lib/local-date";
 
 // ── Input shapes ────────────────────────────────────────────────────────────
 
@@ -34,6 +35,11 @@ export interface TodaysActionsInput {
   deals: TodayDealInput[];
   /** Trailing GCI per client (from client_records) — values briefing items. */
   clientGciById: Record<string, number>;
+  /**
+   * The calendar anchor: only its day is read, through its local getters.
+   * Defaults to now, the agent's own day in the browser. A server caller
+   * passes atlanticNoon().
+   */
   asOf?: Date;
 }
 
@@ -79,11 +85,15 @@ const CLOSE_SOON_BOOST = 20;
 const STALE_OPPORTUNITY_DAYS = 21;
 const STALE_OPPORTUNITY_BOOST = 15;
 
+/**
+ * Whole calendar days from `asOf`'s day to a date, negative once it has
+ * passed. Not `Math.floor((noon on the date - asOf) / day)`: that is a day
+ * short from noon on ("Closing in 0d" the afternoon before) and a day long
+ * for a date in the past.
+ */
 function daysUntil(dateStr: string | null, asOf: Date): number | null {
-  if (!dateStr) return null;
-  const d = new Date(dateStr.length === 10 ? dateStr + "T12:00:00" : dateStr);
-  if (Number.isNaN(d.getTime())) return null;
-  return Math.floor((d.getTime() - asOf.getTime()) / 86_400_000);
+  const since = localDaysSince(dateStr, asOf);
+  return since === null ? null : 0 - since;
 }
 
 // ── Main export ─────────────────────────────────────────────────────────────

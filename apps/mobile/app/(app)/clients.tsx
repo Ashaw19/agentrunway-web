@@ -63,6 +63,7 @@ import { Card, Sheet, Badge, Avatar, Button, Input, EmptyState } from "@/compone
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useTranslation } from "react-i18next";
 import { validateClient, FIELD_LIMITS } from "@agent-runway/core/validation/input-guards";
+import { localDaysSince } from "@agent-runway/core/lib/local-date";
 import {
   ClientFormFields,
   EMPTY_CLIENT_FORM,
@@ -190,9 +191,9 @@ export default function ClientsScreen() {
   };
 
   const getContactContext = useCallback((client: Client) => {
-    const daysSince = client.last_contact_at
-      ? Math.floor((Date.now() - new Date(client.last_contact_at).getTime()) / 86400000)
-      : null;
+    // Calendar days on the phone's own day: the sheet says "today" and
+    // "yesterday" with this count.
+    const daysSince = localDaysSince(client.last_contact_at);
     const pipeline = clientPipelineContext(client.name);
     return { daysSinceContact: daysSince, pipelineContext: pipeline };
   }, [clientPipelineContext]);
@@ -620,11 +621,9 @@ function ClientRow({
   const statusColor = STATUS_COLORS[client.status] ?? c.textDim;
   const statusLabel = t(`status.${client.status}`, { defaultValue: client.status });
 
-  const daysSince = client.last_contact_at
-    ? Math.floor(
-        (Date.now() - new Date(client.last_contact_at).getTime()) / 86400000
-      )
-    : null;
+  // Calendar days, not 24-hour blocks: a call at 10 pm is "1 day ago" the
+  // next morning. The red over-30 colour reads the number the row prints.
+  const daysSince = localDaysSince(client.last_contact_at);
   const isOverdue = daysSince === null || daysSince > 30;
 
   return (
@@ -917,8 +916,10 @@ function relativeDate(dateStr: string): string {
   if (diffMins < 1) return "Just now";
   if (diffMins < 60) return `${diffMins}m ago`;
   const diffHours = Math.floor(diffMins / 60);
-  if (diffHours < 24) return `${diffHours}h ago`;
-  const diffDays = Math.floor(diffHours / 24);
+  // Under a day, hours. From there on, days by the phone's calendar:
+  // "Yesterday" is the day before today, not 24 to 48 hours back.
+  const diffDays = localDaysSince(dateStr) ?? 0;
+  if (diffHours < 24 || diffDays < 1) return `${diffHours}h ago`;
   if (diffDays === 1) return "Yesterday";
   if (diffDays < 7) return `${diffDays} days ago`;
   if (diffDays < 14) return "Last week";

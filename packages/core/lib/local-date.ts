@@ -13,6 +13,10 @@
  *                   "today" for the user is pinned to America/Halifax, the
  *                   same zone as income_goal_current_year().
  *   addDaysISO      calendar arithmetic on a YYYY-MM-DD string, no time zone.
+ *   daysBetweenISO  whole calendar days between two YYYY-MM-DD strings.
+ *   localDaysSince  whole calendar days from a stored value to today, on the
+ *                   runtime's own calendar: what "Today / Yesterday / 3 days
+ *                   ago" counts.
  *   nextYearlyDate  a birthday's next occurrence and the calendar days to it.
  *
  * "This year" / "this month" follow the same split. On the server,
@@ -174,4 +178,48 @@ export function addDaysISO(iso: string, days: number): string {
   const [y, m, d] = iso.split("-").map(Number);
   const dt = new Date(Date.UTC(y, m - 1, d + days));
   return `${dt.getUTCFullYear()}-${pad2(dt.getUTCMonth() + 1)}-${pad2(dt.getUTCDate())}`;
+}
+
+/**
+ * Whole calendar days from `from` to `to`, both YYYY-MM-DD. Negative when
+ * `to` is the earlier day. No time zone: the caller picks whose day each
+ * string is (localISODate in the browser and on mobile, atlanticISODate on
+ * the server).
+ */
+export function daysBetweenISO(from: string, to: string): number {
+  const utc = (iso: string) => {
+    const [y, m, d] = iso.split("-").map(Number);
+    return Date.UTC(y, m - 1, d);
+  };
+  return Math.round((utc(to) - utc(from)) / 86_400_000);
+}
+
+/**
+ * Whole calendar days from a stored value to today, on the runtime's own
+ * calendar: 0 today, 1 yesterday, negative for a day still to come. Null
+ * when the value is missing or unreadable.
+ *
+ * A date-only value (YYYY-MM-DD) is its own day. A timestamp is read in the
+ * runtime's zone, the user's own in the browser and on mobile. Not for
+ * server code, where "local" is UTC: there, compare atlanticISODate() days
+ * with daysBetweenISO.
+ *
+ * This is the count behind a calendar label ("Today", "Yesterday", "3 days
+ * ago", "Closing in 2d"). `Math.floor((now - then) / 86_400_000)` counts
+ * elapsed 24-hour blocks instead: a call logged at 10 pm reads "Today" at 9
+ * the next morning, and one logged at 9 am reads "Yesterday" only from 9 am
+ * the day after. Keep the elapsed count for a rule about time passed ("no
+ * contact in 14 days").
+ */
+export function localDaysSince(
+  value: string | Date | null | undefined,
+  now: Date = new Date(),
+): number | null {
+  if (!value) return null;
+  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return daysBetweenISO(value, localISODate(now));
+  }
+  const at = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(at.getTime())) return null;
+  return daysBetweenISO(localISODate(at), localISODate(now));
 }

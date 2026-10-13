@@ -175,6 +175,10 @@ describe("REGRESSION — server code prints a timestamp on its Atlantic day, not
       count: 1,
       why: "doneLabel weekday; only the checklist page's client component calls it",
     },
+    "apps/web/lib/crm/relative-date.ts": {
+      count: 1,
+      why: "relativeDate's \"Oct 6\" past six days; only the CRM tab's client components call it",
+    },
   };
 
   it("no inline timestamp formatting without a timeZone outside the allowlist", () => {
