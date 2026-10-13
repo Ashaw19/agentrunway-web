@@ -72,6 +72,11 @@ import {
 } from "@/lib/ai/draft-services";
 import { addDaysISO, atlanticISODate, atlanticNoon, atlanticYear } from "@agent-runway/core/lib/local-date";
 import { hasClosedDeal } from "@/lib/crm/contactable-records";
+import {
+  RECEIPT_CATEGORY_GROUPS,
+  RECEIPT_CATEGORY_KEYS,
+  receiptCategoryFullLabel,
+} from "@/lib/types/receipt";
 
 // ── Approval Gate ──────────────────────────────────────────────────────────
 // Tools in this set require explicit user confirmation before executing.
@@ -148,19 +153,26 @@ export const APPROVAL_DESCRIPTIONS: Record<string, (args: Record<string, unknown
   createContactTask: (args) =>
     `Add to Checklist${args.clientName ? ` (${args.clientName})` : ""}: "${args.title}", due ${args.dueDate}`,
   // Expenses
-  createRecurringExpense: (args) =>
-    `Add recurring expense: ${args.vendor ?? args.description ?? "expense"} — $${args.amount}/mo`,
+  createRecurringExpense: (args) => {
+    const item = typeof args.categoryKey === "string" ? ` (${receiptCategoryFullLabel(args.categoryKey)})` : "";
+    return `Add recurring expense: ${args.name ?? args.vendor ?? args.description ?? "expense"} — $${args.amount}/mo${item}`;
+  },
   deleteRecurringExpense: (args) =>
     `Remove recurring expense: ${args.vendor ?? args.description ?? args.expenseId ?? "expense"}`,
-  logExpense: (args) =>
-    `Log $${Number(args.amount).toLocaleString()} expense at ${args.vendor} on ${args.expenseDate}`,
+  logExpense: (args) => {
+    const item = typeof args.categoryKey === "string" ? receiptCategoryFullLabel(args.categoryKey) : null;
+    const tax = typeof args.taxAmount === "number" ? `including $${args.taxAmount.toFixed(2)} GST/HST` : null;
+    const detail = [item, tax].filter(Boolean).join(", ");
+    return `Log $${Number(args.amount).toLocaleString()} expense at ${args.vendor} on ${args.expenseDate}${detail ? ` (${detail})` : ""}`;
+  },
   logMileage: (args) =>
     `Log ${args.km} km on ${args.tripDate}: "${String(args.description ?? "").slice(0, 60)}"`,
   updateExpense: (args) => {
     const changes: string[] = [];
     if (args.vendor) changes.push(`vendor → ${args.vendor}`);
     if (args.totalAmount !== undefined) changes.push(`amount → $${Number(args.totalAmount).toLocaleString()}`);
-    if (args.categoryKey) changes.push(`category → ${args.categoryKey}`);
+    if (typeof args.taxAmount === "number") changes.push(`GST/HST → $${args.taxAmount.toFixed(2)}`);
+    if (typeof args.categoryKey === "string") changes.push(`category → ${receiptCategoryFullLabel(args.categoryKey)}`);
     if (args.expenseDate) changes.push(`date → ${args.expenseDate}`);
     if (args.notes !== undefined) changes.push("notes");
     return `Update expense: ${changes.length ? changes.join(", ") : "(details)"}`;
@@ -226,25 +238,29 @@ export const APPROVAL_DESCRIPTIONS: Record<string, (args: Record<string, unknown
 const CLIENT_STATUSES = ["boarding", "scheduled", "in_flight", "cruising"] as const;
 const ACTIVITY_TYPES = ["call", "email", "text", "showing", "meeting", "offer", "note"] as const;
 const PIPELINE_STAGES = ["lead", "showing", "offer", "conditional", "firm", "closed"] as const;
+// `category_key` on a receipt or a recurring expense is an expense ITEM key
+// (vehicle_fuel, meals_client, ...): the Expenses rows, the T2125 lines and
+// the GST34 ITC limits all look the expense up by it. The list is the receipt
+// form's, never a second one written here. Until 2026-10-13 these tools had
+// their own eight "category" keys that matched no item, so what they logged
+// sat in no Expenses row and on no T2125 line (regression test:
+// lib/ai/__tests__/expense-tool-category-keys.test.ts).
+const EXPENSE_ITEM_KEYS = RECEIPT_CATEGORY_KEYS;
 // Bills for the agent's own home (Home Office expense category, migration
 // 00174). Logged in full; expense-totals-engine counts the home office share.
-const HOME_OFFICE_EXPENSE_LABELS = {
-  home_utilities: "Home: Electricity, Heat & Water",
-  home_internet: "Home: Internet",
-  home_insurance: "Home: Insurance",
-  home_maintenance: "Home: Repairs & Maintenance",
-  home_property_tax: "Home: Property Tax",
-  home_mortgage_interest: "Home: Mortgage Interest",
-  home_rent: "Home: Rent",
-  home_condo_fees: "Home: Condo Fees",
-} as const;
-const HOME_OFFICE_EXPENSE_KEYS = Object.keys(HOME_OFFICE_EXPENSE_LABELS) as (keyof typeof HOME_OFFICE_EXPENSE_LABELS)[];
 const HOME_OFFICE_KEY_HINT =
   "For a bill for the agent's OWN HOME (power, heat, water, home internet, home insurance, home repairs, property tax, mortgage interest, rent, condo fees) use the matching home_* key and the FULL bill amount: only the agent's home office share of it counts as a business expense.";
-const EXPENSE_CATEGORY_KEYS = [
-  "vehicle", "marketing", "office_tech", "professional_fees", "travel_meals", "insurance_licenses", "education_dev", "other",
-  ...HOME_OFFICE_EXPENSE_KEYS,
-] as const;
+/** "Vehicle: vehicle_fuel (Fuel / Gas), ...; Marketing: ..." for the tool descriptions. */
+const EXPENSE_ITEM_KEY_GUIDE =
+  "categoryKey is the expense ITEM, the same list as the receipt form. Items by category. " +
+  RECEIPT_CATEGORY_GROUPS
+    .map((g) => `${g.group}: ${g.items.map((i) => `${i.key} (${i.label})`).join(", ")}`)
+    .join("; ") +
+  ". Pick the closest item; other_misc only when nothing fits. A meal or coffee is meals_client (with a client or prospect) or meals_team, and tickets or an event are ent_client or ent_events: CRA's 50% limit follows those keys, so never file a meal under other_misc. Parking and car washes are vehicle_service. Legal fees are prof_accounting. Business insurance (E&O, liability) is prof_eo; insurance on the vehicle is vehicle_insurance. There is no travel item: flights and hotels are other_misc unless the agent names another item. " +
+  HOME_OFFICE_KEY_HINT;
+/** GST/HST is recorded as stated. The app never infers it from a rate (expense-totals-engine). */
+const EXPENSE_TAX_AMOUNT_HINT =
+  "GST/HST on the receipt in dollars, already part of the total. Pass it ONLY when the agent states it or reads it off the receipt. Never calculate it from a rate or a province, and leave it out when it isn't stated.";
 const TRANSACTION_SIDES = ["buyer", "seller", "both"] as const;
 const ARCHIVE_REASONS = ["deceased", "moved_away", "do_not_contact", "other"] as const;
 
@@ -855,27 +871,20 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
 
     // ── LOG EXPENSE (confirm required) ────────────────────────────────────────
     logExpense: tool({
-      description: `Log a business expense. Category keys: vehicle, marketing, office_tech, professional_fees, travel_meals, insurance_licenses, education_dev, other, or a home_* key. ${HOME_OFFICE_KEY_HINT}`,
+      description: `Log a one-time business expense. ${EXPENSE_ITEM_KEY_GUIDE}`,
       inputSchema: z.object({
         vendor: z.string().describe("Business or vendor name (e.g. 'Shell', 'Facebook Ads', 'Rogers')"),
-        amount: z.number().positive().describe("Expense total in dollars"),
-        categoryKey: z.enum(EXPENSE_CATEGORY_KEYS).describe("Expense category key"),
+        amount: z.number().positive().describe("Total paid in dollars, GST/HST included"),
+        taxAmount: z.number().min(0).optional().describe(EXPENSE_TAX_AMOUNT_HINT),
+        categoryKey: z.enum(EXPENSE_ITEM_KEYS).describe("Expense item key"),
         expenseDate: z.string().describe("Expense date in YYYY-MM-DD format"),
         notes: z.string().optional().describe("Optional notes about the expense"),
       }),
       needsApproval: true,
-      execute: async ({ vendor, amount, categoryKey, expenseDate, notes }) => {
-        const categoryLabels: Record<string, string> = {
-          vehicle: "Vehicle",
-          marketing: "Marketing",
-          office_tech: "Office & Tech",
-          professional_fees: "Professional Fees",
-          travel_meals: "Travel & Meals",
-          insurance_licenses: "Insurance & Licenses",
-          education_dev: "Education & Development",
-          other: "Other",
-          ...HOME_OFFICE_EXPENSE_LABELS,
-        };
+      execute: async ({ vendor, amount, taxAmount, categoryKey, expenseDate, notes }) => {
+        if (taxAmount !== undefined && taxAmount > amount) {
+          return `GST/HST of $${taxAmount.toFixed(2)} is more than the $${amount.toFixed(2)} total, so nothing was logged. Confirm the two amounts with the agent.`;
+        }
 
         try {
           const { error } = await supabase
@@ -885,20 +894,32 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
               vendor,
               expense_date: expenseDate,
               total_amount: amount,
+              // Only what the agent stated. With none stated no ITC is
+              // counted on this expense; tax is never inferred from a rate.
+              tax_amount: taxAmount ?? null,
+              subtotal: taxAmount !== undefined ? Math.round((amount - taxAmount) * 100) / 100 : null,
               category_key: categoryKey,
               notes: notes ?? null,
               currency: "CAD",
             });
 
           if (error) return `Failed to log expense: ${error.message}`;
-
-          const homeNote = categoryKey.startsWith("home_")
-            ? homeOfficeBasisNote(await getExpenseTaxCtx())
-            : "";
-          return `✓ $${amount.toLocaleString()} expense logged — ${vendor} (${categoryLabels[categoryKey] ?? categoryKey}) on ${expenseDate}.${homeNote}`;
         } catch {
           return "Failed to log expense. Please try again.";
         }
+
+        // The expense is saved: nothing below may report a failure, or the
+        // model logs it a second time.
+        const taxNote = taxAmount !== undefined ? `, including $${taxAmount.toFixed(2)} GST/HST` : "";
+        const isHomeBill = categoryKey.startsWith("home_");
+        const taxCtx = taxAmount === undefined || isHomeBill
+          ? await getExpenseTaxCtx().catch(() => null)
+          : null;
+        const itcNote = taxAmount === undefined && taxCtx?.gstHstRegistered
+          ? " No GST/HST amount was given, so none is recorded and no input tax credit is counted on this expense. If the receipt shows GST/HST, the agent can give the amount here or add it on the Expenses page."
+          : "";
+        const homeNote = isHomeBill && taxCtx ? homeOfficeBasisNote(taxCtx) : "";
+        return `✓ $${amount.toLocaleString()} expense logged — ${vendor} (${receiptCategoryFullLabel(categoryKey)}) on ${expenseDate}${taxNote}.${itcNote}${homeNote}`;
       },
     }),
 
@@ -1525,11 +1546,11 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
 
     // ── CREATE RECURRING EXPENSE ─────────────────────────────────────────────
     createRecurringExpense: tool({
-      description: `Set up a recurring monthly business expense. Use when the agent says 'I pay $X/month for...' or 'set up a recurring expense for...'. ${HOME_OFFICE_KEY_HINT} Home bills that change from month to month are logged one at a time with logExpense, not as a recurring expense.`,
+      description: `Set up a recurring monthly business expense. Use when the agent says 'I pay $X/month for...' or 'set up a recurring expense for...'. ${EXPENSE_ITEM_KEY_GUIDE} Home bills that change from month to month are logged one at a time with logExpense, not as a recurring expense.`,
       inputSchema: z.object({
         name: z.string().describe("Business or vendor name (e.g. 'Canva', 'Rogers', 'Desjardins Insurance')"),
         amount: z.number().positive().describe("Expense amount per month in dollars"),
-        categoryKey: z.enum(EXPENSE_CATEGORY_KEYS).describe("Expense category key"),
+        categoryKey: z.enum(EXPENSE_ITEM_KEYS).describe("Expense item key"),
         dayOfMonth: z.number().int().min(1).max(28).default(1).describe("Day of month the expense recurs (1-28)"),
         notes: z.string().optional().describe("Optional notes"),
       }),
@@ -1576,8 +1597,8 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
           if (error) return `Search failed: ${error.message}`;
           if (!data || data.length === 0) return `No expenses found matching "${query}".`;
 
-          return data.map((e: { id: string; vendor: string; total_amount: number; expense_date: string; category_key: string }) =>
-            `$${Number(e.total_amount).toLocaleString()} at ${e.vendor} on ${e.expense_date} (${e.category_key.replace(/_/g, " ")}) — ID: ${e.id}`
+          return data.map((e: { id: string; vendor: string; total_amount: number; expense_date: string; category_key: string | null }) =>
+            `$${Number(e.total_amount).toLocaleString()} at ${e.vendor} on ${e.expense_date} (${receiptCategoryFullLabel(e.category_key)}) — ID: ${e.id}`
           ).join("\n");
         } catch {
           return "Expense search temporarily unavailable.";
@@ -2016,32 +2037,41 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
 
     // ── UPDATE: Edit an existing expense ──────────────────────────────────────
     updateExpense: tool({
-      description: "Update an existing expense (change amount, vendor, category, date, or notes). Use searchExpenses first to find the expense ID. Gated by the approval card.",
+      description: "Update an existing expense (change amount, GST/HST, vendor, expense item, date, or notes). Use searchExpenses first to find the expense ID. Gated by the approval card.",
       inputSchema: z.object({
         expenseId: z.string().uuid().describe("The expense UUID from searchExpenses"),
         vendor: z.string().optional().describe("Updated vendor name"),
-        totalAmount: z.number().optional().describe("Updated total amount"),
-        categoryKey: z.enum(EXPENSE_CATEGORY_KEYS).optional().describe("Updated T2125 category"),
+        totalAmount: z.number().optional().describe("Updated total paid, GST/HST included"),
+        taxAmount: z.number().min(0).optional().describe(EXPENSE_TAX_AMOUNT_HINT),
+        categoryKey: z.enum(EXPENSE_ITEM_KEYS).optional().describe("Updated expense item key (the items are listed in logExpense)"),
         expenseDate: z.string().optional().describe("Updated date (YYYY-MM-DD)"),
         notes: z.string().optional().describe("Updated notes"),
       }),
       needsApproval: true,
-      execute: async ({ expenseId, vendor, totalAmount, categoryKey, expenseDate, notes }) => {
+      execute: async ({ expenseId, vendor, totalAmount, taxAmount, categoryKey, expenseDate, notes }) => {
         try {
           // Fetch current expense so we can narrate the before/after diff in the result
           const { data: current, error: fetchErr } = await supabase
             .from("receipt_expenses")
-            .select("vendor, total_amount, category_key, expense_date, notes")
+            .select("vendor, total_amount, tax_amount, category_key, expense_date, notes")
             .eq("id", expenseId)
             .eq("user_id", userId)
             .single();
 
           if (fetchErr || !current) return `Expense not found (ID: ${expenseId}). Use searchExpenses to find the correct one.`;
 
+          const currentTax = current.tax_amount == null ? null : Number(current.tax_amount);
+          const newTotal = totalAmount ?? Number(current.total_amount);
+          const newTax = taxAmount ?? currentTax;
+          if (newTax !== null && newTax > newTotal) {
+            return `GST/HST of $${newTax.toFixed(2)} is more than the $${newTotal.toFixed(2)} total, so nothing was changed. Confirm the two amounts with the agent.`;
+          }
+
           const changes: string[] = [];
           if (vendor && vendor !== current.vendor) changes.push(`vendor: ${current.vendor} → ${vendor}`);
           if (totalAmount !== undefined && totalAmount !== Number(current.total_amount)) changes.push(`amount: $${current.total_amount} → $${totalAmount}`);
-          if (categoryKey && categoryKey !== current.category_key) changes.push(`category: ${current.category_key} → ${categoryKey}`);
+          if (taxAmount !== undefined && taxAmount !== currentTax) changes.push(`GST/HST: ${currentTax === null ? "none recorded" : `$${currentTax.toFixed(2)}`} → $${taxAmount.toFixed(2)}`);
+          if (categoryKey && categoryKey !== current.category_key) changes.push(`category: ${receiptCategoryFullLabel(current.category_key)} → ${receiptCategoryFullLabel(categoryKey)}`);
           if (expenseDate && expenseDate !== current.expense_date) changes.push(`date: ${current.expense_date} → ${expenseDate}`);
           if (notes !== undefined && notes !== current.notes) changes.push(`notes updated`);
 
@@ -2050,6 +2080,10 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
           const updateData: Record<string, unknown> = { updated_at: new Date().toISOString() };
           if (vendor) updateData.vendor = vendor;
           if (totalAmount !== undefined) updateData.total_amount = totalAmount;
+          if (taxAmount !== undefined) {
+            updateData.tax_amount = taxAmount;
+            updateData.subtotal = Math.round((newTotal - taxAmount) * 100) / 100;
+          }
           if (categoryKey) updateData.category_key = categoryKey;
           if (expenseDate) updateData.expense_date = expenseDate;
           if (notes !== undefined) updateData.notes = notes;
@@ -2262,7 +2296,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
 
     // ── QUERY: Expense breakdown by category ──────────────────────────────────
     getExpenseBreakdown: tool({
-      description: "Get a breakdown of expenses by T2125 category for a given period. Use when the user asks 'how much have I spent on marketing?', 'show me my expenses by category', or 'what are my biggest expense categories?'.",
+      description: "Get a breakdown of expenses by expense item, each named with its category (e.g. 'Marketing: Print'), for a given period. Use when the user asks 'how much have I spent on marketing?', 'show me my expenses by category', or 'what are my biggest expense categories?'.",
       inputSchema: z.object({
         year: z.number().optional().describe("Year to filter (defaults to current year)"),
         startDate: z.string().optional().describe("Start of date range (YYYY-MM-DD) — overrides year"),
@@ -2302,24 +2336,15 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
           const sorted = Object.entries(byCategory)
             .sort(([, a], [, b]) => b.total - a.total);
 
-          const categoryLabels: Record<string, string> = {
-            vehicle: "Vehicle & Mileage",
-            marketing: "Marketing & Advertising",
-            office_tech: "Office & Technology",
-            professional_fees: "Professional Fees",
-            travel_meals: "Travel & Meals",
-            insurance_licenses: "Insurance & Licenses",
-            education_dev: "Education & Development",
-            other: "Other",
-            uncategorized: "Uncategorized",
-            ...HOME_OFFICE_EXPENSE_LABELS,
-          };
+          // Receipts are keyed by expense item ("Vehicle: Fuel / Gas").
+          const itemLabel = (key: string) =>
+            receiptCategoryFullLabel(key === "uncategorized" ? null : key);
           const hasHomeBills = Object.keys(totals.homeOfficeCosts).length > 0;
 
           const header = `Expense Breakdown (${startDate ? `${start} to ${end}` : currentYear}):`;
           const list = sorted.map(([key, { total, count }]) => {
             const pct = grandTotal > 0 ? ((total / grandTotal) * 100).toFixed(1) : "0.0";
-            return `• **${categoryLabels[key] || key}**: $${total.toFixed(2)} (${count} entries, ${pct}%)`;
+            return `• **${itemLabel(key)}**: $${total.toFixed(2)} (${count} entries, ${pct}%)`;
           }).join("\n");
 
           return `${header}\n${list}\n\n**Total**: $${grandTotal.toFixed(2)} across ${data.length} entries${expenseBasisNote(taxCtx)}${hasHomeBills ? homeOfficeBasisNote(taxCtx) : ""}`;
@@ -2728,7 +2753,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
         recurringExpenseId: z.string().uuid().describe("The recurring expense UUID"),
         name: z.string().optional().describe("Updated vendor/name"),
         amount: z.number().optional().describe("Updated amount"),
-        categoryKey: z.enum(EXPENSE_CATEGORY_KEYS).optional().describe("Updated T2125 category"),
+        categoryKey: z.enum(EXPENSE_ITEM_KEYS).optional().describe("Updated expense item key (the items are listed in createRecurringExpense)"),
         isActive: z.boolean().optional().describe("Set to false to pause, true to resume"),
         notes: z.string().optional().describe("Updated notes"),
       }),
@@ -2739,7 +2764,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
 
           if (name) { updates.name = name; changed.push(`name → "${name}"`); }
           if (amount !== undefined) { updates.amount = amount; changed.push(`amount → $${amount}`); }
-          if (categoryKey) { updates.category_key = categoryKey; changed.push(`category → ${categoryKey}`); }
+          if (categoryKey) { updates.category_key = categoryKey; changed.push(`category → ${receiptCategoryFullLabel(categoryKey)}`); }
           if (isActive !== undefined) { updates.is_active = isActive; changed.push(isActive ? "reactivated" : "paused"); }
           if (notes !== undefined) { updates.notes = notes; changed.push("notes updated"); }
 
@@ -3236,7 +3261,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
           if (!data || data.length === 0) return query ? `No recurring expenses found matching "${query}".` : "No recurring expenses found.";
 
           return data.map((r: Record<string, unknown>) =>
-            `• ${r.name} (ID: ${r.id}) — $${Number(r.amount).toFixed(2)}/month (day ${r.day_of_month}) — ${r.category_key} — ${r.is_active ? "🟢 Active" : "⚪ Paused"}${r.notes ? ` — "${r.notes}"` : ""}`
+            `• ${r.name} (ID: ${r.id}) — $${Number(r.amount).toFixed(2)}/month (day ${r.day_of_month}) — ${receiptCategoryFullLabel(typeof r.category_key === "string" ? r.category_key : null)} — ${r.is_active ? "🟢 Active" : "⚪ Paused"}${r.notes ? ` — "${r.notes}"` : ""}`
           ).join("\n");
         } catch { return "Recurring expense search temporarily unavailable."; }
       },

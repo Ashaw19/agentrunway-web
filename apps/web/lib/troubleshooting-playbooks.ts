@@ -386,7 +386,7 @@ Still shown as paid (GST/HST included): each receipt, the receipt log and its CS
 
 ### Expense Categories — CRA T2125 Mapping
 
-Source of truth: packages/core/engines/t2125-engine.ts (CATEGORY_MAPPINGS). Mirrors the CRA T2125 form / T4002 publication.
+Source of truth: packages/core/engines/t2125-engine.ts (EXPENSE_KEY_TO_T2125). Mirrors the CRA T2125 form / T4002 publication.
 
 | CRA Line | Category | Notes |
 |----------|----------|-------|
@@ -407,6 +407,26 @@ Source of truth: packages/core/engines/t2125-engine.ts (CATEGORY_MAPPINGS). Mirr
 | 8270 | Net Business Income | 8200 − 9369 − 9936 − 9945 |
 
 Common "wrong line number" question: legacy notes/screenshots may cite 8210/8211/8212/8213/8215/8216/8220/8226/8228 — those are NOT used by the engine or the CRA T2125 today. If a user references one, point them to the canonical line above.
+
+### Expense items: what a receipt or recurring expense is filed under
+Every receipt and recurring expense is filed under an expense ITEM (receipt_expenses.category_key / recurring_expenses.category_key), not a whole category. One list, shared by the receipt form, the recurring expense form, voice capture and Flight Crew (apps/web/lib/types/receipt.ts, RECEIPT_CATEGORY_GROUPS):
+- Vehicle: Fuel / Gas, Service & Repairs, Insurance, Vehicle Payment
+- Marketing: Ads, Photography & Video, Print, Client Gifts
+- Office & Tech: Office Supplies, Software Subscriptions, Phone & Internet, Hardware & Equipment
+- Professional Fees: Board / MLS Dues, Licensing & Renewals, E&O Insurance, Accounting & Bookkeeping (legal fees go here)
+- Education: Courses & Coaching, Conferences, Books & Materials
+- Meals: Client Meals, Team Meals
+- Entertainment: Client Entertainment, Events & Tickets
+- Home Office: Electricity, Heat & Water; Home Internet; Home Insurance; Repairs & Maintenance; Property Tax; Mortgage Interest; Rent; Condo Fees (bills for the agent's own home, logged in full)
+- Other: Miscellaneous
+
+The item decides three things: the row the expense shows under on the Expenses page, its T2125 line (table above), and which CRA limit applies (vehicle items: business-use %; Meals and Entertainment items: 50%; Home Office items: the home office share, on line 9945; everything else: 100%).
+
+**Flight Crew logging (logExpense, updateExpense, createRecurringExpense, updateRecurringExpense):**
+- Flight Crew picks the item from that same list. The approval card for a new expense or recurring expense names the item before it is saved.
+- GST/HST is recorded only when the agent states it or reads it off the receipt. Flight Crew never works it out from a rate or the province. With no GST/HST recorded, the expense counts in full and no input tax credit is counted on it.
+- GST/HST can be added later: tell Flight Crew the amount (updateExpense), or open the receipt on the Expenses page and fill in the tax field.
+- There is no travel item. Flights and hotels go under Other: Miscellaneous unless the agent names another item.
 
 ### Mileage Calculation (CRA 2025 rates)
 - First 5,000 km: $0.72/km
@@ -470,10 +490,19 @@ If a user asks "what are these tips?" or "why is Agent Runway showing me this?" 
 4. Before 2026-10-13 totals included that GST/HST, so a registrant's totals went down that day with no data change.
 
 **"I'm registered but my expense total still includes the HST"**
-1. Check the GST/HST amount on the receipts. Quick-add expenses and receipts saved with a blank tax field have no GST/HST recorded, so they count in full and no ITC is claimed for them. Editing the receipt to add the tax amount updates both the GST34 summary and the totals.
+1. Check the GST/HST amount on the receipts. Quick-add expenses, expenses logged through Flight Crew without a stated GST/HST amount, and receipts saved with a blank tax field have no GST/HST recorded, so they count in full and no ITC is claimed for them. Editing the receipt to add the tax amount updates both the GST34 summary and the totals.
 2. Check recurring expenses: "HST included" has to be on, with an HST amount.
 3. Some costs carry no GST/HST (insurance premiums, most government fees), so nothing comes off those.
 4. Confirm the registered toggle (Reports → T2125 → "GST/HST Registered?").
+
+**"An expense I logged through Flight Crew isn't on the Expenses page" / "My Expenses page total was lower than my dashboard" / "A receipt moved to a different row on October 13"**
+1. Before 2026-10-13 Flight Crew filed expenses under a whole category (for example "Vehicle") instead of an expense item. Those expenses were in the dashboard total but under no row on the Expenses page, so that page's YTD Expenses, expense ratio and Est. Tax Deductible left them out, and they reached no T2125 line.
+2. Fixed 2026-10-13. Flight Crew now files under an item, and existing expenses filed under a category were moved to that category's first-choice item: Vehicle → Fuel / Gas, Marketing → Ads, Office & Tech → Office Supplies, Professional Fees → Accounting & Bookkeeping, Education → Courses & Coaching, Meals → Client Meals, Entertainment → Client Entertainment, Other → Miscellaneous.
+3. Within a category every item has the same deductible share and the same input tax credit rule, so the move changed neither. On the Expenses page those expenses now count where they were missing before.
+4. If one belongs under a different item (a repair filed as fuel, board dues filed as accounting), open the receipt on the Expenses page and change its category, or ask Flight Crew to update it.
+
+**"Flight Crew logged my expense but there's no ITC on it"**
+→ Flight Crew records GST/HST only when the amount is stated. With none recorded, no input tax credit is counted and the expense counts in full. Giving Flight Crew the GST/HST from the receipt, or adding it to the receipt on the Expenses page, updates the GST34 summary and the totals.
 
 **"My totals match QuickBooks now" / "QuickBooks shows a lower expense total than my receipts"**
 → Accounting software reports a registrant's expenses net of recoverable sales tax. Agent Runway does the same for registrants.
