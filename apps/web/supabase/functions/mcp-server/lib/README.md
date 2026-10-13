@@ -1,8 +1,37 @@
-# MCP Edge Function — Shared Lib (Deliberate Duplicates)
+# MCP Edge Function — Shared Lib
 
-Deno edge functions cannot import workspace packages from `packages/core/*`.
-Everything in this folder is a **deliberate copy** of a canonical engine from
-`packages/core/engines/*` or `packages/core/types/*`.
+Deno edge functions cannot import workspace packages (`@agent-runway/core`).
+There are two ways an engine gets here.
+
+## 1. Import the canonical engine (preferred)
+
+`pnpm build:mcp-shared` copies `packages/core` into
+`supabase/functions/_shared/core/` (gitignored, rebuilt before every deploy)
+with `.ts` added to each relative import. A tool imports the real engine from
+there, so there is nothing to keep in sync:
+
+```ts
+import { ytdExpenseTotals } from "../../_shared/core/engines/expense-totals-engine.ts";
+```
+
+Use this for anything new. Two tests in `apps/web/lib/mcp-server/__tests__/`
+cover it: `deno-imports.test.ts` walks the function's import graph into
+`packages/core` and fails on an import Deno or the build script can't
+resolve, and `expense-parity.test.ts` runs the real tool handlers.
+
+| Local file | Canonical engines it calls | Notes |
+|---|---|---|
+| `expense-inputs.ts` | `expense-totals-engine` (`ytdExpenseTotals`, `inputTaxCreditsForPeriod`, `expenseTaxContext`, `recurringExpensesNetOfItc`), `local-date` | Added 2026-10-13. NOT a mirror: it fetches the dashboard's expense rows (`receipt_expenses` this Atlantic year, active `recurring_expenses`, `expense_items.monthly_recurring`) and hands them to the engine. Every tool that reports an expense figure calls `loadExpenseInputs`. `expense_items.ytd_amount` is never read: the app stopped writing it. |
+
+`tools/analytics.ts` also takes the GST/HST filing periods straight from
+`filing-period-engine` (`getFilingPeriods`). Its hand copy had kept Q4's
+deadline at Mar 31 after the engine was corrected to Jan 31.
+
+## 2. Deliberate duplicates (older)
+
+The files below are **deliberate copies** of a canonical engine from
+`packages/core/engines/*` or `packages/core/types/*`, written before the
+shared copy existed.
 
 ## Sync discipline
 
@@ -18,7 +47,7 @@ When in doubt: re-read `/Users/b/.claude/projects/.../memory/feedback_data_consi
 | Local file | Upstream canonical source | Notes |
 |---|---|---|
 | `canadian-tax-engine.ts` | `packages/core/engines/canadian-tax-engine.ts` | Full engine (brackets, CPP, QPP, provincial). |
-| `effective-cash.ts` | `packages/core/engines/effective-cash.ts` | Added 2026-04-22 (Audit 1 D-1 + D-2). Currently exports `computeProjectedNetForTax` + `computePipelineMonthlyIncome` + the helper types they depend on (`SplitPreset`, `EffectiveCashSettingsSlice`). Mirrors `computeAgentGross` + `computeTxFees` from `packages/core/types/database.ts`. |
+| `effective-cash.ts` | `packages/core/engines/effective-cash.ts` | Added 2026-04-22 (Audit 1 D-1 + D-2). Currently exports `computeProjectedNetForTax` + `computePipelineMonthlyIncome` + the helper types they depend on (`SplitPreset`, `EffectiveCashSettingsSlice`). Mirrors `computeAgentGross` + `computeTxFees` from `packages/core/types/database.ts`. It does NOT carry `computeEffectiveCashForSurvival`, so it has no HST-owing or ITC line: `expensesYTD` and `monthlyRecurring` arrive net of ITCs from `expense-inputs.ts`, and nothing here takes an ITC off again (core dropped its own ITC estimate on 2026-10-13). |
 | `projection-engine.ts` | `packages/core/engines/projection-engine.ts` | Added 2026-06-26 (cross-surface divergence fix). Exports `seasonalFractionElapsed`, `normalizeSeasonalWeights`, `projectedYearEndGCI`, `projectedYearEndTransactions`, `LISTING_PROBABILITIES`, `computeListingWeightedGCI`. Replaced the open-coded `ytdGCI / yearFraction` + "60% pace / 40% pipeline" projections in `tools/analytics.ts` so the Connector's projected GCI matches the dashboard (seasonal fraction + pipeline + listing weighted GCI). |
 | `hst-engine.ts` | `packages/core/engines/hst-engine.ts` | Added 2026-04-22 (Audit 1 D-4). Exports `computeHSTCollected`, `computeHSTNetOwing`, `HSTCollectedInputs`, `HSTNetOwingInputs`, `HSTThresholdSeverity`. Also mirrors `gstHstRate` + `gstHstLabel` from `canadian-tax-engine.ts` so the MCP tool does not need to import the full tax engine just to resolve a rate. |
 | `constants.ts` | `apps/web/lib/flight-crew/constants.ts` | Added 2026-04-22 (Audit 2). Exports `CANONICAL_TAX_DISCLAIMER` + `CANONICAL_TAX_DISCLAIMER_SHORT`. Any change to the upstream file must be mirrored here in the same commit. |

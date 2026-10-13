@@ -21,8 +21,10 @@ import {
   aggregateReceiptTotals,
   expenseNetOfItc,
   expenseTaxContext,
+  inputTaxCreditsForPeriod,
   recurringExpensesNetOfItc,
   recurringNetOfItc,
+  ytdExpenseTotals,
 } from "../expense-totals-engine";
 import { computeGST34 } from "../gst34-engine";
 import { getFilingPeriods } from "../filing-period-engine";
@@ -340,5 +342,152 @@ describe("T2125 lines from net amounts", () => {
     const before = computeT2125({ settings, transactions: [], expenseAmounts: { office_supplies: 115, meals_client: 115, vehicle_fuel: 115 }, ccaAssets: [], taxYear: 2026 });
     const after = computeT2125({ settings, transactions: [], expenseAmounts: net.byKey, ccaAssets: [], taxYear: 2026 });
     expect(before.line9369_totalExpenses - after.line9369_totalExpenses).toBeCloseTo(30.75, 10);
+  });
+});
+
+// The MCP server read `expense_items.ytd_amount`, a column the app stopped
+// writing long ago, so its expenses, net income and tax estimate disagreed
+// with the dashboard. `ytdExpenseTotals` is the dashboard's total as one call
+// (dashboard/page.tsx + dashboard-content.tsx), so a server surface that
+// can't render the dashboard still gets its number.
+describe("ytdExpenseTotals — the dashboard's year-to-date expenses", () => {
+  // 13 Oct 2026: October is the 10th month, so 10 months have started.
+  const NOW = new Date(2026, 9, 13, 12);
+
+  const receipts = [
+    { category_key: "prof_board_mls", total_amount: 115, tax_amount: 15 }, // net 100
+    { category_key: "meals_client", total_amount: 57.5, tax_amount: 7.5 }, // ITC 3.75 → net 53.75
+    { category_key: "vehicle_fuel", total_amount: 230, tax_amount: 30 }, // 80% use: ITC 24, personal 6 → net 200
+  ];
+  // $575 a month with $75 HST, vehicle use: ITC 60, personal 15 → net 500.
+  const lease = recurring({
+    id: "lease", name: "Lease", amount: 575, hst_amount: 75,
+    category_key: "vehicle_payment", vehicle_pct_applicable: true, start_date: "2026-01-01",
+  });
+  const legacyItems = [{ monthly_recurring: 20 }, { monthly_recurring: 0 }];
+
+  it("registrant: max(receipts, legacy estimate) + recurring, every part net of ITCs", () => {
+    const t = ytdExpenseTotals({ receipts, recurring: [lease], legacyItems, ctx: REGISTRANT, now: NOW });
+
+    expect(t.receiptYTD).toBe(353.75);
+    expect(t.legacyMonthlyRecurring).toBe(20);
+    expect(t.legacyRecurringYTDEstimate).toBe(200);
+    expect(t.recurringMonthly).toBe(500);
+    expect(t.recurringYTD).toBe(5000);
+    expect(t.monthlyRecurring).toBe(520);
+    expect(t.expensesYTD).toBe(5353.75);
+  });
+
+  it("non-registrant: every part is the amount paid", () => {
+    const t = ytdExpenseTotals({ receipts, recurring: [lease], legacyItems, ctx: NOT_REGISTERED, now: NOW });
+
+    expect(t.receiptYTD).toBe(402.5);
+    expect(t.recurringMonthly).toBe(575);
+    expect(t.recurringYTD).toBe(5750);
+    expect(t.monthlyRecurring).toBe(595);
+    expect(t.expensesYTD).toBe(6152.5);
+  });
+
+  it("the legacy monthly estimate stands in for receipts only when it is the larger", () => {
+    const t = ytdExpenseTotals({
+      receipts, recurring: [lease], legacyItems: [{ monthly_recurring: 100 }], ctx: REGISTRANT, now: NOW,
+    });
+    // 100 × 10 months = 1,000 > 353.75 of receipts; never both.
+    expect(t.expensesYTD).toBe(1000 + 5000);
+  });
+
+  it("is the dashboard's chain, engine call for engine call", () => {
+    const settings = { gst_hst_registered: true, vehicle_business_use_pct: 0.5 };
+    const rows = [lease, recurring({ id: "dues", start_date: "2026-03-15", day_of_month: 15 })];
+
+    // dashboard/page.tsx
+    const taxCtx = expenseTaxContext(settings);
+    const recurringExpenses = recurringExpensesNetOfItc(rows, taxCtx);
+    const recurringExpMonthly = totalRecurringMonthly(recurringExpenses);
+    const recurringExpYTD = totalRecurringYTD(recurringExpenses, NOW);
+    const receiptYTD = aggregateReceiptTotals(receipts, taxCtx).total;
+    // dashboard-content.tsx
+    const legacyMonthlyRecurring = legacyItems.reduce((s, i) => s + Number(i.monthly_recurring), 0);
+    const monthlyRecurring = legacyMonthlyRecurring + recurringExpMonthly;
+    const expMonthsElapsed = NOW.getMonth() + 1;
+    const expensesYTD = Math.max(receiptYTD, legacyMonthlyRecurring * expMonthsElapsed) + recurringExpYTD;
+
+    const t = ytdExpenseTotals({ receipts, recurring: rows, legacyItems, ctx: taxCtx, now: NOW });
+    expect(t.expensesYTD).toBe(expensesYTD);
+    expect(t.monthlyRecurring).toBe(monthlyRecurring);
+    expect(t.receipts).toEqual(aggregateReceiptTotals(receipts, taxCtx));
+  });
+
+  it("months elapsed is the calendar month (1 to 12), never a fraction of one", () => {
+    const only = { receipts: [], recurring: [], legacyItems: [{ monthly_recurring: 100 }], ctx: REGISTRANT };
+    expect(ytdExpenseTotals({ ...only, now: new Date(2026, 0, 31, 12) }).expensesYTD).toBe(100);
+    expect(ytdExpenseTotals({ ...only, now: new Date(2026, 11, 1, 12) }).expensesYTD).toBe(1200);
+  });
+
+  it("inactive recurring rows count nothing, and the stored rows are left as entered", () => {
+    const off = recurring({ id: "off", is_active: false });
+    const t = ytdExpenseTotals({ receipts: [], recurring: [off, lease], legacyItems: [], ctx: REGISTRANT, now: NOW });
+    expect(t.recurringMonthly).toBe(500);
+    expect(lease.amount).toBe(575);
+  });
+
+  it("accepts PostgREST's numeric strings and null lists", () => {
+    const t = ytdExpenseTotals({
+      receipts: null, recurring: undefined, legacyItems: [{ monthly_recurring: "12.50" }, { monthly_recurring: null }],
+      ctx: REGISTRANT, now: NOW,
+    });
+    expect(t.legacyMonthlyRecurring).toBe(12.5);
+    expect(t.expensesYTD).toBe(125);
+    expect(ytdExpenseTotals({ receipts: null, recurring: null, legacyItems: null, ctx: REGISTRANT, now: NOW }).expensesYTD).toBe(0);
+  });
+});
+
+describe("inputTaxCreditsForPeriod — the ITCs the GST34 pre-fill claims", () => {
+  const receipts = [
+    { category_key: "prof_board_mls", total_amount: 115, tax_amount: 15 }, // 15
+    { category_key: "meals_client", total_amount: 57.5, tax_amount: 7.5 }, // 3.75
+    { category_key: "vehicle_fuel", total_amount: 230, tax_amount: 30 }, // 24 at 80%
+  ];
+  const lease = recurring({
+    id: "lease", name: "Lease", amount: 575, hst_amount: 75,
+    category_key: "vehicle_payment", vehicle_pct_applicable: true, start_date: "2026-01-01",
+  });
+
+  it("registrant: receipts and recurring, with the meal and vehicle limits", () => {
+    const itc = inputTaxCreditsForPeriod(receipts, [lease], REGISTRANT, "2026-01-01", "2026-10-13");
+    expect(itc.receipts).toBe(42.75);
+    // Ten payments (Jan 1 to Oct 1) × $75 × 80%.
+    expect(itc.recurring).toBe(600);
+    expect(itc.total).toBe(642.75);
+  });
+
+  it("equals GST34 line 108 for the same period and inputs", () => {
+    const period = { label: "2026 to date", startDate: "2026-01-01", endDate: "2026-10-13", deadline: "2027-01-31" };
+    const gst34 = computeGST34({
+      province: "newBrunswick",
+      period,
+      frequency: "quarterly",
+      periodTransactions: [],
+      periodReceipts: [
+        ...receipts,
+        ...recurringHSTEntriesForPeriod([lease], period.startDate, period.endDate).map((e) => ({ total_amount: null, ...e })),
+      ],
+      instalmentsPaid: 0,
+      vehicleBusinessUsePct: REGISTRANT.vehicleBusinessUsePct,
+    });
+    const itc = inputTaxCreditsForPeriod(receipts, [lease], REGISTRANT, period.startDate, period.endDate);
+    expect(itc.total).toBeCloseTo(gst34.line108, 10);
+  });
+
+  it("someone who is not registered claims none", () => {
+    expect(inputTaxCreditsForPeriod(receipts, [lease], NOT_REGISTERED, "2026-01-01", "2026-10-13"))
+      .toEqual({ receipts: 0, recurring: 0, total: 0 });
+  });
+
+  it("handles null lists and receipts with no GST/HST recorded", () => {
+    expect(inputTaxCreditsForPeriod(null, undefined, REGISTRANT, "2026-01-01", "2026-10-13").total).toBe(0);
+    expect(inputTaxCreditsForPeriod(
+      [{ category_key: "prof_board_mls", total_amount: 100, tax_amount: null }], [], REGISTRANT, "2026-01-01", "2026-10-13",
+    ).total).toBe(0);
   });
 });

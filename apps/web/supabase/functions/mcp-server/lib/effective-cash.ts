@@ -180,7 +180,12 @@ function projectedAgentNet(
 
 export interface ProjectedNetForTaxInputs {
   projectedGCI: number;
+  /**
+   * YTD business expenses (receipts + recurring), net of the ITCs a GST/HST
+   * registrant claims on them: `loadExpenseInputs(...).totals.expensesYTD`.
+   */
   expensesYTD: number;
+  /** Monthly recurring expenses, net of ITCs the same way (`.totals.monthlyRecurring`). */
   monthlyRecurring: number;
   settings: EffectiveCashSettingsSlice;
   now?: Date;
