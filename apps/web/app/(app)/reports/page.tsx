@@ -2,9 +2,9 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { ReportsContent } from "./reports-content";
 import type { CcaAsset, RecurringExpense, ListingAppointment } from "@/lib/types/database";
-import { totalRecurringMonthly, totalRecurringYTD } from "@agent-runway/core/engines/recurring-expense-engine";
-import { aggregateReceiptTotals, expenseTaxContext, recurringExpensesNetOfItc } from "@agent-runway/core/engines/expense-totals-engine";
-import { buildT2125Expenses } from "@agent-runway/core/engines/t2125-expenses-engine";
+import { expenseTaxContext } from "@agent-runway/core/engines/expense-totals-engine";
+import { ytdExpenseTotals } from "@agent-runway/core/engines/t2125-expenses-engine";
+import { expenseCategoryRows } from "@/lib/expenses/category-lines";
 import { computeIsPro } from "@/lib/compute-is-pro";
 import { atlanticNoon } from "@agent-runway/core/lib/local-date";
 
@@ -98,36 +98,34 @@ export default async function ReportsPage() {
         .limit(10000),
     ]);
 
-  // Net of the GST/HST a registrant claims back as ITCs (expense-totals-engine).
-  const taxCtx = expenseTaxContext(settingsRaw);
-  const recurringExpensesAsStored = (recurringExpResult.data ?? []) as RecurringExpense[];
-  const recurringExpenses = recurringExpensesNetOfItc(recurringExpensesAsStored, taxCtx);
-  const recurringExpMonthly = totalRecurringMonthly(recurringExpenses);
-  const recurringExpYTD = totalRecurringYTD(recurringExpenses, today);
-
   const categories = (expCatResult.data ?? []).map((cat) => ({
     ...cat,
     items: (expItemResult.data ?? []).filter((i) => i.category_id === cat.id),
   }));
 
-  // Receipts by expense key, with the uncategorized remainder carried
-  // separately so the YTD expense total still agrees with the dashboard. For a
-  // GST/HST registrant every figure is net of ITCs, so nothing here deducts
-  // tax the GST34 already claims.
-  const receiptTotals = aggregateReceiptTotals(receiptTotalsResult.data, taxCtx);
-  const { byKey: receiptTotalsByKey, uncategorized: uncategorizedReceiptYTD } = receiptTotals;
-
-  // T2125 inputs come from t2125-expenses-engine, the same call the Expenses
-  // page makes for "Est. Tax Deductible": receipts, the legacy per-item
-  // monthly figure and the Recurring Expenses list, incurred to date (never a
-  // projected month), plus the Home Office bills in full for line 9945.
-  const t2125Expenses = buildT2125Expenses({
-    receiptTotals,
+  // One call (t2125-expenses-engine) gives this page its year-to-date
+  // expenses, its monthly figure, the category rows and the T2125 inputs:
+  // receipts, the per-item monthly figure and the Recurring Expenses list,
+  // incurred to date (never a projected month), plus the Home Office bills in
+  // full for line 9945. The Expenses page and the dashboard make the same
+  // call, so the headline here, the T2125 tab and those screens agree. For a
+  // GST/HST registrant every figure is net of the ITCs the GST34 claims.
+  const expenseTotals = ytdExpenseTotals({
+    receipts: receiptTotalsResult.data,
+    recurring: (recurringExpResult.data ?? []) as RecurringExpense[],
     expenseItems: expItemResult.data,
-    recurringExpenses: recurringExpensesAsStored,
-    ctx: taxCtx,
+    ctx: expenseTaxContext(settingsRaw),
     now: today,
   });
+  const t2125Expenses = expenseTotals.tracked;
+  // "Expenses by Category": the engine's lines under their categories, so the
+  // rows add up to the totals beneath them (lib/expenses/category-lines).
+  const expenseRows = expenseCategoryRows(t2125Expenses.lines, categories).map((row) => ({
+    key: row.key,
+    title: row.title,
+    ytd: row.ytd,
+    monthly: row.monthly,
+  }));
 
   // Build referral summary for PDF Page 7
   const referrals = referralsResult.data ?? [];
@@ -150,11 +148,11 @@ export default async function ReportsPage() {
       transactions={txResult.data ?? []}
       pipelineDeals={pipelineResult.data ?? []}
       listingAppointments={(listingApptResult.data ?? []) as ListingAppointment[]}
-      expenseCategories={categories}
       isPro={isPro}
       historyItems={historyResult.data ?? []}
-      receiptTotalsByKey={receiptTotalsByKey}
-      uncategorizedReceiptYTD={uncategorizedReceiptYTD}
+      expensesYTD={expenseTotals.expensesYTD}
+      monthlyRecurring={expenseTotals.monthlyRecurring}
+      expenseRows={expenseRows}
       ccaAssets={(ccaAssetsResult.data ?? []) as CcaAsset[]}
       t2125Expenses={t2125Expenses.entries}
       homeOfficeCosts={t2125Expenses.homeOfficeCosts}
@@ -166,8 +164,6 @@ export default async function ReportsPage() {
       taxYear={year}
       userId={user.id}
       referralSummary={referralSummary}
-      recurringExpMonthly={recurringExpMonthly}
-      recurringExpYTD={recurringExpYTD}
     />
   );
 }

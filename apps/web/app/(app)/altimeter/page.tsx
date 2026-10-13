@@ -2,8 +2,8 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { AltimeterContent } from "./altimeter-content";
 import type { HistoryItem, RecurringExpense } from "@/lib/types/database";
-import { totalRecurringMonthly, totalRecurringYTD } from "@agent-runway/core/engines/recurring-expense-engine";
-import { aggregateReceiptTotals, expenseTaxContext, recurringExpensesNetOfItc } from "@agent-runway/core/engines/expense-totals-engine";
+import { expenseTaxContext } from "@agent-runway/core/engines/expense-totals-engine";
+import { ytdExpenseTotals } from "@agent-runway/core/engines/t2125-expenses-engine";
 import { computeIsPro } from "@/lib/compute-is-pro";
 import { atlanticNoon } from "@agent-runway/core/lib/local-date";
 
@@ -26,7 +26,7 @@ export default async function AltimeterPage() {
   const settings = settingsResult.data;
 
   // ── Live Supabase queries ──
-  const [txResult, pipelineResult, historyResult, expCatResult, expItemResult, receiptTotalsResult, recurringExpResult] = await Promise.all([
+  const [txResult, pipelineResult, historyResult, expItemResult, receiptTotalsResult, recurringExpResult] = await Promise.all([
     supabase
         .from("transactions")
         .select("*")
@@ -46,12 +46,6 @@ export default async function AltimeterPage() {
         .select("*")
         .eq("user_id", user.id)
         .order("year", { ascending: false })
-        .limit(10000),
-      supabase
-        .from("expense_categories")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("sort_order")
         .limit(10000),
       supabase
         .from("expense_items")
@@ -76,29 +70,16 @@ export default async function AltimeterPage() {
   const pipelineDeals = pipelineResult.data ?? [];
   const historyItems = (historyResult.data ?? []) as HistoryItem[];
 
-  // Compute expense totals for Altimeter insights
-  const expenseCategories = (expCatResult.data ?? []).map((cat: { id: string }) => ({
-    ...cat,
-    items: (expItemResult.data ?? []).filter((i: { category_id: string }) => i.category_id === cat.id),
-  }));
-  // Net of the GST/HST a registrant claims back as ITCs (expense-totals-engine).
-  const taxCtx = expenseTaxContext(settings);
-  const receiptYTD = aggregateReceiptTotals(receiptTotalsResult.data, taxCtx).total;
-  const legacyMonthlyRecurring = expenseCategories.reduce(
-    (sum: number, cat: { items: { monthly_recurring?: number | string }[] }) =>
-      sum + cat.items.reduce((s: number, i: { monthly_recurring?: number | string }) => s + Number(i.monthly_recurring ?? 0), 0), 0,
-  );
-  const recurringExps = recurringExpensesNetOfItc(
-    (recurringExpResult.data ?? []) as RecurringExpense[],
-    taxCtx,
-  );
-  const recurringExpMonthly = totalRecurringMonthly(recurringExps);
-  const recurringExpYTD = totalRecurringYTD(recurringExps, today);
-  const altMonthlyRecurring = legacyMonthlyRecurring + recurringExpMonthly;
-  // Integer months elapsed (1-12) — matches the dashboard. See
-  // dashboard_metric_divergence_fix_2026-06-26.md.
-  const expMonthsElapsed = today.getMonth() + 1;
-  const altExpensesYTD = Math.max(receiptYTD, legacyMonthlyRecurring * expMonthsElapsed) + recurringExpYTD;
+  // Expense totals for Altimeter insights: the dashboard's one engine call
+  // (t2125-expenses-engine). Receipts, the per-item monthly figures and the
+  // Recurring Expenses list, net of the ITCs a registrant claims.
+  const expenseTotals = ytdExpenseTotals({
+    receipts: receiptTotalsResult.data,
+    recurring: (recurringExpResult.data ?? []) as RecurringExpense[],
+    expenseItems: expItemResult.data,
+    ctx: expenseTaxContext(settings),
+    now: today,
+  });
 
   return (
     <AltimeterContent
@@ -107,8 +88,8 @@ export default async function AltimeterPage() {
       settings={settings}
       historyItems={historyItems}
       isPro={await computeIsPro(supabase, user.id, settings)}
-      recurringExpMonthly={altMonthlyRecurring}
-      expensesYTD={altExpensesYTD}
+      recurringExpMonthly={expenseTotals.monthlyRecurring}
+      expensesYTD={expenseTotals.expensesYTD}
     />
   );
 }

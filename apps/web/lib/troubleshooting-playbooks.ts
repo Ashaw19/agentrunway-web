@@ -155,7 +155,7 @@ Reports → T2125 computes lines 8521 to 9369 from expenses incurred to date (t2
 - Receipts saved with no category (line 9270).
 - Every active entry in the Recurring Expenses list, for the occurrences so far this year. Added 2026-10-13: before that the list was left out of every T2125 line, so line 9369 was too low and net business income (line 8270) and the T2125 tab's tax figures were too high by that amount.
 - Home Office bills are not expense lines: they are costs behind line 9945.
-The Expenses page "Est. Tax Deductible YTD" card is the same calculation, so line 9369 equals that card less its Home Office part.
+The Expenses page "Est. Tax Deductible YTD" card is the same calculation, so line 9369 equals that card less its Home Office part. The dashboard's and the Reports headline's YTD Expenses are the same lines before the limits (ytdExpenseTotals), so they equal the Expenses page's YTD Expenses.
 The T2125 tab's tax figure is on year-to-date income and expenses. The dashboard and Forecast estimates are on projected annual figures, so the two are different numbers by design.
 
 **Step 1: CPP/QPP** (self-employed pay both halves)
@@ -394,8 +394,10 @@ Recurring expenses work the same way: amount is what is charged, hst_amount is t
 
 Still shown as paid (GST/HST included): each receipt, the receipt log and its CSV/PDF, and the Recurring Expenses list with its "as charged" monthly and annual totals.
 
-### Est. Tax Deductible YTD and the T2125 lines (one calculation)
-Source of truth: packages/core/engines/t2125-expenses-engine.ts (buildT2125Expenses). The Expenses page and the Reports page both call it, so the "Est. Tax Deductible YTD" card, the Deductible column, YTD Expenses and the T2125 expense lines come from the same lines. Line 9369 on the T2125 tab = the card's total less its Home Office part (Home Office is line 9945).
+### YTD Expenses, Est. Tax Deductible YTD and the T2125 lines (one calculation)
+Source of truth: packages/core/engines/t2125-expenses-engine.ts (ytdExpenseTotals, which builds its lines with buildT2125Expenses). Every surface that shows or uses year-to-date expenses calls it, so "YTD Expenses" is one figure everywhere: the Expenses page, the dashboard, the Reports headline and its "Expenses by Category" table, Forecast, Overhead, Altimeter, Scenarios, Flight Crew's context and the [EXPENSE DIAGNOSTIC], the weekly digest and the Claude Connector. The same lines give the "Est. Tax Deductible YTD" card, the Deductible column and the T2125 expense lines. Line 9369 on the T2125 tab = the card's total less its Home Office part (Home Office is line 9945).
+
+YTD Expenses = the sum of the three sources below. Monthly Recurring = the "/mo" figures on expense items plus the monthly equivalent of each active Recurring Expenses entry, from the same call.
 
 What it counts, to date only (no future month or charge):
 | Source | Amount |
@@ -417,7 +419,9 @@ Expenses not filed under one of the standard items are not dropped (they were un
 
 Changed 2026-10-13: the Recurring Expenses list now counts in Est. Tax Deductible and on the T2125 lines (it was in YTD Expenses only), and recurring rows in the Categories table show a real Deductible amount (50% or the vehicle %) instead of repeating the YTD amount.
 
-Known difference left in place: the Expenses page compares receipts with the "/mo" figure item by item; the dashboard, Reports headline, Overhead, Forecast and Flight Crew compare the two totals. They differ only for an account that has "/mo" figures on some items and receipts on others, and then the Expenses page (and the T2125 lines) is the higher figure.
+Also changed 2026-10-13: one YTD Expenses figure on every screen. Before that date the Expenses page and the T2125 lines compared receipts with the "/mo" figure item by item (as in the table above), while the dashboard, Reports headline, Forecast, Overhead, Altimeter, Scenarios, Flight Crew, the weekly digest and the Connector compared the receipt TOTAL with the "/mo" TOTAL and kept the larger, which left the smaller side out whole. An account with "/mo" figures on some items and receipts on others read lower on those screens than on its Expenses page. They now all use the item-by-item figure. For such an account YTD Expenses on those screens went UP that day with no data change, and everything built on it moved with it: expense ratio and the Runway Score expense sub-score, net income, the tax estimate, cash position and cash runway. An account with no "/mo" figures saw no change.
+
+Reports → "Expenses by Category" (table, donut and the business report PDF), same date: each category row is that category's receipts, "/mo" figures and Recurring Expenses entries, with a last row "Not in a category" for receipts saved with no category or filed under a category that isn't listed. The YTD column adds up to YTD Expenses and the Monthly column to Monthly Recurring. Before that date the rows listed receipts only, under a Total that also held the "/mo" figures and the Recurring Expenses list, so the rows came short of the Total. The Expenses page's Categories table groups the same lines the same way.
 
 ### Expense Categories — CRA T2125 Mapping
 
@@ -521,7 +525,7 @@ If a user asks "what are these tips?" or "why is Agent Runway showing me this?" 
 **"My expense total is lower than my receipts add up to" / "My expenses dropped on October 13" / "Expenses don't match my bank statement"**
 1. Check gst_hst_registered. If true, this is expected: totals are net of the GST/HST claimed as input tax credits. The receipts still show what was paid.
 2. The gap is the ITCs on the GST34 summary, plus the personal-use share of vehicle GST/HST.
-3. The [EXPENSE DIAGNOSTIC] "Amount paid including GST/HST" line gives the paid figure to compare.
+3. The [EXPENSE DIAGNOSTIC] "The same expenses with GST/HST included" figure is the total with that GST/HST left in (what someone not registered would see), to compare. Home Office bills count at the home office share in both figures, so neither equals the receipts added up when there are home bills.
 4. Before 2026-10-13 totals included that GST/HST, so a registrant's totals went down that day with no data change.
 
 **"I'm registered but my expense total still includes the HST"**
@@ -561,9 +565,22 @@ If a user asks "what are these tips?" or "why is Agent Runway showing me this?" 
 **"Why is this expense on line 9270 Other?" / "What is 'No item chosen' / 'Not in a category above'?"**
 → The expense has no category, or is under a custom item, so there is no T2125 line of its own for it. It counts in full on line 9270. Editing the receipt or recurring expense and choosing a specific item moves it to that item's line. "No item chosen" is an expense filed under the whole category; it counts as that category's first-choice item.
 
-**"The Expenses page total is higher than the dashboard's"**
-1. Check for "/mo" figures on expense items alongside receipts on other items. The Expenses page counts the larger of the two item by item; the dashboard compares the two totals. See "Known difference left in place" above.
-2. Check for the same bill entered twice: a "/mo" figure on an item and an entry in the Recurring Expenses list both count. Clearing the "/mo" box leaves the Recurring Expenses entry as the one record of it.
+**"My dashboard / Reports expenses went up on October 13" / "My Runway Score, net income or tax estimate changed on October 13 with no new data" / "The Expenses page total used to be higher than the dashboard's"**
+1. Check for "/mo" figures on expense items alongside receipts on other items. Before 2026-10-13 the dashboard, Reports, Forecast, Overhead and Flight Crew left the smaller of those two groups out; the Expenses page and the T2125 lines counted both. See "one YTD Expenses figure on every screen" above.
+2. Since that date every screen shows the Expenses page's figure. No data changed. The Expenses page and the T2125 lines did not move.
+3. With no "/mo" figures on any item, this change did not affect the account: look at the GST/HST and Recurring Expenses changes of the same date instead.
+
+**"The Expenses page total doesn't match the dashboard's"**
+1. They are one calculation, so with the same data they are equal. The dashboard shows the figure as of when the page loaded; the Expenses page updates as entries, the vehicle business-use % or the home office % are edited. Reloading the dashboard brings it up to date.
+2. If they still differ after a reload of both, that is a bug: report it with both figures.
+
+**"The same bill seems to be counted twice" / "My expenses look too high"**
+1. Check for the same bill entered two ways: a "/mo" figure on an expense item and an entry in the Recurring Expenses list for the same cost. They are two entries, so both count, on every screen. Clearing the "/mo" box leaves the Recurring Expenses entry as the one record of it.
+2. Receipts for a bill and a "/mo" figure on the SAME item are not counted twice: the larger of the two counts for that item.
+3. Receipts for a bill that is also in the Recurring Expenses list do both count: the list entry counts by its schedule, whether or not a receipt was saved.
+
+**"The category rows on Reports don't add up to the total"**
+→ Since 2026-10-13 they do: each row includes that category's receipts, "/mo" figures and Recurring Expenses entries, and a "Not in a category" row carries the rest. Rows at $0 are hidden. Before that date the rows were receipts only. If they don't add up after a reload, that is a bug: report it.
 
 **"Receipt scan didn't capture correctly"**
 → OCR works best with clear photos, good lighting, and flat receipts. Crumpled/faded receipts may need manual entry.

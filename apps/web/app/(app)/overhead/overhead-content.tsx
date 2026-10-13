@@ -503,15 +503,16 @@ interface Props {
   transactions: Transaction[];
   settings: UserSettings | null;
   expenseCategories: ExpenseCategoryWithItems[];
-  receiptYTD?: number;
+  /** Year-to-date expenses: ytdExpenseTotals(...).expensesYTD (t2125-expenses-engine), the Expenses page's total. */
+  expensesYTD?: number;
+  /** Expected each month: ytdExpenseTotals(...).monthlyRecurring. */
+  monthlyRecurring?: number;
   mileageKmTotal?: number;
   ccaAssetCount?: number;
   historyItems?: HistoryItem[];
   pipelineDeals?: PipelineDeal[];
   isPro?: boolean;
   scenarioSeed?: ScenarioSeedData | null;
-  recurringExpMonthly?: number;
-  recurringExpYTD?: number;
 }
 
 type OverheadTab = "overview" | "scenarios";
@@ -566,15 +567,14 @@ export function OverheadContent({
   transactions,
   settings,
   expenseCategories,
-  receiptYTD = 0,
+  expensesYTD = 0,
+  monthlyRecurring = 0,
   mileageKmTotal = 0,
   ccaAssetCount = 0,
   historyItems = [],
   pipelineDeals = [],
   isPro: isPro = false,
   scenarioSeed = null,
-  recurringExpMonthly = 0,
-  recurringExpYTD = 0,
 }: Props) {
   const [activeTab, setActiveTab] = useState<OverheadTab>("overview");
   const now = new Date();
@@ -619,19 +619,10 @@ export function OverheadContent({
   const projectedDealCount = projectedYearEndTransactions(ytdDealCount, pipelineCount, fraction);
 
   // ── Expenses ───────────────────────────────────────────────────────────
-  // Includes both legacy expense_items.monthly_recurring AND new recurring_expenses table
-  const receiptTotal = receiptYTD;
-  const legacyMonthlyRecurring = expenseCategories.reduce(
-    (sum, cat) =>
-      sum + cat.items.reduce((s, i) => s + Number(i.monthly_recurring), 0),
-    0,
-  );
-  const monthlyRecurring = legacyMonthlyRecurring + recurringExpMonthly;
-  // Integer months elapsed (1-12) — matches the dashboard. See
-  // dashboard_metric_divergence_fix_2026-06-26.md.
-  const expMonthsElapsed = now.getMonth() + 1;
-  const legacyRecurringYTDEstimate = legacyMonthlyRecurring * expMonthsElapsed;
-  const expensesYTD = Math.max(receiptTotal, legacyRecurringYTDEstimate) + recurringExpYTD;
+  // `expensesYTD` and `monthlyRecurring` arrive from the page's one engine
+  // call (ytdExpenseTotals, t2125-expenses-engine): receipts, the per-item
+  // monthly figures and the Recurring Expenses list. Nothing here combines
+  // them, so this is the dashboard's and the Expenses page's figure.
 
   const expRemainingMonths = Math.max(0, 12 - (now.getMonth() + 1));
   const annualExpenses = expensesYTD + monthlyRecurring * expRemainingMonths;

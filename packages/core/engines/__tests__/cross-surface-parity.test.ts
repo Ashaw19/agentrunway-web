@@ -45,7 +45,10 @@ import { compute as computeRunwayScore } from "../runway-score-engine";
 import { compare as benchmarkCompare } from "../benchmark-engine";
 import { computeHSTCollected } from "../hst-engine";
 import { gstHstRate } from "../canadian-tax-engine";
-import { computeGCI, computeWeightedGCI, activePipelineDeals, type Transaction } from "../../types/database";
+import { computeGCI, computeWeightedGCI, activePipelineDeals, type RecurringExpense, type Transaction } from "../../types/database";
+import { aggregateReceiptTotals, expenseTaxContext } from "../expense-totals-engine";
+import { buildT2125Expenses, ytdExpenseTotals } from "../t2125-expenses-engine";
+import { computeT2125 } from "../t2125-engine";
 import { createTestSettings } from "./test-data";
 
 // Pinned mid-year so seasonal fraction + remaining-months math is stable and
@@ -267,6 +270,196 @@ describe("expense months-elapsed is integer (getMonth()+1), not fractional", () 
     expect(integerEstimate).toBe(7_000);
     // The two forms genuinely differ — proving the fix is observable.
     expect(integerEstimate).not.toBe(fractionalEstimate);
+  });
+});
+
+// ── Year-to-date expenses: the Expenses page against the dashboard ───────────
+//
+// Until 2026-10-13 two rules combined receipts with the per-item monthly
+// figure. The Expenses page and the T2125 tab took the larger PER ITEM. The
+// dashboard, Reports headline, Forecast, Overhead, Altimeter, Scenarios, chat
+// route, chat diagnostics, weekly digest and MCP took the larger of the two
+// TOTALS and dropped the smaller side whole. On an account with monthly
+// figures on some items and receipts on others, the Expenses page showed a
+// higher "YTD Expenses" than the dashboard on the same data.
+//
+// Every surface now calls `ytdExpenseTotals`. Each derivation below feeds it
+// the rows that surface reads, in the shape that surface reads them
+// (apps/web/lib/__tests__/expense-totals-canonical.test.ts proves the
+// surfaces make the call). Unlike the checks above, this one also pins the
+// figure to arithmetic done by hand, so the surfaces can't agree on a wrong
+// number.
+
+describe("YTD expenses: the Expenses page total equals the dashboard's", () => {
+  // The production shape that showed the drift: monthly figures on two
+  // items, receipts on other items, a Recurring Expenses row on one of the
+  // two monthly-figure items, a receipt with no category, and a monthly
+  // figure on an item of a category the Expenses page hides.
+  const SETTINGS_ROW = { gst_hst_registered: false, vehicle_business_use_pct: 0.8, home_office_business_use_pct: 0.15 };
+
+  const CATEGORY_ROWS = [
+    { id: "c-vehicle", key: "vehicle" },
+    { id: "c-office", key: "office_tech" },
+    { id: "c-marketing", key: "marketing" },
+    { id: "c-meals", key: "meals" },
+    { id: "c-payroll", key: "payroll" }, // hidden on the Expenses page (has_employees off)
+  ];
+  const ITEM_ROWS = [
+    { category_id: "c-vehicle", key: "vehicle_fuel", ytd_amount: 0, monthly_recurring: 0 },
+    { category_id: "c-vehicle", key: "vehicle_payment", ytd_amount: 0, monthly_recurring: 400 },
+    { category_id: "c-office", key: "office_phone", ytd_amount: 0, monthly_recurring: 90 },
+    { category_id: "c-marketing", key: "marketing_ads", ytd_amount: 0, monthly_recurring: 0 },
+    { category_id: "c-meals", key: "meals_client", ytd_amount: 0, monthly_recurring: 0 },
+    { category_id: "c-payroll", key: "payroll_wages", ytd_amount: 0, monthly_recurring: 50 },
+  ];
+  const RECEIPT_ROWS = [
+    { category_key: "marketing_ads", total_amount: 1200, tax_amount: null, expense_date: "2026-02-10" },
+    { category_key: "meals_client", total_amount: 300, tax_amount: null, expense_date: "2026-03-03" },
+    { category_key: "vehicle_fuel", total_amount: 800, tax_amount: null, expense_date: "2026-05-20" },
+    { category_key: null, total_amount: 60, tax_amount: null, expense_date: "2026-06-01" },
+  ];
+  const RECURRING_ROWS: RecurringExpense[] = [
+    {
+      id: "re-lease", user_id: "u1", name: "Lease", amount: 450, category_key: "vehicle_payment",
+      frequency: "monthly", day_of_month: 1, month_of_year: null, hst_included: false, hst_amount: 0,
+      vehicle_pct_applicable: true, notes: "", start_date: "2026-01-01", end_date: null, is_active: true,
+      created_at: "2026-01-01T12:00:00Z", updated_at: "2026-01-01T12:00:00Z",
+    },
+  ];
+
+  // By hand, on 15 July (seven months started), not registered:
+  //   monthly figures   vehicle_payment 400 × 7 = 2,800; office_phone 90 × 7 = 630;
+  //                     payroll_wages 50 × 7 = 350                                   3,780
+  //   receipts          1,200 + 300 + 800 on three other items, 60 with no category  2,360
+  //   recurring list    lease 450 × 7                                                3,150
+  const EXPECTED_YTD = 3_780 + 2_360 + 3_150;
+  const EXPECTED_MONTHLY = 400 + 90 + 50 + 450;
+
+  // Expenses page (expenses/page.tsx + expenses-content.tsx): the categories
+  // it shows, the hidden categories' items carried separately, the browser's
+  // clock, and the tax context from the page's editable percentages.
+  function expensesPage(settings = SETTINGS_ROW) {
+    const shown = CATEGORY_ROWS.filter((c) => c.key !== "payroll").map((c) => ({
+      ...c,
+      items: ITEM_ROWS.filter((i) => i.category_id === c.id),
+    }));
+    const shownIds = new Set(shown.map((c) => c.id));
+    const hiddenExpenseItems = ITEM_ROWS
+      .filter((i) => !shownIds.has(i.category_id))
+      .map((i) => ({ key: i.key, monthly_recurring: i.monthly_recurring }));
+    return ytdExpenseTotals({
+      receipts: RECEIPT_ROWS,
+      recurring: RECURRING_ROWS,
+      expenseItems: [...shown.flatMap((c) => c.items), ...hiddenExpenseItems],
+      ctx: {
+        gstHstRegistered: settings.gst_hst_registered === true,
+        vehicleBusinessUsePct: settings.vehicle_business_use_pct,
+        homeOfficeBusinessUsePct: settings.home_office_business_use_pct,
+      },
+      now: new Date(),
+    });
+  }
+
+  // Dashboard, Reports, Forecast, Overhead, Altimeter, Scenarios (their
+  // page.tsx): every expense_items row, the Atlantic day, expenseTaxContext.
+  function dashboard(settings = SETTINGS_ROW) {
+    return ytdExpenseTotals({
+      receipts: RECEIPT_ROWS.map(({ category_key, total_amount, tax_amount }) => ({ category_key, total_amount, tax_amount })),
+      recurring: RECURRING_ROWS,
+      expenseItems: ITEM_ROWS,
+      ctx: expenseTaxContext(settings),
+      now: NOW,
+    });
+  }
+
+  // Chat route and chat diagnostics: items arrive nested under categories.
+  function flightCrew(settings = SETTINGS_ROW) {
+    const expenseCategories = CATEGORY_ROWS.map((c) => ({
+      key: c.key,
+      expense_items: ITEM_ROWS.filter((i) => i.category_id === c.id).map((i) => ({ key: i.key, monthly_recurring: i.monthly_recurring })),
+    }));
+    return ytdExpenseTotals({
+      receipts: RECEIPT_ROWS,
+      recurring: RECURRING_ROWS,
+      expenseItems: expenseCategories.flatMap((cat) => cat.expense_items ?? []),
+      ctx: expenseTaxContext(settings),
+      now: NOW,
+    });
+  }
+
+  // Weekly digest and the MCP server: `key, monthly_recurring` straight off
+  // expense_items, with PostgREST's numeric strings.
+  function digestAndMcp(settings = SETTINGS_ROW) {
+    return ytdExpenseTotals({
+      receipts: RECEIPT_ROWS.map((r) => ({ ...r, total_amount: r.total_amount.toFixed(2) })),
+      recurring: RECURRING_ROWS,
+      expenseItems: ITEM_ROWS.map((i) => ({ key: i.key, monthly_recurring: i.monthly_recurring.toFixed(2) })),
+      ctx: expenseTaxContext(settings),
+      now: NOW,
+    });
+  }
+
+  it("is the figure worked out by hand, on every surface", () => {
+    for (const surface of [expensesPage, dashboard, flightCrew, digestAndMcp]) {
+      const t = surface();
+      expect(t.expensesYTD, surface.name).toBe(EXPECTED_YTD);
+      expect(t.monthlyRecurring, surface.name).toBe(EXPECTED_MONTHLY);
+    }
+  });
+
+  it("the rule this replaced showed the dashboard 2,360 below the Expenses page", () => {
+    // max(all receipts, all monthly figures × months) + recurring: the
+    // 2,360 of receipts were dropped whole because 3,780 of monthly figures
+    // on OTHER items was the larger total.
+    const largerOfTheTotals = Math.max(2_360, (400 + 90 + 50) * 7) + 3_150;
+    expect(largerOfTheTotals).toBe(6_930);
+    expect(expensesPage().expensesYTD - largerOfTheTotals).toBe(2_360);
+    expect(dashboard().expensesYTD).toBe(expensesPage().expensesYTD);
+  });
+
+  it("a monthly figure and a Recurring Expenses row on the same item both count, on every surface", () => {
+    for (const surface of [expensesPage, dashboard, flightCrew, digestAndMcp]) {
+      const onLease = surface().tracked.lines.filter((l) => l.key === "vehicle_payment");
+      expect(onLease.map((l) => [l.source, l.rawAmount]), surface.name).toEqual([["item", 2_800], ["recurring", 3_150]]);
+    }
+  });
+
+  it("the T2125 tab is built from the same lines: line 9369 is their deductible total", () => {
+    const totals = dashboard();
+    // reports/page.tsx hands `tracked.entries` to the T2125 tab.
+    const t2125 = computeT2125({
+      settings: createTestSettings({ ...SETTINGS_ROW, province: "newBrunswick" }),
+      transactions: CLOSED_TX,
+      expenses: totals.tracked.entries,
+      homeOfficeCosts: totals.tracked.homeOfficeCosts,
+      ccaAssets: [],
+      taxYear: 2026,
+    });
+    expect(t2125.line9369_totalExpenses).toBeCloseTo(totals.tracked.deductibleTotal - totals.tracked.byRule.home, 10);
+    // Before the limits (50% on the meal, 80% on fuel and the two lease
+    // entries) those lines are YTD Expenses.
+    expect(totals.tracked.lines.reduce((s, l) => s + l.rawAmount, 0)).toBe(totals.expensesYTD);
+    expect(totals.tracked.deductibleTotal).toBe(EXPECTED_YTD - 150 - 0.2 * (800 + 2_800 + 3_150));
+  });
+
+  it("a GST/HST registrant with a home office: still one figure on every surface", () => {
+    const registrant = { gst_hst_registered: true, vehicle_business_use_pct: 0.5, home_office_business_use_pct: 0.2 };
+    const page = expensesPage(registrant);
+    expect(dashboard(registrant).expensesYTD).toBe(page.expensesYTD);
+    expect(flightCrew(registrant).expensesYTD).toBe(page.expensesYTD);
+    expect(digestAndMcp(registrant).expensesYTD).toBe(page.expensesYTD);
+  });
+
+  it("calling the line builder directly (the Expenses page before this change) gives the same total", () => {
+    const ctx = expenseTaxContext(SETTINGS_ROW);
+    const direct = buildT2125Expenses({
+      receiptTotals: aggregateReceiptTotals(RECEIPT_ROWS, ctx),
+      expenseItems: ITEM_ROWS,
+      recurringExpenses: RECURRING_ROWS,
+      ctx,
+      now: NOW,
+    });
+    expect(direct.ytdTotal).toBe(dashboard().expensesYTD);
   });
 });
 

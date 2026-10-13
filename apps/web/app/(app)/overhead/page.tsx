@@ -2,8 +2,8 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { OverheadContent } from "./overhead-content";
 import type { HistoryItem, Transaction, PipelineDeal, SplitPreset, RecurringExpense } from "@/lib/types/database";
-import { totalRecurringMonthly, totalRecurringYTD } from "@agent-runway/core/engines/recurring-expense-engine";
-import { aggregateReceiptTotals, expenseTaxContext, recurringExpensesNetOfItc } from "@agent-runway/core/engines/expense-totals-engine";
+import { expenseTaxContext } from "@agent-runway/core/engines/expense-totals-engine";
+import { ytdExpenseTotals } from "@agent-runway/core/engines/t2125-expenses-engine";
 import { computeGCI, computeWeightedGCI, activePipelineDeals } from "@/lib/types/database";
 import { projectedYearEndGCI, projectedYearEndTransactions, seasonalFractionElapsed } from "@/lib/engines/projection-engine";
 import { computeEffectiveCashForSurvival } from "@/lib/engines/effective-cash";
@@ -95,15 +95,6 @@ export default async function OverheadPage() {
       .limit(10000),
   ]);
 
-  // Net of the GST/HST a registrant claims back as ITCs (expense-totals-engine).
-  const taxCtx = expenseTaxContext(rawSettings);
-  const recurringExpenses = recurringExpensesNetOfItc(
-    (recurringExpResult.data ?? []) as RecurringExpense[],
-    taxCtx,
-  );
-  const recurringExpMonthly = totalRecurringMonthly(recurringExpenses);
-  const recurringExpYTD = totalRecurringYTD(recurringExpenses, today);
-
   const transactions = (txResult.data ?? []) as Transaction[];
   const expenseItems = expItemResult.data ?? [];
   const pipelineDeals = (pipelineResult.data ?? []) as PipelineDeal[];
@@ -113,7 +104,16 @@ export default async function OverheadPage() {
     items: expenseItems.filter((i) => i.category_id === cat.id),
   }));
 
-  const receiptYTD = aggregateReceiptTotals(receiptTotalsResult.data, taxCtx).total;
+  // Year-to-date expenses and the monthly figure: the dashboard's one engine
+  // call (t2125-expenses-engine). Receipts, the per-item monthly figures and
+  // the Recurring Expenses list, net of the ITCs a registrant claims.
+  const { expensesYTD, monthlyRecurring } = ytdExpenseTotals({
+    receipts: receiptTotalsResult.data,
+    recurring: (recurringExpResult.data ?? []) as RecurringExpense[],
+    expenseItems,
+    ctx: expenseTaxContext(rawSettings),
+    now: today,
+  });
 
   const mileageKmTotal = (mileageResult.data ?? []).reduce(
     (sum, r) => sum + Number(r.km ?? 0),
@@ -129,12 +129,6 @@ export default async function OverheadPage() {
   // which fed terminal deals into projectedYearEndTransactions at +0.3 each.
   const livePipelineDeals = activePipelineDeals(pipelineDeals);
   const pipelineWeightedGCI = livePipelineDeals.reduce((sum, d) => sum + computeWeightedGCI(d), 0);
-  const legacyMonthlyRecurring = expenseItems.reduce((sum, i) => sum + Number(i.monthly_recurring ?? 0), 0);
-  const monthlyRecurring = legacyMonthlyRecurring + recurringExpMonthly;
-  // Integer months elapsed (1-12) — matches the dashboard. See
-  // dashboard_metric_divergence_fix_2026-06-26.md.
-  const expMonthsElapsed = today.getMonth() + 1;
-  const expensesYTD = Math.max(receiptYTD, legacyMonthlyRecurring * expMonthsElapsed) + recurringExpYTD;
   const qPcts = rawSettings?.national_quarter_pcts ?? [0.25, 0.25, 0.25, 0.25];
   const fraction = seasonalFractionElapsed(qPcts);
   const projectedGCI = projectedYearEndGCI(ytdGCI, pipelineWeightedGCI, fraction, rawSettings?.goal_gci ?? 0);
@@ -189,15 +183,14 @@ export default async function OverheadPage() {
       transactions={transactions}
       settings={rawSettings}
       expenseCategories={expenseCategories}
-      receiptYTD={receiptYTD}
+      expensesYTD={expensesYTD}
+      monthlyRecurring={monthlyRecurring}
       mileageKmTotal={mileageKmTotal}
       ccaAssetCount={ccaAssetCount}
       historyItems={(historyResult.data ?? []) as HistoryItem[]}
       pipelineDeals={pipelineDeals}
       isPro={await computeIsPro(supabase, user.id, rawSettings)}
       scenarioSeed={scenarioSeed}
-      recurringExpMonthly={recurringExpMonthly}
-      recurringExpYTD={recurringExpYTD}
     />
   );
 }

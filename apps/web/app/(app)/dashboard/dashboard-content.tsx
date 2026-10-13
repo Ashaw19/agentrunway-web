@@ -201,8 +201,10 @@ interface Props {
   pipelineDeals: PipelineDeal[];
   settings: UserSettings | null;
   expenseCategories: ExpenseCategoryWithItems[];
-  /** Current-year YTD total from receipt_expenses (replaces ytd_amount sum) */
-  receiptYTD?: number;
+  /** Year-to-date expenses: ytdExpenseTotals(...).expensesYTD (t2125-expenses-engine), the Expenses page's total. */
+  expensesYTD?: number;
+  /** Expected each month: ytdExpenseTotals(...).monthlyRecurring. */
+  monthlyRecurring?: number;
   historyItems?: HistoryItem[];
   initialDashboardView?: string;
   isPro?: boolean;
@@ -225,10 +227,6 @@ interface Props {
   aiProfilePromptDismissedAt?: string | null;
   activeListings?: ListingAppointment[];
   teamWelcome?: { orgName: string } | null;
-  /** Pre-computed monthly total from recurring_expenses table */
-  recurringExpMonthly?: number;
-  /** Pre-computed YTD total from recurring_expenses table */
-  recurringExpYTD?: number;
   /** ISO timestamp the server loaded this data — drives the freshness line. */
   dataAsOf?: string;
   /** income_goals rows (00169/00170): one goal per calendar year. */
@@ -312,7 +310,8 @@ export function DashboardContent({
   pipelineDeals,
   settings,
   expenseCategories,
-  receiptYTD = 0,
+  expensesYTD = 0,
+  monthlyRecurring = 0,
   historyItems = [],
   initialDashboardView: _initialDashboardView,
   isPro: isPro = false,
@@ -334,8 +333,6 @@ export function DashboardContent({
   aiProfilePromptDismissedAt = null,
   activeListings,
   teamWelcome = null,
-  recurringExpMonthly = 0,
-  recurringExpYTD = 0,
   dataAsOf,
   incomeGoals: initialIncomeGoals = [],
 }: Props) {
@@ -646,18 +643,10 @@ export function DashboardContent({
   });
 
   // ── Expenses ──────────────────────────────────────────────────────────
-  // Effective YTD: higher of receipt-verified actuals or recurring estimates
-  // Includes both legacy expense_items.monthly_recurring AND new recurring_expenses table
-  const receiptTotal = receiptYTD;
-  const legacyMonthlyRecurring = expenseCategories.reduce(
-    (sum, cat) =>
-      sum + cat.items.reduce((s, i) => s + Number(i.monthly_recurring), 0),
-    0,
-  );
-  const monthlyRecurring = legacyMonthlyRecurring + recurringExpMonthly;
-  const expMonthsElapsed = now.getMonth() + 1; // 1-12, consistent with expRemainingMonths denominator
-  const legacyRecurringYTDEstimate = legacyMonthlyRecurring * expMonthsElapsed;
-  const expensesYTD = Math.max(receiptTotal, legacyRecurringYTDEstimate) + recurringExpYTD;
+  // `expensesYTD` and `monthlyRecurring` arrive from the page's one engine
+  // call (ytdExpenseTotals, t2125-expenses-engine): receipts, the per-item
+  // monthly figures and the Recurring Expenses list. Nothing here combines
+  // them, so this is the Expenses page's "YTD Expenses".
 
   // ── Survival prep (pipeline monthly estimate) ──────────────────────────
   const remainingMonths = Math.max(1, 12 - Math.floor(fraction * 12));

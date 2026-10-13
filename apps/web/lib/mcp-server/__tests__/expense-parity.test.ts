@@ -8,34 +8,34 @@
  * disagreed with the dashboard. `get_hst_status` reported a manually typed
  * settings number as the ITCs, which no account had filled in: $0.
  *
- * The dashboard (app/(app)/dashboard/page.tsx + dashboard-content.tsx):
+ * The dashboard (app/(app)/dashboard/page.tsx) makes one engine call,
+ * `ytdExpenseTotals` (t2125-expenses-engine), over:
  *
  *   receipts   receipt_expenses, expense_date on or after Jan 1 (Atlantic year)
  *   recurring  recurring_expenses where is_active
- *   legacy     expense_items.monthly_recurring × months elapsed
- *   expensesYTD = max(receipts, legacy) + recurring YTD
+ *   items      expense_items: each item's monthly estimate × months elapsed
+ *
+ *   expensesYTD = per expense item, the larger of its receipts and its
+ *                 monthly estimate; plus receipts with no category; plus
+ *                 recurring year to date
  *
  * all net of the GST/HST a registrant claims as input tax credits
- * (expense-totals-engine, #297).
+ * (expense-totals-engine, #297). It is the Expenses page's "YTD Expenses".
+ * Until 2026-10-13 the dashboard and these tools compared the receipt TOTAL
+ * with the estimate TOTAL instead and kept the larger, which dropped the
+ * smaller side whole.
  *
  * These tests run the real tool handlers (tool-harness.ts) on fixtures and
- * compare them with that chain, computed here from the same engines the
- * dashboard calls. They also pin the dashboard's own lines: if the
- * dashboard's inputs or formula change, the pin fails and names what to
- * update on the MCP side.
+ * compare them with figures worked out by hand in the comments, and with the
+ * dashboard's call over the rows its queries return. They also pin the
+ * dashboard's own lines: if the dashboard's inputs change, the pin fails and
+ * names what to update on the MCP side.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import {
-  aggregateReceiptTotals,
-  expenseTaxContext,
-  recurringExpensesNetOfItc,
-} from "@agent-runway/core/engines/expense-totals-engine";
-import {
-  totalRecurringMonthly,
-  totalRecurringYTD,
-} from "@agent-runway/core/engines/recurring-expense-engine";
+import { expenseTaxContext } from "@agent-runway/core/engines/expense-totals-engine";
+import { ytdExpenseTotals } from "@agent-runway/core/engines/t2125-expenses-engine";
 import {
   projectedYearEndGCI,
   seasonalFractionElapsed,
@@ -198,9 +198,8 @@ function fixtures({ registered = true, legacyMonthly = 20 }: FixtureOptions = {}
 }
 
 /**
- * The dashboard's expense chain over the same fixture rows: the rows its
- * queries return (page.tsx), then page.tsx and dashboard-content.tsx line
- * for line.
+ * The dashboard's expenses over the same fixture rows: the rows its queries
+ * return, then its one engine call (page.tsx).
  */
 function dashboardExpenses(fx: Fixture) {
   const today = atlanticNoon();
@@ -211,22 +210,15 @@ function dashboardExpenses(fx: Fixture) {
   const recurringRows = fx.recurring.filter((r) => r.user_id === USER && r.is_active === true);
   const expenseItems = fx.items.filter((i) => i.user_id === USER);
 
-  // page.tsx
-  const taxCtx = expenseTaxContext(settingsRow);
-  const recurringExpenses = recurringExpensesNetOfItc(recurringRows, taxCtx);
-  const recurringExpMonthly = totalRecurringMonthly(recurringExpenses);
-  const recurringExpYTD = totalRecurringYTD(recurringExpenses, today);
-  const receiptYTD = aggregateReceiptTotals(receiptRows, taxCtx).total;
+  const expenseTotals = ytdExpenseTotals({
+    receipts: receiptRows,
+    recurring: recurringRows,
+    expenseItems,
+    ctx: expenseTaxContext(settingsRow),
+    now: today,
+  });
 
-  // dashboard-content.tsx
-  const receiptTotal = receiptYTD;
-  const legacyMonthlyRecurring = expenseItems.reduce((s, i) => s + Number(i.monthly_recurring), 0);
-  const monthlyRecurring = legacyMonthlyRecurring + recurringExpMonthly;
-  const expMonthsElapsed = today.getMonth() + 1;
-  const legacyRecurringYTDEstimate = legacyMonthlyRecurring * expMonthsElapsed;
-  const expensesYTD = Math.max(receiptTotal, legacyRecurringYTDEstimate) + recurringExpYTD;
-
-  return { expensesYTD, monthlyRecurring, receiptYTD, recurringExpYTD, legacyRecurringYTDEstimate };
+  return { expensesYTD: expenseTotals.expensesYTD, monthlyRecurring: expenseTotals.monthlyRecurring };
 }
 
 type ExpenseLine = { key: string | null; title: string; category: string; ytd_amount: number; monthly_recurring: number };
@@ -236,7 +228,7 @@ type ExpensesOutput = {
   total_ytd: number;
   total_monthly_recurring: number;
   projected_annual_recurring: number;
-  ytd_components: { receipts: number; recurring: number; monthly_estimates: number };
+  ytd_components: { receipts: number; monthly_estimates_above_receipts: number; recurring: number; formula: string };
   by_category: Array<{ category: string; ytd_total: number; monthly_recurring: number; top_items: string[] }>;
   all_items: ExpenseLine[];
 };
@@ -259,35 +251,49 @@ afterEach(() => {
 // ── get_dashboard_kpis ─────────────────────────────────────────────────────
 
 describe("get_dashboard_kpis — expenses are the dashboard's", () => {
-  it("registrant: receipts + recurring, net of ITCs, not expense_items.ytd_amount", async () => {
+  it("registrant: receipts + monthly estimates + recurring, net of ITCs, not expense_items.ytd_amount", async () => {
     const fx = fixtures();
     const db = fakeSupabase(fx.tables);
     const out = await callTool(await analytics(db), "get_dashboard_kpis");
 
-    // Receipts 443.75 (legacy estimate 20 × 10 = 200 is smaller) + lease
-    // 500 × 10 + dues 200 × 3 = 6,043.75.
-    expect(dashboardExpenses(fx).expensesYTD).toBe(6043.75);
-    expect(out.ytd_expenses).toBe(6044);
+    // Receipts 443.75, of which 100 is board dues. The dues line also has a
+    // $20 monthly estimate: 20 × 10 = 200, the larger of the two for that
+    // item, so 100 more. Plus lease 500 × 10 + dues 200 × 3 = 6,143.75.
+    expect(dashboardExpenses(fx).expensesYTD).toBe(6143.75);
+    expect(out.ytd_expenses).toBe(6144);
     expect(out.ytd_gci).toBe(30000);
-    expect(out.ytd_net_income).toBe(23956);
+    expect(out.ytd_net_income).toBe(23856);
+  });
+
+  it("an estimate on one item no longer vanishes behind receipts on the others", async () => {
+    const fx = fixtures();
+    const out = await callTool(await analytics(fakeSupabase(fx.tables)), "get_dashboard_kpis");
+
+    // The rule this replaced compared the totals: max(443.75 of receipts,
+    // 200 of estimates) + 5,600 = 6,043.75, as if the estimate were not there.
+    const largerOfTheTotals = Math.max(443.75, 20 * 10) + 5600;
+    expect(dashboardExpenses(fx).expensesYTD - largerOfTheTotals).toBe(100);
+    expect(out.ytd_expenses).toBe(Math.round(largerOfTheTotals + 100));
   });
 
   it("someone not registered for GST/HST: the amounts paid", async () => {
     const fx = fixtures({ registered: false });
     const out = await callTool(await analytics(fakeSupabase(fx.tables)), "get_dashboard_kpis");
 
-    // 498.50 of receipts + lease 575 × 10 + dues 230 × 3.
-    expect(dashboardExpenses(fx).expensesYTD).toBe(6938.5);
-    expect(out.ytd_expenses).toBe(Math.round(6938.5));
+    // 498.50 of receipts (dues 115, so the 200 estimate adds 85) + lease
+    // 575 × 10 + dues 230 × 3.
+    expect(dashboardExpenses(fx).expensesYTD).toBe(7023.5);
+    expect(out.ytd_expenses).toBe(Math.round(7023.5));
   });
 
-  it("the legacy monthly estimate stands in for receipts when it is the larger", async () => {
+  it("an item's monthly estimate stands in for that item's receipts when it is the larger", async () => {
     const fx = fixtures({ legacyMonthly: 100 });
     const out = await callTool(await analytics(fakeSupabase(fx.tables)), "get_dashboard_kpis");
 
-    // 100 × 10 months = 1,000 > 443.75 of receipts.
-    expect(dashboardExpenses(fx).expensesYTD).toBe(6600);
-    expect(out.ytd_expenses).toBe(6600);
+    // Board dues: 100 × 10 months = 1,000 against 100 of receipts. The other
+    // 343.75 of receipts are on other items and still count.
+    expect(dashboardExpenses(fx).expensesYTD).toBe(1000 + 343.75 + 5600);
+    expect(out.ytd_expenses).toBe(6944);
   });
 
   it("reads the dashboard's tables with the dashboard's filters", async () => {
@@ -314,6 +320,8 @@ describe("get_dashboard_kpis — expenses are the dashboard's", () => {
     const [items] = db.queriesFor("expense_items");
     expect(items.filters).toEqual([`eq(user_id,${USER})`]);
     expect(items.columns).toContain("monthly_recurring");
+    // The estimate counts per item, so the item key is read with it.
+    expect(items.columns.split(",").map((c) => c.trim())).toContain("key");
     expect(items.columns).not.toContain("ytd_amount");
 
     const settingsColumns = db.queriesFor("user_settings").map((q) => q.columns).join(", ");
@@ -330,10 +338,11 @@ describe("get_dashboard_kpis — expenses are the dashboard's", () => {
     const out = await callTool(await analytics(db), "get_dashboard_kpis");
 
     expect(db.queriesFor("receipt_expenses")[0].filters).toContain("gte(expense_date,2026-01-01)");
-    // Receipts 443.75 + lease 500 × 12 + dues 200 × 4. In UTC it would be
-    // 2027: no receipts yet and one month of the lease.
-    expect(dashboardExpenses(fx).expensesYTD).toBe(7243.75);
-    expect(out.ytd_expenses).toBe(7244);
+    // Receipts 443.75 + 140 (the dues estimate, 20 × 12 = 240, over its 100
+    // of receipts) + lease 500 × 12 + dues 200 × 4. In UTC it would be 2027:
+    // no receipts yet and one month of the lease.
+    expect(dashboardExpenses(fx).expensesYTD).toBe(7383.75);
+    expect(out.ytd_expenses).toBe(7384);
   });
 });
 
@@ -417,11 +426,13 @@ describe("get_expenses — the same total, with its lines", () => {
     const out = await callTool<ExpensesOutput>(await expenses(fakeSupabase(fx.tables)), "get_expenses");
     const kpis = await callTool(await analytics(fakeSupabase(fx.tables)), "get_dashboard_kpis");
 
-    expect(out.total_ytd).toBe(6043.75);
+    expect(out.total_ytd).toBe(6143.75);
     expect(Math.round(out.total_ytd)).toBe(kpis.ytd_expenses);
     expect(out.total_monthly_recurring).toBe(586.67); // 20 + 500 + 200/3
     expect(out.projected_annual_recurring).toBe(7040);
-    expect(out.ytd_components).toMatchObject({ receipts: 443.75, recurring: 5600, monthly_estimates: 200 });
+    expect(out.ytd_components).toMatchObject({ receipts: 443.75, monthly_estimates_above_receipts: 100, recurring: 5600 });
+    const { receipts, monthly_estimates_above_receipts, recurring } = out.ytd_components;
+    expect(receipts + monthly_estimates_above_receipts + recurring).toBe(out.total_ytd);
   });
 
   it("lists receipts by expense line and each recurring expense, and they add up to the total", async () => {
@@ -429,7 +440,8 @@ describe("get_expenses — the same total, with its lines", () => {
     const items = out.all_items;
 
     const line = (title: string) => items.find((i) => i.title === title);
-    expect(line("Board & MLS dues")).toMatchObject({ key: "prof_board_mls", category: "Professional", ytd_amount: 100, monthly_recurring: 20 });
+    // 100 of receipts and a $20 monthly estimate (200 so far): the larger, once.
+    expect(line("Board & MLS dues")).toMatchObject({ key: "prof_board_mls", category: "Professional", ytd_amount: 200, monthly_recurring: 20 });
     expect(line("Fuel")).toMatchObject({ key: "vehicle_fuel", category: "Vehicle", ytd_amount: 200 });
     expect(line("Car lease")).toMatchObject({ key: "vehicle_payment", category: "Vehicle", ytd_amount: 5000, monthly_recurring: 500 });
     expect(line("Board dues")).toMatchObject({ key: "prof_board_mls", category: "Professional", ytd_amount: 600, monthly_recurring: 66.67 });
@@ -442,6 +454,7 @@ describe("get_expenses — the same total, with its lines", () => {
 
     const sum = items.reduce((s, i) => s + i.ytd_amount, 0);
     expect(sum).toBeCloseTo(out.total_ytd, 2);
+    expect(items.reduce((s, i) => s + i.monthly_recurring, 0)).toBeCloseTo(out.total_monthly_recurring, 2);
 
     const categories = out.by_category;
     expect(categories.reduce((s, c) => s + c.ytd_total, 0)).toBeCloseTo(out.total_ytd, 2);
@@ -458,15 +471,16 @@ describe("get_expenses — the same total, with its lines", () => {
     expect(out.all_items.find((i) => i.title === "Car wash")).toMatchObject({ category: "Vehicle", ytd_amount: 200 });
   });
 
-  it("when the monthly estimates exceed the receipts, the difference is its own line and the lines still add up", async () => {
+  it("an item whose monthly estimate exceeds its receipts shows the estimate on its own line, and the lines still add up", async () => {
     const fx = fixtures({ legacyMonthly: 100 });
     const out = await callTool<ExpensesOutput>(await expenses(fakeSupabase(fx.tables)), "get_expenses");
 
-    // 100 × 10 months = 1,000 of estimates against 443.75 of receipts.
-    expect(out.total_ytd).toBe(6600);
-    expect(out.all_items.find((i) => i.title === "Monthly estimates above receipts")).toMatchObject({
-      key: null, category: "Monthly estimates", ytd_amount: 556.25,
-    });
+    // Board dues: 100 × 10 months = 1,000 of estimate against 100 of receipts.
+    expect(out.total_ytd).toBe(6943.75);
+    expect(out.all_items.find((i) => i.title === "Board & MLS dues")).toMatchObject({ ytd_amount: 1000, monthly_recurring: 100 });
+    expect(out.ytd_components.monthly_estimates_above_receipts).toBe(900);
+    // No filler line: every dollar of the total is on the line it belongs to.
+    expect(out.all_items.find((i) => i.category === "Monthly estimates")).toBeUndefined();
     expect(out.all_items.reduce((s, i) => s + i.ytd_amount, 0)).toBeCloseTo(out.total_ytd, 2);
     expect(out.by_category.reduce((s, c) => s + c.ytd_total, 0)).toBeCloseTo(out.total_ytd, 2);
   });
@@ -483,7 +497,7 @@ describe("get_expenses — the same total, with its lines", () => {
     const notRegistered = await callTool<ExpensesOutput>(await expenses(fakeSupabase(fixtures({ registered: false }).tables)), "get_expenses");
     expect(registrant.amounts).toMatch(/net of the GST\/HST/i);
     expect(notRegistered.amounts).toMatch(/as paid/i);
-    expect(notRegistered.total_ytd).toBe(6938.5);
+    expect(notRegistered.total_ytd).toBe(7023.5);
     // A home bill is never "as paid": the label says what share it counts at.
     expect(notRegistered.amounts).toContain("Home Office bills count at the 20% home office share, not in full.");
     expect(registrant.disclaimer).toMatch(/^Estimate only\./);
@@ -540,9 +554,9 @@ describe("Home Office bills count at the workspace share, as on the dashboard", 
     const kpis = await callTool(await analytics(fakeSupabase(fx.tables)), "get_dashboard_kpis");
     const out = await callTool<ExpensesOutput>(await expenses(fakeSupabase(fx.tables)), "get_expenses");
 
-    expect(dashboardExpenses(fx).expensesYTD).toBe(6043.75 + 40);
-    expect(kpis.ytd_expenses).toBe(6084);
-    expect(out.total_ytd).toBe(6083.75);
+    expect(dashboardExpenses(fx).expensesYTD).toBe(6143.75 + 40);
+    expect(kpis.ytd_expenses).toBe(6184);
+    expect(out.total_ytd).toBe(6183.75);
     expect(out.all_items.find((i) => i.key === "home_utilities")).toMatchObject({ ytd_amount: 40 });
   });
 
@@ -554,8 +568,8 @@ describe("Home Office bills count at the workspace share, as on the dashboard", 
   it("not registered: 20% of the whole bill, HST included", async () => {
     const fx = withPowerBill({ registered: false });
     const kpis = await callTool(await analytics(fakeSupabase(fx.tables)), "get_dashboard_kpis");
-    expect(dashboardExpenses(fx).expensesYTD).toBe(6938.5 + 46);
-    expect(kpis.ytd_expenses).toBe(Math.round(6938.5 + 46));
+    expect(dashboardExpenses(fx).expensesYTD).toBe(7023.5 + 46);
+    expect(kpis.ytd_expenses).toBe(Math.round(7023.5 + 46));
   });
 });
 
@@ -580,11 +594,12 @@ const squash = (src: string) => src.replace(/\s+/g, " ");
 const code = (src: string) => src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
 
 describe("the dashboard lines the MCP mirrors have not moved", () => {
-  // If one of these fails, the dashboard's expense inputs or formula changed.
-  // Make the same change in `ytdExpenseTotals` (packages/core/engines/
-  // expense-totals-engine.ts) and `loadExpenseInputs` (supabase/functions/
-  // mcp-server/lib/expense-inputs.ts), then update the pin.
-  it("page.tsx: receipts and recurring queries, Atlantic calendar, net of ITCs", () => {
+  // If one of these fails, the dashboard's expense inputs changed. Make the
+  // same change in `loadExpenseInputs` (supabase/functions/mcp-server/lib/
+  // expense-inputs.ts), then update the pin. The formula itself can't move
+  // apart: both sides call `ytdExpenseTotals` (packages/core/engines/
+  // t2125-expenses-engine.ts).
+  it("page.tsx: receipts, recurring and item queries, Atlantic calendar, one engine call", () => {
     const page = squash(read("app/(app)/dashboard/page.tsx"));
     for (const line of [
       'const today = atlanticNoon();',
@@ -592,30 +607,31 @@ describe("the dashboard lines the MCP mirrors have not moved", () => {
       '.from("receipt_expenses") .select("category_key, total_amount, tax_amount") .eq("user_id", user.id) .gte("expense_date", `${dashYear}-01-01`) .limit(10000)',
       '.from("recurring_expenses") .select("*") .eq("user_id", user.id) .eq("is_active", true) .limit(10000)',
       '.from("expense_items") .select("*") .eq("user_id", user.id) .limit(10000)',
-      "const taxCtx = expenseTaxContext(settingsRow);",
-      "const recurringExpMonthly = totalRecurringMonthly(recurringExpenses);",
-      "const recurringExpYTD = totalRecurringYTD(recurringExpenses, today);",
-      "const receiptYTD = aggregateReceiptTotals(receiptTotalsResult.data, taxCtx).total;",
+      "const expenseTotals = ytdExpenseTotals({ receipts: receiptTotalsResult.data, recurring: (recurringExpResult.data ?? []) as RecurringExpense[], expenseItems: expItemResult.data, ctx: expenseTaxContext(settingsRow), now: today, });",
+      "expensesYTD={expenseTotals.expensesYTD}",
+      "monthlyRecurring={expenseTotals.monthlyRecurring}",
     ]) {
       expect(page, line).toContain(line);
     }
   });
 
-  it("dashboard-content.tsx: max(receipts, legacy monthly × months) + recurring", () => {
-    const content = squash(read("app/(app)/dashboard/dashboard-content.tsx"));
+  it("dashboard-content.tsx: takes the two totals as given and combines nothing", () => {
+    const content = squash(code(read("app/(app)/dashboard/dashboard-content.tsx")));
     for (const line of [
-      "const receiptTotal = receiptYTD;",
-      "sum + cat.items.reduce((s, i) => s + Number(i.monthly_recurring), 0)",
-      "const monthlyRecurring = legacyMonthlyRecurring + recurringExpMonthly;",
-      "const expMonthsElapsed = now.getMonth() + 1;",
-      "const legacyRecurringYTDEstimate = legacyMonthlyRecurring * expMonthsElapsed;",
-      "const expensesYTD = Math.max(receiptTotal, legacyRecurringYTDEstimate) + recurringExpYTD;",
       "const annualExpenses = expensesYTD + monthlyRecurring * expRemainingMonths;",
       // Expenses are net of ITCs, so no ITC comes off the HST owing as well.
       "const ytdHstOnExpenses = 0;",
     ]) {
       expect(content, line).toContain(line);
     }
+    // The rule this replaced: the larger of the receipt total and the
+    // monthly-figure total, worked out in the component.
+    expect(content).not.toMatch(/const expensesYTD\b|const monthlyRecurring\b|legacyRecurringYTDEstimate|legacyMonthlyRecurring/);
+  });
+
+  it("the MCP loader makes the dashboard's call", () => {
+    const loader = squash(read("supabase/functions/mcp-server/lib/expense-inputs.ts"));
+    expect(loader).toContain("totals: ytdExpenseTotals({ receipts, recurring, expenseItems: items, ctx: taxCtx, now: today }),");
   });
 });
 
@@ -646,6 +662,7 @@ describe("the MCP server reads no dead or manual expense column", () => {
     expect(loader).toContain("ytdExpenseTotals(");
     expect(loader).toContain("inputTaxCreditsForPeriod(");
     expect(loader).toContain("_shared/core/engines/expense-totals-engine.ts");
+    expect(loader).toContain("_shared/core/engines/t2125-expenses-engine.ts");
     for (const file of ["tools/analytics.ts", "tools/expenses.ts"]) {
       const src = code(read(`${MCP}/${file}`));
       expect(src, file).toContain("loadExpenseInputs(");

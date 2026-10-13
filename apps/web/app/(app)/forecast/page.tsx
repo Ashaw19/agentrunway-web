@@ -2,8 +2,8 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { ForecastContent } from "./forecast-content";
 
-import { totalRecurringMonthly, totalRecurringYTD } from "@agent-runway/core/engines/recurring-expense-engine";
-import { aggregateReceiptTotals, expenseTaxContext, recurringExpensesNetOfItc } from "@agent-runway/core/engines/expense-totals-engine";
+import { expenseTaxContext } from "@agent-runway/core/engines/expense-totals-engine";
+import { ytdExpenseTotals } from "@agent-runway/core/engines/t2125-expenses-engine";
 import type { RecurringExpense } from "@/lib/types/database";
 import { computeIsPro } from "@/lib/compute-is-pro";
 import { atlanticNoon } from "@agent-runway/core/lib/local-date";
@@ -91,22 +91,21 @@ export default async function ForecastPage() {
         .limit(10000),
     ]);
 
-  // Net of the GST/HST a registrant claims back as ITCs (expense-totals-engine).
-  const taxCtx = expenseTaxContext(rawSettings);
-  const recurringExpenses = recurringExpensesNetOfItc(
-    (recurringExpResult.data ?? []) as RecurringExpense[],
-    taxCtx,
-  );
-  const recurringExpMonthly = totalRecurringMonthly(recurringExpenses);
-  const recurringExpYTD = totalRecurringYTD(recurringExpenses, today);
-
   const expenseCategories = (expCatResult.data ?? []).map((cat) => ({
     ...cat,
     items: (expItemResult.data ?? []).filter((i) => i.category_id === cat.id),
   }));
 
-  // Current-year receipt total for accurate expense YTD
-  const receiptYTD = aggregateReceiptTotals(receiptTotalsResult.data, taxCtx).total;
+  // Year-to-date expenses and the monthly figure: the dashboard's one engine
+  // call (t2125-expenses-engine). Receipts, the per-item monthly figures and
+  // the Recurring Expenses list, net of the ITCs a registrant claims.
+  const expenseTotals = ytdExpenseTotals({
+    receipts: receiptTotalsResult.data,
+    recurring: (recurringExpResult.data ?? []) as RecurringExpense[],
+    expenseItems: expItemResult.data,
+    ctx: expenseTaxContext(rawSettings),
+    now: today,
+  });
 
   // Sum mileage logs for tax optimization
   const mileageKmTotal = (mileageResult.data ?? []).reduce(
@@ -124,11 +123,10 @@ export default async function ForecastPage() {
       expenseCategories={expenseCategories}
       historyItems={historyResult.data ?? []}
       isPro={await computeIsPro(supabase, user.id, rawSettings)}
-      receiptYTD={receiptYTD}
+      expensesYTD={expenseTotals.expensesYTD}
+      monthlyRecurring={expenseTotals.monthlyRecurring}
       mileageKmTotal={mileageKmTotal}
       ccaAssetCount={ccaAssetCount}
-      recurringExpMonthly={recurringExpMonthly}
-      recurringExpYTD={recurringExpYTD}
     />
   );
 }

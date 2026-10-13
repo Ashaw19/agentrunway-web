@@ -14,6 +14,9 @@ import { ArrowRight, FlaskConical } from "lucide-react";
 import { SidebarNav } from "@/components/sidebar-nav";
 import { MobileNav } from "@/components/mobile-nav";
 import { DashboardContent } from "@/app/(app)/dashboard/dashboard-content";
+import { expenseTaxContext } from "@agent-runway/core/engines/expense-totals-engine";
+import { ytdExpenseTotals } from "@agent-runway/core/engines/t2125-expenses-engine";
+import { atlanticNoon } from "@agent-runway/core/lib/local-date";
 import type {
   Transaction,
   PipelineDeal,
@@ -510,7 +513,21 @@ const DEMO_EXPENSE_CATEGORIES: ExpenseCategoryWithItems[] = [
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
+// The sample expenses are monthly figures × months elapsed, so the page is
+// rebuilt daily: without this a static build would hold the month it was
+// deployed in.
+export const revalidate = 86400;
+
 export default function DemoDashboardPage() {
+  // The same engine call as the real dashboard (dashboard/page.tsx).
+  const demoExpenses = ytdExpenseTotals({
+    receipts: [],
+    recurring: [],
+    expenseItems: DEMO_EXPENSE_CATEGORIES.flatMap((cat) => cat.items),
+    ctx: expenseTaxContext(DEMO_SETTINGS),
+    now: atlanticNoon(),
+  });
+
   return (
     <div className="flex h-screen overflow-hidden" data-color-theme="blue">
       {/* Sidebar (same as real app; nav links redirect to /login for unauthenticated visitors) */}
@@ -549,6 +566,8 @@ export default function DemoDashboardPage() {
               pipelineDeals={DEMO_PIPELINE}
               settings={DEMO_SETTINGS}
               expenseCategories={DEMO_EXPENSE_CATEGORIES}
+              expensesYTD={demoExpenses.expensesYTD}
+              monthlyRecurring={demoExpenses.monthlyRecurring}
               initialDashboardView="standard"
               isPro={true}
               showUpgradeBanner={false}
