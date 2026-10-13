@@ -1473,7 +1473,7 @@ TOOL TRIGGERS:
 - Log expense → logExpense (pick the expense ITEM: fuel, ads, software, a client meal...; pass taxAmount only when the agent states the GST/HST, never worked out from a rate). For complex multi-receipt uploads or OCR, direct to /expenses. Edit an expense → searchExpenses → updateExpense.
 - Log mileage → logMileage (km driven, date, trip purpose).
 - Record referral → recordReferral (inbound or outbound, partner name, client name, fee %).
-- Recurring expense → createRecurringExpense. Delete → deleteRecurringExpense.
+- Recurring expense → createRecurringExpense (pass hstAmount only when the agent states the GST/HST inside each charge, never worked out from a rate). Delete → deleteRecurringExpense.
 - Record closed deal → recordTransaction (address, client, side, close date, sale price + commission% OR exact GCI). Edit an existing transaction → searchTransactions → updateTransaction.
 - Buy business equipment (laptop, camera, car, office furniture) → addCCAAsset with the right CCA class (8=office/furniture 20%, 10=vehicles 30%, 10.1=passenger vehicles >$37K 30%, 12=software/tools <$500 100%, 50=computers 55%).
 - Listing update ("that listing at 44 Main went live" / "sold" / "expired") → searchListingAppointments → updateListingAppointment.
