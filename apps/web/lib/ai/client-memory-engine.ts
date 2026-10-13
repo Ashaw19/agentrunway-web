@@ -182,6 +182,13 @@ export async function gatherClientData(
 
 // ── Prompt builder ──────────────────────────────────────────────────────────
 
+/**
+ * A timestamp as the Atlantic day it fell on. The prompt gives the model
+ * "Today's date" in Atlantic time, so a raw `2026-10-10T01:00:00+00:00` for
+ * a call made on Oct 9 at 10 pm reads as made tomorrow.
+ */
+const atlanticDay = (ts: string) => atlanticISODate(new Date(ts));
+
 export function buildMemoryPrompt(data: GatheredClientData): string {
   const c = data.client;
 
@@ -208,7 +215,7 @@ CRM pipeline status definitions (4-stage model):
 - Timeframe: ${c.timeframe ?? "unknown"}
 - Property Interest: ${c.property_interest ? `$${c.property_interest.toLocaleString()} (${c.property_interest_type})` : "unknown"}
 - Birthday: ${c.birthdate ?? "unknown"}
-- Last Contact: ${c.last_contact_at ?? "never"}
+- Last Contact: ${c.last_contact_at ? atlanticDay(c.last_contact_at) : "never"}
 `;
 
   prompt += dealHistoryPrompt(data.transactions);
@@ -216,14 +223,14 @@ CRM pipeline status definitions (4-stage model):
   if (data.activities.length > 0) {
     prompt += `\n## Contact Activities (${data.activities.length} most recent)\n`;
     for (const a of data.activities.slice(0, 30)) {
-      prompt += `- [${a.activity_date}] ${a.type}: ${a.description || "(no description)"}\n`;
+      prompt += `- [${atlanticDay(a.activity_date)}] ${a.type}: ${a.description || "(no description)"}\n`;
     }
   }
 
   if (data.client_notes.length > 0) {
     prompt += `\n## Agent Notes (${data.client_notes.length} entries — most recent first)\n`;
     for (const n of data.client_notes.slice(0, 20)) {
-      prompt += `- [${atlanticISODate(new Date(n.created_at))}] ${n.content}\n`;
+      prompt += `- [${atlanticDay(n.created_at)}] ${n.content}\n`;
     }
   }
 
@@ -252,7 +259,7 @@ CRM pipeline status definitions (4-stage model):
   if (data.outreach_history.length > 0) {
     prompt += `\n## Outreach History (${data.outreach_history.length})\n`;
     for (const o of data.outreach_history.slice(0, 10)) {
-      prompt += `- [${o.created_at}] ${o.opportunity_type} — ${o.status}${o.ai_subject ? ` — "${o.ai_subject}"` : ""}\n`;
+      prompt += `- [${atlanticDay(o.created_at)}] ${o.opportunity_type} — ${o.status}${o.ai_subject ? ` — "${o.ai_subject}"` : ""}\n`;
     }
   }
 

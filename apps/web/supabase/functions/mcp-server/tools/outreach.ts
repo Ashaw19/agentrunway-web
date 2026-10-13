@@ -1,5 +1,13 @@
 import type { SupabaseClient } from "npm:@supabase/supabase-js@2";
 import type { McpTool } from "./index.ts";
+import { atlanticISODate } from "../../_shared/core/lib/local-date.ts";
+
+/**
+ * A timestamptz as the agent's calendar day (as in tools/crm.ts). The raw
+ * value is UTC: a message sent at 10 pm Atlantic reads as sent tomorrow.
+ */
+const atlanticDay = (ts: string | null | undefined) =>
+  ts ? atlanticISODate(new Date(ts)) : null;
 
 export function getOutreachTools(supabase: SupabaseClient, userId: string): McpTool[] {
   return [
@@ -55,7 +63,7 @@ export function getOutreachTools(supabase: SupabaseClient, userId: string): McpT
           outreach_status: item.status,
           has_draft: !!item.ai_subject,
           subject_preview: item.final_subject ?? item.ai_subject ?? null,
-          sent_at: item.sent_at,
+          sent_at: atlanticDay(item.sent_at as string | null),
         }));
 
         const readyCount = (data ?? []).filter((i) => i.status === "ready").length;

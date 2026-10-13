@@ -30,8 +30,15 @@ import { contactableRecords, excludeCollapsedDeals } from "@/lib/crm/contactable
 import { lastClosedDealByClient, outreachChannel, withCoBuyerDeals } from "@/lib/crm/outreach-consent";
 import { recentlyContactedClientIds, outreachSuppressionCutoff } from "@/lib/crm/recently-contacted";
 import { selectTopCandidates, clientLifetimeGci } from "@/lib/crm/top-opportunity-selection";
-import { withoutDismissed } from "@/lib/crm/dismissed-opportunities";
-import { atlanticISODate, atlanticMonth, atlanticNoon, atlanticYear } from "@agent-runway/core/lib/local-date";
+import { withoutDismissed, type OpportunityKeyParts } from "@/lib/crm/dismissed-opportunities";
+import {
+  FIRST_CONTACT_TYPES,
+  contactAnniversaryCandidates,
+  newClientWelcomeCandidates,
+  recordedOccurrences,
+  type FirstContactOptions,
+} from "@/lib/crm/first-contact-triggers";
+import { addDaysISO, atlanticISODate, atlanticMonth, atlanticNoon, atlanticYear } from "@agent-runway/core/lib/local-date";
 import { nextBirthdayDate } from "@/lib/crm/next-birthday";
 import {
   quietLeadCandidates,
@@ -807,6 +814,43 @@ async function draftItem(
   }
 }
 
+// ── First-contact triggers: occurrences already on file ──────────────────────
+
+/** A legacy row sits at most a day past a trigger still inside its window. */
+const FIRST_CONTACT_LOOKBACK_DAYS = 30;
+
+/**
+ * Welcome and contact-anniversary rows already in outreach_queue, any
+ * status. A trigger dated before 2026-10-13 keeps the date it was filed
+ * under — see lib/crm/first-contact-triggers.ts.
+ */
+function firstContactOccurrences(supabase: SupabaseClient, userId: string) {
+  return supabase
+    .from("outreach_queue")
+    .select("client_id, opportunity_type, trigger_date")
+    .eq("user_id", userId)
+    .in("opportunity_type", [...FIRST_CONTACT_TYPES])
+    .gte("trigger_date", addDaysISO(atlanticISODate(), -FIRST_CONTACT_LOOKBACK_DAYS));
+}
+
+/**
+ * Options for the two first-contact detectors, or null when the rows on
+ * file could not be read. Without them an occasion already drafted or sent
+ * under its old date could be drafted again, so both detectors sit the run
+ * out.
+ */
+function firstContactOptions(
+  onFile:     { data: OpportunityKeyParts[] | null; error: { message: string } | null },
+  dismissals: readonly OpportunityKeyParts[],
+  suppressed: ReadonlySet<string>,
+): FirstContactOptions | null {
+  if (onFile.error || !onFile.data) {
+    console.error("[detect-opportunities] first-contact occurrences fetch failed:", onFile.error?.message);
+    return null;
+  }
+  return { windowDays: WINDOW_DAYS, suppressed, recorded: recordedOccurrences(onFile.data, dismissals) };
+}
+
 // ── Core detection + drafting logic (exported for cron wrapper) ───────────────
 
 /** One opportunity the agent clicked "Draft" on in Flight Control. */
@@ -823,7 +867,7 @@ export async function detectAndDraftForUser(
 ): Promise<{ detected: number; drafted: number; pinned: boolean }> {
   const { pin } = opts;
   // ── Fetch data ─────────────────────────────────────────────────────────────
-  const [settingsRes, clientsRes, recordsRes, memoryRes, sentRes, coPartiesRes, dismissedRes] = await Promise.all([
+  const [settingsRes, clientsRes, recordsRes, memoryRes, sentRes, coPartiesRes, dismissedRes, firstContactRes] = await Promise.all([
     supabase
       .from("user_settings")
       .select("display_name, email_signature, ai_voice_guide")
@@ -866,6 +910,7 @@ export async function detectAndDraftForUser(
       .from("flight_control_dismissals")
       .select("client_id, opportunity_type, trigger_date")
       .eq("user_id", userId),
+    firstContactOccurrences(supabase, userId),
   ]);
 
   const agentFirst      = extractFirstName(settingsRes.data?.display_name ?? null, "");
@@ -1005,45 +1050,16 @@ export async function detectAndDraftForUser(
     }
   }
 
-  // ── 5. New client welcome (Batch 2) ───────────────────────────────────────
-  for (const client of clients) {
-    if (!client.first_contacted_at) continue;
-    if (recentlyContactedIds.has(client.id)) continue; // suppress if recently contacted
-    const welcomeDate = addDays(client.first_contacted_at.slice(0, 10), 7);
-    const d = daysUntil(welcomeDate);
-    if (d >= -14 && d <= WINDOW_DAYS) {
-      inserts.push({
-        user_id:          userId,
-        client_id:        client.id,
-        opportunity_type: "new_client_welcome",
-        trigger_date:     toISODate(welcomeDate),
-        context: { first_contacted_at: client.first_contacted_at },
-        status: "draft",
-      });
-    }
-  }
-
-  // ── 6. Contact anniversary (Batch 2) ──────────────────────────────────────
-  for (const client of clients) {
-    if (!client.first_contacted_at) continue;
-    if (recentlyContactedIds.has(client.id)) continue; // suppress if recently contacted
-    const startDate  = client.first_contacted_at.slice(0, 10);
-    const yearsSince = atlanticYear() - new Date(startDate + "T12:00:00").getFullYear();
-    if (yearsSince < 1) continue;
-    for (const yr of [1, 2, 3, 5, 10]) {
-      if (yr > yearsSince + 1) break;
-      const annivDate = addYears(startDate, yr);
-      const d = daysUntil(annivDate);
-      if (d >= 0 && d <= WINDOW_DAYS) {
-        inserts.push({
-          user_id:          userId,
-          client_id:        client.id,
-          opportunity_type: "contact_anniversary",
-          trigger_date:     toISODate(annivDate),
-          context: { anniversary_year: yr, first_contacted_at: startDate },
-          status: "draft",
-        });
-      }
+  // ── 5 + 6. New client welcome, contact anniversary (Batch 2) ──────────────
+  // Dated from the Atlantic day of the first contact, suppressed if recently
+  // contacted — see lib/crm/first-contact-triggers.ts.
+  const firstContact = firstContactOptions(firstContactRes, dismissedRes.data ?? [], recentlyContactedIds);
+  if (firstContact) {
+    for (const c of [
+      ...newClientWelcomeCandidates(clients, firstContact),
+      ...contactAnniversaryCandidates(clients, firstContact),
+    ]) {
+      inserts.push({ user_id: userId, ...c, status: "draft" });
     }
   }
 
@@ -2200,7 +2216,7 @@ export async function getTopOpportunities(
   supabase: SupabaseClient,
 ): Promise<TopOpportunity[]> {
   // ── Fetch data (same as detectAndDraftForUser) ─────────────────────────────
-  const [clientsRes, recordsRes, memoryRes, sentRes, coPartiesRes, dismissedRes] = await Promise.all([
+  const [clientsRes, recordsRes, memoryRes, sentRes, coPartiesRes, dismissedRes, firstContactRes] = await Promise.all([
     supabase
       .from("clients")
       .select("id, name, city, province_region, birthdate, communication_tone, first_contacted_at, last_contact_at, created_at, tags, notes, status, scheduled_for, scheduled_phrase, email_opt_out_at")
@@ -2233,6 +2249,7 @@ export async function getTopOpportunities(
       .from("flight_control_dismissals")
       .select("client_id, opportunity_type, trigger_date")
       .eq("user_id", userId),
+    firstContactOccurrences(supabase, userId),
   ]);
 
   // A failed clients fetch would otherwise read as "no clients" and render
@@ -2350,18 +2367,10 @@ export async function getTopOpportunities(
   }
 
   // 5-9: Remaining triggers (welcome, contact anniversary, multi-deal, seasonal, mortgage, memory-powered)
-  // Welcome
-  for (const client of clients) {
-    if (!client.first_contacted_at) continue;
-    if (recentlyContactedIds.has(client.id)) continue;
-    const welcomeDate = addDays(client.first_contacted_at.slice(0, 10), 7);
-    const d = daysUntil(welcomeDate);
-    if (d >= -14 && d <= WINDOW_DAYS) {
-      inserts.push({
-        user_id: userId, client_id: client.id, opportunity_type: "new_client_welcome",
-        trigger_date: toISODate(welcomeDate), context: { first_contacted_at: client.first_contacted_at },
-      });
-    }
+  // Welcome — same helper as the write path (lib/crm/first-contact-triggers.ts)
+  const firstContact = firstContactOptions(firstContactRes, dismissedRes.data ?? [], recentlyContactedIds);
+  if (firstContact) {
+    for (const c of newClientWelcomeCandidates(clients, firstContact)) inserts.push({ user_id: userId, ...c });
   }
 
   // Scheduled-date approaching — surfaces clients in the Scheduled stage when
@@ -2388,23 +2397,8 @@ export async function getTopOpportunities(
   }
 
   // Contact anniversary
-  for (const client of clients) {
-    if (!client.first_contacted_at) continue;
-    if (recentlyContactedIds.has(client.id)) continue;
-    const startDate = client.first_contacted_at.slice(0, 10);
-    const yearsSince = atlanticYear() - new Date(startDate + "T12:00:00").getFullYear();
-    if (yearsSince < 1) continue;
-    for (const yr of [1, 2, 3, 5, 10]) {
-      if (yr > yearsSince + 1) break;
-      const annivDate = addYears(startDate, yr);
-      const d = daysUntil(annivDate);
-      if (d >= 0 && d <= WINDOW_DAYS) {
-        inserts.push({
-          user_id: userId, client_id: client.id, opportunity_type: "contact_anniversary",
-          trigger_date: toISODate(annivDate), context: { anniversary_year: yr, first_contacted_at: startDate },
-        });
-      }
-    }
+  if (firstContact) {
+    for (const c of contactAnniversaryCandidates(clients, firstContact)) inserts.push({ user_id: userId, ...c });
   }
 
   // Multi-deal milestone

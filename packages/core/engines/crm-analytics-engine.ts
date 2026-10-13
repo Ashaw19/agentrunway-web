@@ -14,6 +14,7 @@ import {
   type ListingAppointment,
 } from "../types/database";
 import { detectActivityDecay } from "./anomaly-engine";
+import { nextYearlyDate } from "../lib/local-date";
 
 // ── Intelligence Briefing types ──────────────────────────────────────────────
 
@@ -637,33 +638,23 @@ export function computeIntelligenceBriefing(
     }
 
     // ── 4. Birthday alerts (next 14 days) ──────────────────────────────────────
-    if (client.birthdate) {
-      const parts = client.birthdate.split("-");
-      if (parts.length === 3) {
-        const mm = parseInt(parts[1]) - 1;
-        const dd = parseInt(parts[2]);
-        if (!isNaN(mm) && !isNaN(dd) && mm >= 0 && mm <= 11 && dd >= 1 && dd <= 31) {
-          const thisYearBday = new Date(todayNoon.getFullYear(), mm, dd, 12);
-          const nextBday =
-            thisYearBday < todayNoon
-              ? new Date(todayNoon.getFullYear() + 1, mm, dd, 12)
-              : thisYearBday;
-          const daysUntil = calendarDaysUntil(nextBday, todayNoon);
-          if (daysUntil <= 14) {
-            const label =
-              daysUntil <= 0 ? "today!" : daysUntil === 1 ? "tomorrow" : `in ${daysUntil} days`;
-            items.push({
-              id: `bday_${client.id}_${nextBday.getFullYear()}`,
-              type: daysUntil <= 1 ? "birthday_today" : "birthday_soon",
-              severity: daysUntil <= 1 ? "urgent" : "upcoming",
-              clientId: client.id,
-              clientName: client.name,
-              title: `${client.name}: birthday ${label}`,
-              detail: nextBday.toLocaleDateString("en-CA", { month: "long", day: "numeric" }),
-              daysValue: Math.max(0, daysUntil),
-            });
-          }
-        }
+    // Shared with the mobile offline briefing: nextYearlyDate (local-date.ts).
+    const birthday = client.birthdate ? nextYearlyDate(client.birthdate, todayNoon) : null;
+    if (birthday) {
+      const { date: nextBday, daysUntil } = birthday;
+      if (daysUntil <= 14) {
+        const label =
+          daysUntil <= 0 ? "today!" : daysUntil === 1 ? "tomorrow" : `in ${daysUntil} days`;
+        items.push({
+          id: `bday_${client.id}_${nextBday.getFullYear()}`,
+          type: daysUntil <= 1 ? "birthday_today" : "birthday_soon",
+          severity: daysUntil <= 1 ? "urgent" : "upcoming",
+          clientId: client.id,
+          clientName: client.name,
+          title: `${client.name}: birthday ${label}`,
+          detail: nextBday.toLocaleDateString("en-CA", { month: "long", day: "numeric" }),
+          daysValue: Math.max(0, daysUntil),
+        });
       }
     }
 
