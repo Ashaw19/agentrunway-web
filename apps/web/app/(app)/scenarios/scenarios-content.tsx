@@ -89,6 +89,10 @@ function computeResult(
   expensesYTD: number,
   ytdGCI: number,
   comp: ScenarioSeedData["comp"],
+  /** What is still expected this year at today's recurring amounts (the dashboard's). */
+  baselineExpensesRemaining: number,
+  /** The monthly recurring amount that baseline was built from. */
+  baselineMonthlyRecurring: number,
 ): ComputedResult {
   // ── Match dashboard: deduct split, fees, brokerage, expenses before tax ──
   // Plan-aware (REAL analytic waterfall or legacy split) — mirrors
@@ -102,10 +106,16 @@ function computeResult(
   const txFees = planScenario ? planScenario.planFees : computeTxFees(annualGCI, txFeeRate, txFeeCap);
   const brokerageFeeAnnual = monthlyBrokerageFee * 12;
 
-  // Dashboard projects annual expenses: expensesYTD + monthlyRecurring * remainingMonths
+  // Dashboard projects annual expenses: expensesYTD + what is still expected
+  // this year. A what-if monthly amount changes the whole months still ahead,
+  // so with nothing changed this is the dashboard's figure.
   const now = new Date();
   const expRemainingMonths = Math.max(0, 12 - (now.getMonth() + 1));
-  const annualExpenses = expensesYTD + monthlyRecurring * expRemainingMonths;
+  const expensesRemaining = Math.max(
+    0,
+    baselineExpensesRemaining + (monthlyRecurring - baselineMonthlyRecurring) * expRemainingMonths,
+  );
+  const annualExpenses = expensesYTD + expensesRemaining;
 
   const projectedNet = agentGross - txFees - brokerageFeeAnnual;
   const netForTax = Math.max(0, projectedNet - annualExpenses - rrspContribution);
@@ -237,6 +247,8 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
         ...deductionArgs,
         seed.ytdGCI,
         seed.comp,
+        seed.expensesRemaining,
+        seed.monthlyRecurring,
       ),
     [seed, province, deductionArgs],
   );
@@ -260,6 +272,8 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
         ...deductionArgs,
         seed.ytdGCI,
         seed.comp,
+        seed.expensesRemaining,
+        seed.monthlyRecurring,
       ),
     [
       scenarioGCI,
@@ -277,6 +291,8 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
       deductionArgs,
       seed.ytdGCI,
       seed.comp,
+      seed.expensesRemaining,
+      seed.monthlyRecurring,
     ],
   );
 

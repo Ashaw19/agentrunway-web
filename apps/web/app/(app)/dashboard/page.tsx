@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { DashboardContent } from "./dashboard-content";
 import type { HistoryItem, ContactTask, Client, ContactActivity, ClientRecord, ListingAppointment, RunwayScoreHistory, RunwayScoreHistoryComponent } from "@/lib/types/database";
 import { computeIntelligenceBriefing, type BriefingItem } from "@/lib/engines/crm-analytics-engine";
-import { totalRecurringMonthly, totalRecurringYTD } from "@agent-runway/core/engines/recurring-expense-engine";
+import { totalRecurringMonthly, totalRecurringRemainingThisYear, totalRecurringYTD } from "@agent-runway/core/engines/recurring-expense-engine";
 import { aggregateReceiptTotals, expenseTaxContext, recurringExpensesNetOfItc } from "@agent-runway/core/engines/expense-totals-engine";
 import type { RecurringExpense } from "@/lib/types/database";
 import { computeIsPro } from "@/lib/compute-is-pro";
@@ -159,6 +159,7 @@ export default async function DashboardPage({
   );
   const recurringExpMonthly = totalRecurringMonthly(recurringExpenses);
   const recurringExpYTD = totalRecurringYTD(recurringExpenses, today);
+  const recurringExpRemaining = totalRecurringRemainingThisYear(recurringExpenses, today);
 
   // ── Runway Score trajectory backing (last 12 daily rows, DESC → ASC) ────
   // NUMERIC columns can arrive as strings over the wire — coerce defensively.
@@ -292,6 +293,7 @@ export default async function DashboardPage({
       teamWelcome={teamWelcome}
       recurringExpMonthly={recurringExpMonthly}
       recurringExpYTD={recurringExpYTD}
+      recurringExpRemaining={recurringExpRemaining}
       dataAsOf={new Date().toISOString()}
       scoreHistory={scoreHistory}
       incomeGoals={(incomeGoalsResult.data ?? []) as IncomeGoalRow[]}

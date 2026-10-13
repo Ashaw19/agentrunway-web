@@ -2,8 +2,8 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { ScenariosContent } from "./scenarios-content";
 import type { Transaction, PipelineDeal, SplitPreset, RecurringExpense } from "@/lib/types/database";
-import { totalRecurringMonthly, totalRecurringYTD } from "@agent-runway/core/engines/recurring-expense-engine";
-import { aggregateReceiptTotals, expenseTaxContext, recurringExpensesNetOfItc } from "@agent-runway/core/engines/expense-totals-engine";
+import { totalRecurringMonthly, totalRecurringRemainingThisYear, totalRecurringYTD } from "@agent-runway/core/engines/recurring-expense-engine";
+import { aggregateReceiptTotals, expenseTaxContext, expensesRemainingThisYear, recurringExpensesNetOfItc } from "@agent-runway/core/engines/expense-totals-engine";
 import { computeGCI, computeWeightedGCI, activePipelineDeals } from "@/lib/types/database";
 import { projectedYearEndGCI, projectedYearEndTransactions, seasonalFractionElapsed } from "@/lib/engines/projection-engine";
 import { computeEffectiveCashForSurvival } from "@/lib/engines/effective-cash";
@@ -31,6 +31,8 @@ export interface ScenarioSeedData {
   monthlyRecurring: number;
   /** Sum of all expense items + receipt expenses YTD */
   expensesYTD: number;
+  /** Expenses still expected this calendar year (expensesRemainingThisYear) — matches dashboard */
+  expensesRemaining: number;
   /** Monthly brokerage fee from settings */
   monthlyBrokerageFee: number;
   /** Baseline cash for Survival — cashPosition.effectiveCash (matches dashboard/chat).
@@ -121,6 +123,7 @@ export default async function ScenariosPage() {
     );
     const recurringExpMonthly = totalRecurringMonthly(recurringExps);
     const recurringExpYTDValue = totalRecurringYTD(recurringExps, today);
+    const recurringExpRemaining = totalRecurringRemainingThisYear(recurringExps, today);
 
     const transactions = (txResult.data ?? []) as Transaction[];
     const pipelineDeals = (pipelineResult.data ?? []) as PipelineDeal[];
@@ -148,6 +151,7 @@ export default async function ScenariosPage() {
     const expMonthsElapsed = today.getMonth() + 1;
     const legacyRecurringYTDEstimate = legacyMonthlyRecurring * expMonthsElapsed;
     const expensesYTD = Math.max(receiptYTD, legacyRecurringYTDEstimate) + recurringExpYTDValue;
+    const expensesRemaining = expensesRemainingThisYear(legacyMonthlyRecurring, recurringExpRemaining, today);
 
     const qPcts = settingsRow?.national_quarter_pcts ?? [0.25, 0.25, 0.25, 0.25];
     const fraction = seasonalFractionElapsed(qPcts);
@@ -163,7 +167,7 @@ export default async function ScenariosPage() {
           settings: settingsRow,
           ytdGCI,
           expensesYTD,
-          monthlyRecurring,
+          expensesRemaining,
           projectedGCI: projectedAnnualGCI,
           projectedDealCount,
           fraction,
@@ -180,6 +184,7 @@ export default async function ScenariosPage() {
     pipelineWeightedGCI,
     monthlyRecurring,
     expensesYTD,
+    expensesRemaining,
     monthlyBrokerageFee: settingsRow?.monthly_brokerage_fee ?? 0,
     cashReserve: scenarioBaselineCash,
     isIncorporated: settingsRow?.is_incorporated ?? false,

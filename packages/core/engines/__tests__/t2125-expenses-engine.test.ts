@@ -283,6 +283,25 @@ describe("buildT2125Expenses — recurring expenses reach the T2125", () => {
     expect(r.lines[0].rawAmount).toBe(600);
   });
 
+  it("a charge due later this month is not in the line yet, and the ITC count agrees", () => {
+    // Charged on the 20th. On Oct 13 nine charges have happened, not ten.
+    const onThe20th = recurring({ id: "re-20", day_of_month: 20 });
+    const oct13 = new Date(2026, 9, 13, 12);
+    const r = build([onThe20th], REGISTRANT, { now: oct13 });
+    expect(r.lines[0].rawAmount).toBe(900);
+    expect(r.ytdTotal).toBe(900);
+    const [itc] = recurringHSTEntriesForPeriod([onThe20th], "2026-01-01", "2026-10-13");
+    expect(itc.tax_amount).toBe(9 * 15);
+    expect(build([onThe20th], REGISTRANT, { now: new Date(2026, 9, 20, 12) }).lines[0].rawAmount).toBe(1000);
+  });
+
+  it("an expense that has ended keeps its line at the charges it made", () => {
+    const ended = recurring({ id: "re-ended", end_date: "2026-03-31" });
+    const r = build([ended], REGISTRANT);
+    expect(r.lines[0].rawAmount).toBe(300);
+    expect(r.deductibleTotal).toBe(300);
+  });
+
   it("skips an inactive recurring expense", () => {
     const r = build([recurring({ is_active: false })], REGISTRANT);
     expect(r.lines).toEqual([]);

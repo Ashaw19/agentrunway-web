@@ -21,6 +21,7 @@ import {
   aggregateReceiptTotals,
   expenseNetOfItc,
   expenseTaxContext,
+  expensesRemainingThisYear,
   inputTaxCreditsForPeriod,
   recurringExpensesNetOfItc,
   recurringNetOfItc,
@@ -454,6 +455,69 @@ describe("ytdExpenseTotals — the dashboard's year-to-date expenses", () => {
     expect(t.legacyMonthlyRecurring).toBe(12.5);
     expect(t.expensesYTD).toBe(125);
     expect(ytdExpenseTotals({ receipts: null, recurring: null, legacyItems: null, ctx: REGISTRANT, now: NOW }).expensesYTD).toBe(0);
+  });
+
+  // ── A charge counts from its charge day, and the year does not move ──────
+  // $115 a month with $15 HST, charged on the 20th: net 100 for a registrant.
+  const onThe20th = recurring({ id: "phone", name: "Phone plan", day_of_month: 20, start_date: "2025-06-01" });
+  const OCT_13 = new Date(2026, 9, 13, 12);
+  const OCT_20 = new Date(2026, 9, 20, 12);
+  const phoneOnly = { receipts: [], recurring: [onThe20th], legacyItems: [], ctx: REGISTRANT };
+
+  it("a charge due on the 20th is not in the year to date on the 13th", () => {
+    expect(ytdExpenseTotals({ ...phoneOnly, now: OCT_13 }).recurringYTD).toBe(900);
+    expect(ytdExpenseTotals({ ...phoneOnly, now: OCT_20 }).recurringYTD).toBe(1000);
+  });
+
+  it("what came off the expenses as GST/HST is what is claimed as ITCs: the same nine charges", () => {
+    const net = ytdExpenseTotals({ ...phoneOnly, now: OCT_13 }).recurringYTD;
+    const paid = ytdExpenseTotals({ ...phoneOnly, ctx: NOT_REGISTERED, now: OCT_13 }).recurringYTD;
+    const itcs = inputTaxCreditsForPeriod([], [onThe20th], REGISTRANT, "2026-01-01", "2026-10-13");
+    expect(paid).toBe(9 * 115);
+    expect(itcs.recurring).toBe(9 * 15);
+    expect(paid - net).toBe(itcs.recurring);
+    // Until 2026-10-13: ten charges of expense (150 of GST/HST off) against 135 of ITCs.
+  });
+
+  it("an expense that ended in March: three charges in the expenses and three in the ITCs", () => {
+    const ended = recurring({ id: "ended", end_date: "2026-03-31", start_date: "2025-06-01" });
+    const t = ytdExpenseTotals({ receipts: [], recurring: [ended], legacyItems: [], ctx: REGISTRANT, now: OCT_13 });
+    expect(t.recurringYTD).toBe(300);
+    expect(t.recurringRemaining).toBe(0);
+    expect(t.annualExpenses).toBe(300);
+    expect(inputTaxCreditsForPeriod([], [ended], REGISTRANT, "2026-01-01", "2026-10-13").recurring).toBe(45);
+  });
+
+  it("annualExpenses is the year to date plus what is still expected, and holds steady through the month", () => {
+    const before = ytdExpenseTotals({ ...phoneOnly, now: OCT_13 });
+    expect(before.recurringRemaining).toBe(300); // Oct 20, Nov 20, Dec 20
+    expect(before.expensesRemaining).toBe(300);
+    expect(before.annualExpenses).toBe(1200);
+
+    const after = ytdExpenseTotals({ ...phoneOnly, now: OCT_20 });
+    expect(after.recurringRemaining).toBe(200);
+    expect(after.annualExpenses).toBe(1200);
+    // A monthly amount × whole months left, added to a year to date that
+    // counts charge days, would be one charge short until the 20th.
+    expect(before.expensesYTD + before.recurringMonthly * 2).toBe(1100);
+  });
+
+  it("the rest of the year: the legacy figure for the whole months left, recurring charges from their schedule", () => {
+    // Legacy 20 a month: November and December. Lease on the 1st: Nov 1, Dec 1.
+    const t = ytdExpenseTotals({ receipts, recurring: [lease], legacyItems, ctx: REGISTRANT, now: NOW });
+    expect(t.recurringRemaining).toBe(1000);
+    expect(t.expensesRemaining).toBe(40 + 1000);
+    expect(t.annualExpenses).toBe(t.expensesYTD + 1040);
+    expect(expensesRemainingThisYear(20, 1000, NOW)).toBe(1040);
+    expect(expensesRemainingThisYear(20, 0, new Date(2026, 11, 31, 12))).toBe(0);
+    expect(expensesRemainingThisYear(20, 0, new Date(2026, 0, 1, 12))).toBe(220);
+  });
+
+  it("an annual fee still to come is projected in full, not as a twelfth for each month left", () => {
+    const annual = recurring({ id: "annual", frequency: "annual", month_of_year: 11, day_of_month: 10, amount: 1150, hst_amount: 150 });
+    const t = ytdExpenseTotals({ receipts: [], recurring: [annual], legacyItems: [], ctx: REGISTRANT, now: OCT_13 });
+    expect(t.recurringYTD).toBe(0);
+    expect(t.annualExpenses).toBe(1000);
   });
 });
 

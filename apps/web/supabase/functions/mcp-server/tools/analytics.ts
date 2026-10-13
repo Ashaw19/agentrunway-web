@@ -460,12 +460,13 @@ export function getAnalyticsTools(supabase: SupabaseClient, userId: string): Mcp
             : raw);
         }, 0);
 
-        // The dashboard's `expensesYTD` and `monthlyRecurring` (legacy monthly
-        // estimate + recurring_expenses), both net of the GST/HST a registrant
-        // claims as ITCs. They feed annualExpenses = expensesYTD +
-        // monthlyRecurring × months left, as on the dashboard.
+        // The dashboard's `expensesYTD` and what is still expected this year
+        // (legacy monthly estimate × months left + the recurring charges still
+        // scheduled), both net of the GST/HST a registrant claims as ITCs.
+        // They feed annualExpenses = expensesYTD + expensesRemaining, as on
+        // the dashboard.
         const ytdExpenses = expenseInputs.totals.expensesYTD;
-        const monthlyRecurring = expenseInputs.totals.monthlyRecurring;
+        const expensesRemaining = expenseInputs.totals.expensesRemaining;
 
         // Pipeline + listing weighted GCI for the projection (matches dashboard).
         const pipelineWeighted = deals.reduce((sum, deal) => {
@@ -533,9 +534,9 @@ export function getAnalyticsTools(supabase: SupabaseClient, userId: string): Mcp
           netIncome = computeProjectedNetForTax({
             projectedGCI,
             expensesYTD: ytdExpenses,
-            monthlyRecurring,
+            expensesRemaining,
             settings: settingsSlice,
-            // Calendar anchor for remaining-months math: the Atlantic day.
+            // Calendar anchor for the plan year: the Atlantic day.
             now: atlanticNoon(now),
           });
         } else {

@@ -61,7 +61,10 @@ export interface ExpenseInputs {
   /** The same rows with `amount` net of ITC: for totals only. */
   recurringNet: RecurringExpense[];
   items: ExpenseItemRow[];
-  /** The dashboard's `expensesYTD` and `monthlyRecurring`, and what they are built from. */
+  /**
+   * The dashboard's `expensesYTD`, `monthlyRecurring` and `annualExpenses`
+   * (expensesYTD + `expensesRemaining`), and what they are built from.
+   */
   totals: YtdExpenseTotals;
   /** ITCs on this year's receipts and on recurring expenses charged to date. */
   itcs: PeriodInputTaxCredits;

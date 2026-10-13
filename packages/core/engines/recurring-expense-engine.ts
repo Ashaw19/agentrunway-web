@@ -4,6 +4,10 @@
  * Shared computation for recurring expenses across analytics pages.
  * Centralizes monthly-equivalent and YTD calculations so Dashboard,
  * Forecast, Reports, Overhead, Chat API, and Scenarios all agree.
+ *
+ * Every count of charges (year to date, the GST/HST on them, the rest of
+ * the year) goes through `recurringOccurrencesInRange`. Don't count months
+ * anywhere else.
  */
 
 import type { RecurringExpense } from "../types/database";
@@ -25,6 +29,76 @@ export function totalRecurringMonthly(expenses: RecurringExpense[]): number {
     .reduce((sum, re) => sum + recurringMonthlyEquivalent(re), 0);
 }
 
+// ── How many times has it been charged ────────────────────────────────────
+//
+// THE rule, for every figure built on a recurring expense (expenses to date,
+// the ITCs on them, what is still to come this year):
+//
+//   a charge counts on its charge day (`day_of_month`, in the month or months
+//   its frequency names), on or after `start_date`, and on or before
+//   `end_date` when there is one.
+//
+// So a charge due on the 20th is not an expense on the 13th, and an expense
+// that has ended keeps the charges it made and adds no more. Until
+// 2026-10-13 the expense totals counted a monthly expense by calendar month
+// from the 1st and never read `end_date`, while the ITCs counted charge days:
+// on the days before a charge, a registrant's expenses had one more charge in
+// them than the ITCs taken off them.
+//
+// `is_active` is not part of the rule. A row that is switched off (removed in
+// the Expenses page) counts nowhere, for no part of the year; the totals
+// below skip it.
+
+/** The day of the month it is charged on. The column allows 1 to 28. */
+function chargeDay(re: RecurringExpense): number {
+  return Math.min(28, Math.max(1, Number(re.day_of_month) || 1));
+}
+
+/**
+ * How many times a recurring expense is charged within [start, end],
+ * inclusive of both days.
+ */
+export function recurringOccurrencesInRange(re: RecurringExpense, start: Date, end: Date): number {
+  const reStart = re.start_date ? new Date(re.start_date + "T00:00:00") : null;
+  const reEnd   = re.end_date   ? new Date(re.end_date   + "T23:59:59") : null;
+  const lo = reStart && reStart > start ? reStart : start;
+  const hi = reEnd   && reEnd   < end   ? reEnd   : end;
+  if (lo > hi) return 0;
+
+  const freq = re.frequency ?? "monthly";
+  const day = chargeDay(re);
+  let count = 0;
+
+  if (freq === "annual") {
+    const m = (re.month_of_year ?? 1) - 1;
+    for (let yr = lo.getFullYear(); yr <= hi.getFullYear(); yr++) {
+      const d = new Date(yr, m, day);
+      if (d >= lo && d <= hi) count++;
+    }
+  } else if (freq === "quarterly") {
+    // `month_of_year` is the month of one of the four charges; the others
+    // are every third month from it, in each calendar year.
+    const startM = (re.month_of_year ?? 1) - 1;
+    for (let yr = lo.getFullYear(); yr <= hi.getFullYear(); yr++) {
+      for (let q = 0; q < 4; q++) {
+        const m = (startM + q * 3) % 12;
+        const d = new Date(yr, m, day);
+        if (d >= lo && d <= hi) count++;
+      }
+    }
+  } else {
+    // Monthly — iterate month by month through the range
+    const cursor = new Date(lo.getFullYear(), lo.getMonth(), 1);
+    while (cursor <= hi) {
+      const d = new Date(cursor.getFullYear(), cursor.getMonth(), day);
+      if (d >= lo && d <= hi) count++;
+      cursor.setMonth(cursor.getMonth() + 1);
+    }
+  }
+
+  return count;
+}
+
 // ── YTD calculation ───────────────────────────────────────────────────────
 //
 // `now` is the calendar anchor: the year to total and the day to total up
@@ -32,44 +106,10 @@ export function totalRecurringMonthly(expenses: RecurringExpense[]): number {
 // (the server's own clock is UTC, already next year from 8 pm Atlantic on
 // Dec 31, which totals one month of a monthly expense instead of twelve).
 
-/** YTD amount for a single recurring expense based on frequency and start_date */
+/** YTD amount for a single recurring expense: its charges from Jan 1 to `now`. */
 export function recurringYTD(re: RecurringExpense, now: Date = new Date()): number {
-  const thisYear = now.getFullYear();
-  const freq = re.frequency ?? "monthly";
-  const amt = Number(re.amount);
-  const startDate = re.start_date
-    ? new Date(re.start_date + "T00:00:00")
-    : new Date(thisYear, 0, 1);
-  const yearStart = new Date(thisYear, 0, 1);
-  const effectiveStart = startDate > yearStart ? startDate : yearStart;
-
-  if (effectiveStart > now) return 0;
-
-  if (freq === "annual") {
-    const chargeMonth = (re.month_of_year ?? 1) - 1;
-    const chargeDate = new Date(thisYear, chargeMonth, re.day_of_month);
-    return chargeDate >= effectiveStart && chargeDate <= now ? amt : 0;
-  }
-
-  if (freq === "quarterly") {
-    const startMonth = (re.month_of_year ?? 1) - 1;
-    let count = 0;
-    for (let q = 0; q < 4; q++) {
-      const m = (startMonth + q * 3) % 12;
-      const occDate = new Date(thisYear, m, Math.min(re.day_of_month, 28));
-      if (occDate >= effectiveStart && occDate <= now) count++;
-    }
-    return count * amt;
-  }
-
-  // Monthly
-  const startM = effectiveStart.getMonth();
-  const nowM = now.getMonth();
-  const months = Math.max(
-    0,
-    nowM - startM + (now.getDate() >= effectiveStart.getDate() ? 1 : 0),
-  );
-  return months * amt;
+  const yearStart = new Date(now.getFullYear(), 0, 1);
+  return recurringOccurrencesInRange(re, yearStart, now) * Number(re.amount);
 }
 
 /** Total YTD across all active recurring expenses */
@@ -82,61 +122,48 @@ export function totalRecurringYTD(
     .reduce((sum, re) => sum + recurringYTD(re, now), 0);
 }
 
-/** Project annual total: YTD actuals + remaining monthly recurring */
+// ── The rest of the year ──────────────────────────────────────────────────
+
+/**
+ * What a single recurring expense is still to be charged this calendar year
+ * after `now`: the year's charges less those made to date, so that
+ * recurringYTD + this is always the whole year.
+ */
+export function recurringRemainingThisYear(re: RecurringExpense, now: Date = new Date()): number {
+  const yearStart = new Date(now.getFullYear(), 0, 1);
+  const yearEnd = new Date(now.getFullYear(), 11, 31, 23, 59, 59);
+  const wholeYear = recurringOccurrencesInRange(re, yearStart, yearEnd);
+  const toDate = recurringOccurrencesInRange(re, yearStart, now);
+  return (wholeYear - toDate) * Number(re.amount);
+}
+
+/**
+ * Still to be charged this calendar year across all active recurring
+ * expenses. An annual expense projection adds this to the year to date: a
+ * monthly amount × months left is one charge short on the days before each
+ * charge day, and spreads an annual fee over months it is not charged in.
+ */
+export function totalRecurringRemainingThisYear(
+  expenses: RecurringExpense[],
+  now: Date = new Date(),
+): number {
+  return expenses
+    .filter((re) => re.is_active)
+    .reduce((sum, re) => sum + recurringRemainingThisYear(re, now), 0);
+}
+
+/** Project annual total: charges to date + charges still scheduled this year */
 export function projectedAnnualRecurring(
   expenses: RecurringExpense[],
   now: Date = new Date(),
 ): number {
-  const ytd = totalRecurringYTD(expenses, now);
-  const monthly = totalRecurringMonthly(expenses);
-  const monthsElapsed = now.getMonth() + now.getDate() / 30;
-  const remainingMonths = Math.max(0, 12 - Math.ceil(monthsElapsed));
-  return ytd + monthly * remainingMonths;
+  return totalRecurringYTD(expenses, now) + totalRecurringRemainingThisYear(expenses, now);
 }
 
 // ── HST / ITC helpers ────────────────────────────────────────────────────
-
-/**
- * Count how many times a recurring expense fires within [start, end] inclusive.
- * Respects the expense's own start_date and end_date.
- */
-function occurrencesInRange(re: RecurringExpense, start: Date, end: Date): number {
-  const reStart = re.start_date ? new Date(re.start_date + "T00:00:00") : null;
-  const reEnd   = re.end_date   ? new Date(re.end_date   + "T23:59:59") : null;
-  const lo = reStart && reStart > start ? reStart : start;
-  const hi = reEnd   && reEnd   < end   ? reEnd   : end;
-  if (lo > hi) return 0;
-
-  const freq = re.frequency ?? "monthly";
-  let count = 0;
-
-  if (freq === "annual") {
-    for (let yr = lo.getFullYear(); yr <= hi.getFullYear(); yr++) {
-      const m = (re.month_of_year ?? 1) - 1;
-      const d = new Date(yr, m, re.day_of_month);
-      if (d >= lo && d <= hi) count++;
-    }
-  } else if (freq === "quarterly") {
-    const startM = (re.month_of_year ?? 1) - 1;
-    for (let yr = lo.getFullYear(); yr <= hi.getFullYear(); yr++) {
-      for (let q = 0; q < 4; q++) {
-        const m = (startM + q * 3) % 12;
-        const d = new Date(yr, m, Math.min(re.day_of_month, 28));
-        if (d >= lo && d <= hi) count++;
-      }
-    }
-  } else {
-    // Monthly — iterate month by month through the range
-    const cursor = new Date(lo.getFullYear(), lo.getMonth(), 1);
-    while (cursor <= hi) {
-      const d = new Date(cursor.getFullYear(), cursor.getMonth(), Math.min(re.day_of_month, 28));
-      if (d >= lo && d <= hi) count++;
-      cursor.setMonth(cursor.getMonth() + 1);
-    }
-  }
-
-  return count;
-}
+//
+// The same charges as the totals above (recurringOccurrencesInRange), so the
+// GST/HST taken off an expense total is the GST/HST claimed as an ITC.
 
 /**
  * Total HST from active recurring expenses with occurrences in [startDate, endDate].
@@ -151,7 +178,7 @@ export function totalRecurringHSTForPeriod(
   const end   = new Date(endDate   + "T23:59:59");
   return expenses
     .filter((re) => re.is_active && Number(re.hst_amount) > 0)
-    .reduce((sum, re) => sum + occurrencesInRange(re, start, end) * Number(re.hst_amount), 0);
+    .reduce((sum, re) => sum + recurringOccurrencesInRange(re, start, end) * Number(re.hst_amount), 0);
 }
 
 /**
@@ -171,7 +198,7 @@ export function recurringHSTEntriesForPeriod(
     .filter((re) => re.is_active && Number(re.hst_amount) > 0)
     .map((re) => ({
       category_key: re.category_key ?? null,
-      tax_amount:   occurrencesInRange(re, start, end) * Number(re.hst_amount),
+      tax_amount:   recurringOccurrencesInRange(re, start, end) * Number(re.hst_amount),
       vehicle_use:  Boolean(re.vehicle_pct_applicable),
     }))
     .filter((e) => e.tax_amount > 0);

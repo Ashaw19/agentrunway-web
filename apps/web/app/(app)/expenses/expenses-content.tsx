@@ -21,6 +21,8 @@ import { ChevronDown, ChevronRight, Plus, Check, X, Trash2, Info, ExternalLink, 
 import { fmtCurrency, fmtPct } from "@/lib/formatters";
 import {
   aggregateReceiptTotals,
+  expensesRemainingThisYear,
+  recurringExpensesNetOfItc,
   recurringNetOfItc,
   type ReceiptTotalsRow,
 } from "@agent-runway/core/engines/expense-totals-engine";
@@ -104,7 +106,7 @@ import {
   deadlineUrgency,
 } from "@agent-runway/core/engines/filing-period-engine";
 import { computeGST34 } from "@agent-runway/core/engines/gst34-engine";
-import { recurringHSTEntriesForPeriod, recurringMonthlyEquivalent } from "@agent-runway/core/engines/recurring-expense-engine";
+import { recurringHSTEntriesForPeriod, recurringMonthlyEquivalent, totalRecurringRemainingThisYear } from "@agent-runway/core/engines/recurring-expense-engine";
 import { gstHstLabel } from "@agent-runway/core/engines/canadian-tax-engine";
 import { reconcileDeals, type ReconciliationResult, type ImportedDeal } from "@agent-runway/core/engines/reconciliation-engine";
 import { selectTaxTips, TIP_CATEGORY_LABELS } from "@agent-runway/core/engines/tax-iq-engine";
@@ -894,12 +896,22 @@ export function ExpensesContent({
   // but are still real spend, and the dashboard counts them.
   const ytdTotal =
     Object.values(receiptTotals).reduce((sum, v) => sum + v, 0) + uncategorizedTotal;
-  const monthlyTotal = categories.reduce(
-    (sum, cat) => sum + cat.items.reduce((s, item) => s + Number(item.monthly_recurring), 0) + recurringMonthlyForCat(cat.key),
+  const legacyMonthlyTotal = categories.reduce(
+    (sum, cat) => sum + cat.items.reduce((s, item) => s + Number(item.monthly_recurring), 0),
     0,
   );
+  const monthlyTotal = legacyMonthlyTotal + categories.reduce((sum, cat) => sum + recurringMonthlyForCat(cat.key), 0);
 
   const now = new Date();
+
+  // What is still expected this year (the per-item monthly figure × whole
+  // months left, plus the recurring charges still scheduled): with the year
+  // to date it is the year's expenses behind the tax estimate.
+  const expensesRemaining = expensesRemainingThisYear(
+    legacyMonthlyTotal,
+    totalRecurringRemainingThisYear(recurringExpensesNetOfItc(recurringExpenses, expenseTaxCtx), now),
+    now,
+  );
 
   // ── YTD expenses ──────────────────────────────────────────────────────
   // Every line the engine tracked: receipts (or the per-item monthly figure
@@ -973,7 +985,7 @@ export function ExpensesContent({
           settings,
           ytdGCI,
           expensesYTD: effectiveTotal,
-          monthlyRecurring: monthlyTotal,
+          expensesRemaining,
           projectedGCI: expensesProjectedGCI,
           projectedDealCount: expensesProjectedDeals,
           fraction: expensesFraction,

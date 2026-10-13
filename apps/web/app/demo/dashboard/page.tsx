@@ -552,6 +552,8 @@ export default function DemoDashboardPage() {
               initialDashboardView="standard"
               isPro={true}
               showUpgradeBanner={false}
+              // The demo keeps its costs as per-item monthly figures; it has no Recurring Expenses list.
+              recurringExpRemaining={0}
             />
           </div>
         </main>

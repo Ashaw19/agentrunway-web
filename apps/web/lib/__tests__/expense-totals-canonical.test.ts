@@ -17,7 +17,8 @@
  * Three shapes are scanned for, in web and mobile source:
  *   1. arithmetic on `x.total_amount` (a hand-rolled sum)
  *   2. a recurring total (totalRecurringMonthly / totalRecurringYTD /
- *      projectedAnnualRecurring) in a file that never nets the list
+ *      totalRecurringRemainingThisYear / projectedAnnualRecurring) in a file
+ *      that never nets the list
  *   3. a `receipt_expenses` select that reads `total_amount` without
  *      `tax_amount` (the engine then has no tax to take off)
  *   4. (Home Office bills, same day) a `receipt_expenses` select that reads
@@ -34,6 +35,12 @@
  *      summary, the exports and the mobile totals went short without an
  *      error. A list for display pages on screen; it is not capped in the
  *      query
+ *   7. the year's expenses projected as `expensesYTD + a monthly amount ×
+ *      months left`. A recurring charge is in the year to date from its
+ *      charge day (recurring-expense-engine), so that sum is one charge short
+ *      on the days before it, and it spreads an annual fee over months it is
+ *      not charged in. The rest of the year is `expensesRemainingThisYear`
+ *      (or `ytdExpenseTotals(...).expensesRemaining`)
  *
  * A regex can't prove a total is right, only that it didn't bypass the
  * engine. The numbers are tested in
@@ -64,7 +71,10 @@ const ROOTS = [
 const SUMS_TOTAL_AMOUNT = /(?:\+=|\+)\s*(?:Number\(\s*)?\(?\s*[A-Za-z_$][\w$]*\.total_amount\b/g;
 
 /** A recurring-expense total from recurring-expense-engine. */
-const RECURRING_TOTAL = /\b(?:totalRecurringMonthly|totalRecurringYTD|projectedAnnualRecurring)\s*\(/;
+const RECURRING_TOTAL = /\b(?:totalRecurringMonthly|totalRecurringYTD|totalRecurringRemainingThisYear|projectedAnnualRecurring)\s*\(/;
+
+/** `expensesYTD + monthlyRecurring * expRemainingMonths` and its spellings. */
+const PROJECTS_BY_MONTHLY_RATE = /\bexpensesYTD\s*\+\s*(?:[\w$]+\.)*\w*[mM]onthlyRecurring\w*\s*\*/;
 
 /** `.from("receipt_expenses").select("…")` with the column list captured. */
 const RECEIPT_SELECT = /\.from\(\s*["']receipt_expenses["']\s*\)\s*\.select\(\s*["'`]([^"'`]*)["'`]/g;
@@ -173,6 +183,23 @@ describe("REGRESSION — expense totals are net of ITCs through expense-totals-e
     expect(offenders).toEqual([]);
   });
 
+  it("no surface projects the year as expensesYTD + a monthly amount × months left", () => {
+    const offenders = files.filter((file) => PROJECTS_BY_MONTHLY_RATE.test(readFileSync(file, "utf8"))).map(rel);
+    expect(offenders).toEqual([]);
+
+    // The annual projection on every surface that has one.
+    for (const must of [
+      "apps/web/app/(app)/dashboard/dashboard-content.tsx",
+      "apps/web/app/(app)/forecast/forecast-content.tsx",
+      "apps/web/app/(app)/overhead/overhead-content.tsx",
+      "apps/web/app/(app)/reports/reports-content.tsx",
+    ]) {
+      const src = readFileSync(path.join(REPO_ROOT, must), "utf8");
+      expect(src, must).toContain("const annualExpenses = expensesYTD + expensesRemaining;");
+      expect(src, must).toContain("expensesRemainingThisYear(legacyMonthlyRecurring, recurringExpRemaining,");
+    }
+  });
+
   it("every receipt_expenses read of total_amount also reads tax_amount", () => {
     const offenders: string[] = [];
     const allowedSeen: Record<string, number> = {};
@@ -270,6 +297,17 @@ describe("REGRESSION — expense totals are net of ITCs through expense-totals-e
     ];
     for (const s of badSums) expect([...s.matchAll(SUMS_TOTAL_AMOUNT)], s).toHaveLength(1);
     for (const s of goodSums) expect([...s.matchAll(SUMS_TOTAL_AMOUNT)], s).toHaveLength(0);
+
+    for (const s of [
+      `const annualExpenses = expensesYTD + monthlyRecurring * expRemainingMonths;`,
+      `const annualExpenses = input.expensesYTD + input.monthlyRecurringExpenses * remainingMonths;`,
+      `const annual = expensesYTD + totals.monthlyRecurring * (12 - month);`,
+    ]) expect(PROJECTS_BY_MONTHLY_RATE.test(s), s).toBe(true);
+    for (const s of [
+      `const annualExpenses = expensesYTD + expensesRemaining;`,
+      `const expensesYTD = Math.max(receiptTotal, legacyRecurringYTDEstimate) + recurringExpYTD;`,
+      `const monthlyRecurring = legacyMonthlyRecurring + recurringExpMonthly;`,
+    ]) expect(PROJECTS_BY_MONTHLY_RATE.test(s), s).toBe(false);
 
     const limits = (s: string) => [...s.matchAll(RECEIPT_LIMIT)].map((m) => Number(m[1]));
     expect(limits(`supabase\n  .from("receipt_expenses")\n  .select("*")\n  .eq("user_id", user.id)\n  .order("created_at", { ascending: false })\n  .limit(50);`)).toEqual([50]);

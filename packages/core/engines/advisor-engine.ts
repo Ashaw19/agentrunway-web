@@ -66,7 +66,8 @@ export interface AdvisorInput {
   splitPreset: SplitPreset;
   seasonalWeights: number[];
   expensesYTD: number;
-  monthlyRecurringExpenses: number;
+  /** Expenses still expected this calendar year (`expensesRemainingThisYear`, expense-totals-engine). */
+  expensesRemaining: number;
   projectedYearEndGCI: number;
   marketYoYGrowth: number; // decimal, e.g. 0.08
   benchmarkPercentile: number;
@@ -114,11 +115,9 @@ export function generateAdvisory(input: AdvisorInput, limit: number = 5): Adviso
 
   // 2. Expense Benchmarking
   if (ytdGCI > 0 && input.projectedYearEndGCI > 0) {
-    // expensesYTD already includes elapsed months of recurring costs,
-    // so only add the remaining months to avoid double-counting.
-    const currentMonth = new Date().getMonth(); // 0-indexed (Jan=0)
-    const remainingMonths = 12 - (currentMonth + 1);
-    const annualExpenses = input.expensesYTD + input.monthlyRecurringExpenses * remainingMonths;
+    // The year's expenses: to date plus what is still expected, as on the
+    // dashboard (`annualExpenses`).
+    const annualExpenses = input.expensesYTD + input.expensesRemaining;
     const ratio = annualExpenses / input.projectedYearEndGCI;
     if (ratio > 0.3) {
       const targetExpenses = input.projectedYearEndGCI * 0.25;

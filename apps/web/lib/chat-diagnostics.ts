@@ -33,9 +33,10 @@ import {
 import {
   aggregateReceiptTotals,
   expenseTaxContext,
+  expensesRemainingThisYear,
   recurringExpensesNetOfItc,
 } from "@agent-runway/core/engines/expense-totals-engine";
-import { totalRecurringMonthly, totalRecurringYTD } from "@agent-runway/core/engines/recurring-expense-engine";
+import { totalRecurringMonthly, totalRecurringRemainingThisYear, totalRecurringYTD } from "@agent-runway/core/engines/recurring-expense-engine";
 import type { UserSettings as CanonicalUserSettings, RecurringExpense } from "@agent-runway/core/types/database";
 import {
   compare as benchmarkCompare,
@@ -140,6 +141,8 @@ interface DiagContext {
   monthlyRecurring: number;
   /** Net of the ITCs a GST/HST registrant claims (expense-totals-engine). */
   expensesYTD: number;
+  /** Expenses still expected this calendar year, net the same way (expensesRemainingThisYear). */
+  expensesRemaining: number;
   /** The same expenses as paid, GST/HST included. */
   expensesPaidYTD: number;
 }
@@ -290,6 +293,11 @@ export async function buildDiagnostics(
   const expMonthsElapsed = today.getMonth() + 1; // 1-12, consistent with dashboard engine
   const legacyRecurringYTDEstimate = legacyMonthlyRecurring * expMonthsElapsed;
   const expensesYTD = Math.max(receiptTotals.total, legacyRecurringYTDEstimate) + totalRecurringYTD(recurringNet, today);
+  const expensesRemaining = expensesRemainingThisYear(
+    legacyMonthlyRecurring,
+    totalRecurringRemainingThisYear(recurringNet, today),
+    today,
+  );
   const expensesPaidYTD = Math.max(receiptTotals.paid, legacyRecurringYTDEstimate) + totalRecurringYTD(recurringRowsTyped, today);
 
   const ctx: DiagContext = {
@@ -307,6 +315,7 @@ export async function buildDiagnostics(
     engineFraction,
     monthlyRecurring,
     expensesYTD,
+    expensesRemaining,
     expensesPaidYTD,
   };
 
@@ -365,7 +374,7 @@ function buildTopicDiagnostic(
  * computeSurvivalResult → computeRunwayScore, then formats results.
  */
 function diagRunwayScore(ctx: DiagContext): string {
-  const { settings: s, ytdGCI, pipelineWeighted, listingWeighted, engineFraction, monthlyRecurring, expensesYTD, closedTx, pipelineDeals } = ctx;
+  const { settings: s, ytdGCI, pipelineWeighted, listingWeighted, engineFraction, monthlyRecurring, expensesYTD, expensesRemaining, closedTx, pipelineDeals } = ctx;
 
   // 1. Health Report (pace, pipeline, expense sub-scores)
   // Pipeline sub-score uses pipeline-only weighted GCI (matches dashboard's
@@ -393,7 +402,7 @@ function diagRunwayScore(ctx: DiagContext): string {
     settings: s as unknown as CanonicalUserSettings,
     ytdGCI,
     expensesYTD,
-    monthlyRecurring,
+    expensesRemaining,
     projectedGCI: projGCI,
     projectedDealCount: projDeals,
     fraction: engineFraction,
@@ -438,7 +447,7 @@ Weakest: ${weakest.label} (${weakest.score}/100, contributing ${(weakest.score *
  * Shows step-by-step values but all final numbers come from the engine.
  */
 function diagTax(ctx: DiagContext): string {
-  const { settings: s, closedTx, ytdGCI, engineFraction, expensesYTD, monthlyRecurring } = ctx;
+  const { settings: s, closedTx, ytdGCI, engineFraction, expensesYTD, expensesRemaining } = ctx;
 
   const splitMatch = s.split_preset?.match(/p(\d+)_(\d+)/);
   const agentPct = splitMatch ? Number(splitMatch[1]) / 100 : 1;
@@ -458,7 +467,7 @@ function diagTax(ctx: DiagContext): string {
   const netSEIncome = computeProjectedNetForTax({
     projectedGCI: projGCI,
     expensesYTD,
-    monthlyRecurring,
+    expensesRemaining,
     settings: s as unknown as CanonicalUserSettings,
     now: ctx.today,
   });
@@ -773,7 +782,7 @@ Seasonal Weights: ${s.seasonal_weights ? `Custom [${s.seasonal_weights.join(", "
  * Uses recurring expenses only for burn (not total YTD / months).
  */
 function diagSurvival(ctx: DiagContext): string {
-  const { settings: s, monthlyRecurring, ytdGCI, pipelineWeighted, listingWeighted, engineFraction, expensesYTD, closedTx, pipelineDeals } = ctx;
+  const { settings: s, monthlyRecurring, ytdGCI, pipelineWeighted, listingWeighted, engineFraction, expensesYTD, expensesRemaining, closedTx, pipelineDeals } = ctx;
 
   // Cash input MUST be cashPosition.effectiveCash (not raw cash_reserve) to
   // match dashboard + chat. See memory/feedback_data_consistency_protocol.md.
@@ -788,7 +797,7 @@ function diagSurvival(ctx: DiagContext): string {
     settings: s as unknown as CanonicalUserSettings,
     ytdGCI,
     expensesYTD,
-    monthlyRecurring,
+    expensesRemaining,
     projectedGCI: projGCIforSurvival,
     projectedDealCount: projDealsForSurvival,
     fraction: engineFraction,

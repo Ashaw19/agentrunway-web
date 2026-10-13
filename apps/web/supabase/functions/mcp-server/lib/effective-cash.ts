@@ -185,8 +185,12 @@ export interface ProjectedNetForTaxInputs {
    * registrant claims on them: `loadExpenseInputs(...).totals.expensesYTD`.
    */
   expensesYTD: number;
-  /** Monthly recurring expenses, net of ITCs the same way (`.totals.monthlyRecurring`). */
-  monthlyRecurring: number;
+  /**
+   * Expenses still expected this calendar year, net of ITCs the same way
+   * (`.totals.expensesRemaining`): a dollar amount from the recurring
+   * schedule, not a monthly rate × months left.
+   */
+  expensesRemaining: number;
   settings: EffectiveCashSettingsSlice;
   now?: Date;
 }
@@ -204,13 +208,12 @@ export function computeProjectedNetForTax(
   const {
     projectedGCI,
     expensesYTD,
-    monthlyRecurring,
+    expensesRemaining,
     settings,
     now = new Date(),
   } = inputs;
-  const expRemainingMonths = Math.max(0, 12 - (now.getMonth() + 1));
-  const annualExpenses = expensesYTD + monthlyRecurring * expRemainingMonths;
-  const projectedNet = projectedAgentNet(projectedGCI, settings);
+  const annualExpenses = expensesYTD + expensesRemaining;
+  const projectedNet = projectedAgentNet(projectedGCI, settings, now);
   return Math.max(0, projectedNet - annualExpenses);
 }
 

@@ -71,8 +71,14 @@ export interface EffectiveCashInputs {
    * registrant claims on them: build it from expense-totals-engine.
    */
   expensesYTD: number;
-  /** Monthly recurring expenses, net of ITCs the same way (projects remaining-year expenses for tax). */
-  monthlyRecurring: number;
+  /**
+   * Expenses still expected this calendar year after today, net of ITCs the
+   * same way: `expensesRemainingThisYear` in expense-totals-engine. Added to
+   * `expensesYTD` it is the year's expenses for the tax projection. It is a
+   * dollar amount, not a monthly rate: a monthly figure × months left is one
+   * charge short on the days before a recurring expense's charge day.
+   */
+  expensesRemaining: number;
   /** Projected year-end GCI (from projection-engine). */
   projectedGCI: number;
   /** Projected year-end deal count (from projection-engine). Used for per-deal set-aside. */
@@ -166,14 +172,14 @@ export interface ProjectedNetForTaxInputs {
   projectedGCI: number;
   /** YTD business expenses (receipts + recurring). */
   expensesYTD: number;
-  /** Monthly recurring expenses (used to project remainder of year). */
-  monthlyRecurring: number;
+  /** Expenses still expected this calendar year (`expensesRemainingThisYear`, expense-totals-engine). */
+  expensesRemaining: number;
   /** UserSettings slice needed to compute agent net (plan, split, fees, brokerage). */
   settings: Pick<UserSettings, PlanSettingsKeys | "monthly_brokerage_fee">;
   /** Projected year-end deal count — drives per-deal fee modeling under
    *  `comp_plan = 'real'`. Optional; the engine estimates when absent. */
   projectedDealCount?: number;
-  /** Reference date (defaults to now). Used to count remaining months. */
+  /** Reference date (defaults to now). Anchors the plan year for the agent's net. */
   now?: Date;
 }
 
@@ -183,7 +189,7 @@ export interface ProjectedNetForTaxInputs {
  *
  * Mirrors dashboard-content.tsx:596-603 exactly:
  *   projectedNet  = agentGross(projectedGCI) − txFees(projectedGCI) − monthly_brokerage_fee × 12
- *   annualExpenses = expensesYTD + monthlyRecurring × (12 − (now.getMonth()+1))
+ *   annualExpenses = expensesYTD + expensesRemaining
  *   netForTax      = max(0, projectedNet − annualExpenses)
  *
  * The floor-at-zero is deliberate: a negative net-for-tax is not a tax refund
@@ -196,9 +202,8 @@ export interface ProjectedNetForTaxInputs {
 export function computeProjectedNetForTax(
   inputs: ProjectedNetForTaxInputs,
 ): number {
-  const { projectedGCI, expensesYTD, monthlyRecurring, settings, projectedDealCount, now = new Date() } = inputs;
-  const expRemainingMonths = Math.max(0, 12 - (now.getMonth() + 1));
-  const annualExpenses = expensesYTD + monthlyRecurring * expRemainingMonths;
+  const { projectedGCI, expensesYTD, expensesRemaining, settings, projectedDealCount, now = new Date() } = inputs;
+  const annualExpenses = expensesYTD + expensesRemaining;
   const projectedNet = projectedAgentNet(projectedGCI, settings, projectedDealCount, now);
   return Math.max(0, projectedNet - annualExpenses);
 }
@@ -220,16 +225,15 @@ export function computeEffectiveCashForSurvival(
     settings,
     ytdGCI,
     expensesYTD,
-    monthlyRecurring,
+    expensesRemaining,
     projectedGCI,
     projectedDealCount,
     fraction,
     now = new Date(),
   } = inputs;
 
-  // ── Project annual expenses (actual YTD + remaining months of recurring) ──
-  const expRemainingMonths = Math.max(0, 12 - (now.getMonth() + 1));
-  const annualExpenses = expensesYTD + monthlyRecurring * expRemainingMonths;
+  // ── Project annual expenses (actual YTD + what is still expected this year) ──
+  const annualExpenses = expensesYTD + expensesRemaining;
 
   // ── Project net income for tax calc ─────────────────────────────────────
   const projectedNet = projectedAgentNet(projectedGCI, settings, projectedDealCount, now);

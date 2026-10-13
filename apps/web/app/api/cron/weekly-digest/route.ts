@@ -28,8 +28,8 @@ import { compare as benchmarkCompare } from "@agent-runway/core/engines/benchmar
 import { survivalResult } from "@agent-runway/core/engines/survival-engine";
 import { computeEffectiveCashForSurvival, computePipelineMonthlyIncome } from "@agent-runway/core/engines/effective-cash";
 import { projectedYearEndTransactions } from "@agent-runway/core/engines/projection-engine";
-import { totalRecurringMonthly, totalRecurringYTD } from "@agent-runway/core/engines/recurring-expense-engine";
-import { aggregateReceiptTotals, expenseTaxContext, recurringExpensesNetOfItc } from "@agent-runway/core/engines/expense-totals-engine";
+import { totalRecurringMonthly, totalRecurringRemainingThisYear, totalRecurringYTD } from "@agent-runway/core/engines/recurring-expense-engine";
+import { aggregateReceiptTotals, expenseTaxContext, expensesRemainingThisYear, recurringExpensesNetOfItc } from "@agent-runway/core/engines/expense-totals-engine";
 import { atlanticNoon } from "@agent-runway/core/lib/local-date";
 import type { RecurringExpense } from "@/lib/types/database";
 import { generateText } from "ai";
@@ -321,6 +321,12 @@ export async function GET(req: NextRequest) {
       const recurringNet = recurringExpensesNetOfItc((recurringExpRows ?? []) as RecurringExpense[], taxCtx);
       const recurringExpYTD = totalRecurringYTD(recurringNet, today);
       const expensesYTD = Math.max(receiptYTD, recurringYTDEstimate) + recurringExpYTD;
+      // What is still expected this year, as on the dashboard (`annualExpenses`).
+      const expensesRemaining = expensesRemainingThisYear(
+        legacyMonthlyRecurring,
+        totalRecurringRemainingThisYear(recurringNet, today),
+        today,
+      );
       // Legacy items PLUS the recurring_expenses table, as on the dashboard.
       // Until 2026-10-13 the table was left out here, so the digest's
       // survival months and tax projection ran on a lower monthly figure.
@@ -351,7 +357,7 @@ export async function GET(req: NextRequest) {
         settings: user as UserSettings,
         ytdGCI,
         expensesYTD,
-        monthlyRecurring,
+        expensesRemaining,
         projectedGCI,
         projectedDealCount,
         fraction,

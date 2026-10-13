@@ -304,6 +304,8 @@ interface Props {
   isPro?: boolean;
   recurringExpMonthly?: number;
   expensesYTD?: number;
+  /** Expenses still expected this calendar year (expensesRemainingThisYear) */
+  expensesRemaining: number;
 }
 
 // ── AltimeterBanner ────────────────────────────────────────────────────────
@@ -360,6 +362,7 @@ export function AltimeterContent({
   isPro: isPro = false,
   recurringExpMonthly = 0,
   expensesYTD: expensesYTDProp = 0,
+  expensesRemaining,
 }: Props) {
   const now = new Date();
   const currentYear = now.getFullYear();
@@ -484,7 +487,7 @@ export function AltimeterContent({
           settings,
           ytdGCI,
           expensesYTD,
-          monthlyRecurring,
+          expensesRemaining,
           projectedGCI,
           projectedDealCount,
           fraction,

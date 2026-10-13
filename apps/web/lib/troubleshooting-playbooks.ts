@@ -2031,14 +2031,19 @@ An entry in the Recurring Expenses list (Expenses page) is an expense that repea
 - "Apply vehicle business-use % to this expense", for a vehicle cost
 
 **How an entry is counted:**
-There is no confirm or skip step. An active entry counts by its schedule: every occurrence so far this year is in YTD Expenses, Est. Tax Deductible and the T2125 lines (packages/core/engines/recurring-expense-engine.ts, recurringYTD). Nothing appears in the receipt log for it.
-- Monthly: one per month from the later of January and its start date. For an entry that began in an earlier year the current month counts from its first day, whatever the charge day.
-- Quarterly: every third month from its starting month, once the charge date has passed.
-- Annual: once, when its charge date has passed.
+There is no confirm or skip step. An active entry counts by its schedule: every charge so far this year is in YTD Expenses, Est. Tax Deductible and the T2125 lines (packages/core/engines/recurring-expense-engine.ts, recurringOccurrencesInRange). Nothing appears in the receipt log for it.
+- A charge counts from its charge day (the day of the month set on the entry), on or after the start date. One due on the 20th is not in the year to date on the 13th.
+- Monthly: one on the charge day of each month.
+- Quarterly: every third month from its starting month, on the charge day.
+- Annual: once, on the charge day in its month.
+- The GST/HST on it counts the same charges. The ITCs in the GST/HST summary and the GST/HST taken off the expense totals cover the same charges on any day.
+- The projected year (the annual expenses behind the tax estimate) is the charges to date plus the ones still scheduled this year, so it does not move when a charge lands. An annual fee still to come is in it in full.
 The Recurring Expenses list shows the amounts as charged. Totals are net of ITCs for a GST/HST registrant.
+Changed 2026-10-13: the expense totals used to count a monthly entry from the 1st of the month, which put one charge more in the expenses than in the ITCs until the charge day. They now count the same charges, so in the days before a charge the year-to-date expenses are lower than they used to read by that one charge.
 
 ### Common Issues
-- **"Recurring expense not counting"**: Check the start date (nothing counts before it) and that the entry is active. A quarterly or annual entry counts only after its charge date this year.
+- **"Recurring expense not counting"**: Check the start date (nothing counts before it), the charge day (this month's charge counts from that day) and that the entry is active. A quarterly or annual entry counts only from its charge date this year.
+- **"My year-to-date expenses went up today and I didn't add anything"**: A recurring entry reached its charge day. The projected year did not change.
 - **"I changed the amount and my year-to-date changed"**: The year-to-date figure is the current amount x occurrences so far, so a new amount applies to the whole year to date. Known limitation: an entry has one amount for the year.
 - **"How do I cancel a recurring expense?"**: Deactivate or delete it in the Recurring Expenses list on the Expenses page. Known limitation: a deactivated entry no longer counts for any part of the year, including the months it ran. Logging those months as receipts keeps them in the totals.
 - **"Recurring expense not in my tax deductions" / "not on my T2125"**: Since 2026-10-13 active entries count in Est. Tax Deductible and on the T2125 lines (see the Expenses playbook, "Est. Tax Deductible YTD and the T2125 lines"). A vehicle entry counts at the vehicle business-use % and a meal at 50%.
