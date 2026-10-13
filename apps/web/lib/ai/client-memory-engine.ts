@@ -20,6 +20,7 @@ import { generateText } from "ai";
 import { models, heliconeHeaders } from "@/lib/ai/provider";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { atlanticISODate } from "@agent-runway/core/lib/local-date";
+import { MEMORY_DEAL_COLUMNS, dealHistoryPrompt, type MemoryDeal } from "@/lib/ai/client-memory-deals";
 
 // ── Structured Facts shape ──────────────────────────────────────────────────
 
@@ -80,7 +81,7 @@ interface GatheredClientData {
     property_interest_type: string;
     last_contact_at: string | null;
   };
-  transactions: { side: string | null; source: string | null; address: string | null; close_date: string | null; gci: number | null }[];
+  transactions: MemoryDeal[];
   activities: { type: string; description: string; activity_date: string }[];
   showings: { property_address: string; showing_date: string; client_rating: number | null; notes: string | null }[];
   listing_appointments: { property_address: string | null; appointment_date: string; status: string; estimated_list_price: number | null; notes: string | null }[];
@@ -90,7 +91,7 @@ interface GatheredClientData {
   client_notes: { content: string; created_at: string }[];
 }
 
-async function gatherClientData(
+export async function gatherClientData(
   supabase: SupabaseClient,
   userId: string,
   clientId: string,
@@ -109,7 +110,9 @@ async function gatherClientData(
   const [transactionsRes, activitiesRes, showingsRes, listingRes, tasksRes, outreachRes, memoryRes, clientNotesRes] = await Promise.all([
     supabase
       .from("client_records")
-      .select("side, source, address, close_date, gci")
+      // Includes condition_status: dealHistoryPrompt needs it to keep
+      // collapsed deals out of the closed-deal list.
+      .select(MEMORY_DEAL_COLUMNS)
       .eq("client_id", clientId)
       .eq("user_id", userId)
       .order("close_date", { ascending: false })
@@ -179,7 +182,7 @@ async function gatherClientData(
 
 // ── Prompt builder ──────────────────────────────────────────────────────────
 
-function buildMemoryPrompt(data: GatheredClientData): string {
+export function buildMemoryPrompt(data: GatheredClientData): string {
   const c = data.client;
 
   const today = atlanticISODate();
@@ -208,17 +211,7 @@ CRM pipeline status definitions (4-stage model):
 - Last Contact: ${c.last_contact_at ?? "never"}
 `;
 
-  if (data.transactions.length > 0) {
-    prompt += `\n## Transaction History (${data.transactions.length} closed deals)\n`;
-    for (const tx of data.transactions) {
-      const parts = [tx.close_date ?? "date unknown"];
-      if (tx.side) parts.push(tx.side);
-      if (tx.address) parts.push(tx.address);
-      if (tx.gci) parts.push(`GCI $${Number(tx.gci).toLocaleString()}`);
-      if (tx.source) parts.push(`source: ${tx.source}`);
-      prompt += `- [${parts.join(" — ")}]\n`;
-    }
-  }
+  prompt += dealHistoryPrompt(data.transactions);
 
   if (data.activities.length > 0) {
     prompt += `\n## Contact Activities (${data.activities.length} most recent)\n`;
@@ -264,7 +257,8 @@ CRM pipeline status definitions (4-stage model):
   }
 
   if (data.existing_memory?.memory_summary) {
-    prompt += `\n## Previous Memory Summary\n${data.existing_memory.memory_summary}\n`;
+    // An earlier run may have recorded a since-collapsed deal as closed.
+    prompt += `\n## Previous Memory Summary\n(Written on an earlier run. Where it disagrees with the data above, the data above is correct.)\n${data.existing_memory.memory_summary}\n`;
   }
 
   prompt += `

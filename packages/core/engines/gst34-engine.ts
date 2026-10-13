@@ -10,7 +10,8 @@
  *   104  — Adjustments (usually $0 for sole-prop agents)
  *   105  — Total GST/HST and adjustments (103 + 104)
  *   106  — Input Tax Credits (ITCs) — HST paid on eligible expenses
- *   107  — ITC adjustments (meal 50% reduction, personal-use vehicle)
+ *   107  — ITC adjustments (meal 50% reduction, personal-use share of vehicle
+ *          costs and of home bills)
  *   108  — Total ITCs and adjustments (106 + 107)
  *   109  — Net tax (105 − 108). Positive = owe CRA. Negative = refund.
  *   110  — Instalments and net tax already remitted
@@ -25,7 +26,7 @@
  */
 
 import { gstHstRate, gstHstLabel } from "./canadian-tax-engine";
-import { EXPENSE_KEY_TO_T2125 } from "./t2125-engine";
+import { EXPENSE_KEY_TO_T2125, isHomeOfficeKey } from "./t2125-engine";
 import type { FilingPeriod, FilingFrequency } from "../types/database";
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -54,6 +55,13 @@ export interface GST34Input {
    * Omitted = 1 (no vehicle reduction), so older callers keep their numbers.
    */
   vehicleBusinessUsePct?: number;
+  /**
+   * Share of the home that is the business workspace, 0–1
+   * (user_settings.home_office_business_use_pct). Applies to GST/HST on bills
+   * in the Home Office expense category. Omitted = 0: no ITC on a home bill,
+   * so a caller that doesn't know the share never over-claims.
+   */
+  homeOfficeBusinessUsePct?: number;
 }
 
 export interface GST34Line {
@@ -76,9 +84,10 @@ export interface GST34Result {
   line105: number; // Total HST + adjustments
   line106: number; // Gross ITCs
   line107: number; // ITC adjustments (negative — reductions)
-  /** The two parts of line 107, as positive amounts. */
+  /** The parts of line 107, as positive amounts. */
   mealItcReduction: number;
   vehicleItcReduction: number;
+  homeItcReduction: number;
   line108: number; // Net ITCs
   line109: number; // Net tax
   line110: number; // Instalments paid
@@ -132,6 +141,16 @@ export function vehicleItcShare(businessUsePct: number): number {
   return p;
 }
 
+/**
+ * The share of a home bill's GST/HST an individual can claim. Same CRA table
+ * and the same bands as a vehicle's running costs: an operating expense used
+ * 10% or less for the business gets no ITC, 90% or more gets all of it, and
+ * in between it is the business-use share.
+ */
+export function homeOfficeItcShare(businessUsePct: number): number {
+  return vehicleItcShare(businessUsePct);
+}
+
 export interface ItcSplit {
   /** GST/HST paid. */
   gross: number;
@@ -139,6 +158,8 @@ export interface ItcSplit {
   mealReduction: number;
   /** Disallowed personal-use share on vehicle costs. */
   vehicleReduction: number;
+  /** Disallowed personal-use share on home bills. */
+  homeReduction: number;
   /** gross − reductions. */
   claimable: number;
 }
@@ -152,14 +173,21 @@ export function itcForExpense(
   categoryKey: string | null | undefined,
   vehicleBusinessUsePct = 1,
   vehicleUse = false,
+  homeOfficeBusinessUsePct = 0,
 ): ItcSplit {
   const gross = Number(taxAmount) || 0;
-  if (gross <= 0) return { gross: 0, mealReduction: 0, vehicleReduction: 0, claimable: 0 };
+  if (gross <= 0) return { gross: 0, mealReduction: 0, vehicleReduction: 0, homeReduction: 0, claimable: 0 };
+  // A home bill is a household cost first. Only the workspace share of its
+  // GST/HST is an ITC, and with no share given (default 0) none of it is.
+  if (isHomeOfficeKey(categoryKey)) {
+    const homeReduction = gross * (1 - homeOfficeItcShare(homeOfficeBusinessUsePct));
+    return { gross, mealReduction: 0, vehicleReduction: 0, homeReduction, claimable: gross - homeReduction };
+  }
   const mealReduction = isMealOrEntertainmentKey(categoryKey) ? gross * 0.5 : 0;
   const vehicleReduction = vehicleUse || isVehicleKey(categoryKey)
     ? gross * (1 - vehicleItcShare(vehicleBusinessUsePct))
     : 0;
-  return { gross, mealReduction, vehicleReduction, claimable: gross - mealReduction - vehicleReduction };
+  return { gross, mealReduction, vehicleReduction, homeReduction: 0, claimable: gross - mealReduction - vehicleReduction };
 }
 
 // ── Engine ─────────────────────────────────────────────────────────────────
@@ -173,6 +201,7 @@ export function computeGST34(input: GST34Input): GST34Result {
     periodReceipts,
     instalmentsPaid,
     vehicleBusinessUsePct = 1,
+    homeOfficeBusinessUsePct = 0,
   } = input;
 
   const rate = gstHstRate(province);
@@ -198,24 +227,29 @@ export function computeGST34(input: GST34Input): GST34Result {
   // ── Lines 106/107: Input Tax Credits ─────────────────────────────────
   // Sum all tax_amount from receipts, then take off what CRA doesn't allow:
   // half of meals and entertainment, and the personal-use share of vehicle
-  // costs (itcForExpense).
+  // costs and of home bills (itcForExpense).
   let grossITCs = 0;
   let mealITCReduction = 0;
   let vehicleITCReduction = 0;
+  let homeITCReduction = 0;
 
   for (const r of periodReceipts) {
-    const itc = itcForExpense(Number(r.tax_amount) || 0, r.category_key, vehicleBusinessUsePct, r.vehicle_use);
+    const itc = itcForExpense(
+      Number(r.tax_amount) || 0, r.category_key, vehicleBusinessUsePct, r.vehicle_use, homeOfficeBusinessUsePct,
+    );
     grossITCs += itc.gross;
     mealITCReduction += itc.mealReduction;
     vehicleITCReduction += itc.vehicleReduction;
+    homeITCReduction += itc.homeReduction;
   }
 
   // Line 106: Gross ITCs before adjustments
   const line106 = grossITCs;
 
   // Line 107: Adjustments to be subtracted (negative): the disallowed half
-  // of meal/entertainment ITCs plus the personal-use share of vehicle ITCs.
-  const line107 = -(mealITCReduction + vehicleITCReduction);
+  // of meal/entertainment ITCs plus the personal-use share of vehicle ITCs
+  // and of home-bill ITCs.
+  const line107 = -(mealITCReduction + vehicleITCReduction + homeITCReduction);
 
   // Line 108: Total ITCs and adjustments
   const line108 = line106 + line107;
@@ -272,7 +306,7 @@ export function computeGST34(input: GST34Input): GST34Result {
       amount: line106,
       note: itcNote,
     },
-    ...(mealITCReduction + vehicleITCReduction > 0
+    ...(mealITCReduction + vehicleITCReduction + homeITCReduction > 0
       ? [
           {
             line: "107",
@@ -282,6 +316,9 @@ export function computeGST34(input: GST34Input): GST34Result {
               mealITCReduction > 0 ? "50% of meals & entertainment ITCs" : null,
               vehicleITCReduction > 0
                 ? `personal-use share of vehicle ITCs (business use ${Math.round(Math.min(1, Math.max(0, vehicleBusinessUsePct)) * 100)}%)`
+                : null,
+              homeITCReduction > 0
+                ? `personal-use share of home bill ITCs (business use of home ${Math.round(Math.min(1, Math.max(0, homeOfficeBusinessUsePct)) * 100)}%)`
                 : null,
             ].filter(Boolean).join(" + ") + " not claimable under CRA rules",
           },
@@ -330,6 +367,7 @@ export function computeGST34(input: GST34Input): GST34Result {
     line107,
     mealItcReduction: mealITCReduction,
     vehicleItcReduction: vehicleITCReduction,
+    homeItcReduction: homeITCReduction,
     line108,
     line109,
     line110,

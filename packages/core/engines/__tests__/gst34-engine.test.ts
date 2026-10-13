@@ -54,7 +54,7 @@ describe("which expenses are limited", () => {
   });
 
   it("splits one expense's HST into what is and isn't claimable", () => {
-    expect(itcForExpense(10, "meals_client", 0.8)).toEqual({ gross: 10, mealReduction: 5, vehicleReduction: 0, claimable: 5 });
+    expect(itcForExpense(10, "meals_client", 0.8)).toEqual({ gross: 10, mealReduction: 5, vehicleReduction: 0, homeReduction: 0, claimable: 5 });
     const fuel = itcForExpense(10, "vehicle_fuel", 0.8);
     expect(fuel.vehicleReduction).toBeCloseTo(2, 10);
     expect(fuel.claimable).toBeCloseTo(8, 10);

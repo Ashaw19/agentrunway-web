@@ -3,7 +3,8 @@ import { redirect } from "next/navigation";
 import { ReportsContent } from "./reports-content";
 import type { CcaAsset, RecurringExpense, ListingAppointment } from "@/lib/types/database";
 import { totalRecurringMonthly, totalRecurringYTD } from "@agent-runway/core/engines/recurring-expense-engine";
-import { aggregateReceiptTotals, expenseTaxContext, recurringExpensesNetOfItc } from "@agent-runway/core/engines/expense-totals-engine";
+import { expenseTaxContext, recurringExpensesNetOfItc } from "@agent-runway/core/engines/expense-totals-engine";
+import { buildT2125ExpenseInputs } from "@/lib/expenses/t2125-inputs";
 import { computeIsPro } from "@/lib/compute-is-pro";
 import { atlanticNoon } from "@agent-runway/core/lib/local-date";
 
@@ -115,20 +116,21 @@ export default async function ReportsPage() {
   // The uncategorized remainder is carried separately so the YTD expense total
   // still agrees with the dashboard. For a GST/HST registrant every figure is
   // net of ITCs, so the T2125 lines don't deduct tax the GST34 already claims.
-  const { byKey: receiptTotalsByKey, uncategorized: uncategorizedReceiptYTD } =
-    aggregateReceiptTotals(receiptTotalsResult.data, taxCtx);
-
-  // Build expenseAmounts for T2125 tab: receipts YTD + recurring for completed months only.
-  // T2125 is a tax form — only include expenses actually incurred (not projected future months).
-  // completedMonths = number of fully elapsed months before the current month (e.g. March → 2).
-  const completedMonths = today.getMonth(); // 0-based: Jan=0 → 0 completed, Mar=2 → 2 completed
-  const expenseAmounts: Record<string, number> = { ...receiptTotalsByKey };
-  for (const item of expItemResult.data ?? []) {
-    if (item.monthly_recurring > 0 && completedMonths > 0) {
-      expenseAmounts[item.key] =
-        (expenseAmounts[item.key] ?? 0) + item.monthly_recurring * completedMonths;
-    }
-  }
+  //
+  // T2125 inputs: expenses incurred to date by key (receipts, the legacy
+  // per-item monthly figure, and the Recurring Expenses list), plus the Home
+  // Office bills in full for line 9945. See lib/expenses/t2125-inputs.ts.
+  const {
+    expenseAmounts,
+    homeOfficeCosts,
+    receiptTotals: { byKey: receiptTotalsByKey, uncategorized: uncategorizedReceiptYTD },
+  } = buildT2125ExpenseInputs({
+    receiptRows: receiptTotalsResult.data,
+    expenseItems: expItemResult.data,
+    recurringExpenses: (recurringExpResult.data ?? []) as RecurringExpense[],
+    ctx: taxCtx,
+    today,
+  });
 
   // Build referral summary for PDF Page 7
   const referrals = referralsResult.data ?? [];
@@ -158,6 +160,7 @@ export default async function ReportsPage() {
       uncategorizedReceiptYTD={uncategorizedReceiptYTD}
       ccaAssets={(ccaAssetsResult.data ?? []) as CcaAsset[]}
       expenseAmounts={expenseAmounts}
+      homeOfficeCosts={homeOfficeCosts}
       mileageLogs={(mileageResult.data ?? []).map((r) => ({
         km: Number(r.km),
         deduction: Number(r.deduction),

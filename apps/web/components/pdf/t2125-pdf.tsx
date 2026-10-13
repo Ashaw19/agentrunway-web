@@ -455,12 +455,26 @@ export function T2125Pdf({ result, settings, taxYear, mileageSummary, taxOptCard
 
         {/* Home Office */}
         <SectionHeader title="Home Office — Line 9945" subtitle={`Actual costs × ${fmtPct(result.homeOffice.businessUsePct)} business use`} color="#0D9488" />
-        <LineRow label="Annual rent / mortgage interest" value={result.homeOffice.annualRent} />
-        <LineRow label="Annual utilities" value={result.homeOffice.annualUtilities} />
-        <LineRow label="Annual property tax" value={result.homeOffice.annualPropertyTax} />
-        <LineRow label="Annual home insurance" value={result.homeOffice.annualInsurance} />
-        <LineRow label="Annual maintenance" value={result.homeOffice.annualMaintenance} />
-        {result.homeOffice.annualCondoFees > 0 && <LineRow label="Annual condo fees" value={result.homeOffice.annualCondoFees} />}
+        {/* A cost with bills logged under Home Office is the total of those
+            bills to date; the others are the annual estimate from settings. */}
+        {(() => {
+          const logged = (t: (typeof result.homeOffice.loggedCostTypes)[number]) =>
+            result.homeOffice.loggedCostTypes.includes(t);
+          const label = (t: (typeof result.homeOffice.loggedCostTypes)[number], name: string) =>
+            logged(t) ? `${name} (bills logged)` : `Annual ${name.charAt(0).toLowerCase()}${name.slice(1)} (estimate)`;
+          return (
+            <>
+              <LineRow label={label("rent", "Rent / mortgage interest")} value={result.homeOffice.annualRent} />
+              <LineRow label={label("utilities", "Utilities")} value={result.homeOffice.annualUtilities} />
+              <LineRow label={label("propertyTax", "Property tax")} value={result.homeOffice.annualPropertyTax} />
+              <LineRow label={label("insurance", "Home insurance")} value={result.homeOffice.annualInsurance} />
+              <LineRow label={label("maintenance", "Maintenance")} value={result.homeOffice.annualMaintenance} />
+              {result.homeOffice.annualCondoFees > 0 && (
+                <LineRow label={label("condoFees", "Condo fees")} value={result.homeOffice.annualCondoFees} />
+              )}
+            </>
+          );
+        })()}
         <LineRow label={`Total × ${fmtPct(result.homeOffice.businessUsePct)} business use`} value={result.homeOffice.deduction} />
         <LineHighlight lineNum="9945" label="Home Office Deduction" value={result.line9945_homeOfficeDeduction} />
 

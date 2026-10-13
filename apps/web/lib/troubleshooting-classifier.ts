@@ -258,6 +258,11 @@ const TOPIC_RULES: TopicRule[] = [
       "anomaly",
       "unusual expense",
       "marketing spend",
+      "home bill",
+      "power bill",
+      "heating bill",
+      "home office bill",
+      "business use of home",
     ],
   },
   {
