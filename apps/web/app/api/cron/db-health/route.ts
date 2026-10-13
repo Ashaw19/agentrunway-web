@@ -109,7 +109,7 @@ export async function GET(req: NextRequest) {
   try {
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    const cutoff = thirtyDaysAgo.toISOString().slice(0, 10);
+    const cutoff = thirtyDaysAgo.toISOString();
 
     const { count, error } = await admin
       .from("transactions")

@@ -70,13 +70,26 @@ import {
   draftSocialPost as draftSocialPostService,
   type SocialPostTemplate,
 } from "@/lib/ai/draft-services";
-import { APP_TIME_ZONE, addDaysISO, atlanticISODate, atlanticNoon, atlanticYear } from "@agent-runway/core/lib/local-date";
+import { APP_TIME_ZONE, addDaysISO, atlanticDayStart, atlanticISODate, atlanticNoon, atlanticYear } from "@agent-runway/core/lib/local-date";
 import { hasClosedDeal } from "@/lib/crm/contactable-records";
 import {
   RECEIPT_CATEGORY_GROUPS,
   RECEIPT_CATEGORY_KEYS,
   receiptCategoryFullLabel,
 } from "@/lib/types/receipt";
+
+/**
+ * The instants bounding the Atlantic days `first` to `last` (YYYY-MM-DD), for
+ * filtering a timestamptz column: `.gte(col, from).lt(col, to)`. Postgres
+ * reads a bare `${day}T00:00:00` as UTC, so "Oct 9" lost its last three
+ * hours and took the evening of Oct 8.
+ */
+function atlanticDays(first: string, last: string): { from: string; to: string } {
+  return {
+    from: atlanticDayStart(first).toISOString(),
+    to:   atlanticDayStart(addDaysISO(last, 1)).toISOString(),
+  };
+}
 
 // ── Approval Gate ──────────────────────────────────────────────────────────
 // Tools in this set require explicit user confirmation before executing.
@@ -2221,6 +2234,12 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
       }),
       execute: async ({ clientId, activityType, startDate, endDate, limit: maxResults }) => {
         try {
+          for (const [name, value] of [["startDate", startDate], ["endDate", endDate]] as const) {
+            if (value && Number.isNaN(atlanticDayStart(value).getTime())) {
+              return `Dates must be YYYY-MM-DD. Got ${name} "${value}".`;
+            }
+          }
+
           let query = supabase
             .from("contact_activities")
             .select("id, type, description, activity_date, client_id, clients!inner(name)")
@@ -2230,8 +2249,9 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
 
           if (clientId) query = query.eq("client_id", clientId);
           if (activityType) query = query.eq("type", activityType);
-          if (startDate) query = query.gte("activity_date", `${startDate}T00:00:00`);
-          if (endDate) query = query.lte("activity_date", `${endDate}T23:59:59`);
+          // activity_date is a timestamp: bound it by the Atlantic day.
+          if (startDate) query = query.gte("activity_date", atlanticDayStart(startDate).toISOString());
+          if (endDate) query = query.lt("activity_date", atlanticDayStart(addDaysISO(endDate, 1)).toISOString());
 
           const { data, error } = await query;
 
@@ -2400,6 +2420,8 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
 
           const start = startDate.toISOString().split("T")[0];
           const end = endDate.toISOString().split("T")[0];
+          // Timestamp columns (activity_date, created_at) take instants.
+          const days = atlanticDays(start, end);
 
           // Parallel queries
           const [txResult, expResult, actResult, mileResult, pipeResult] = await Promise.allSettled([
@@ -2419,8 +2441,8 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
               .from("contact_activities")
               .select("type")
               .eq("user_id", userId)
-              .gte("activity_date", `${start}T00:00:00`)
-              .lte("activity_date", `${end}T23:59:59`),
+              .gte("activity_date", days.from)
+              .lt("activity_date", days.to),
             supabase
               .from("mileage_logs")
               .select("km, deduction")
@@ -2431,8 +2453,8 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
               .from("pipeline_deals")
               .select("id, stage, estimated_price")
               .eq("user_id", userId)
-              .gte("created_at", `${start}T00:00:00`)
-              .lte("created_at", `${end}T23:59:59`),
+              .gte("created_at", days.from)
+              .lt("created_at", days.to),
           ]);
 
           const transactions = txResult.status === "fulfilled" ? txResult.value.data ?? [] : [];
@@ -2558,10 +2580,11 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
 
           const taxCtx = await getExpenseTaxCtx();
           async function getPeriodData(start: string, end: string) {
+            const days = atlanticDays(start, end);
             const [txResult, expResult, actResult] = await Promise.allSettled([
               supabase.from("transactions").select("sale_price, commission_pct, gci_override, team_split_pct").eq("user_id", userId).gte("date", start).lte("date", end),
               supabase.from("receipt_expenses").select("category_key, total_amount, tax_amount").eq("user_id", userId).gte("expense_date", start).lte("expense_date", end),
-              supabase.from("contact_activities").select("id").eq("user_id", userId).gte("activity_date", `${start}T00:00:00`).lte("activity_date", `${end}T23:59:59`),
+              supabase.from("contact_activities").select("id").eq("user_id", userId).gte("activity_date", days.from).lt("activity_date", days.to),
             ]);
 
             const txData = txResult.status === "fulfilled" ? txResult.value.data ?? [] : [];

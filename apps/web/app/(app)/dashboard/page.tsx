@@ -101,7 +101,8 @@ export default async function DashboardPage({
         .from("contact_activities")
         .select("client_id")
         .eq("user_id", user.id)
-        .gte("activity_date", new Date(Date.now() - 14 * 86_400_000).toISOString().slice(0, 10)),
+        // An instant: a bare date here is read as that day's UTC midnight.
+        .gte("activity_date", new Date(Date.now() - 14 * 86_400_000).toISOString()),
       supabase.from("clients").select("*").eq("user_id", user.id).limit(10000),
       supabase
         .from("contact_activities")

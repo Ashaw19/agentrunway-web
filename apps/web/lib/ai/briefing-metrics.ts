@@ -58,9 +58,9 @@ export function briefingDateRanges(now: Date = new Date()): BriefingDateRanges {
   return {
     todayStr,
     yearStart: `${todayStr.slice(0, 4)}-01-01`,
-    fourteenDaysAgo: new Date(now.getTime() - 14 * 86_400_000)
-      .toISOString()
-      .slice(0, 10),
+    // An instant, not a date: it bounds last_contact_at (timestamptz), and
+    // Postgres reads a bare date there as that day's UTC midnight.
+    fourteenDaysAgo: new Date(now.getTime() - 14 * 86_400_000).toISOString(),
     fourteenDaysAhead: addDaysISO(todayStr, 14),
   };
 }
