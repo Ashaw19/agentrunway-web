@@ -6,7 +6,9 @@
  *
  * CRA rules for Dec 31 year-end (most common for sole-prop realtors):
  * - Monthly:    due one month after period end
- * - Quarterly:  Q1 Jan-Mar (Apr 30), Q2 Apr-Jun (Jul 31), Q3 Jul-Sep (Oct 31), Q4 Oct-Dec (Mar 31 next year)
+ * - Quarterly:  due one month after period end: Q1 Jan-Mar (Apr 30), Q2 Apr-Jun (Jul 31),
+ *               Q3 Jul-Sep (Oct 31), Q4 Oct-Dec (Jan 31 next year). Until 2026-10-13 Q4 read
+ *               Mar 31, two months past CRA's date.
  * - Annual:     due June 15 following year (sole prop), March 31 (corp)
  */
 
@@ -78,7 +80,7 @@ export function getFilingPeriods(
           label: `Q4 ${year}`,
           startDate: toISO(year, 10, 1),
           endDate: toISO(year, 12, 31),
-          deadline: toISO(year + 1, 3, 31),
+          deadline: toISO(year + 1, 1, 31),
         },
       ];
 

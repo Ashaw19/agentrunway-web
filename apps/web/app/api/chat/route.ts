@@ -56,7 +56,8 @@ import {
   deviationPromptFragment,
 } from "@agent-runway/core/engines/deviation-engine";
 import { generateInsights, type Insight } from "@agent-runway/core/engines/insights-engine";
-import { totalRecurringMonthly, totalRecurringYTD, totalRecurringHSTYTD } from "@agent-runway/core/engines/recurring-expense-engine";
+import { totalRecurringMonthly, totalRecurringYTD, recurringHSTEntriesForPeriod } from "@agent-runway/core/engines/recurring-expense-engine";
+import { itcForExpense } from "@agent-runway/core/engines/gst34-engine";
 import { getCurrentFilingPeriod, deadlineUrgency } from "@agent-runway/core/engines/filing-period-engine";
 
 import type { RecurringExpense, FilingFrequency } from "@/lib/types/database";
@@ -924,8 +925,14 @@ export async function POST(req: NextRequest) {
             brokerageWithholdsHst: settings.brokerage_withholds_hst ?? false,
           });
           const receiptDetails = (receiptDetailsRows ?? []) as { total_amount?: number | null; tax_amount?: number | null; category_key?: string | null }[];
-          const receiptITCs = receiptDetails.reduce((sum, r) => sum + Number(r.tax_amount ?? 0), 0);
-          const recurringITCs = totalRecurringHSTYTD(recurringExps, today);
+          // Same limits as the GST34 pre-fill (itcForExpense): half of meals
+          // and entertainment, and the business-use share of vehicle costs.
+          // The Expenses page defaults vehicle use to 80% when unset.
+          const vehicleUse = settings.vehicle_business_use_pct != null ? Number(settings.vehicle_business_use_pct) : 0.8;
+          const receiptITCs = receiptDetails.reduce(
+            (sum, r) => sum + itcForExpense(Number(r.tax_amount ?? 0), r.category_key, vehicleUse).claimable, 0);
+          const recurringITCs = recurringHSTEntriesForPeriod(recurringExps, `${todayISO.slice(0, 4)}-01-01`, todayISO)
+            .reduce((sum, e) => sum + itcForExpense(e.tax_amount, e.category_key, vehicleUse, e.vehicle_use).claimable, 0);
           const totalITCsClaimed = receiptITCs + recurringITCs;
           const netHST = totalHSTCollected - totalITCsClaimed;
           if (ytdGCI > 0) {
