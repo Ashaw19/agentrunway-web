@@ -92,7 +92,7 @@ import {
   deadlineUrgency,
 } from "@agent-runway/core/engines/filing-period-engine";
 import { computeGST34 } from "@agent-runway/core/engines/gst34-engine";
-import { totalRecurringHSTForPeriod } from "@agent-runway/core/engines/recurring-expense-engine";
+import { recurringHSTEntriesForPeriod } from "@agent-runway/core/engines/recurring-expense-engine";
 import { gstHstLabel } from "@agent-runway/core/engines/canadian-tax-engine";
 import { reconcileDeals, type ReconciliationResult, type ImportedDeal } from "@agent-runway/core/engines/reconciliation-engine";
 import { selectTaxTips, TIP_CATEGORY_LABELS } from "@agent-runway/core/engines/tax-iq-engine";
@@ -223,7 +223,9 @@ export function ExpensesContent({
       const d = tx.date;
       return d >= activePeriod.startDate && d <= activePeriod.endDate;
     });
-    const recurringHST = totalRecurringHSTForPeriod(
+    // One entry per recurring expense, so the meal and vehicle ITC limits
+    // apply to each (a lease payment's HST follows the business-use share).
+    const recurringHST = recurringHSTEntriesForPeriod(
       recurringExpenses,
       activePeriod.startDate,
       activePeriod.endDate,
@@ -239,14 +241,14 @@ export function ExpensesContent({
           tax_amount: r.tax_amount,
           category_key: r.category_key,
         })),
-        // Include HST paid on recurring expenses as ITCs
-        ...(recurringHST > 0
-          ? [{ total_amount: null, tax_amount: recurringHST, category_key: null }]
-          : []),
+        // Include HST paid on recurring expenses as ITCs (total_amount null
+        // marks them as not-a-receipt for the line 106 note)
+        ...recurringHST.map((e) => ({ total_amount: null, ...e })),
       ],
       instalmentsPaid: 0, // User can enter this in Reports tab
+      vehicleBusinessUsePct: vehiclePct,
     });
-  }, [activePeriod, settings, transactions, filteredReceipts, filingFreq, recurringExpenses]);
+  }, [activePeriod, settings, transactions, filteredReceipts, filingFreq, recurringExpenses, vehiclePct]);
 
   // ── Current period deadline alert ──────────────────────────────────────
   const currentDeadline = useMemo(() => {

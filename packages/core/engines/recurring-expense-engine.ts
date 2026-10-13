@@ -154,6 +154,29 @@ export function totalRecurringHSTForPeriod(
     .reduce((sum, re) => sum + occurrencesInRange(re, start, end) * Number(re.hst_amount), 0);
 }
 
+/**
+ * HST on active recurring expenses in [startDate, endDate], one entry per
+ * expense, with its category and vehicle flag. The GST34 pre-fill needs them
+ * separately: a lease payment's HST is limited to the business-use share and
+ * a meal's to 50%, which a single total can't express.
+ */
+export function recurringHSTEntriesForPeriod(
+  expenses: RecurringExpense[],
+  startDate: string, // YYYY-MM-DD
+  endDate: string,   // YYYY-MM-DD
+): { category_key: string | null; tax_amount: number; vehicle_use: boolean }[] {
+  const start = new Date(startDate + "T00:00:00");
+  const end   = new Date(endDate   + "T23:59:59");
+  return expenses
+    .filter((re) => re.is_active && Number(re.hst_amount) > 0)
+    .map((re) => ({
+      category_key: re.category_key ?? null,
+      tax_amount:   occurrencesInRange(re, start, end) * Number(re.hst_amount),
+      vehicle_use:  Boolean(re.vehicle_pct_applicable),
+    }))
+    .filter((e) => e.tax_amount > 0);
+}
+
 /** Total YTD HST on active recurring expenses (mirrors totalRecurringYTD). */
 export function totalRecurringHSTYTD(
   expenses: RecurringExpense[],

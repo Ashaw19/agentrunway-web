@@ -1668,7 +1668,7 @@ The Overhead page can pre-fill your GST34 return for any filing period:
 | 103 | GST/HST collected | Line 101 × provincial rate (5%/13%/14%/14.975%/15%) |
 | 105 | Total HST + adjustments | Line 103 + Line 104 (adjustments usually $0) |
 | 106 | Input Tax Credits (ITCs) | GST/HST paid on eligible business expenses |
-| 107 | ITC adjustments | −50% of ITCs on meals & entertainment (CRA rule) |
+| 107 | ITC adjustments | −50% of ITCs on meals & entertainment, and the personal-use share of ITCs on vehicle costs (fuel, repairs, lease). Vehicle share follows the business-use % in Expenses: 10% or less = none claimable, 90% or more = all, otherwise that share (CRA rules) |
 | 108 | Total ITCs | Line 106 + Line 107 |
 | 109 | Net tax | Line 105 − Line 108 (positive = owing, negative = refund) |
 | 110 | Instalments paid | Payments already remitted for this period |
@@ -1682,7 +1682,7 @@ The Overhead page can pre-fill your GST34 return for any filing period:
 
 | Filing Frequency | Due Dates |
 |-----------------|-----------|
-| Quarterly | Q1 (Jan–Mar): April 30 / Q2 (Apr–Jun): July 31 / Q3 (Jul–Sep): October 31 / Q4 (Oct–Dec): March 31 (next year) |
+| Quarterly | Q1 (Jan–Mar): April 30 / Q2 (Apr–Jun): July 31 / Q3 (Jul–Sep): October 31 / Q4 (Oct–Dec): January 31 (next year) |
 | Monthly | One month after period end (e.g., January → February 28) |
 | Annual | June 15 following year (sole prop) or March 31 (corp) |
 
@@ -1721,7 +1721,7 @@ If the card doesn't show: the agent hasn't set 'estimated_weekly_hours' in Setti
 - **"Instalment amounts changed"**: They update as your estimated tax changes throughout the year based on new transactions and expenses.
 - **"What is line 109 on my GST34?"**: Net tax = GST collected on commissions minus ITCs from expenses. Positive means you owe CRA; negative means CRA refunds you.
 - **"My ITCs seem low"**: Insurance premiums are GST/HST exempt — no ITC can be claimed. Meals & entertainment ITCs are 50% disallowed.
-- **"When is my GST/HST quarterly filing due?"**: Q1 Apr 30, Q2 Jul 31, Q3 Oct 31, Q4 Mar 31 (next year). These are different from income tax instalment dates (Mar 15, Jun 15, Sep 15, Dec 15).
+- **"When is my GST/HST quarterly filing due?"**: Q1 Apr 30, Q2 Jul 31, Q3 Oct 31, Q4 Jan 31 (next year). These are different from income tax instalment dates (Mar 15, Jun 15, Sep 15, Dec 15).
 - **"Time Value card not showing"**: Set your estimated weekly hours in Settings. The card only appears when weekly hours are configured.
 - **"What does effective hourly rate mean?"**: It's your projected annual net income divided by your annual working hours. Lower than expected? Check if your deal count or expenses are pulling it down.
 `,

@@ -25,6 +25,7 @@
  */
 
 import { gstHstRate, gstHstLabel } from "./canadian-tax-engine";
+import { EXPENSE_KEY_TO_T2125 } from "./t2125-engine";
 import type { FilingPeriod, FilingFrequency } from "../types/database";
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -43,9 +44,16 @@ export interface GST34Input {
     total_amount: number | null;
     tax_amount: number | null;
     category_key: string | null;
+    /** A recurring expense flagged vehicle_pct_applicable (its key may not say so). */
+    vehicle_use?: boolean;
   }[];
   /** Amount already remitted for this specific period (user-entered) */
   instalmentsPaid: number;
+  /**
+   * Share of vehicle use that is business, 0–1 (user_settings.vehicle_business_use_pct).
+   * Omitted = 1 (no vehicle reduction), so older callers keep their numbers.
+   */
+  vehicleBusinessUsePct?: number;
 }
 
 export interface GST34Line {
@@ -68,6 +76,9 @@ export interface GST34Result {
   line105: number; // Total HST + adjustments
   line106: number; // Gross ITCs
   line107: number; // ITC adjustments (negative — reductions)
+  /** The two parts of line 107, as positive amounts. */
+  mealItcReduction: number;
+  vehicleItcReduction: number;
   line108: number; // Net ITCs
   line109: number; // Net tax
   line110: number; // Instalments paid
@@ -82,14 +93,74 @@ export interface GST34Result {
   deadline: string;
 }
 
-// ── Meal/entertainment categories that get 50% ITC reduction ──────────────
+// ── ITC limits ─────────────────────────────────────────────────────────────
+// Which expenses are meals or vehicle comes from the SAME map the T2125
+// estimate uses (EXPENSE_KEY_TO_T2125), so the two can't disagree.
+//
+// Until 2026-10-13 this file kept its own list of meal keys
+// ("meals_entertainment", "client_meals", "meals", "entertainment"). No
+// expense in the app has ever used those: the real keys are meals_client,
+// meals_team, ent_client and ent_events. So the 50% reduction never applied
+// and every meal's HST was claimed in full. Vehicle ITCs ignored the
+// business-use share entirely. Both overstated the refund.
 
-const MEAL_CATEGORIES = new Set([
-  "meals_entertainment",
-  "client_meals",
-  "meals",
-  "entertainment",
-]);
+/** Keys older receipts may carry (category-level, before item keys). */
+const LEGACY_MEAL_KEYS = new Set(["meals_entertainment", "client_meals", "meals", "entertainment"]);
+const LEGACY_VEHICLE_KEYS = new Set(["vehicle"]);
+
+/** Meals and entertainment: CRA allows 50% of the GST/HST paid as an ITC. */
+export function isMealOrEntertainmentKey(key: string | null | undefined): boolean {
+  if (!key) return false;
+  return LEGACY_MEAL_KEYS.has(key) || EXPENSE_KEY_TO_T2125[key]?.deductiblePct === 0.5;
+}
+
+/** Vehicle running costs and lease payments: ITC follows the business-use share. */
+export function isVehicleKey(key: string | null | undefined): boolean {
+  if (!key) return false;
+  return LEGACY_VEHICLE_KEYS.has(key) || EXPENSE_KEY_TO_T2125[key]?.applyVehicleUse === true;
+}
+
+/**
+ * The share of a vehicle's GST/HST an individual can claim, by how much of
+ * its use is business (CRA "ITC eligibility percentage" table, operating
+ * expenses): 10% or less → none; 90% or more → all; otherwise that share.
+ */
+export function vehicleItcShare(businessUsePct: number): number {
+  const p = Math.min(1, Math.max(0, Number.isFinite(businessUsePct) ? businessUsePct : 0));
+  if (p <= 0.10) return 0;
+  if (p >= 0.90) return 1;
+  return p;
+}
+
+export interface ItcSplit {
+  /** GST/HST paid. */
+  gross: number;
+  /** Disallowed half on meals and entertainment. */
+  mealReduction: number;
+  /** Disallowed personal-use share on vehicle costs. */
+  vehicleReduction: number;
+  /** gross − reductions. */
+  claimable: number;
+}
+
+/**
+ * The claimable ITC on one expense's GST/HST. Used by the GST34 pre-fill and
+ * by Flight Crew's HST forecast so both apply the same limits.
+ */
+export function itcForExpense(
+  taxAmount: number,
+  categoryKey: string | null | undefined,
+  vehicleBusinessUsePct = 1,
+  vehicleUse = false,
+): ItcSplit {
+  const gross = Number(taxAmount) || 0;
+  if (gross <= 0) return { gross: 0, mealReduction: 0, vehicleReduction: 0, claimable: 0 };
+  const mealReduction = isMealOrEntertainmentKey(categoryKey) ? gross * 0.5 : 0;
+  const vehicleReduction = vehicleUse || isVehicleKey(categoryKey)
+    ? gross * (1 - vehicleItcShare(vehicleBusinessUsePct))
+    : 0;
+  return { gross, mealReduction, vehicleReduction, claimable: gross - mealReduction - vehicleReduction };
+}
 
 // ── Engine ─────────────────────────────────────────────────────────────────
 
@@ -101,6 +172,7 @@ export function computeGST34(input: GST34Input): GST34Result {
     periodTransactions,
     periodReceipts,
     instalmentsPaid,
+    vehicleBusinessUsePct = 1,
   } = input;
 
   const rate = gstHstRate(province);
@@ -124,30 +196,26 @@ export function computeGST34(input: GST34Input): GST34Result {
   const line105 = line103 + line104;
 
   // ── Lines 106/107: Input Tax Credits ─────────────────────────────────
-  // Sum all tax_amount from receipts. For meals/entertainment, only 50%
-  // of the ITC is claimable (matching CRA rules for ITC on M&E).
+  // Sum all tax_amount from receipts, then take off what CRA doesn't allow:
+  // half of meals and entertainment, and the personal-use share of vehicle
+  // costs (itcForExpense).
   let grossITCs = 0;
   let mealITCReduction = 0;
+  let vehicleITCReduction = 0;
 
   for (const r of periodReceipts) {
-    const tax = Number(r.tax_amount) || 0;
-    if (tax <= 0) continue;
-
-    if (r.category_key && MEAL_CATEGORIES.has(r.category_key)) {
-      // Only 50% of tax on meals/entertainment is claimable as ITC
-      grossITCs += tax;
-      mealITCReduction += tax * 0.5; // Half is disallowed
-    } else {
-      grossITCs += tax;
-    }
+    const itc = itcForExpense(Number(r.tax_amount) || 0, r.category_key, vehicleBusinessUsePct, r.vehicle_use);
+    grossITCs += itc.gross;
+    mealITCReduction += itc.mealReduction;
+    vehicleITCReduction += itc.vehicleReduction;
   }
 
   // Line 106: Gross ITCs before adjustments
   const line106 = grossITCs;
 
-  // Line 107: Adjustments to be subtracted (meal reduction is negative)
-  // This is the 50% disallowed portion of meal/entertainment ITCs
-  const line107 = -mealITCReduction;
+  // Line 107: Adjustments to be subtracted (negative): the disallowed half
+  // of meal/entertainment ITCs plus the personal-use share of vehicle ITCs.
+  const line107 = -(mealITCReduction + vehicleITCReduction);
 
   // Line 108: Total ITCs and adjustments
   const line108 = line106 + line107;
@@ -204,13 +272,18 @@ export function computeGST34(input: GST34Input): GST34Result {
       amount: line106,
       note: itcNote,
     },
-    ...(mealITCReduction > 0
+    ...(mealITCReduction + vehicleITCReduction > 0
       ? [
           {
             line: "107",
-            label: "ITC adjustments (50% meal/entertainment reduction)",
+            label: "ITC adjustments",
             amount: line107,
-            note: "CRA disallows 50% of ITCs on meals & entertainment",
+            note: [
+              mealITCReduction > 0 ? "50% of meals & entertainment ITCs" : null,
+              vehicleITCReduction > 0
+                ? `personal-use share of vehicle ITCs (business use ${Math.round(Math.min(1, Math.max(0, vehicleBusinessUsePct)) * 100)}%)`
+                : null,
+            ].filter(Boolean).join(" + ") + " not claimable under CRA rules",
           },
         ]
       : []),
@@ -255,6 +328,8 @@ export function computeGST34(input: GST34Input): GST34Result {
     line105,
     line106,
     line107,
+    mealItcReduction: mealITCReduction,
+    vehicleItcReduction: vehicleITCReduction,
     line108,
     line109,
     line110,
