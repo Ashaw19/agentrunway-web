@@ -45,6 +45,7 @@ import { calculateCorporateTax } from "@/lib/engines/corporate-tax-engine";
 import { probabilityBands, fiveYearBands } from "@/lib/engines/probabilistic-forecast-engine";
 import { survivalResult, riskColorBand, type RiskColorBand } from "@/lib/engines/survival-engine";
 import { computeEffectiveCashForSurvival, computePipelineMonthlyIncome } from "@/lib/engines/effective-cash";
+import { remainingYearExpenses } from "@agent-runway/core/engines/expense-totals-engine";
 import { compare } from "@/lib/engines/benchmark-engine";
 import { generateAdvisory, type AdvisorCard } from "@/lib/engines/advisor-engine";
 import { generateTaxOptimizations, type DeductionTrackingFlags, type TaxOptimizationCard } from "@/lib/engines/tax-optimization-engine";
@@ -92,6 +93,8 @@ interface Props {
   ccaAssetCount?: number;
   recurringExpMonthly?: number;
   recurringExpYTD?: number;
+  /** Pre-computed: what the recurring_expenses table is still to charge this year */
+  recurringExpRemaining: number;
 }
 
 export function ForecastContent({
@@ -108,6 +111,7 @@ export function ForecastContent({
   ccaAssetCount = 0,
   recurringExpMonthly = 0,
   recurringExpYTD = 0,
+  recurringExpRemaining,
 }: Props) {
   // ── Scenario selector (Conservative −15% / Base / Optimistic +15%) ────
   const [scenario, setScenario] = useState<"conservative" | "base" | "optimistic">("base");
@@ -208,9 +212,9 @@ export function ForecastContent({
   const _monthsElapsed = _now.getMonth() + 1;
   const legacyRecurringYTDEstimate = legacyMonthlyRecurring * _monthsElapsed;
   const expensesYTD = Math.max(receiptTotal, legacyRecurringYTDEstimate) + recurringExpYTD;
-  // Project full-year: actual YTD + remaining months of recurring
-  const remainingMonths = Math.max(0, 12 - (_now.getMonth() + 1));
-  const annualExpenses = expensesYTD + monthlyRecurring * remainingMonths;
+  // Project full-year: actual YTD + what is still to come (matches the dashboard)
+  const expensesRemaining = remainingYearExpenses(legacyMonthlyRecurring, recurringExpRemaining, _now);
+  const annualExpenses = expensesYTD + expensesRemaining;
 
   // ── Tax estimate ──────────────────────────────────────────────────────
   const netForTax = Math.max(0, projectedNet - annualExpenses);
@@ -279,7 +283,7 @@ export function ForecastContent({
     settings,
     ytdGCI,
     expensesYTD,
-    monthlyRecurring,
+    expensesRemaining,
     projectedGCI,
     projectedDealCount: projectedDeals,
     fraction,
@@ -303,7 +307,7 @@ export function ForecastContent({
     splitPreset: settings.split_preset,
     seasonalWeights,
     expensesYTD,
-    monthlyRecurringExpenses: monthlyRecurring,
+    expensesRemaining,
     projectedYearEndGCI: projectedGCI,
     marketYoYGrowth: settings.market_yoy_growth_pct / 100,
     benchmarkPercentile: benchmark.percentile,

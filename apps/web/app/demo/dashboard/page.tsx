@@ -565,6 +565,7 @@ export default function DemoDashboardPage() {
               pipelineDeals={DEMO_PIPELINE}
               settings={DEMO_SETTINGS}
               expenseCategories={DEMO_EXPENSE_CATEGORIES}
+              recurringExpRemaining={0}
               deductionTracking={DEMO_DEDUCTION_TRACKING}
               initialDashboardView="standard"
               isPro={true}

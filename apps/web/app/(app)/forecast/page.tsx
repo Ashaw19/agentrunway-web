@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { ForecastContent } from "./forecast-content";
 
-import { totalRecurringMonthly, totalRecurringYTD } from "@agent-runway/core/engines/recurring-expense-engine";
+import { totalRecurringMonthly, totalRecurringRemaining, totalRecurringYTD } from "@agent-runway/core/engines/recurring-expense-engine";
 import { aggregateReceiptTotals, expenseTaxContext, recurringExpensesNetOfItc } from "@agent-runway/core/engines/expense-totals-engine";
 import { buildT2125Expenses } from "@agent-runway/core/engines/t2125-expenses-engine";
 import { deductionTrackingFlags } from "@agent-runway/core/engines/tax-optimization-engine";
@@ -101,6 +101,7 @@ export default async function ForecastPage() {
   );
   const recurringExpMonthly = totalRecurringMonthly(recurringExpenses);
   const recurringExpYTD = totalRecurringYTD(recurringExpenses, today);
+  const recurringExpRemaining = totalRecurringRemaining(recurringExpenses, today);
 
   const expenseCategories = (expCatResult.data ?? []).map((cat) => ({
     ...cat,
@@ -147,6 +148,7 @@ export default async function ForecastPage() {
       ccaAssetCount={ccaAssetCount}
       recurringExpMonthly={recurringExpMonthly}
       recurringExpYTD={recurringExpYTD}
+      recurringExpRemaining={recurringExpRemaining}
     />
   );
 }

@@ -123,6 +123,7 @@ import {
 import { getCurrentFilingPeriod, deadlineUrgency } from "@agent-runway/core/engines/filing-period-engine";
 import { gstHstLabel, gstHstRate } from "@agent-runway/core/engines/canadian-tax-engine";
 import { computeHSTCollected } from "@agent-runway/core/engines/hst-engine";
+import { remainingYearExpenses } from "@agent-runway/core/engines/expense-totals-engine";
 import {
   seasonalFractionElapsed,
   projectedYearEndGCI,
@@ -235,6 +236,8 @@ interface Props {
   recurringExpMonthly?: number;
   /** Pre-computed YTD total from recurring_expenses table */
   recurringExpYTD?: number;
+  /** Pre-computed: what the recurring_expenses table is still to charge this year */
+  recurringExpRemaining: number;
   /** ISO timestamp the server loaded this data — drives the freshness line. */
   dataAsOf?: string;
   /** income_goals rows (00169/00170): one goal per calendar year. */
@@ -343,6 +346,7 @@ export function DashboardContent({
   teamWelcome = null,
   recurringExpMonthly = 0,
   recurringExpYTD = 0,
+  recurringExpRemaining,
   dataAsOf,
   incomeGoals: initialIncomeGoals = [],
 }: Props) {
@@ -662,7 +666,7 @@ export function DashboardContent({
     0,
   );
   const monthlyRecurring = legacyMonthlyRecurring + recurringExpMonthly;
-  const expMonthsElapsed = now.getMonth() + 1; // 1-12, consistent with expRemainingMonths denominator
+  const expMonthsElapsed = now.getMonth() + 1; // 1-12, consistent with remainingYearExpenses' months left
   const legacyRecurringYTDEstimate = legacyMonthlyRecurring * expMonthsElapsed;
   const expensesYTD = Math.max(receiptTotal, legacyRecurringYTDEstimate) + recurringExpYTD;
 
@@ -671,10 +675,11 @@ export function DashboardContent({
   const pipelineMonthlyEst = fraction > 0 ? pipelineWeightedGCI / remainingMonths : 0;
 
   // ── Tax estimate ──────────────────────────────────────────────────────
-  // Project full-year expenses: actual YTD + remaining months of recurring.
-  // Using expRemainingMonths avoids double-counting recurring costs already in expensesYTD.
-  const expRemainingMonths = Math.max(0, 12 - (now.getMonth() + 1));
-  const annualExpenses = expensesYTD + monthlyRecurring * expRemainingMonths;
+  // Project full-year expenses: actual YTD + what is still to come (the
+  // legacy monthly figure for the months after this one, and the recurring
+  // list's charges after today), so nothing in expensesYTD is counted twice.
+  const expensesRemaining = remainingYearExpenses(legacyMonthlyRecurring, recurringExpRemaining, now);
+  const annualExpenses = expensesYTD + expensesRemaining;
   // Per-deal tax portion is more useful against projected deal count, not just YTD.
   // Declared BEFORE projectedNet: the plan-aware chain needs it for REAL per-deal fees.
   const projectedDealCount = projectedYearEndTransactions(ytdDealCount, pipelineCount, fraction);

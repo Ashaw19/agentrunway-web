@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { ReportsContent } from "./reports-content";
 import type { CcaAsset, RecurringExpense, ListingAppointment } from "@/lib/types/database";
-import { totalRecurringMonthly, totalRecurringYTD } from "@agent-runway/core/engines/recurring-expense-engine";
+import { totalRecurringMonthly, totalRecurringRemaining, totalRecurringYTD } from "@agent-runway/core/engines/recurring-expense-engine";
 import { aggregateReceiptTotals, expenseTaxContext, recurringExpensesNetOfItc } from "@agent-runway/core/engines/expense-totals-engine";
 import { buildT2125Expenses } from "@agent-runway/core/engines/t2125-expenses-engine";
 import { deductionTrackingFlags } from "@agent-runway/core/engines/tax-optimization-engine";
@@ -105,6 +105,7 @@ export default async function ReportsPage() {
   const recurringExpenses = recurringExpensesNetOfItc(recurringExpensesAsStored, taxCtx);
   const recurringExpMonthly = totalRecurringMonthly(recurringExpenses);
   const recurringExpYTD = totalRecurringYTD(recurringExpenses, today);
+  const recurringExpRemaining = totalRecurringRemaining(recurringExpenses, today);
 
   const categories = (expCatResult.data ?? []).map((cat) => ({
     ...cat,
@@ -170,6 +171,7 @@ export default async function ReportsPage() {
       referralSummary={referralSummary}
       recurringExpMonthly={recurringExpMonthly}
       recurringExpYTD={recurringExpYTD}
+      recurringExpRemaining={recurringExpRemaining}
     />
   );
 }

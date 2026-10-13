@@ -14,6 +14,8 @@
  *   recurring  recurring_expenses where is_active
  *   legacy     expense_items.monthly_recurring × months elapsed
  *   expensesYTD = max(receipts, legacy) + recurring YTD
+ *   still to come = legacy × months after this one + recurring charges after today
+ *   annualExpenses = expensesYTD + still to come
  *
  * all net of the GST/HST a registrant claims as input tax credits
  * (expense-totals-engine, #297).
@@ -31,9 +33,11 @@ import {
   aggregateReceiptTotals,
   expenseTaxContext,
   recurringExpensesNetOfItc,
+  remainingYearExpenses,
 } from "@agent-runway/core/engines/expense-totals-engine";
 import {
   totalRecurringMonthly,
+  totalRecurringRemaining,
   totalRecurringYTD,
 } from "@agent-runway/core/engines/recurring-expense-engine";
 import {
@@ -216,6 +220,7 @@ function dashboardExpenses(fx: Fixture) {
   const recurringExpenses = recurringExpensesNetOfItc(recurringRows, taxCtx);
   const recurringExpMonthly = totalRecurringMonthly(recurringExpenses);
   const recurringExpYTD = totalRecurringYTD(recurringExpenses, today);
+  const recurringExpRemaining = totalRecurringRemaining(recurringExpenses, today);
   const receiptYTD = aggregateReceiptTotals(receiptRows, taxCtx).total;
 
   // dashboard-content.tsx
@@ -225,8 +230,10 @@ function dashboardExpenses(fx: Fixture) {
   const expMonthsElapsed = today.getMonth() + 1;
   const legacyRecurringYTDEstimate = legacyMonthlyRecurring * expMonthsElapsed;
   const expensesYTD = Math.max(receiptTotal, legacyRecurringYTDEstimate) + recurringExpYTD;
+  const expensesRemaining = remainingYearExpenses(legacyMonthlyRecurring, recurringExpRemaining, today);
+  const annualExpenses = expensesYTD + expensesRemaining;
 
-  return { expensesYTD, monthlyRecurring, receiptYTD, recurringExpYTD, legacyRecurringYTDEstimate };
+  return { expensesYTD, monthlyRecurring, receiptYTD, recurringExpYTD, legacyRecurringYTDEstimate, expensesRemaining, annualExpenses };
 }
 
 type ExpenseLine = { key: string | null; title: string; category: string; ytd_amount: number; monthly_recurring: number };
@@ -340,7 +347,7 @@ describe("get_dashboard_kpis — expenses are the dashboard's", () => {
 // ── get_tax_estimate ───────────────────────────────────────────────────────
 
 describe("get_tax_estimate — projected net income uses the dashboard's expenses", () => {
-  it("projected GCI less (expenses YTD + monthly recurring × months left)", async () => {
+  it("projected GCI less (expenses YTD + what is still to come this year)", async () => {
     const fx = fixtures();
     const out = await callTool(await analytics(fakeSupabase(fx.tables)), "get_tax_estimate");
 
@@ -348,11 +355,12 @@ describe("get_tax_estimate — projected net income uses the dashboard's expense
     // 100% split, no fees: the agent's net is the projected GCI itself.
     const fraction = seasonalFractionElapsed([0.25, 0.25, 0.25, 0.25], new Date());
     const projectedGCI = projectedYearEndGCI(30000, 0, fraction, 200000);
-    // dashboard-content.tsx: annualExpenses = expensesYTD + monthlyRecurring × expRemainingMonths
-    const annualExpenses = dash.expensesYTD + dash.monthlyRecurring * (12 - 10);
-
-    expect(dash.monthlyRecurring).toBeCloseTo(20 + 500 + 200 / 3, 10);
-    expect(out.projected_net_income).toBe(Math.max(0, Math.round(projectedGCI - annualExpenses)));
+    // dashboard-content.tsx: annualExpenses = expensesYTD + expensesRemaining.
+    // Still to come on Oct 13: the lease on Nov 1 and Dec 1 (500 each), the
+    // dues charge on Oct 15 (200, a real charge, not two months of a third of
+    // it), and the legacy monthly figure for November and December (20 each).
+    expect(dash.expensesRemaining).toBe(1000 + 200 + 40);
+    expect(out.projected_net_income).toBe(Math.max(0, Math.round(projectedGCI - dash.annualExpenses)));
   });
 
   it("an explicit override_income is used as given", async () => {
@@ -559,6 +567,88 @@ describe("Home Office bills count at the workspace share, as on the dashboard", 
   });
 });
 
+// ── A charge later this month, and an expense that has ended ───────────────
+
+describe("a recurring expense counts from its charge day, for expenses and ITCs alike", () => {
+  // The base fixture charges on the 1st and the 15th. This one is charged on
+  // the 20th: $115 a month with $15 HST, an ordinary expense (net 100, ITC 15).
+  // Until 2026-10-13 the expenses counted October from the 1st (ten charges)
+  // while the ITCs counted the charge day (nine): 150 of GST/HST came off the
+  // expenses and 135 was claimed.
+  function withRow(row: RecurringExpense): Fixture {
+    const fx = fixtures();
+    fx.recurring.push(row);
+    fx.tables.recurring_expenses.push({ ...row });
+    return fx;
+  }
+  const withPhonePlan = () =>
+    withRow(recurringRow({ id: "phone", name: "Phone plan", amount: 115, hst_amount: 15, day_of_month: 20, start_date: "2025-06-01" }));
+
+  const OCT_20 = new Date("2026-10-20T15:00:00Z");
+
+  it("on Oct 13 nine charges are expenses, and nine charges of HST are ITCs", async () => {
+    const fx = withPhonePlan();
+    const kpis = await callTool(await analytics(fakeSupabase(fx.tables)), "get_dashboard_kpis");
+    const hst = await callTool(await analytics(fakeSupabase(fx.tables)), "get_hst_status");
+    const out = await callTool<ExpensesOutput>(await expenses(fakeSupabase(fx.tables)), "get_expenses");
+
+    expect(dashboardExpenses(fx).expensesYTD).toBe(6043.75 + 9 * 100);
+    expect(kpis.ytd_expenses).toBe(6944);
+    expect(out.total_ytd).toBe(6943.75);
+    expect(out.all_items.find((i) => i.title === "Phone plan")).toMatchObject({ ytd_amount: 900, monthly_recurring: 100 });
+    expect(out.all_items.reduce((s, i) => s + i.ytd_amount, 0)).toBeCloseTo(out.total_ytd, 2);
+    // 504.75 without it, plus 9 × 15: the GST/HST that came off the expenses.
+    expect(hst.itcs_paid_on_expenses).toBe(640);
+  });
+
+  it("on Oct 20 the tenth charge is in both", async () => {
+    vi.setSystemTime(OCT_20);
+    const fx = withPhonePlan();
+    const kpis = await callTool(await analytics(fakeSupabase(fx.tables)), "get_dashboard_kpis");
+    const hst = await callTool(await analytics(fakeSupabase(fx.tables)), "get_hst_status");
+
+    // The quarterly dues were charged on Oct 15 as well: 200 net, 30 of HST.
+    expect(dashboardExpenses(fx).expensesYTD).toBe(6043.75 + 200 + 10 * 100);
+    expect(kpis.ytd_expenses).toBe(7244);
+    expect(hst.itcs_paid_on_expenses).toBe(685); // 504.75 + 30 + 10 × 15 = 684.75
+  });
+
+  it("the year's expenses behind the tax estimate do not move when the charge lands", async () => {
+    const fx = withPhonePlan();
+    const projected = async () => {
+      const out = await callTool(await analytics(fakeSupabase(fx.tables)), "get_tax_estimate");
+      const fraction = seasonalFractionElapsed([0.25, 0.25, 0.25, 0.25], new Date());
+      return { out, projectedGCI: projectedYearEndGCI(30000, 0, fraction, 200000), dash: dashboardExpenses(fx) };
+    };
+
+    // 7,283.75 without it, plus twelve charges of 100: three of them
+    // (Oct 20, Nov 20, Dec 20) still to come on Oct 13, two on Oct 20.
+    const before = await projected();
+    expect(before.dash.annualExpenses).toBe(8483.75);
+    expect(before.out.projected_net_income).toBe(Math.round(before.projectedGCI - 8483.75));
+
+    vi.setSystemTime(OCT_20);
+    const after = await projected();
+    expect(after.dash.annualExpenses).toBe(8483.75);
+    expect(after.out.projected_net_income).toBe(Math.round(after.projectedGCI - 8483.75));
+  });
+
+  it("an expense with an end date keeps its charges up to that date, in the expenses and in the ITCs", async () => {
+    // Ended Mar 31 and still active: Jan, Feb and Mar 1 count, nothing since.
+    const fx = withRow(recurringRow({ id: "ended", name: "Old CRM", amount: 115, hst_amount: 15, end_date: "2026-03-31" }));
+    const kpis = await callTool(await analytics(fakeSupabase(fx.tables)), "get_dashboard_kpis");
+    const hst = await callTool(await analytics(fakeSupabase(fx.tables)), "get_hst_status");
+    const out = await callTool<ExpensesOutput>(await expenses(fakeSupabase(fx.tables)), "get_expenses");
+
+    expect(dashboardExpenses(fx).expensesYTD).toBe(6043.75 + 3 * 100);
+    expect(kpis.ytd_expenses).toBe(6344);
+    expect(out.all_items.find((i) => i.title === "Old CRM")).toMatchObject({ ytd_amount: 300 });
+    expect(hst.itcs_paid_on_expenses).toBe(550); // 504.75 + 3 × 15 = 549.75
+    // Nothing more of it is projected for the rest of the year.
+    expect(dashboardExpenses(fx).annualExpenses).toBe(7283.75 + 300);
+  });
+});
+
 // ── get_runway_score ───────────────────────────────────────────────────────
 
 describe("get_runway_score — reports the stored snapshot, computes nothing", () => {
@@ -595,6 +685,7 @@ describe("the dashboard lines the MCP mirrors have not moved", () => {
       "const taxCtx = expenseTaxContext(settingsRow);",
       "const recurringExpMonthly = totalRecurringMonthly(recurringExpenses);",
       "const recurringExpYTD = totalRecurringYTD(recurringExpenses, today);",
+      "const recurringExpRemaining = totalRecurringRemaining(recurringExpenses, today);",
       // Same total as before; the receipt totals are kept so the tax cards'
       // "already tracked" flags can read them too (deductionTrackingFlags).
       "const receiptTotals = aggregateReceiptTotals(receiptTotalsResult.data, taxCtx);",
@@ -613,7 +704,8 @@ describe("the dashboard lines the MCP mirrors have not moved", () => {
       "const expMonthsElapsed = now.getMonth() + 1;",
       "const legacyRecurringYTDEstimate = legacyMonthlyRecurring * expMonthsElapsed;",
       "const expensesYTD = Math.max(receiptTotal, legacyRecurringYTDEstimate) + recurringExpYTD;",
-      "const annualExpenses = expensesYTD + monthlyRecurring * expRemainingMonths;",
+      "const expensesRemaining = remainingYearExpenses(legacyMonthlyRecurring, recurringExpRemaining, now);",
+      "const annualExpenses = expensesYTD + expensesRemaining;",
       // Expenses are net of ITCs, so no ITC comes off the HST owing as well.
       "const ytdHstOnExpenses = 0;",
     ]) {
@@ -662,9 +754,14 @@ describe("the MCP server reads no dead or manual expense column", () => {
     // net-for-tax and pipeline helpers and never had one: keep it that way.
     const mirror = code(read(`${MCP}/lib/effective-cash.ts`));
     expect(mirror).not.toMatch(/HstOnExpenses|hstRate|1 \+ rate/);
-    expect(squash(mirror)).toContain("const annualExpenses = expensesYTD + monthlyRecurring * expRemainingMonths;");
+    expect(squash(mirror)).toContain("const annualExpenses = expensesYTD + expensesRemaining;");
     const core = squash(read("../../packages/core/engines/effective-cash.ts"));
-    expect(core).toContain("const annualExpenses = expensesYTD + monthlyRecurring * expRemainingMonths;");
+    expect(core).toContain("const annualExpenses = expensesYTD + expensesRemaining;");
+    // Still to come is the engine's count of charge dates, on both sides.
+    expect(read(`${MCP}/tools/analytics.ts`)).toContain("expenseInputs.totals.expensesRemaining");
+    expect(read("../../packages/core/engines/expense-totals-engine.ts")).toContain(
+      "expensesRemaining: remainingYearExpenses(legacyMonthlyRecurring, recurringRemaining, now),",
+    );
     expect(core).toContain("const ytdHstOnExpenses = 0;");
   });
 });

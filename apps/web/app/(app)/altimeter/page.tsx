@@ -2,8 +2,8 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { AltimeterContent } from "./altimeter-content";
 import type { HistoryItem, RecurringExpense } from "@/lib/types/database";
-import { totalRecurringMonthly, totalRecurringYTD } from "@agent-runway/core/engines/recurring-expense-engine";
-import { aggregateReceiptTotals, expenseTaxContext, recurringExpensesNetOfItc } from "@agent-runway/core/engines/expense-totals-engine";
+import { totalRecurringMonthly, totalRecurringRemaining, totalRecurringYTD } from "@agent-runway/core/engines/recurring-expense-engine";
+import { aggregateReceiptTotals, expenseTaxContext, recurringExpensesNetOfItc, remainingYearExpenses } from "@agent-runway/core/engines/expense-totals-engine";
 import { computeIsPro } from "@/lib/compute-is-pro";
 import { atlanticNoon } from "@agent-runway/core/lib/local-date";
 
@@ -99,6 +99,12 @@ export default async function AltimeterPage() {
   // dashboard_metric_divergence_fix_2026-06-26.md.
   const expMonthsElapsed = today.getMonth() + 1;
   const altExpensesYTD = Math.max(receiptYTD, legacyMonthlyRecurring * expMonthsElapsed) + recurringExpYTD;
+  // Still to come this year: with altExpensesYTD, the year's expenses.
+  const altExpensesRemaining = remainingYearExpenses(
+    legacyMonthlyRecurring,
+    totalRecurringRemaining(recurringExps, today),
+    today,
+  );
 
   return (
     <AltimeterContent
@@ -109,6 +115,7 @@ export default async function AltimeterPage() {
       isPro={await computeIsPro(supabase, user.id, settings)}
       recurringExpMonthly={altMonthlyRecurring}
       expensesYTD={altExpensesYTD}
+      expensesRemaining={altExpensesRemaining}
     />
   );
 }

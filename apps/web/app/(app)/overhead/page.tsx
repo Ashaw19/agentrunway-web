@@ -2,8 +2,8 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { OverheadContent } from "./overhead-content";
 import type { HistoryItem, Transaction, PipelineDeal, SplitPreset, RecurringExpense } from "@/lib/types/database";
-import { totalRecurringMonthly, totalRecurringYTD } from "@agent-runway/core/engines/recurring-expense-engine";
-import { aggregateReceiptTotals, expenseTaxContext, recurringExpensesNetOfItc } from "@agent-runway/core/engines/expense-totals-engine";
+import { totalRecurringMonthly, totalRecurringRemaining, totalRecurringYTD } from "@agent-runway/core/engines/recurring-expense-engine";
+import { aggregateReceiptTotals, expenseTaxContext, recurringExpensesNetOfItc, remainingYearExpenses } from "@agent-runway/core/engines/expense-totals-engine";
 import { buildT2125Expenses } from "@agent-runway/core/engines/t2125-expenses-engine";
 import { deductionTrackingFlags } from "@agent-runway/core/engines/tax-optimization-engine";
 import { computeGCI, computeWeightedGCI, activePipelineDeals } from "@/lib/types/database";
@@ -105,6 +105,7 @@ export default async function OverheadPage() {
   );
   const recurringExpMonthly = totalRecurringMonthly(recurringExpenses);
   const recurringExpYTD = totalRecurringYTD(recurringExpenses, today);
+  const recurringExpRemaining = totalRecurringRemaining(recurringExpenses, today);
 
   const transactions = (txResult.data ?? []) as Transaction[];
   const expenseItems = expItemResult.data ?? [];
@@ -152,6 +153,8 @@ export default async function OverheadPage() {
   // dashboard_metric_divergence_fix_2026-06-26.md.
   const expMonthsElapsed = today.getMonth() + 1;
   const expensesYTD = Math.max(receiptYTD, legacyMonthlyRecurring * expMonthsElapsed) + recurringExpYTD;
+  // Still to come this year: with expensesYTD, the year's expenses.
+  const expensesRemaining = remainingYearExpenses(legacyMonthlyRecurring, recurringExpRemaining, today);
   const qPcts = rawSettings?.national_quarter_pcts ?? [0.25, 0.25, 0.25, 0.25];
   const fraction = seasonalFractionElapsed(qPcts);
   const projectedGCI = projectedYearEndGCI(ytdGCI, pipelineWeightedGCI, fraction, rawSettings?.goal_gci ?? 0);
@@ -167,7 +170,7 @@ export default async function OverheadPage() {
         settings: rawSettings,
         ytdGCI,
         expensesYTD,
-        monthlyRecurring,
+        expensesRemaining,
         projectedGCI,
         projectedDealCount: overheadProjectedDealCount,
         fraction,
@@ -186,6 +189,7 @@ export default async function OverheadPage() {
     pipelineWeightedGCI,
     monthlyRecurring,
     expensesYTD,
+    expensesRemaining,
     monthlyBrokerageFee: rawSettings?.monthly_brokerage_fee ?? 0,
     cashReserve: overheadBaselineCash,
     isIncorporated: rawSettings?.is_incorporated ?? false,
@@ -214,8 +218,8 @@ export default async function OverheadPage() {
       pipelineDeals={pipelineDeals}
       isPro={await computeIsPro(supabase, user.id, rawSettings)}
       scenarioSeed={scenarioSeed}
-      recurringExpMonthly={recurringExpMonthly}
       recurringExpYTD={recurringExpYTD}
+      recurringExpRemaining={recurringExpRemaining}
     />
   );
 }

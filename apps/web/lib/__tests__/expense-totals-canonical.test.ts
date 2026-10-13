@@ -34,6 +34,13 @@
  *      summary, the exports and the mobile totals went short without an
  *      error. A list for display pages on screen; it is not capped in the
  *      query
+ *   7. (recurring charge dates, same day) the year's expenses projected as a
+ *      monthly figure × months left. Year to date counts a recurring expense
+ *      by its charge dates, so what is still to come has to be counted the
+ *      same way (`remainingYearExpenses`, `totals.expensesRemaining`):
+ *      otherwise a charge due later this month is in neither, and an annual
+ *      fee is a twelfth per month left whether it has been charged or not.
+ *      Eight surfaces carried their own copy of that multiplication
  *
  * A regex can't prove a total is right, only that it didn't bypass the
  * engine. The numbers are tested in
@@ -65,6 +72,16 @@ const SUMS_TOTAL_AMOUNT = /(?:\+=|\+)\s*(?:Number\(\s*)?\(?\s*[A-Za-z_$][\w$]*\.
 
 /** A recurring-expense total from recurring-expense-engine. */
 const RECURRING_TOTAL = /\b(?:totalRecurringMonthly|totalRecurringYTD|projectedAnnualRecurring)\s*\(/;
+
+/**
+ * `monthlyRecurring * expRemainingMonths`, `input.monthlyRecurringExpenses * remainingMonths`:
+ * a monthly recurring figure times the months left in the year.
+ */
+const MONTHLY_TIMES_MONTHS_LEFT =
+  /\b(?:monthlyRecurring|monthlyRecurringExpenses|recurringExpMonthly|recurringMonthly)\s*\*\s*(?:\w+\.)?(?:expRemainingMonths|remainingMonths|monthsRemaining|monthsLeft)\b/g;
+
+/** Engines that project the year too (effective-cash, advisor-engine). */
+const CORE_ENGINES = "packages/core/engines";
 
 /** `.from("receipt_expenses").select("…")` with the column list captured. */
 const RECEIPT_SELECT = /\.from\(\s*["']receipt_expenses["']\s*\)\s*\.select\(\s*["'`]([^"'`]*)["'`]/g;
@@ -255,7 +272,43 @@ describe("REGRESSION — expense totals are net of ITCs through expense-totals-e
     }
   });
 
+  it("nothing projects the year's expenses as a monthly figure × months left", () => {
+    const engineFiles = sourceFiles(CORE_ENGINES);
+    expect(engineFiles.map(rel)).toContain("packages/core/engines/effective-cash.ts");
+    const offenders: string[] = [];
+    for (const file of [...files, ...engineFiles]) {
+      const src = readFileSync(file, "utf8");
+      for (const m of src.matchAll(MONTHLY_TIMES_MONTHS_LEFT)) offenders.push(`${rel(file)}:${lineOf(src, m.index ?? 0)}`);
+    }
+    expect(offenders).toEqual([]);
+    // The surfaces that project the year take what is still to come from the engine.
+    for (const must of [
+      "apps/web/app/(app)/dashboard/dashboard-content.tsx",
+      "apps/web/app/(app)/forecast/forecast-content.tsx",
+      "apps/web/app/(app)/overhead/overhead-content.tsx",
+      "apps/web/app/(app)/reports/reports-content.tsx",
+      "apps/web/app/api/chat/route.ts",
+      "apps/web/app/api/cron/weekly-digest/route.ts",
+      "apps/web/lib/chat-diagnostics.ts",
+    ]) {
+      expect(readFileSync(path.join(REPO_ROOT, must), "utf8"), must).toContain("remainingYearExpenses(");
+    }
+  });
+
   it("the regexes catch the hand-rolled shapes and spare the canonical ones", () => {
+    const monthsLeft = (s: string) => [...s.matchAll(MONTHLY_TIMES_MONTHS_LEFT)].length;
+    for (const s of [
+      `const annualExpenses = expensesYTD + monthlyRecurring * expRemainingMonths;`,
+      `const annualExpenses = expensesYTD + monthlyRecurring * remainingMonths;`,
+      `const annualExpenses = input.expensesYTD + input.monthlyRecurringExpenses * remainingMonths;`,
+    ]) expect(monthsLeft(s), s).toBe(1);
+    for (const s of [
+      `const annualExpenses = expensesYTD + expensesRemaining;`,
+      `return legacyMonthlyRecurring * monthsLeft + recurringRemaining;`,
+      `expensesYTD + expensesRemaining + (monthlyRecurring - baselineMonthlyRecurring) * expRemainingMonths;`,
+      `const expenses = Math.max(0, monthlyRecurring) * 12;`,
+    ]) expect(monthsLeft(s), s).toBe(0);
+
     const badSums = [
       `rows.reduce((sum, r) => sum + Number(r.total_amount ?? 0), 0)`,
       `byCategory[key].total += Number(exp.total_amount);`,

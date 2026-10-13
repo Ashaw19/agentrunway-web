@@ -69,6 +69,7 @@ import { ExplainButton } from "@/components/explain-button";
 import { GuideLink } from "@/components/guide-link";
 import { ScenariosContent } from "@/app/(app)/scenarios/scenarios-content";
 import type { ScenarioSeedData } from "@/app/(app)/scenarios/page";
+import { remainingYearExpenses } from "@agent-runway/core/engines/expense-totals-engine";
 import { SlidersHorizontal } from "lucide-react";
 import { localISODate } from "@agent-runway/core/lib/local-date";
 
@@ -516,8 +517,9 @@ interface Props {
   pipelineDeals?: PipelineDeal[];
   isPro?: boolean;
   scenarioSeed?: ScenarioSeedData | null;
-  recurringExpMonthly?: number;
   recurringExpYTD?: number;
+  /** Pre-computed: what the recurring_expenses table is still to charge this year */
+  recurringExpRemaining: number;
 }
 
 type OverheadTab = "overview" | "scenarios";
@@ -580,8 +582,8 @@ export function OverheadContent({
   pipelineDeals = [],
   isPro: isPro = false,
   scenarioSeed = null,
-  recurringExpMonthly = 0,
   recurringExpYTD = 0,
+  recurringExpRemaining,
 }: Props) {
   const [activeTab, setActiveTab] = useState<OverheadTab>("overview");
   const now = new Date();
@@ -633,15 +635,15 @@ export function OverheadContent({
       sum + cat.items.reduce((s, i) => s + Number(i.monthly_recurring), 0),
     0,
   );
-  const monthlyRecurring = legacyMonthlyRecurring + recurringExpMonthly;
   // Integer months elapsed (1-12) — matches the dashboard. See
   // dashboard_metric_divergence_fix_2026-06-26.md.
   const expMonthsElapsed = now.getMonth() + 1;
   const legacyRecurringYTDEstimate = legacyMonthlyRecurring * expMonthsElapsed;
   const expensesYTD = Math.max(receiptTotal, legacyRecurringYTDEstimate) + recurringExpYTD;
 
-  const expRemainingMonths = Math.max(0, 12 - (now.getMonth() + 1));
-  const annualExpenses = expensesYTD + monthlyRecurring * expRemainingMonths;
+  // The year's expenses: to date + what is still to come (matches the dashboard).
+  const expensesRemaining = remainingYearExpenses(legacyMonthlyRecurring, recurringExpRemaining, now);
+  const annualExpenses = expensesYTD + expensesRemaining;
 
   // ── Agent net (after split/fees) — plan-aware (REAL waterfall or legacy) ──
   const ytdPlan = settings

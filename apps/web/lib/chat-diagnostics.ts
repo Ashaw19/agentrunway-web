@@ -34,8 +34,9 @@ import {
   aggregateReceiptTotals,
   expenseTaxContext,
   recurringExpensesNetOfItc,
+  remainingYearExpenses,
 } from "@agent-runway/core/engines/expense-totals-engine";
-import { totalRecurringMonthly, totalRecurringYTD } from "@agent-runway/core/engines/recurring-expense-engine";
+import { totalRecurringMonthly, totalRecurringRemaining, totalRecurringYTD } from "@agent-runway/core/engines/recurring-expense-engine";
 import { buildT2125Expenses } from "@agent-runway/core/engines/t2125-expenses-engine";
 import { expenseCategoryBreakdown, expenseItemsOf, type ExpenseCategoryYtd } from "@/lib/ai/expense-tax-intel";
 import type { UserSettings as CanonicalUserSettings, RecurringExpense } from "@agent-runway/core/types/database";
@@ -142,6 +143,8 @@ interface DiagContext {
   monthlyRecurring: number;
   /** Net of the ITCs a GST/HST registrant claims (expense-totals-engine). */
   expensesYTD: number;
+  /** Expenses still to come this year, net the same way (remainingYearExpenses). */
+  expensesRemaining: number;
   /** The same expenses as paid, GST/HST included. */
   expensesPaidYTD: number;
   /** Tracked expense lines by category, largest first (the Expenses page's category rows). */
@@ -296,6 +299,7 @@ export async function buildDiagnostics(
   const expMonthsElapsed = today.getMonth() + 1; // 1-12, consistent with dashboard engine
   const legacyRecurringYTDEstimate = legacyMonthlyRecurring * expMonthsElapsed;
   const expensesYTD = Math.max(receiptTotals.total, legacyRecurringYTDEstimate) + totalRecurringYTD(recurringNet, today);
+  const expensesRemaining = remainingYearExpenses(legacyMonthlyRecurring, totalRecurringRemaining(recurringNet, today), today);
   const expensesPaidYTD = Math.max(receiptTotals.paid, legacyRecurringYTDEstimate) + totalRecurringYTD(recurringRowsTyped, today);
 
   // Per-category lines for the expense diagnostic: the tracked expense lines
@@ -325,6 +329,7 @@ export async function buildDiagnostics(
     engineFraction,
     monthlyRecurring,
     expensesYTD,
+    expensesRemaining,
     expensesPaidYTD,
     expenseCategoryYTD: expenseCategoryBreakdown(trackedExpenses.lines, expenses),
     expenseLinesYTD: trackedExpenses.ytdTotal,
@@ -413,7 +418,7 @@ function diagRunwayScore(ctx: DiagContext): string {
     settings: s as unknown as CanonicalUserSettings,
     ytdGCI,
     expensesYTD,
-    monthlyRecurring,
+    expensesRemaining: ctx.expensesRemaining,
     projectedGCI: projGCI,
     projectedDealCount: projDeals,
     fraction: engineFraction,
@@ -458,7 +463,7 @@ Weakest: ${weakest.label} (${weakest.score}/100, contributing ${(weakest.score *
  * Shows step-by-step values but all final numbers come from the engine.
  */
 function diagTax(ctx: DiagContext): string {
-  const { settings: s, closedTx, ytdGCI, engineFraction, expensesYTD, monthlyRecurring } = ctx;
+  const { settings: s, closedTx, ytdGCI, engineFraction, expensesYTD } = ctx;
 
   const splitMatch = s.split_preset?.match(/p(\d+)_(\d+)/);
   const agentPct = splitMatch ? Number(splitMatch[1]) / 100 : 1;
@@ -478,7 +483,7 @@ function diagTax(ctx: DiagContext): string {
   const netSEIncome = computeProjectedNetForTax({
     projectedGCI: projGCI,
     expensesYTD,
-    monthlyRecurring,
+    expensesRemaining: ctx.expensesRemaining,
     settings: s as unknown as CanonicalUserSettings,
     now: ctx.today,
   });
@@ -807,7 +812,7 @@ function diagSurvival(ctx: DiagContext): string {
     settings: s as unknown as CanonicalUserSettings,
     ytdGCI,
     expensesYTD,
-    monthlyRecurring,
+    expensesRemaining: ctx.expensesRemaining,
     projectedGCI: projGCIforSurvival,
     projectedDealCount: projDealsForSurvival,
     fraction: engineFraction,
