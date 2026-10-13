@@ -19,7 +19,7 @@ import { fmtCurrency, fmtPct } from "@/lib/formatters";
 import { PROVINCE_LABELS, CCA_CLASSES } from "@/lib/types/database";
 import type { UserSettings, Transaction, CcaAsset } from "@/lib/types/database";
 import { computeT2125 } from "@/lib/engines/t2125-engine";
-import type { T2125Result } from "@/lib/engines/t2125-engine";
+import type { HomeOfficeCostType, T2125Result } from "@/lib/engines/t2125-engine";
 import { generateTaxOptimizations } from "@/lib/engines/tax-optimization-engine";
 import { T2125Pdf } from "@/components/pdf/t2125-pdf";
 import { createClient } from "@/lib/supabase/client";
@@ -37,6 +37,8 @@ interface Props {
   settings: UserSettings | null;
   transactions: Transaction[];
   expenseAmounts: Record<string, number>;
+  /** Home Office bills by key, in full (before the home office share). */
+  homeOfficeCosts?: Record<string, number>;
   ccaAssets: CcaAsset[];
   mileageLogs: MileageLogRow[];
   taxYear: number;
@@ -149,6 +151,7 @@ export function ReportsT2125Tab({
   settings,
   transactions,
   expenseAmounts,
+  homeOfficeCosts,
   ccaAssets: initialCcaAssets,
   mileageLogs,
   taxYear,
@@ -183,11 +186,20 @@ export function ReportsT2125Tab({
       settings: localSettings,
       transactions,
       expenseAmounts,
+      homeOfficeCosts,
       ccaAssets,
       taxYear,
       otherIncome,
     });
-  }, [localSettings, transactions, expenseAmounts, ccaAssets, taxYear, otherIncome]);
+  }, [localSettings, transactions, expenseAmounts, homeOfficeCosts, ccaAssets, taxYear, otherIncome]);
+
+  // A home cost with bills logged under Home Office (Expenses page) uses
+  // those bills; the estimate typed here is set aside for that cost.
+  const hasLoggedHomeBills = Object.keys(homeOfficeCosts ?? {}).length > 0;
+  const loggedHomeNote = (type: HomeOfficeCostType, amount: number): string | undefined =>
+    result?.homeOffice.loggedCostTypes.includes(type)
+      ? `Using ${fmtCurrency(amount)} from the bills you logged under Home Office. This estimate is set aside.`
+      : undefined;
 
   // ── Save settings changes to Supabase ────────────────────────────────────────
   const saveSettings = useCallback(async (updates: Partial<UserSettings>) => {
@@ -205,8 +217,16 @@ export function ReportsT2125Tab({
     // The expense lines are built on the server, net of ITCs for a registrant
     // (expense-totals-engine). Changing registration changes that basis, so
     // reload them instead of showing lines on the old one.
-    if (!error && "gst_hst_registered" in updates) router.refresh();
-  }, [localSettings, supabase, userId, router]);
+    // The same goes for the home office share once home bills are logged:
+    // whether their GST/HST is claimed back depends on it.
+    if (
+      !error &&
+      ("gst_hst_registered" in updates ||
+        (hasLoggedHomeBills && "home_office_business_use_pct" in updates))
+    ) {
+      router.refresh();
+    }
+  }, [localSettings, supabase, userId, router, hasLoggedHomeBills]);
 
   // ── Add CCA asset ─────────────────────────────────────────────────────────
   const [newAsset, setNewAsset] = useState({
@@ -756,6 +776,7 @@ export function ReportsT2125Tab({
             <div className="space-y-3">
               <p className="text-xs text-muted-foreground">
                 CRA home office deduction uses actual costs multiplied by your business-use percentage (office area ÷ total home area).
+                Log your real home bills under Home Office on the Expenses page and they are used here. The amounts below are estimates for any cost you have not logged.
               </p>
               <div className="grid gap-3 sm:grid-cols-2">
                 <EditableAmount
@@ -768,36 +789,42 @@ export function ReportsT2125Tab({
                   label="Monthly rent or mortgage interest ($)"
                   value={localSettings.home_office_rent_monthly}
                   onChange={(v) => saveSettings({ home_office_rent_monthly: v })}
+                  note={loggedHomeNote("rent", result.homeOffice.annualRent)}
                 />
                 <EditableAmount
                   label="Monthly utilities — heat, hydro, water ($)"
                   value={localSettings.home_office_utilities_monthly}
                   onChange={(v) => saveSettings({ home_office_utilities_monthly: v })}
+                  note={loggedHomeNote("utilities", result.homeOffice.annualUtilities)}
                 />
                 <EditableAmount
                   label="Annual property tax ($)"
                   value={localSettings.home_office_property_tax_annual}
                   onChange={(v) => saveSettings({ home_office_property_tax_annual: v })}
+                  note={loggedHomeNote("propertyTax", result.homeOffice.annualPropertyTax)}
                 />
                 <EditableAmount
                   label="Monthly home insurance ($)"
                   value={localSettings.home_office_insurance_monthly}
                   onChange={(v) => saveSettings({ home_office_insurance_monthly: v })}
+                  note={loggedHomeNote("insurance", result.homeOffice.annualInsurance)}
                 />
                 <EditableAmount
                   label="Annual maintenance & repairs ($)"
                   value={localSettings.home_office_maintenance_annual}
                   onChange={(v) => saveSettings({ home_office_maintenance_annual: v })}
+                  note={loggedHomeNote("maintenance", result.homeOffice.annualMaintenance)}
                 />
                 <EditableAmount
                   label="Monthly condo fees (if applicable)"
                   value={localSettings.home_office_condo_fees_monthly}
                   onChange={(v) => saveSettings({ home_office_condo_fees_monthly: v })}
+                  note={loggedHomeNote("condoFees", result.homeOffice.annualCondoFees)}
                 />
               </div>
               <div className="rounded-lg bg-slate-50 border border-slate-200 px-4 py-3 text-sm space-y-1">
                 <div className="flex justify-between text-slate-700">
-                  <span>Total annual home costs</span>
+                  <span>{hasLoggedHomeBills ? "Home costs (bills logged this year, plus estimates)" : "Total annual home costs"}</span>
                   <span className="tabular-nums">{fmtCurrency(result.homeOffice.totalAnnualHomeCosts)}</span>
                 </div>
                 <div className="flex justify-between text-slate-700">

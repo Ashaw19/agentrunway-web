@@ -40,7 +40,7 @@ interface PriorYearRow {
   annual_mileage_deduct: number;
 }
 import { survivalResult, riskColorBand, type RiskColorBand } from "@/lib/engines/survival-engine";
-import { EXPENSE_KEY_TO_T2125 } from "@/lib/engines/t2125-engine";
+import { EXPENSE_KEY_TO_T2125, HOME_OFFICE_CATEGORY_KEY, isHomeOfficeKey } from "@/lib/engines/t2125-engine";
 import { clampSalePrice, clampCommissionPct, clampGci } from "@/lib/import/clamp-db-range";
 import { readImportError, ImportRequestError } from "@/lib/import/client-error";
 import dynamic from "next/dynamic";
@@ -147,6 +147,7 @@ const CAT_COLORS: Record<string, { border: string; badge: string }> = {
   meals:         { border: "border-l-orange-400",  badge: "bg-orange-50 text-orange-700" },
   entertainment: { border: "border-l-indigo-500",  badge: "bg-indigo-50 text-indigo-700" },
   other:         { border: "border-l-slate-400",   badge: "bg-slate-100 text-slate-600"  },
+  home_office:   { border: "border-l-cyan-500",    badge: "bg-cyan-50 text-cyan-700"     },
 };
 
 const DEFAULT_CAT = { border: "border-l-slate-400", badge: "bg-slate-100 text-slate-600" };
@@ -182,6 +183,14 @@ export function ExpensesContent({
     settings?.vehicle_business_use_pct != null ? settings.vehicle_business_use_pct : 0.80,
   );
 
+  // ── Home office % (editable, persisted to user_settings) ─────────────────
+  // The share of a Home Office bill that is a business cost. The same figure
+  // the T2125 business-use-of-home section and the GST34 summary use.
+  const [homePct, setHomePct] = useState<number>(() => {
+    const raw = Number(settings?.home_office_business_use_pct ?? 0);
+    return Number.isFinite(raw) ? Math.min(1, Math.max(0, raw)) : 0;
+  });
+
   // ── Receipt YTD totals (refreshed after each save) ────────────────────────
   // Every expense total on this page comes from expense-totals-engine. For a
   // GST/HST registrant it is net of the ITCs the GST34 summary claims, so the
@@ -190,14 +199,16 @@ export function ExpensesContent({
   const [receiptTotalRows, setReceiptTotalRows] = useState<ReceiptTotalsRow[]>(receiptTotalRowsSeed);
   const gstHstRegistered = settings?.gst_hst_registered === true;
   const expenseTaxCtx = useMemo(
-    () => ({ gstHstRegistered, vehicleBusinessUsePct: vehiclePct }),
-    [gstHstRegistered, vehiclePct],
+    () => ({ gstHstRegistered, vehicleBusinessUsePct: vehiclePct, homeOfficeBusinessUsePct: homePct }),
+    [gstHstRegistered, vehiclePct, homePct],
   );
   // `receiptTotals` is keyed by expense_items.key. Receipts saved with no
   // category have no expense item to attach to, so they never appear in it:
   // `uncategorizedTotal` carries them so YTD totals still agree with the
   // dashboard, which counts every receipt regardless of category.
-  const { byKey: receiptTotals, uncategorized: uncategorizedTotal } = useMemo(
+  // Home Office bills are in `receiptTotals` at the home office share;
+  // `homeBillTotals` is the whole bills, to show what the share is a share of.
+  const { byKey: receiptTotals, uncategorized: uncategorizedTotal, homeOfficeCosts: homeBillTotals } = useMemo(
     () => aggregateReceiptTotals(receiptTotalRows, expenseTaxCtx),
     [receiptTotalRows, expenseTaxCtx],
   );
@@ -262,8 +273,9 @@ export function ExpensesContent({
       ],
       instalmentsPaid: 0, // User can enter this in Reports tab
       vehicleBusinessUsePct: vehiclePct,
+      homeOfficeBusinessUsePct: homePct,
     });
-  }, [activePeriod, settings, transactions, filteredReceipts, filingFreq, recurringExpenses, vehiclePct]);
+  }, [activePeriod, settings, transactions, filteredReceipts, filingFreq, recurringExpenses, vehiclePct, homePct]);
 
   // ── Current period deadline alert ──────────────────────────────────────
   const currentDeadline = useMemo(() => {
@@ -895,6 +907,8 @@ export function ExpensesContent({
         const map = EXPENSE_KEY_TO_T2125[item.key];
         if (!map) {
           acc.full += ytd; // custom items default to 100%
+        } else if (isHomeOfficeKey(item.key)) {
+          acc.home += ytd; // already the home office share of the bills
         } else if (map.applyVehicleUse) {
           acc.vehicle += ytd * vehiclePct;
         } else if (map.deductiblePct < 1.0) {
@@ -905,9 +919,10 @@ export function ExpensesContent({
       }
       return acc;
     },
-    { full: 0, meals: 0, vehicle: 0 },
+    { full: 0, meals: 0, vehicle: 0, home: 0 },
   );
-  const totalDeductible = deductBreakdown.full + deductBreakdown.meals + deductBreakdown.vehicle;
+  const totalDeductible = deductBreakdown.full + deductBreakdown.meals + deductBreakdown.vehicle + deductBreakdown.home;
+  const homePctLabel = `${Math.round(homePct * 100)}%`;
 
   // ── Survival ──────────────────────────────────────────────────────────
   // Survival cash input MUST be cashPosition.effectiveCash (not raw cash_reserve)
@@ -1104,6 +1119,24 @@ export function ExpensesContent({
     toast.success("Vehicle business use % saved ✓");
   }
 
+  async function saveHomePct(raw: string) {
+    const pct = Math.min(1, Math.max(0, parseFloat(raw) / 100));
+    if (isNaN(pct)) return;
+    if (pct === homePct) return;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    const { error } = await supabase
+      .from("user_settings")
+      .update({ home_office_business_use_pct: pct })
+      .eq("user_id", user.id);
+    if (error) {
+      toast.error("Couldn't save your home office %. Please try again.");
+      return;
+    }
+    setHomePct(pct);
+    toast.success("Home office % saved");
+  }
+
   function openReceipt(r: ReceiptExpense) {
     setViewReceipt(r);
     setViewOpen(true);
@@ -1220,6 +1253,8 @@ export function ExpensesContent({
           deductFull={deductBreakdown.full}
           deductMeals={deductBreakdown.meals}
           deductVehicle={deductBreakdown.vehicle}
+          deductHome={deductBreakdown.home}
+          homePct={homePct}
           netOfItc={gstHstRegistered}
         />
       );
@@ -1754,6 +1789,7 @@ export function ExpensesContent({
                 <CardDescription className="mt-0.5 text-xs">
                   Based on CRA rules · Meals & entertainment at 50% · Vehicle at{" "}
                   {Math.round(vehiclePct * 100)}% business use
+                  {deductBreakdown.home > 0 && <> · Home bills at {homePctLabel} home office use</>}
                   {gstHstRegistered && (
                     <>
                       {" "}· Net of the {settings ? gstHstLabel(settings.province) : "GST/HST"} claimed as input tax credits
@@ -1793,6 +1829,13 @@ export function ExpensesContent({
                   <span className="inline-block h-2 w-2 shrink-0 rounded-full bg-blue-500" />
                   <span className="text-muted-foreground">Vehicle ({Math.round(vehiclePct * 100)}% biz):</span>
                   <span className="font-semibold text-blue-600 tabular-nums">{fmtCurrency(deductBreakdown.vehicle)}</span>
+                </span>
+              )}
+              {deductBreakdown.home > 0 && (
+                <span className="flex items-center gap-1.5">
+                  <span className="inline-block h-2 w-2 shrink-0 rounded-full bg-cyan-500" />
+                  <span className="text-muted-foreground">Home office ({homePctLabel} of bills):</span>
+                  <span className="font-semibold text-cyan-700 tabular-nums">{fmtCurrency(deductBreakdown.home)}</span>
                 </span>
               )}
 
@@ -2186,6 +2229,13 @@ export function ExpensesContent({
                               ? <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                               : <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
                             <span className="font-semibold text-sm">{cat.title}</span>
+                            {cat.key === HOME_OFFICE_CATEGORY_KEY && (
+                              homePct > 0 ? (
+                                <span className="text-[10px] font-medium text-cyan-700">{homePctLabel} of each bill counts</span>
+                              ) : (
+                                <span className="text-[10px] font-medium text-amber-600">Set your home office %</span>
+                              )
+                            )}
                           </div>
                         </TableCell>
                         <TableCell className="text-center py-2.5">
@@ -2216,13 +2266,48 @@ export function ExpensesContent({
                       {/* Expanded detail rows */}
                       {isOpen && (
                         <>
+                          {cat.key === HOME_OFFICE_CATEGORY_KEY && (
+                            <TableRow className="bg-cyan-50/40 hover:bg-cyan-50/40">
+                              <TableCell colSpan={5} className="pl-12 py-2">
+                                <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-muted-foreground">
+                                  <span>
+                                    Log each home bill for its full amount. Only your home office share counts as a business expense.
+                                  </span>
+                                  <span className="flex items-center gap-1.5 font-medium text-foreground">
+                                    <span>Home office share:</span>
+                                    <span className="relative flex items-center">
+                                      <Input
+                                        type="number"
+                                        min={0}
+                                        max={100}
+                                        aria-label="Home office share of your home, percent"
+                                        defaultValue={homePct > 0 ? Math.round(homePct * 1000) / 10 : ""}
+                                        placeholder="0"
+                                        onBlur={(e) => saveHomePct(e.target.value || "0")}
+                                        onClick={(e) => e.stopPropagation()}
+                                        className="h-6 w-[4.5rem] pr-5 text-right text-xs"
+                                      />
+                                      <span className="pointer-events-none absolute right-1.5 text-[10px] text-muted-foreground">%</span>
+                                    </span>
+                                  </span>
+                                  <span>Office area ÷ total home area. Also used for the T2125 home office line.</span>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          )}
                           {cat.items.map((item) => {
                             const ytd = effectiveYTD(item);
                             const map = EXPENSE_KEY_TO_T2125[item.key];
+                            const isHomeBill = isHomeOfficeKey(item.key);
+                            const homeBills = isHomeBill ? (homeBillTotals[item.key] ?? 0) : 0;
                             let deductAmt = ytd;
                             let deductLabel: string | null = null;
                             let deductColor = "text-emerald-600";
-                            if (map) {
+                            if (isHomeBill) {
+                              // `ytd` is already the home office share of the bills.
+                              deductLabel = `${homePctLabel} home`;
+                              deductColor = "text-cyan-700";
+                            } else if (map) {
                               if (map.applyVehicleUse) {
                                 deductAmt = ytd * vehiclePct;
                                 deductLabel = `${Math.round(vehiclePct * 100)}% biz`;
@@ -2249,7 +2334,16 @@ export function ExpensesContent({
                                 </TableCell>
                                 <TableCell className="py-1.5" />
                                 <TableCell className="text-right py-1.5 text-sm tabular-nums text-muted-foreground">
-                                  {ytd > 0 ? fmtCurrency(ytd) : "—"}
+                                  {ytd > 0 ? fmtCurrency(ytd) : homeBills > 0 ? fmtCurrency(0) : "—"}
+                                  {homeBills > 0 && (
+                                    <span className="block text-[10px] text-muted-foreground/80">
+                                      of {fmtCurrency(homeBills)} in bills
+                                      {/* With an ITC on the bill, the share applies to the bill before tax. */}
+                                      {gstHstRegistered && homePct > 0.1
+                                        ? ` before ${settings ? gstHstLabel(settings.province) : "GST/HST"}`
+                                        : ""}
+                                    </span>
+                                  )}
                                 </TableCell>
                                 <TableCell className="text-right py-1.5 hidden sm:table-cell">
                                   {ytd > 0 ? (
@@ -2262,13 +2356,20 @@ export function ExpensesContent({
                                   )}
                                 </TableCell>
                                 <TableCell className="text-right py-1.5">
-                                  <Input
-                                    type="number"
-                                    placeholder="0"
-                                    defaultValue={Number(item.monthly_recurring) || ""}
-                                    onBlur={(e) => updateItem(item.id, "monthly_recurring", e.target.value)}
-                                    className="h-7 w-24 ml-auto text-sm text-right"
-                                  />
+                                  {isHomeBill ? (
+                                    // Home bills vary, so there is no fixed monthly figure to
+                                    // enter here: every other surface sums that field in full,
+                                    // and a home bill only counts at the home office share.
+                                    <span className="text-[10px] text-muted-foreground/70">log each bill</span>
+                                  ) : (
+                                    <Input
+                                      type="number"
+                                      placeholder="0"
+                                      defaultValue={Number(item.monthly_recurring) || ""}
+                                      onBlur={(e) => updateItem(item.id, "monthly_recurring", e.target.value)}
+                                      className="h-7 w-24 ml-auto text-sm text-right"
+                                    />
+                                  )}
                                 </TableCell>
                               </TableRow>
                             );

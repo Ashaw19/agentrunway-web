@@ -35,8 +35,8 @@ import { computeT2125 } from "../t2125-engine";
 import { createTestSettings } from "./test-data";
 import type { RecurringExpense } from "../../types/database";
 
-const REGISTRANT = { gstHstRegistered: true, vehicleBusinessUsePct: 0.8 };
-const NOT_REGISTERED = { gstHstRegistered: false, vehicleBusinessUsePct: 0.8 };
+const REGISTRANT = { gstHstRegistered: true, vehicleBusinessUsePct: 0.8, homeOfficeBusinessUsePct: 0.15 };
+const NOT_REGISTERED = { gstHstRegistered: false, vehicleBusinessUsePct: 0.8, homeOfficeBusinessUsePct: 0.15 };
 
 function recurring(overrides: Partial<RecurringExpense>): RecurringExpense {
   return {
@@ -63,21 +63,21 @@ function recurring(overrides: Partial<RecurringExpense>): RecurringExpense {
 
 describe("expenseTaxContext", () => {
   it("reads registration and vehicle use from user_settings", () => {
-    expect(expenseTaxContext({ gst_hst_registered: true, vehicle_business_use_pct: 0.65 }))
-      .toEqual({ gstHstRegistered: true, vehicleBusinessUsePct: 0.65 });
+    expect(expenseTaxContext({ gst_hst_registered: true, vehicle_business_use_pct: 0.65, home_office_business_use_pct: 0 }))
+      .toEqual({ gstHstRegistered: true, vehicleBusinessUsePct: 0.65, homeOfficeBusinessUsePct: 0 });
   });
 
   it("treats missing settings as not registered, with the column's default vehicle use", () => {
-    expect(expenseTaxContext(null)).toEqual({ gstHstRegistered: false, vehicleBusinessUsePct: DEFAULT_VEHICLE_BUSINESS_USE_PCT });
+    expect(expenseTaxContext(null)).toEqual({ gstHstRegistered: false, vehicleBusinessUsePct: DEFAULT_VEHICLE_BUSINESS_USE_PCT, homeOfficeBusinessUsePct: 0 });
     expect(expenseTaxContext(undefined).gstHstRegistered).toBe(false);
-    expect(expenseTaxContext({ gst_hst_registered: null, vehicle_business_use_pct: null }))
-      .toEqual({ gstHstRegistered: false, vehicleBusinessUsePct: 0.8 });
+    expect(expenseTaxContext({ gst_hst_registered: null, vehicle_business_use_pct: null, home_office_business_use_pct: 0 }))
+      .toEqual({ gstHstRegistered: false, vehicleBusinessUsePct: 0.8, homeOfficeBusinessUsePct: 0 });
   });
 
   it("keeps an explicit 0% vehicle use (it is not 'missing') and clamps to 0–1", () => {
-    expect(expenseTaxContext({ gst_hst_registered: true, vehicle_business_use_pct: 0 }).vehicleBusinessUsePct).toBe(0);
-    expect(expenseTaxContext({ gst_hst_registered: true, vehicle_business_use_pct: "0.9000" }).vehicleBusinessUsePct).toBe(0.9);
-    expect(expenseTaxContext({ gst_hst_registered: true, vehicle_business_use_pct: 1.4 }).vehicleBusinessUsePct).toBe(1);
+    expect(expenseTaxContext({ gst_hst_registered: true, vehicle_business_use_pct: 0, home_office_business_use_pct: 0 }).vehicleBusinessUsePct).toBe(0);
+    expect(expenseTaxContext({ gst_hst_registered: true, vehicle_business_use_pct: "0.9000", home_office_business_use_pct: 0 }).vehicleBusinessUsePct).toBe(0.9);
+    expect(expenseTaxContext({ gst_hst_registered: true, vehicle_business_use_pct: 1.4, home_office_business_use_pct: 0 }).vehicleBusinessUsePct).toBe(1);
   });
 });
 
@@ -107,12 +107,12 @@ describe("expenseNetOfItc — one expense", () => {
   });
 
   it("registrant, vehicle at 90% or more: all the GST/HST is an ITC", () => {
-    const fuel = expenseNetOfItc(115, 15, "vehicle_fuel", { gstHstRegistered: true, vehicleBusinessUsePct: 0.95 });
+    const fuel = expenseNetOfItc(115, 15, "vehicle_fuel", { ...REGISTRANT, vehicleBusinessUsePct: 0.95 });
     expect(fuel).toEqual({ paid: 115, itc: 15, net: 100 });
   });
 
   it("registrant, vehicle at 10% or less: no ITC, so the GST/HST stays in the expense", () => {
-    const fuel = expenseNetOfItc(115, 15, "vehicle_fuel", { gstHstRegistered: true, vehicleBusinessUsePct: 0.1 });
+    const fuel = expenseNetOfItc(115, 15, "vehicle_fuel", { ...REGISTRANT, vehicleBusinessUsePct: 0.1 });
     expect(fuel).toEqual({ paid: 115, itc: 0, net: 115 });
   });
 
@@ -145,7 +145,7 @@ describe("expenseNetOfItc — one expense", () => {
   });
 
   it("a meal that is also flagged vehicle-use never goes below a zero ITC", () => {
-    const odd = expenseNetOfItc(115, 15, "meals_client", { gstHstRegistered: true, vehicleBusinessUsePct: 0.3 }, true);
+    const odd = expenseNetOfItc(115, 15, "meals_client", { ...REGISTRANT, vehicleBusinessUsePct: 0.3 }, true);
     expect(odd.itc).toBe(0);
     expect(odd.net).toBe(115);
   });
@@ -229,7 +229,7 @@ describe("aggregateReceiptTotals", () => {
 
   it("returns zeroed totals for null, undefined and empty input", () => {
     for (const input of [null, undefined, []]) {
-      expect(aggregateReceiptTotals(input, REGISTRANT)).toEqual({ byKey: {}, uncategorized: 0, total: 0, paid: 0, itc: 0 });
+      expect(aggregateReceiptTotals(input, REGISTRANT)).toEqual({ byKey: {}, uncategorized: 0, total: 0, paid: 0, itc: 0, homeOfficeCosts: {} });
     }
   });
 

@@ -20,7 +20,7 @@ import {
 } from "@react-pdf/renderer";
 import type { ExpenseCategoryWithItems, UserSettings } from "@/lib/types/database";
 import { PROVINCE_LABELS } from "@/lib/types/database";
-import { EXPENSE_KEY_TO_T2125 } from "@/lib/engines/t2125-engine";
+import { EXPENSE_KEY_TO_T2125, isHomeOfficeKey } from "@/lib/engines/t2125-engine";
 import type { ReceiptExpense } from "@/lib/types/receipt";
 import { RECEIPT_CATEGORIES } from "@/lib/types/receipt";
 
@@ -96,6 +96,10 @@ export interface ExpenseExportPdfProps {
   deductFull: number;
   deductMeals: number;
   deductVehicle: number;
+  /** Home Office bills at the home office share (already inside `receiptTotals`). */
+  deductHome?: number;
+  /** user_settings.home_office_business_use_pct, 0–1. */
+  homePct?: number;
   /** GST/HST registrant: the summary totals are net of ITCs (expense-totals-engine). */
   netOfItc?: boolean;
 }
@@ -113,6 +117,8 @@ export function ExpenseExportPdf({
   deductFull,
   deductMeals,
   deductVehicle,
+  deductHome = 0,
+  homePct = 0,
   netOfItc = false,
 }: ExpenseExportPdfProps) {
   const totalYtd = Object.values(receiptTotals).reduce((s, v) => s + v, 0);
@@ -143,7 +149,11 @@ export function ExpenseExportPdf({
         if (map.applyVehicleUse) return s + v * vehiclePct;
         return s + v * map.deductiblePct;
       }, 0);
-      const rule = cat.items.some((i) => EXPENSE_KEY_TO_T2125[i.key]?.applyVehicleUse)
+      // Home Office rows are already the home office share of the bills
+      // (expense-totals-engine), so both columns show that share.
+      const rule = cat.items.some((i) => isHomeOfficeKey(i.key))
+        ? `${Math.round(homePct * 100)}% of home bills`
+        : cat.items.some((i) => EXPENSE_KEY_TO_T2125[i.key]?.applyVehicleUse)
         ? `${Math.round(vehiclePct * 100)}% biz use`
         : cat.items.some((i) => (EXPENSE_KEY_TO_T2125[i.key]?.deductiblePct ?? 1) < 1)
         ? "50% rule"
@@ -245,6 +255,13 @@ export function ExpenseExportPdf({
               <Text style={S.summaryLabel}>Vehicle ({fmtPct(vehiclePct)} Biz Use)</Text>
               <Text style={[S.summaryValue, { color: "#2563eb" }]}>{fmt(deductVehicle)}</Text>
               <Text style={S.summaryLabel}>Based on business-use % you set</Text>
+            </View>
+          )}
+          {deductHome > 0 && (
+            <View style={[S.summaryCard, { borderColor: "#a5f3fc" }]}>
+              <Text style={S.summaryLabel}>Home Office ({fmtPct(homePct)} of Bills)</Text>
+              <Text style={[S.summaryValue, { color: "#0e7490" }]}>{fmt(deductHome)}</Text>
+              <Text style={S.summaryLabel}>Home bills at the home office % you set</Text>
             </View>
           )}
         </View>

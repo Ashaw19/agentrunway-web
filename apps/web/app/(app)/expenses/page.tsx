@@ -116,6 +116,24 @@ const DEFAULT_CATEGORIES = [
       { key: "corp_insurance_do",  title: "D&O insurance",          sort_order: 5 },
     ],
   },
+  // Home bills (migration 00174). Logged in full; the home business-use
+  // share is what counts (expense-totals-engine). Same rows as the DB's
+  // seed_home_office_expenses.
+  {
+    key: "home_office",
+    title: "Home Office",
+    sort_order: 10,
+    items: [
+      { key: "home_utilities",         title: "Electricity, Heat & Water", sort_order: 0 },
+      { key: "home_internet",          title: "Home Internet",             sort_order: 1 },
+      { key: "home_insurance",         title: "Home Insurance",            sort_order: 2 },
+      { key: "home_maintenance",       title: "Repairs & Maintenance",     sort_order: 3 },
+      { key: "home_property_tax",      title: "Property Tax",              sort_order: 4 },
+      { key: "home_mortgage_interest", title: "Mortgage Interest",         sort_order: 5 },
+      { key: "home_rent",              title: "Rent",                      sort_order: 6 },
+      { key: "home_condo_fees",        title: "Condo Fees",                sort_order: 7 },
+    ],
+  },
 ];
 
 // ── Seed helper — inserts all 8 categories + 24 items for a user ──────────────

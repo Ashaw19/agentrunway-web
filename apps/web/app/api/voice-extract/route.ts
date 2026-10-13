@@ -77,6 +77,10 @@ Valid category_key values (pick the best match):
   edu_courses, edu_conferences, edu_books,
   meals_client, meals_team,
   ent_client, ent_events,
+  home_utilities, home_internet, home_insurance, home_maintenance,
+  home_property_tax, home_mortgage_interest, home_rent, home_condo_fees
+    (home_* are bills for the agent's own home: power, heat, water, internet,
+    home insurance, repairs, property tax, mortgage interest, rent, condo fees),
   other_misc
 confidence: "high" if amount is present; "medium" if description but no amount; "low" otherwise.
 needsReview: true if confidence is "low".

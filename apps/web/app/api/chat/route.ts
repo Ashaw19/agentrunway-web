@@ -941,13 +941,15 @@ export async function POST(req: NextRequest) {
           });
           const receiptDetails = (receiptDetailsRows ?? []) as { total_amount?: number | null; tax_amount?: number | null; category_key?: string | null }[];
           // Same limits as the GST34 pre-fill (itcForExpense): half of meals
-          // and entertainment, and the business-use share of vehicle costs.
-          // Vehicle use is the same figure the expense totals above were netted with.
+          // and entertainment, and the business-use share of vehicle costs
+          // and of Home Office bills. Both shares are the same figures the
+          // expense totals above were netted with.
           const vehicleUse = expenseTaxCtx.vehicleBusinessUsePct;
+          const homeUse = expenseTaxCtx.homeOfficeBusinessUsePct;
           const receiptITCs = receiptDetails.reduce(
-            (sum, r) => sum + itcForExpense(Number(r.tax_amount ?? 0), r.category_key, vehicleUse).claimable, 0);
+            (sum, r) => sum + itcForExpense(Number(r.tax_amount ?? 0), r.category_key, vehicleUse, false, homeUse).claimable, 0);
           const recurringITCs = recurringHSTEntriesForPeriod(recurringExps, `${todayISO.slice(0, 4)}-01-01`, todayISO)
-            .reduce((sum, e) => sum + itcForExpense(e.tax_amount, e.category_key, vehicleUse, e.vehicle_use).claimable, 0);
+            .reduce((sum, e) => sum + itcForExpense(e.tax_amount, e.category_key, vehicleUse, e.vehicle_use, homeUse).claimable, 0);
           const totalITCsClaimed = receiptITCs + recurringITCs;
           const netHST = totalHSTCollected - totalITCsClaimed;
           if (ytdGCI > 0) {
