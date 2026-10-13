@@ -1,5 +1,5 @@
 /**
- * Home Office expense keys are listed in eight places (2026-10-13).
+ * Home Office expense keys are listed in seven places (2026-10-13).
  *
  * The canonical list is EXPENSE_KEY_TO_T2125 (entries flagged applyHomeUse).
  * Every other list has to carry the same keys or a home bill either can't be
@@ -11,8 +11,11 @@
  *   app/api/voice-extract/route.ts    the voice prompt
  *   app/(app)/expenses/page.tsx       categories seeded for a new account
  *   supabase/migrations/00174_*.sql   seed_home_office_expenses (the DB seed)
- *   lib/ai/tools.ts                   Flight Crew's logExpense
  *   apps/mobile .../profile/expenses  mobile labels
+ *
+ * Flight Crew's expense tools (lib/ai/tools.ts) keep no list of their own:
+ * their enum is lib/types/receipt.ts, pinned in
+ * lib/ai/__tests__/expense-tool-category-keys.test.ts.
  *
  * A key missing from the T2125 map is the dangerous direction: the engines
  * would treat that bill as an ordinary expense and count it in full.
@@ -71,7 +74,6 @@ describe("Home Office expense keys agree everywhere they are listed", () => {
     ["apps/web/app/api/voice-extract/route.ts", "voice prompt"],
     ["apps/web/app/(app)/expenses/page.tsx", "new-account categories"],
     ["apps/web/supabase/migrations/00174_home_office_expense_category.sql", "DB seed"],
-    ["apps/web/lib/ai/tools.ts", "Flight Crew logExpense"],
     ["apps/mobile/app/(app)/profile/expenses.tsx", "mobile labels"],
   ])("%s (%s) lists the same keys", (file) => {
     expect(homeKeysIn(read(file))).toEqual(HOME_KEYS);

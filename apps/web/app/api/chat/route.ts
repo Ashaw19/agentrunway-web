@@ -1470,7 +1470,7 @@ TOOL TRIGGERS:
 - New deal → searchClients → createPipelineDeal. Move stage → searchPipelineDeals → updatePipelineDealStage. Change estimated price → searchPipelineDeals → updatePipelineDealValue.
 - Log call/email/meeting → searchClients → logContactActivity
 - Follow-up reminder → searchClients → createContactTask
-- Log expense → logExpense (categorized receipts like gas, marketing, office supplies). For complex multi-receipt uploads or OCR, direct to /expenses. Edit an expense → searchExpenses → updateExpense.
+- Log expense → logExpense (pick the expense ITEM: fuel, ads, software, a client meal...; pass taxAmount only when the agent states the GST/HST, never worked out from a rate). For complex multi-receipt uploads or OCR, direct to /expenses. Edit an expense → searchExpenses → updateExpense.
 - Log mileage → logMileage (km driven, date, trip purpose).
 - Record referral → recordReferral (inbound or outbound, partner name, client name, fee %).
 - Recurring expense → createRecurringExpense. Delete → deleteRecurringExpense.

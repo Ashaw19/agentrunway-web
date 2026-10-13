@@ -14,6 +14,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { isReceiptCategoryKey } from "@/lib/types/receipt";
 import { createAdminClient }         from "@/lib/supabase/admin";
 import { requirePro }                from "@/lib/require-pro";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
@@ -182,7 +183,11 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         tax_amount:     extraction.tax_amount,
         subtotal:       extraction.subtotal,
         currency:       extraction.currency,
-        category_key:   extraction.suggested_category,
+        // The category is the OCR model's guess: keep it only if it is an
+        // expense item key. Anything else is saved uncategorized.
+        category_key:   isReceiptCategoryKey(extraction.suggested_category)
+          ? extraction.suggested_category
+          : null,
         receipt_path:   storagePath,
         ocr_confidence: extraction.confidence,
         ocr_raw:        extraction,

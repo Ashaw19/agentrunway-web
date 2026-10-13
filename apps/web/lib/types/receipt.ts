@@ -94,6 +94,40 @@ export const RECEIPT_CATEGORIES: Array<{ key: string; label: string }> =
 
 export type CategoryKey = string;
 
+/** An expense item key above: what `category_key` holds on a receipt or a recurring expense. */
+export type ReceiptCategoryKey =
+  (typeof RECEIPT_CATEGORY_GROUPS)[number]["items"][number]["key"];
+
+/**
+ * Every item key. The one list for anything that has to offer or check a
+ * key (the Flight Crew expense tools' enum, an AI-suggested category), so a
+ * key that matches no expense item can't be written: such a row is in the
+ * dashboard total but in no Expenses row and on no T2125 line.
+ */
+export const RECEIPT_CATEGORY_KEYS: ReceiptCategoryKey[] =
+  RECEIPT_CATEGORY_GROUPS.flatMap((g) => g.items.map((i) => i.key));
+
+const RECEIPT_CATEGORY_FULL_LABELS: Record<string, string> = Object.fromEntries(
+  RECEIPT_CATEGORY_GROUPS.flatMap((g) =>
+    g.items.map((i) => [i.key, `${g.group}: ${i.label}`]),
+  ),
+);
+
+/** True for one of the item keys above. */
+export function isReceiptCategoryKey(key: unknown): key is ReceiptCategoryKey {
+  return typeof key === "string" && key in RECEIPT_CATEGORY_FULL_LABELS;
+}
+
+/**
+ * "Vehicle: Fuel / Gas" for `vehicle_fuel`. Item labels alone repeat across
+ * categories ("Insurance"), so the category is part of it. A key that isn't
+ * one of the items above (a custom expense item) comes back as it is.
+ */
+export function receiptCategoryFullLabel(key: string | null | undefined): string {
+  if (!key) return "Uncategorized";
+  return RECEIPT_CATEGORY_FULL_LABELS[key] ?? key;
+}
+
 /** Raw fields returned by the Groq OCR extraction */
 export interface OcrExtraction {
   vendor:               string | null;

@@ -223,7 +223,7 @@ CRM pipeline status definitions (4-stage model):
   if (data.client_notes.length > 0) {
     prompt += `\n## Agent Notes (${data.client_notes.length} entries — most recent first)\n`;
     for (const n of data.client_notes.slice(0, 20)) {
-      prompt += `- [${n.created_at.slice(0, 10)}] ${n.content}\n`;
+      prompt += `- [${atlanticISODate(new Date(n.created_at))}] ${n.content}\n`;
     }
   }
 

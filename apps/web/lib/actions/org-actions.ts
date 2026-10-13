@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { resend, FROM_ADDRESS } from "@/lib/resend";
 import { log } from "@/lib/logger";
+import { APP_TIME_ZONE } from "@agent-runway/core/lib/local-date";
 
 /** Escape user-supplied strings before interpolating into HTML email templates */
 function escHtml(s: string): string {
@@ -274,7 +275,7 @@ export async function inviteMembers(
               Accept Invitation
             </a>
             <p style="color: #888; font-size: 13px; margin-top: 28px; line-height: 1.5;">
-              This invitation expires on ${new Date(inv.expires_at).toLocaleDateString("en-CA", { month: "long", day: "numeric", year: "numeric" })}. If you didn't expect this, you can safely ignore this email.
+              This invitation expires on ${new Date(inv.expires_at).toLocaleDateString("en-CA", { timeZone: APP_TIME_ZONE, month: "long", day: "numeric", year: "numeric" })}. If you didn't expect this, you can safely ignore this email.
             </p>
             <hr style="border: none; border-top: 1px solid #eee; margin: 24px 0;" />
             <p style="color: #aaa; font-size: 12px;">Agent Runway — Real estate business analytics</p>

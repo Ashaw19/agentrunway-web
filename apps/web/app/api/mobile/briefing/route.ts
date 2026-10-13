@@ -27,6 +27,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 import { computeIntelligenceBriefing } from "@/lib/engines/crm-analytics-engine";
+import { atlanticNoon } from "@agent-runway/core/lib/local-date";
 import type {
   Client,
   ContactActivity,
@@ -118,6 +119,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       (activitiesResult.data ?? []) as ContactActivity[],
       (recordsResult.data ?? []) as ClientRecord[],
       (listingsResult.data ?? []) as ListingAppointment[],
+      atlanticNoon(), // birthdays and anniversaries count from the Atlantic day
     );
 
     // Sort items by severity (urgent → attention → upcoming), then return.
