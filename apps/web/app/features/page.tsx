@@ -14,6 +14,7 @@ import { MarketingNav } from "@/components/marketing-nav";
 import { MarketingFooter } from "@/components/marketing-footer";
 import { CharterScarcityStrip } from "@/components/charter-scarcity-strip";
 import { softwareApplicationSchema, breadcrumbSchema } from "@/lib/schema";
+import { EXPENSE_RATIO_COPY } from "@agent-runway/core/engines/expense-ratio-bands";
 
 export const metadata: Metadata = {
   title: "Features — Real Estate Business Analytics",
@@ -98,7 +99,7 @@ const FEATURES = [
       "GCI is what you earn. Net income is what you keep. Agent Runway tracks your business expenses by category — marketing, MLS fees, E&O insurance, technology, vehicle costs, and more — so you always know the real profitability of your practice.",
     bullets: [
       "Pre-built expense categories tailored to real estate agents",
-      "See your expense ratio versus the industry benchmark target (25–30%)",
+      `See your expense ratio against a target of ${EXPENSE_RATIO_COPY.target}`,
       "Understand net agent income after all splits, fees, and expenses",
       "Separate monthly recurring costs from one-time purchases",
     ],

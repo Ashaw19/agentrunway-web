@@ -14,6 +14,7 @@ import {
   StyleSheet,
 } from "@react-pdf/renderer";
 import { PROVINCE_LABELS } from "@/lib/types/database";
+import { EXPENSE_RATIO_COPY } from "@agent-runway/core/engines/expense-ratio-bands";
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -290,7 +291,7 @@ export function GuidePdf({ province, businessStructure, splitPreset }: Props) {
         <Text style={S.body}>
           Two tabs: Receipts (manual or OCR photo entry) and Mileage (CRA 2025 rates).
         </Text>
-        <Text style={S.bullet}>{"\u2022"} Expense Ratio target: 25–30% of GCI is healthy</Text>
+        <Text style={S.bullet}>{"\u2022"} Expense Ratio target: {EXPENSE_RATIO_COPY.target}</Text>
         {/* Source of truth for mileage rates: CRA_MILEAGE_RATES in packages/core/types/database.ts */}
         <Text style={S.bullet}>{"\u2022"} Mileage: $0.72/km first 5,000 km, $0.66/km after</Text>
         <Text style={S.bullet}>{"\u2022"} Meals: 50% deductible (CRA rule)</Text>

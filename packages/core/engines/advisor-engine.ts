@@ -17,6 +17,12 @@ import {
   parseTxDate,
 } from "./projection-engine";
 import { NATIONAL_MEDIAN_GCI, NATIONAL_MEDIAN_TRANSACTIONS } from "./benchmark-engine";
+import {
+  EXPENSE_RATIO_COPY,
+  EXPENSE_RATIO_TARGET_MAX,
+  formatExpenseRatio,
+  isExpenseRatioAboveTarget,
+} from "./expense-ratio-bands";
 
 // ── Advisor Card Model ──────────────────────────────────────────────────────
 
@@ -34,7 +40,7 @@ export type AdvisorCategory =
 
 export const ADVISOR_CATEGORY_LABELS: Record<AdvisorCategory, string> = {
   splitOptimization: "Split Optimization",
-  expenseBenchmark: "Expense Benchmark",
+  expenseBenchmark: "Expense Target",
   pipelineHealth: "Pipeline Health",
   paceCorrection: "Pace Correction",
   survivalWarning: "Survival Warning",
@@ -113,20 +119,21 @@ export function generateAdvisory(input: AdvisorInput, limit: number = 5): Adviso
     });
   }
 
-  // 2. Expense Benchmarking
+  // 2. Expenses against Agent Runway's target (EXPENSE_RATIO_BANDS)
   if (ytdGCI > 0 && input.projectedYearEndGCI > 0) {
     // The year's expenses, as on the dashboard: to date plus still to come.
     const annualExpenses = input.expensesYTD + input.expensesRemaining;
     const ratio = annualExpenses / input.projectedYearEndGCI;
-    if (ratio > 0.3) {
-      const targetExpenses = input.projectedYearEndGCI * 0.25;
+    if (isExpenseRatioAboveTarget(ratio)) {
+      // The saving is measured to the target the card names.
+      const targetExpenses = input.projectedYearEndGCI * EXPENSE_RATIO_TARGET_MAX;
       const savings = Math.max(0, annualExpenses - targetExpenses);
       cards.push({
         id: nextId(), category: "expenseBenchmark", icon: "scissors",
-        title: "Trim Expenses to Benchmark",
+        title: "Trim Expenses to Target",
         evidence: [
-          `Expense ratio: ${Math.round(ratio * 100)}% of projected GCI`,
-          "Industry benchmark: 25–30%",
+          `Expense ratio: ${formatExpenseRatio(ratio)} of projected GCI`,
+          `Agent Runway's target: ${EXPENSE_RATIO_COPY.targetShort}`,
         ],
         action: "Review your largest expense categories for items to reduce or eliminate.",
         estimatedImpact: `+${fmtCurrency(savings)}/yr net`,

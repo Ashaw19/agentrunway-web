@@ -21,6 +21,7 @@ import {
   normalizeSeasonalWeights,
   parseTxDate,
 } from "./projection-engine";
+import { EXPENSE_RATIO_COPY, expenseRatioBand, formatExpenseRatio } from "./expense-ratio-bands";
 
 // ── Insight Model ───────────────────────────────────────────────────────────
 
@@ -207,18 +208,20 @@ export function generateInsights(input: InsightsInput, limit: number = 5): Insig
     const totalExpenses = input.expensesYTD;
     if (totalExpenses > 0) {
       const ratio = totalExpenses / ytdGCI;
-      if (ratio > 0.5) {
+      // Bands from EXPENSE_RATIO_BANDS: a warning well above target, a tip above it.
+      const band = expenseRatioBand(ratio);
+      if (band?.key === "wellAbove") {
         insights.push({
           id: nextId(), type: "warning", icon: "alert-circle",
           title: "High Expense Ratio",
-          message: `Expenses are ${Math.round(ratio * 100)}% of your GCI. Review your spending categories for optimization opportunities.`,
+          message: `Expenses are ${formatExpenseRatio(ratio)} of your GCI. Review your spending categories for optimization opportunities.`,
           priority: 70,
         });
-      } else if (ratio > 0.35) {
+      } else if (band?.key === "above") {
         insights.push({
           id: nextId(), type: "tip", icon: "dollar-sign",
           title: "Expense Check",
-          message: `Expenses are ${Math.round(ratio * 100)}% of GCI. Industry average is 25-35%.`,
+          message: `Expenses are ${formatExpenseRatio(ratio)} of GCI. Agent Runway's target is ${EXPENSE_RATIO_COPY.targetShort}.`,
           priority: 35,
         });
       }

@@ -45,6 +45,12 @@ import {
 } from "@agent-runway/core/engines/effective-cash";
 import { compute as computeRunwayScore, type RunwayScoreResult } from "@agent-runway/core/engines/runway-score-engine";
 import { buildHealthReport } from "@agent-runway/core/engines/health-report";
+import {
+  EXPENSE_RATIO_COPY,
+  EXPENSE_RATIO_LIKELY_INCOMPLETE_BELOW,
+  expenseRatioBand,
+  expenseRatioBandRange,
+} from "@agent-runway/core/engines/expense-ratio-bands";
 import { calculate as calculateTax, type CanadianTaxResult, gstHstRate, gstHstLabel } from "@agent-runway/core/engines/canadian-tax-engine";
 import { computeHSTCollected } from "@agent-runway/core/engines/hst-engine";
 import { compare as benchmarkCompare, COHORT_LABELS, type BenchmarkResult } from "@agent-runway/core/engines/benchmark-engine";
@@ -813,11 +819,14 @@ export async function POST(req: NextRequest) {
             // for every account), not what has been recorded.
             const tracked = trackedExpenseCounts(trackedExpenseLines, expenseCategoryRows);
             const expenseRatio = ytdGCI > 0 ? (expensesYTD / ytdGCI * 100) : 0;
+            // The band every screen shows for this ratio (EXPENSE_RATIO_BANDS).
+            const expenseBand = expenseRatioBand(ytdGCI > 0 ? expensesYTD / ytdGCI : NaN);
             const lines = [
               `Expense Data: ${fmtCurrency(expensesYTD)} YTD across ${tracked.lines} expense lines with an amount in ${tracked.categories} categories (expense-to-GCI ratio: ${expenseRatio.toFixed(1)}%)`,
-              `  Typical Canadian real estate agent expense ratio: 25-35% of GCI`,
+              `  ${EXPENSE_RATIO_COPY.targetSentence} ${EXPENSE_RATIO_COPY.provenance}`,
+              `  Band shown on the user's screens: ${expenseBand ? `${expenseBand.label} (${expenseRatioBandRange(expenseBand)})` : "none (no GCI yet, or no expenses recorded)"}`,
             ];
-            if (ytdGCI > 0 && expenseRatio < 20) {
+            if (ytdGCI > 0 && expensesYTD / ytdGCI < EXPENSE_RATIO_LIKELY_INCOMPLETE_BELOW) {
               lines.push(`  ⚠ Expense ratio (${expenseRatio.toFixed(1)}%) is unusually low — likely indicates incomplete expense tracking, not actual low costs. Most agents have desk fees, insurance, marketing, vehicle, MLS dues, and other costs. Gently note this to the user.`);
             }
             return lines.join("\n");
@@ -1371,7 +1380,7 @@ ${isTroubleshooting ? "- TROUBLESHOOTING MODE: Walk through the relevant calcula
 PROACTIVE INSIGHTS:
 When the agent's data shows any of these patterns, surface them naturally in your response — not as alarms, but as observations worth noting:
 - Use the "Pace vs Annual Goal" and "Board Comparison" data provided — do NOT calculate your own pace or market position. When discussing the agent's pace, reference their position relative to the average agent on their board (the "Your Pace" metric on their dashboard). If pace vs goal is significantly negative, mention it and suggest pipeline review
-- Expense ratio above 35% → flag it and offer to dig into the cause
+- Expense ratio above Agent Runway's target (${EXPENSE_RATIO_COPY.target}) → flag it and offer to dig into the cause
 - Stale active clients (30+ days no contact) exist → suggest Flight Control outreach sweep
 - Pipeline is thin relative to goal → recommend adding pipeline deals or outreach
 - Cash / survival runway under 3 months → state the Survival engine's own label (the engine emits its classification); do not editorialize or add alarmist commentary

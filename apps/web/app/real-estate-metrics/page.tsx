@@ -12,6 +12,7 @@ import {
 import { MarketingNav } from "@/components/marketing-nav";
 import { MarketingFooter } from "@/components/marketing-footer";
 import { collectionPageSchema, breadcrumbSchema } from "@/lib/schema";
+import { EXPENSE_RATIO_COPY } from "@agent-runway/core/engines/expense-ratio-bands";
 
 export const metadata: Metadata = {
   title: "Real Estate Business Metrics",
@@ -74,7 +75,7 @@ const METRICS = [
     icon: Receipt,
     name: "Expense Ratio",
     description:
-      "Total business expenses as a percentage of GCI. The industry benchmark for a healthy agent business is 25–30% of gross commission income.",
+      `Total business expenses as a percentage of GCI. ${EXPENSE_RATIO_COPY.targetSentence}`,
     href: "/metrics/expense-ratio",
   },
   {

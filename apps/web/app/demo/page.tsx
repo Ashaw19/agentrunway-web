@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { MarketingNav } from "@/components/marketing-nav";
 import { MarketingFooter } from "@/components/marketing-footer";
+import { EXPENSE_RATIO_COPY } from "@agent-runway/core/engines/expense-ratio-bands";
 
 export const metadata: Metadata = {
   title: "Demo — Real Estate Business Analytics Platform",
@@ -228,10 +229,10 @@ const SECTIONS = [
     heading: "Understand costs and business resilience",
     hint: "Your runway tells you how long you can operate without new deals closing",
     explanation:
-      "Track every business expense by category and see your expense ratio against the 25–30% industry benchmark. Your financial runway — the number of months your cash reserve covers your fixed costs — is calculated automatically and classified from Critical to Strong.",
+      `Track every business expense by category and see your expense ratio against ${EXPENSE_RATIO_COPY.targetPhrase}. Your financial runway — the number of months your cash reserve covers your fixed costs — is calculated automatically and classified from Critical to Strong.`,
     bullets: [
       "Pre-built expense categories for real estate agents",
-      "Live expense ratio vs 25–30% benchmark",
+      `Live expense ratio vs a target of ${EXPENSE_RATIO_COPY.targetShort}`,
       "Runway score: Critical, Warning, Healthy, or Strong",
       "Composite business health grade (A+ to F)",
     ],

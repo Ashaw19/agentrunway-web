@@ -13,6 +13,7 @@
  * so the AI can reason about the user's specific situation.
  */
 
+import { EXPENSE_RATIO_COPY, expenseRatioBandsList } from "@agent-runway/core/engines/expense-ratio-bands";
 import type { TroubleshootingTopic } from "./troubleshooting-classifier";
 
 export function getPlaybook(topic: TroubleshootingTopic): string {
@@ -112,7 +113,7 @@ If a user says "my grade is B" they mean a score of 75–84. Translate to the st
 Walk through each component:
 - Is their pace negative? (35% of total — biggest contributor)
 - Is pipeline empty or thin? (30% — second biggest)
-- Is expense ratio above 35%? (15%)
+- Is expense ratio above Agent Runway's target of ${EXPENSE_RATIO_COPY.target}? (15%)
 - Is cash reserve not set? (survival score defaults to 35 → only 5.25 of 15 points)
 - Has GCI but no expenses logged? (expense score defaults to 35 → only 5.25 of 15 points)
 - Are they a newer agent with low benchmark percentile? (5%)
@@ -357,13 +358,16 @@ Conversion rate = count at stage N ÷ count at stage N−1. Null for the first s
 ### Expense Ratio Calculation
 Expense Ratio = Total YTD Expenses ÷ YTD GCI
 
-**Benchmarks** (canonical from health-report.ts; insights-engine.ts uses the same boundaries):
-- <25%: Excellent (Runway sub-score 90)
-- 25–35%: Healthy (Runway sub-score 75; insights-engine "industry average is 25-35%")
-- 35–50%: Needs attention (Runway sub-score 55; insights-engine flags as a tip at >35%)
-- >50%: Concerning (Runway sub-score 30; insights-engine flags as a warning at >50%)
+**Bands** (one table: EXPENSE_RATIO_BANDS in packages/core/engines/expense-ratio-bands.ts. The Runway Score, the insight and advisor cards, the dashboard, Expenses, Reports and the report PDFs all read it, so a ratio is in the same band and the same colour everywhere):
+${expenseRatioBandsList()}
 
-Secondary signal: advisor-engine.ts shows a "Trim Expenses to Benchmark" action card when the projected ratio exceeds 30%, with a 25-30% reference benchmark. The Runway Score sub-score is the canonical band.
+${EXPENSE_RATIO_COPY.targetSentence} ${EXPENSE_RATIO_COPY.provenance} Never present it as an industry figure: there is no published figure behind it.
+
+Colours: well within target is green, within target is blue, above target is amber, well above target is red. No GCI yet, or no expenses recorded, has no band and shows grey.
+
+What starts above target: the dashboard's "Expense ratio is above target" alert, the "Expense Check" insight (a tip), and the "Trim Expenses to Target" advisor card. The advisor card uses the year's projected ratio (expenses to date plus still to come, over projected GCI), and its saving is the amount above the target. Well above target the insight becomes a "High Expense Ratio" warning.
+
+Changed 2026-10-13: until then the screens disagreed. Reports and its PDF showed a 25–30% target and turned amber past 30%; the Expenses page showed the same target but stayed green to 35%; the insight cards and Flight Crew quoted a 25–35% "industry average". So a ratio between 30% and 35% that was amber on Reports is now within target (blue) everywhere, and a ratio between 25% and 35% that was green on Expenses is now blue. The Runway Score's cut-offs did not change, so no score moved. The advisor card used to appear above 30% and measure its saving to 25%; it now appears above the target and measures to the target, so it appears less often and with a smaller figure.
 
 ### GST/HST in expense totals (registrant vs not registered)
 Source of truth: packages/core/engines/expense-totals-engine.ts (expenseNetOfItc, aggregateReceiptTotals, recurringExpensesNetOfItc). Every surface that totals expenses calls it: Expenses page KPIs and category rows, Est. Tax Deductible YTD, Reports and the T2125 lines, dashboard, overhead, forecast, altimeter, scenarios, cash position, weekly digest, Flight Crew context and tools, mobile.
@@ -483,7 +487,7 @@ Camera capture → image uploaded to Supabase Storage → /api/receipts/process 
 1. **Tax Estimate**: Expenses reduce net SE income → lower tax. For a registrant the expenses are net of ITCs, so GST/HST that is claimed back does not also reduce income.
 2. **Expense Ratio**: Feeds into Runway Score (15% weight)
 3. **Survival Runway**: Monthly recurring expenses increase burn rate → shorter runway
-4. **Advisor Cards**: Flags if expense ratio >30% of projected GCI
+4. **Advisor Cards**: "Trim Expenses to Target" appears when the year's projected expense ratio is above Agent Runway's target (${EXPENSE_RATIO_COPY.target})
 5. **T2125 Report**: Expenses map to CRA lines for tax filing
 
 ### Smart Alerts — Expense Anomaly Detection (anomaly-engine.ts)
@@ -1952,7 +1956,7 @@ The Altimeter is your deep analytics dashboard — performance tracking, insight
 
 3. **All Insights Engine**
    - AI-generated insights ranked by dollar impact
-   - Examples: "Your average deal size increased 12% vs last year" or "Your expense ratio dropped below 30%"
+   - Examples: "Your average deal size increased 12% vs last year" or "Your expense ratio is now within target"
    - Insights pull from transactions, pipeline, expenses, and CRM data
 
 4. **Industry Benchmarking**

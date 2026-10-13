@@ -49,7 +49,7 @@
   },
   "alerts": {
     "paceWarning": "Le rythme est significativement en retard sur l'objectif",
-    "expenseWarning": "Ratio de dépenses au-dessus de la référence",
+    "expenseWarning": "Ratio de dépenses au-dessus de la cible",
     "goalReached": "Objectif atteint!",
     "goalAlmost": "Presque à votre objectif!"
   },

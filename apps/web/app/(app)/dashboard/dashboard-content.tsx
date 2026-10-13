@@ -149,6 +149,15 @@ import {
   shouldPromptNextYearGoal,
 } from "@/lib/income-goals";
 import { generateInsights, type Insight } from "@/lib/engines/insights-engine";
+import {
+  EXPENSE_RATIO_BANDS,
+  EXPENSE_RATIO_COPY,
+  expenseRatioBand,
+  expenseRatioBandRange,
+  expenseRatioVsTarget,
+  formatExpenseRatio,
+  isExpenseRatioAboveTarget,
+} from "@agent-runway/core/engines/expense-ratio-bands";
 import { buildHealthReport } from "@/lib/engines/health-report";
 import {
   experienceTier,
@@ -1008,6 +1017,7 @@ export function DashboardContent({
   const pipelineEmpty = pipelineCount === 0 && listingCount === 0;
   const scoreNarrative = buildScoreNarrative(
     runwayScore, survival, paceStatus, pacePercent, healthReport, pipelineEmpty,
+    ytdGCI > 0 ? expensesYTD / ytdGCI : 0,
   );
   const narrative = settings
     ? generateBusinessHealthNarrative({
@@ -1068,14 +1078,14 @@ export function DashboardContent({
     });
   }
 
-  // Alert 3: High expense ratio
+  // Alert 3: Expense ratio above Agent Runway's target (EXPENSE_RATIO_BANDS)
   const expenseRatioForAlert = ytdGCI > 0 ? expensesYTD / ytdGCI : 0;
-  if (expenseRatioForAlert > 0.40 && ytdGCI > 0) {
+  if (isExpenseRatioAboveTarget(expenseRatioForAlert) && ytdGCI > 0) {
     smartAlerts.push({
       type: "warning",
       icon: "💸",
-      title: "Expense ratio is elevated",
-      body: `Your costs are ${fmtPct(expenseRatioForAlert)} of GCI, above the 25 to 30% benchmark. Every dollar saved here goes straight to your net.`,
+      title: "Expense ratio is above target",
+      body: `Your costs are ${formatExpenseRatio(expenseRatioForAlert)} of GCI, ${expenseRatioVsTarget(expenseRatioForAlert)}. Every dollar saved here goes straight to your net.`,
     });
   }
 
@@ -3350,7 +3360,7 @@ const SCORE_COMPONENT_DESCRIPTIONS: Record<string, string> = {
   Pipeline:
     "Your probability-weighted pipeline value relative to the remaining goal gap. A healthy pipeline provides a cushion for the months ahead.",
   Expenses:
-    "Your expense ratio (expenses ÷ GCI) vs. the 25–30% industry benchmark. Below 30% is healthy; above 50% is a warning sign.",
+    `Your expense ratio (expenses ÷ GCI) against ${EXPENSE_RATIO_COPY.targetPhrase}. ${EXPENSE_RATIO_COPY.scoreSentence}`,
   Survival:
     "Months of cash runway based on your burn rate (brokerage fee + recurring expenses) and cash reserves. 6+ months is considered strong.",
   Benchmark:
@@ -3460,7 +3470,7 @@ function RunwayScoreInfoDialog({
             <p className="text-xs font-semibold">How to improve your score</p>
             <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
               <li>• Close or advance pipeline deals to boost Goal Pace and Pipeline scores</li>
-              <li>• Keep expenses below 30% of GCI to maximise the Expenses component</li>
+              <li>• Keep expenses at {expenseRatioBandRange(EXPENSE_RATIO_BANDS[0])} of GCI to maximise the Expenses component</li>
               <li>• Build 4–6 months of cash reserves for a strong Survival score</li>
               <li>• Complete all fields in Settings — each unlocks more accurate projections</li>
               <li>• Grow GCI year-over-year to climb your experience-cohort Benchmark ranking</li>
@@ -3646,6 +3656,7 @@ function buildScoreNarrative(
   pacePercent: number,
   _healthReport: BusinessHealthReport,
   pipelineEmpty: boolean,
+  expenseRatio: number,
 ): ScoreNarrative {
   if (!runwayScore.hasEnoughData) {
     return {
@@ -3668,7 +3679,11 @@ function buildScoreNarrative(
         ? `you're ${paceAbs}% ahead of pace, and momentum is building`
         : `you're ${paceAbs}% behind your goal pace, and closing pipeline deals will move this`,
     Pipeline: "your pipeline is thin relative to your remaining goal",
-    Expenses: "your expense ratio is above the 25 to 30% benchmark",
+    // Expenses can be the weakest component with a ratio that is within
+    // target, or with no expenses recorded: say which, from the bands.
+    Expenses: expenseRatioBand(expenseRatio)
+      ? `your expense ratio is ${expenseRatioVsTarget(expenseRatio)}`
+      : "no expenses are recorded yet, which holds this score down",
     Benchmark: "your projected GCI is below your experience-group cohort median",
     Survival:
       survival.monthlyBurn > 0
@@ -3826,6 +3841,8 @@ function generateBusinessHealthNarrative({
   }
 
   // ── Why (root cause from weakest score component) ─────────────────────────
+  // Null when there is no ratio to place: no GCI, or no expenses recorded.
+  const expenseBand = expenseRatioBand(expenseRatio);
   const whyMap: Record<string, string> = {
     "Goal Pace":
       gciGap > 0
@@ -3836,8 +3853,8 @@ function generateBusinessHealthNarrative({
         ? `Pipeline is empty (score: ${healthReport.pipelineScore}/100). With no active deals in progress, the forecast relies entirely on closed deals and seasonal assumptions.`
         : `Pipeline coverage is thin (score: ${healthReport.pipelineScore}/100). The ${pipelineCount} active deal${pipelineCount !== 1 ? "s" : ""} carrying ${fmtCurrency(pipelineWeightedGCI)} may not be sufficient to close a ${fmtCurrency(gciGap)} gap.`,
     Expenses:
-      expenseRatio > 0
-        ? `Expense ratio is elevated at ${fmtPct(expenseRatio)} of YTD GCI (score: ${healthReport.expenseScore}/100), above the 25–30% benchmark. Monthly burn of ${fmtCurrency(survival.monthlyBurn)} is compressing net take-home.`
+      expenseBand
+        ? `Expense ratio is ${formatExpenseRatio(expenseRatio)} of YTD GCI (score: ${healthReport.expenseScore}/100), ${expenseRatioVsTarget(expenseRatio)}. Monthly burn of ${fmtCurrency(survival.monthlyBurn)} is compressing net take-home.`
         : `Expense tracking (score: ${healthReport.expenseScore}/100) — configure your costs in Settings to see expense ratio and burn analysis.`,
     Benchmark: `Projected GCI of ${fmtCurrency(projectedGCI)} ranks at the ${benchmark.percentile}th percentile for your experience cohort, with a median of ${fmtCurrency(benchmark.cohortMedianGCI)} (industry-cohort estimate).`,
     Survival:
@@ -3861,8 +3878,15 @@ function generateBusinessHealthNarrative({
     nextMove = "Add at least 3–5 pipeline deals on the Pipeline page to improve forecast coverage and your Runway Score.";
   } else if (weakest.label === "Pipeline" && pipelineCount > 0) {
     nextMove = `Push ${pipelineCount > 2 ? "top 2" : "your"} pipeline deal${pipelineCount !== 1 ? "s" : ""} toward closing this month to improve both GCI and pipeline score.`;
+  } else if (weakest.label === "Expenses" && !expenseBand) {
+    nextMove = "Record your costs on the Expenses page so your expense ratio can be scored.";
   } else if (weakest.label === "Expenses") {
-    nextMove = "Review your Expenses page and identify at least $500/month in reducible recurring costs to bring the expense ratio below 30%.";
+    // Past the target, the next edge down is the target. Within it, the
+    // only edge left is the top band's.
+    const nextEdge = isExpenseRatioAboveTarget(expenseRatio)
+      ? EXPENSE_RATIO_COPY.targetShort
+      : expenseRatioBandRange(EXPENSE_RATIO_BANDS[0]);
+    nextMove = `Review your Expenses page and identify at least $500/month in reducible recurring costs to bring the expense ratio to ${nextEdge}.`;
   } else if (weakest.label === "Survival" && survival.monthlyBurn > 0) {
     nextMove = `Build your cash reserve to cover at least 3 months of the ${fmtCurrency(survival.monthlyBurn)}/month burn rate (${fmtCurrency(survival.monthlyBurn * 3)} target).`;
   } else if (pipelineCount > 0 && gciGap > 0) {

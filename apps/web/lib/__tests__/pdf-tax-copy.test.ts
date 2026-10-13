@@ -200,20 +200,46 @@ describe("business report PDF: GST/HST note", () => {
   });
 });
 
+// One target and one set of bands on every surface: EXPENSE_RATIO_BANDS in
+// packages/core/engines/expense-ratio-bands.ts. The sentences are pinned here
+// as the PDF prints them; expense-ratio-bands-canonical.test.ts fails if a
+// surface states a figure of its own again.
 describe("business report PDF: expense ratio wording", () => {
   it.each([
-    [12, "under"],
+    [12, "well within"],
     [27, "within"],
-    [33, "above"],
+    [33, "within"],
+    [35, "within"],
     [47, "above"],
-  ])("a ratio of %i is called %s the target range", (ratio, word) => {
+    [62, "well above"],
+  ])("a ratio of %i is called %s the target", (ratio, word) => {
     const all = blocksOf(BusinessReportPDF, reportProps({ expenseRatio: ratio })).join("\n");
-    expect(all).toContain(`Your expense ratio of ${ratio}% is ${word} the 25–30% target range.`);
+    expect(all).toContain(`Your expense ratio of ${ratio}% is ${word} Agent Runway's target of 35% of GCI or less.`);
   });
 
-  it("the bar's note says what the ratio is", () => {
+  it("a ratio just past the target prints its decimal and reads as above it", () => {
+    const all = blocksOf(BusinessReportPDF, reportProps({ expenseRatio: 35.4 })).join("\n");
+    expect(all).toContain("Your expense ratio of 35.4% is above Agent Runway's target of 35% of GCI or less.");
+  });
+
+  it("the bar's label and note give the target, and say whose it is", () => {
     const blocks = blocksOf(BusinessReportPDF, reportProps());
-    expect(blocks).toContain("YTD expenses divided by YTD GCI. The target range is 25–30%.");
+    expect(blocks).toContain("Expense Ratio · 33.0% of GCI (target: 35% or less)");
+    expect(blocks).toContain("YTD expenses divided by YTD GCI. Agent Runway's target for the expense ratio is 35% of GCI or less.");
+  });
+
+  it("says nothing about the target when no expenses are recorded", () => {
+    const all = blocksOf(BusinessReportPDF, reportProps({ expenseRatio: 0 })).join("\n");
+    expect(all).not.toContain("Your expense ratio of");
+  });
+
+  it("never states the old 25–30% range or calls a figure an industry benchmark", () => {
+    const all = [
+      ...blocksOf(BusinessReportPDF, reportProps()),
+      ...blocksOf(BusinessReportPDF, reportProps({ expenseRatio: 47 })),
+    ].join("\n");
+    expect(all).not.toMatch(/25\s?[–-]\s?3[05]\s?%/);
+    expect(all).not.toMatch(/industry (benchmark|average)/i);
   });
 });
 

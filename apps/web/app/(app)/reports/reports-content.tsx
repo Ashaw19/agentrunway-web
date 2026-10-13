@@ -102,6 +102,17 @@ import {
 import { probabilityBands } from "@/lib/engines/probabilistic-forecast-engine";
 import { generateAdvisory, ADVISOR_CATEGORY_LABELS } from "@/lib/engines/advisor-engine";
 import { buildHealthReport } from "@/lib/engines/health-report";
+import {
+  EXPENSE_RATIO_COPY,
+  EXPENSE_RATIO_GAUGE_MAX,
+  EXPENSE_RATIO_TARGET_MAX,
+  expenseRatioBand,
+  expenseRatioTone,
+  expenseRatioVsTarget,
+  formatExpenseRatio,
+  isExpenseRatioAboveTarget,
+} from "@agent-runway/core/engines/expense-ratio-bands";
+import { EXPENSE_RATIO_TONE_CLASS } from "@/lib/expense-ratio-style";
 import type { CcaAsset } from "@/lib/types/database";
 import type { T2125ExpenseEntry } from "@/lib/engines/t2125-engine";
 import type { DeductionTrackingFlags } from "@/lib/engines/tax-optimization-engine";
@@ -345,6 +356,11 @@ export function ReportsContent({
   // them, so this headline is the Expenses page's and the dashboard's.
   const netPreTax = agentNet - expensesYTD;
   const expenseRatio = ytdGCI > 0 ? (expensesYTD / ytdGCI) * 100 : 0;
+  // Band and colour from EXPENSE_RATIO_BANDS, which takes the ratio as a
+  // fraction: the cut-offs the Runway Score uses, on every screen.
+  const expenseRatioFraction = ytdGCI > 0 ? expensesYTD / ytdGCI : 0;
+  const expenseBand = expenseRatioBand(expenseRatioFraction);
+  const expenseClass = EXPENSE_RATIO_TONE_CLASS[expenseRatioTone(expenseRatioFraction)];
 
   // ── Tax ───────────────────────────────────────────────────────────────────────
   // The year's expenses: to date + what is still to come (matches the dashboard).
@@ -823,7 +839,9 @@ export function ReportsContent({
                 <p className="text-xs text-slate-500 mt-0.5">
                   {weakest.label === "Goal Pace" && "You're behind on your annual GCI target. Closing one more deal could shift this significantly."}
                   {weakest.label === "Pipeline" && "Your pipeline is thin. Adding prospects or listing appointments would strengthen your forecast."}
-                  {weakest.label === "Expenses" && "Your expense ratio needs attention. Log all expenses to get an accurate picture."}
+                  {weakest.label === "Expenses" && (expenseBand
+                    ? `Your expense ratio is ${formatExpenseRatio(expenseRatioFraction)}, ${expenseRatioVsTarget(expenseRatioFraction)}. ${EXPENSE_RATIO_COPY.scoreSentence}`
+                    : "No expenses are recorded yet, which holds this score down. Log your expenses to get an accurate picture.")}
                   {weakest.label === "Benchmark" && "You're below your experience cohort median. Focus on deal volume to move up."}
                   {weakest.label === "Survival" && "Your cash runway is short. Building a reserve or reducing monthly burn would help."}
                 </p>
@@ -1042,15 +1060,16 @@ export function ReportsContent({
                 {
                   label: "Expense ratio",
                   value: `${expenseRatio.toFixed(1)}%`,
-                  sub: (
+                  sub: expenseBand ? (
                     <span className="inline-flex items-center justify-center gap-1">
-                      {expenseRatio <= 30 ? (
-                        <><CheckCircle className="h-3 w-3 text-emerald-500" /> Healthy</>
+                      {isExpenseRatioAboveTarget(expenseRatioFraction) ? (
+                        <AlertTriangle className={`h-3 w-3 ${expenseClass.icon}`} />
                       ) : (
-                        <><AlertTriangle className="h-3 w-3 text-amber-500" /> Review</>
+                        <CheckCircle className={`h-3 w-3 ${expenseClass.icon}`} />
                       )}
+                      {expenseBand.label}
                     </span>
-                  ),
+                  ) : "of GCI",
                 },
                 { label: "Net pre-tax", value: fmtCurrency(netPreTax), sub: "after all costs" },
                 { label: "Effective take", value: fmtPct(ytdGCI > 0 ? netPreTax / ytdGCI : 0), sub: "of every $1" },
@@ -1242,24 +1261,25 @@ export function ReportsContent({
                 <div>
                   <div className="flex justify-between text-sm mb-1.5">
                     <span className="font-medium text-slate-800">Expense ratio</span>
-                    <span className={`font-bold ${expenseRatio <= 30 ? "text-emerald-600" : expenseRatio <= 40 ? "text-amber-600" : "text-red-600"}`}>
+                    <span className={`font-bold ${expenseClass.text}`}>
                       {expenseRatio.toFixed(1)}%
                     </span>
                   </div>
                   <div className="relative h-3 rounded-full bg-slate-100 overflow-hidden">
-                    {/* benchmark zone markers (25–30%) */}
-                    <div className="absolute inset-y-0 bg-emerald-200/60" style={{ left: "50%", width: "10%" }} />
                     <div
-                      className={`h-full rounded-full transition-all ${
-                        expenseRatio <= 30 ? "bg-emerald-500" : expenseRatio <= 40 ? "bg-amber-500" : "bg-red-500"
-                      }`}
-                      style={{ width: `${Math.min(100, expenseRatio * 2)}%` }}
+                      className={`h-full rounded-full transition-all ${expenseClass.bar}`}
+                      style={{ width: `${Math.min(1, expenseRatioFraction / EXPENSE_RATIO_GAUGE_MAX) * 100}%` }}
+                    />
+                    {/* The target, marked where it falls on the gauge's scale */}
+                    <div
+                      className="absolute inset-y-0 w-0.5 bg-slate-700/70"
+                      style={{ left: `${(EXPENSE_RATIO_TARGET_MAX / EXPENSE_RATIO_GAUGE_MAX) * 100}%` }}
                     />
                   </div>
                   <div className="flex justify-between text-[10px] text-slate-400 mt-1">
                     <span>0%</span>
-                    <span className="text-emerald-600 font-medium">Target: 25–30%</span>
-                    <span>50%+</span>
+                    <span className="text-slate-600 font-medium">{EXPENSE_RATIO_COPY.targetCaption}</span>
+                    <span>{EXPENSE_RATIO_COPY.gaugeMaxCaption}</span>
                   </div>
                 </div>
                 {/* Top categories */}

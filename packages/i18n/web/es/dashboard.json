@@ -49,7 +49,7 @@
   },
   "alerts": {
     "paceWarning": "Pace is significantly behind goal",
-    "expenseWarning": "Expense ratio above benchmark",
+    "expenseWarning": "Expense ratio above target",
     "goalReached": "Goal reached!",
     "goalAlmost": "Almost at your goal!"
   },
