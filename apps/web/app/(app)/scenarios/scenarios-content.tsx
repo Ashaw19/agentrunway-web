@@ -108,11 +108,17 @@ function computeResult(
 
   // Dashboard projects annual expenses: expensesYTD + what is still to come
   // this year. A changed monthly figure moves each whole month after this
-  // one by the difference; unchanged, this is the dashboard's number.
+  // one by the difference; unchanged, this is the dashboard's number. The
+  // rest of the year never goes below zero: the monthly figure carries a
+  // twelfth of an annual fee that may already be charged, so lowering it
+  // can't take back what is in expensesYTD.
   const now = new Date();
   const expRemainingMonths = Math.max(0, 12 - (now.getMonth() + 1));
-  const annualExpenses =
-    expensesYTD + expensesRemaining + (monthlyRecurring - baselineMonthlyRecurring) * expRemainingMonths;
+  const restOfYear = Math.max(
+    0,
+    expensesRemaining + (monthlyRecurring - baselineMonthlyRecurring) * expRemainingMonths,
+  );
+  const annualExpenses = expensesYTD + restOfYear;
 
   const projectedNet = agentGross - txFees - brokerageFeeAnnual;
   const netForTax = Math.max(0, projectedNet - annualExpenses - rrspContribution);

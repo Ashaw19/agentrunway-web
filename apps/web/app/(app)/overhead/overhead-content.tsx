@@ -511,7 +511,6 @@ interface Props {
   pipelineDeals?: PipelineDeal[];
   isPro?: boolean;
   scenarioSeed?: ScenarioSeedData | null;
-  recurringExpMonthly?: number;
   recurringExpYTD?: number;
   /** Pre-computed: what the recurring_expenses table is still to charge this year */
   recurringExpRemaining: number;
@@ -576,7 +575,6 @@ export function OverheadContent({
   pipelineDeals = [],
   isPro: isPro = false,
   scenarioSeed = null,
-  recurringExpMonthly = 0,
   recurringExpYTD = 0,
   recurringExpRemaining,
 }: Props) {
@@ -630,7 +628,6 @@ export function OverheadContent({
       sum + cat.items.reduce((s, i) => s + Number(i.monthly_recurring), 0),
     0,
   );
-  const monthlyRecurring = legacyMonthlyRecurring + recurringExpMonthly;
   // Integer months elapsed (1-12) — matches the dashboard. See
   // dashboard_metric_divergence_fix_2026-06-26.md.
   const expMonthsElapsed = now.getMonth() + 1;

@@ -200,7 +200,6 @@ export default async function OverheadPage() {
       pipelineDeals={pipelineDeals}
       isPro={await computeIsPro(supabase, user.id, rawSettings)}
       scenarioSeed={scenarioSeed}
-      recurringExpMonthly={recurringExpMonthly}
       recurringExpYTD={recurringExpYTD}
       recurringExpRemaining={recurringExpRemaining}
     />

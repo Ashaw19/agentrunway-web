@@ -147,6 +147,7 @@ IMPORTANT: Always include this disclaimer once in tax-related responses: "These 
 
 **Input**: Net self-employment income (after expenses, before tax)
 Net SE Income = Projected Annual GCI × Agent Split% − Annual Expenses
+Annual Expenses = expenses year to date + what is still to come this year (expense-totals-engine.ts, remainingYearExpenses): the per-item "/mo" figures for the months after this one, plus the Recurring Expenses list's charges after today. Each recurring charge of the year is counted once, on its date: an annual fee is in the year in full whether its date has passed or not, and a monthly charge due later this month is in "still to come" until its day.
 Annual Expenses for a GST/HST registrant are net of the GST/HST claimed as input tax credits (expense-totals-engine.ts; see the Expenses playbook). For a non-registrant they are the amounts paid, GST/HST included.
 
 ### T2125 pre-fill: what feeds the expense lines
@@ -402,7 +403,7 @@ What it counts, to date only (no future month or charge):
 |---|---|
 | Receipts under an expense item | The receipts, or the item's "/mo" figure x months elapsed (current month included) where that is larger. The larger counts, not the sum: the "/mo" figure is the estimate and the receipts are the actuals for the same spending |
 | Receipts with no category | Counted once, 100%, line 9270. Shown as "Not in a category above" under the Categories table |
-| Recurring Expenses list (active entries) | Each occurrence so far this year. Monthly: one per month from the later of January and its start date. Quarterly and annual: only charges whose date has passed |
+| Recurring Expenses list (active entries) | Each charge that has happened so far this year, on or after the entry's start date (and up to its end date, when it has one). Monthly: on its charge day each month, so this month's charge is not in until that day. Quarterly and annual: only charges whose date has passed. These are the same charges the GST34 summary counts for input tax credits |
 
 Limits applied (the app's estimate of CRA's rules, for review with an accountant):
 - Meals & entertainment: 50%.
@@ -415,7 +416,7 @@ Expenses not filed under one of the standard items are not dropped (they were un
 - Still filed under a whole category (see "Expense items" below; existing ones were moved to items on 2026-10-13): counted as that category's first-choice item, with that item's line and limit.
 - On the Expenses page these show inside their category as "No item chosen" or under the item's name, or in the "Not in a category above" row.
 
-Changed 2026-10-13: the Recurring Expenses list now counts in Est. Tax Deductible and on the T2125 lines (it was in YTD Expenses only), and recurring rows in the Categories table show a real Deductible amount (50% or the vehicle %) instead of repeating the YTD amount.
+Changed 2026-10-13: the Recurring Expenses list now counts in Est. Tax Deductible and on the T2125 lines (it was in YTD Expenses only), and recurring rows in the Categories table show a real Deductible amount (50% or the vehicle %) instead of repeating the YTD amount. Also 2026-10-13: a monthly recurring entry counts each charge from its charge day. Before, the current month counted from the 1st (or from the day of the month the entry started on), so on the 13th an entry charged on the 20th showed one more charge here than in the GST34 summary.
 
 Known difference left in place: the Expenses page compares receipts with the "/mo" figure item by item; the dashboard, Reports headline, Overhead, Forecast and Flight Crew compare the two totals. They differ only for an account that has "/mo" figures on some items and receipts on others, and then the Expenses page (and the T2125 lines) is the higher figure.
 
@@ -622,7 +623,7 @@ Waterfall = GCI
   − Brokerage share (GCI × (1 − agent_split%))
   − Monthly brokerage fees × 12
   − Per-deal fees × projected deals (capped if annual cap set)
-  − Annual expenses (YTD + projected recurring)
+  − Annual expenses (YTD + what is still to come this year: "/mo" figures for the months after this one, and the recurring charges after today)
   − Tax estimate (federal + provincial + CPP)
   = Projected take-home
 
@@ -2033,22 +2034,29 @@ An entry in the Recurring Expenses list (Expenses page) is an expense that repea
 - "Apply vehicle business-use % to this expense", for a vehicle cost
 
 **How an entry is counted:**
-There is no confirm or skip step. An active entry counts by its schedule: every occurrence so far this year is in YTD Expenses, Est. Tax Deductible and the T2125 lines (packages/core/engines/recurring-expense-engine.ts, recurringYTD). Nothing appears in the receipt log for it.
-- Monthly: one per month from the later of January and its start date. For an entry that began in an earlier year the current month counts from its first day, whatever the charge day.
-- Quarterly: every third month from its starting month, once the charge date has passed.
-- Annual: once, when its charge date has passed.
+There is no confirm or skip step. An active entry counts by its charge dates: every charge that has happened so far this year is in YTD Expenses, Est. Tax Deductible and the T2125 lines (packages/core/engines/recurring-expense-engine.ts, recurringYTD). Nothing appears in the receipt log for it.
+- Monthly: once a month, on its charge day (day of month, 1 to 28). This month's charge counts from that day, not from the 1st: on the 13th, an entry charged on the 20th has not counted for this month yet.
+- Quarterly: every third month from its starting month, on its charge day.
+- Annual: once, on its charge date.
+- A charge counts only on or after the entry's start date. An entry that starts on the 15th with charge day 10 first counts on the 10th of the next month. An entry Flight Crew sets up starts the day it is created.
+- An entry with an end date stops there: charges up to that date stay in the year, later ones never count. The form on the Expenses page has no end-date field yet (see "How do I cancel" below).
+- The GST34 summary's input tax credits count the same charges, so an entry's expense and its GST/HST are always the same number of charges.
+- The year's projected expenses (tax estimate, Forecast, Scenarios, Overhead, weekly digest) are the charges so far plus the charges still to come this year (totalRecurringRemaining), each counted once. A charge due later this month is in "still to come" until its day, then moves to year to date. The projected total for the year does not change when it does.
+Changed 2026-10-13: before this a monthly entry counted the current month from the 1st (or from the day of the month it started on), so year-to-date expenses could run one charge ahead of the GST34 summary until the charge day, and an end date was not read.
 The Recurring Expenses list shows the amounts as charged. Totals are net of ITCs for a GST/HST registrant.
 
 ### Common Issues
-- **"Recurring expense not counting"**: Check the start date (nothing counts before it) and that the entry is active. A quarterly or annual entry counts only after its charge date this year.
+- **"Recurring expense not counting"**: Check the start date (nothing counts before it), the charge day, and that the entry is active. A monthly entry counts on its charge day, so one set up today with a charge day earlier in the month first counts next month. A quarterly or annual entry counts only after its charge date this year.
+- **"My YTD expenses went down" / "this month's subscription isn't in my expenses yet"**: Since 2026-10-13 a monthly entry counts on its charge day instead of from the 1st of the month. An entry whose charge day is still ahead this month is one charge lower in YTD Expenses, Est. Tax Deductible and the T2125 lines until that day. Nothing was lost: the charge is in the year's projected expenses the whole time, and year to date now agrees with the GST34 summary.
 - **"I changed the amount and my year-to-date changed"**: The year-to-date figure is the current amount x occurrences so far, so a new amount applies to the whole year to date. Known limitation: an entry has one amount for the year.
-- **"How do I cancel a recurring expense?"**: Deactivate or delete it in the Recurring Expenses list on the Expenses page. Known limitation: a deactivated entry no longer counts for any part of the year, including the months it ran. Logging those months as receipts keeps them in the totals.
+- **"How do I cancel a recurring expense?"**: Deactivate or delete it in the Recurring Expenses list on the Expenses page. Known limitation: a deactivated or deleted entry no longer counts for any part of the year, including the months it ran. Logging those months as receipts keeps them in the totals. The engine keeps the charges up to an end date, but the form has no end-date field yet, so an end date can't be set from the app.
 - **"Recurring expense not in my tax deductions" / "not on my T2125"**: Since 2026-10-13 active entries count in Est. Tax Deductible and on the T2125 lines (see the Expenses playbook, "Est. Tax Deductible YTD and the T2125 lines"). A vehicle entry counts at the vehicle business-use % and a meal at 50%.
 - **"I logged the receipt too and it counted twice"**: A receipt and a recurring entry for the same bill both count. One record per bill keeps the total right.
 - **"My recurring expense has no input tax credit" / "Flight Crew set up my subscription but its HST isn't in my GST34"**: The GST34 summary and the totals read the entry's HST amount. An entry has one only when "This amount includes HST" is on (Expenses page), or when the agent stated the GST/HST as Flight Crew set it up. Entries Flight Crew set up before 2026-10-13 have none: it could not record GST/HST on a recurring expense until then. Editing the entry in the Recurring Expenses list adds it. Some charges carry no GST/HST (insurance premiums, most government fees), so nothing comes off those.
 
 ### Impact on Financial Tracking
-- Occurrences to date count toward YTD expense totals and the expense ratio
+- Charges to date count toward YTD expense totals and the expense ratio
+- Charges still to come this year count in the year's projected expenses (tax estimate, Forecast)
 - They count in Est. Tax Deductible and on the T2125 lines, by the entry's category
 - The monthly equivalent is part of Monthly Recurring and survival burn
 - Their HST is in the GST34 summary's input tax credits for the period
