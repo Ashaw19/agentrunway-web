@@ -47,6 +47,7 @@
 
 import {
   aggregateReceiptTotals,
+  fullYearExpenses,
   recurringExpensesNetOfItc,
   recurringNetOfItc,
   remainingYearExpenses,
@@ -54,7 +55,12 @@ import {
   type ReceiptTotals,
   type ReceiptTotalsRow,
 } from "./expense-totals-engine";
-import { recurringMonthlyRunRate, recurringYTD, totalRecurringRemaining } from "./recurring-expense-engine";
+import {
+  recurringMonthlyRunRate,
+  recurringYTD,
+  totalRecurringInYear,
+  totalRecurringRemaining,
+} from "./recurring-expense-engine";
 import {
   HOME_OFFICE_CATEGORY_KEY,
   expenseItemKeyFor,
@@ -268,6 +274,15 @@ export interface YtdExpenseTotals {
    * expensesYTD + this = the year's expenses.
    */
   expensesRemaining: number;
+  /** Active recurring expenses' charges dated in the calendar year after `now`'s, net. */
+  recurringNextYear: number;
+  /**
+   * The calendar year after `now`'s, for the dashboard's next-year plan
+   * (`fullYearExpenses`): the monthly figures × 12, plus `recurringNextYear`.
+   * Not `monthlyRecurring` × 12: a recurring expense with an end date counts
+   * up to it, and one that starts next year counts from its start date.
+   */
+  expensesNextYear: number;
 }
 
 export function ytdExpenseTotals(inputs: YtdExpenseInputs): YtdExpenseTotals {
@@ -296,10 +311,10 @@ export function ytdExpenseTotals(inputs: YtdExpenseInputs): YtdExpenseTotals {
 
   // Still to come: the same recurring rows the lines count to date, by the
   // charge dates after today, so each charge of the year is in exactly one.
-  const recurringRemaining = totalRecurringRemaining(
-    recurringExpensesNetOfItc(inputs.recurring, inputs.ctx),
-    inputs.now,
-  );
+  const recurringNet = recurringExpensesNetOfItc(inputs.recurring, inputs.ctx);
+  const recurringRemaining = totalRecurringRemaining(recurringNet, inputs.now);
+  // Next year: the same rows again, by the charge dates that fall in it.
+  const recurringNextYear = totalRecurringInYear(recurringNet, inputs.now.getFullYear() + 1);
 
   return {
     receipts,
@@ -313,6 +328,8 @@ export function ytdExpenseTotals(inputs: YtdExpenseInputs): YtdExpenseTotals {
     monthlyRecurring: tracked.monthlyTotal,
     recurringRemaining,
     expensesRemaining: remainingYearExpenses(legacyMonthlyRecurring, recurringRemaining, inputs.now),
+    recurringNextYear,
+    expensesNextYear: fullYearExpenses(legacyMonthlyRecurring, recurringNextYear),
   };
 }
 

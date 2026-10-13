@@ -225,7 +225,10 @@ function dashboardExpenses(fx: Fixture) {
   // dashboard-content.tsx
   const annualExpenses = expensesYTD + expensesRemaining;
 
-  return { expensesYTD, monthlyRecurring, expensesRemaining, annualExpenses };
+  // next-year-plan.tsx: the plan's "Business expenses" row.
+  const { expensesNextYear } = expenseTotals;
+
+  return { expensesYTD, monthlyRecurring, expensesRemaining, annualExpenses, expensesNextYear };
 }
 
 type ExpenseLine = { key: string | null; title: string; category: string; ytd_amount: number; monthly_recurring: number; end_date?: string };
@@ -234,7 +237,7 @@ type ExpensesOutput = {
   amounts: string;
   total_ytd: number;
   total_monthly_recurring: number;
-  projected_annual_recurring: number;
+  next_year_expenses: { year: number; total: number; recurring: number; formula: string };
   ytd_components: { receipts: number; monthly_estimates_above_receipts: number; recurring: number; formula: string };
   by_category: Array<{ category: string; ytd_total: number; monthly_recurring: number; top_items: string[] }>;
   all_items: ExpenseLine[];
@@ -437,7 +440,9 @@ describe("get_expenses — the same total, with its lines", () => {
     expect(out.total_ytd).toBe(6143.75);
     expect(Math.round(out.total_ytd)).toBe(kpis.ytd_expenses);
     expect(out.total_monthly_recurring).toBe(586.67); // 20 + 500 + 200/3
-    expect(out.projected_annual_recurring).toBe(7040);
+    // 2027: 12 × the $20 monthly estimate, 12 lease charges of 500, 4 of dues at 200.
+    expect(out.next_year_expenses).toMatchObject({ year: 2027, total: 7040, recurring: 6800 });
+    expect(out.next_year_expenses.total).toBe(dashboardExpenses(fx).expensesNextYear);
     expect(out.ytd_components).toMatchObject({ receipts: 443.75, monthly_estimates_above_receipts: 100, recurring: 5600 });
     const { receipts, monthly_estimates_above_receipts, recurring } = out.ytd_components;
     expect(receipts + monthly_estimates_above_receipts + recurring).toBe(out.total_ytd);
@@ -691,7 +696,7 @@ describe("a recurring expense counts from its charge day, for expenses and ITCs 
       ytd_amount: 300, monthly_recurring: 0, end_date: "2026-03-31",
     });
     expect(out.total_monthly_recurring).toBe(without.total_monthly_recurring);
-    expect(out.projected_annual_recurring).toBe(without.projected_annual_recurring);
+    expect(out.next_year_expenses).toEqual(without.next_year_expenses);
     expect(out.total_monthly_recurring).toBeCloseTo(dashboardExpenses(fx).monthlyRecurring, 2);
     expect(out.all_items.reduce((s, i) => s + i.monthly_recurring, 0)).toBeCloseTo(out.total_monthly_recurring, 2);
     // Its year to date is still in the total.
@@ -723,6 +728,42 @@ describe("a recurring expense counts from its charge day, for expenses and ITCs 
   it("a line with no end date carries none", async () => {
     const out = await callTool<ExpensesOutput>(await expenses(fakeSupabase(fixtures().tables)), "get_expenses");
     for (const line of out.all_items) expect(line).not.toHaveProperty("end_date");
+  });
+
+  // Next year's expenses are the figure the dashboard's next-year plan
+  // deducts: the charge dates that fall in that year. Until 2026-10-13 this
+  // tool reported the monthly figure × 12 as `projected_annual_recurring`,
+  // which counted an expense known to stop for the whole of next year.
+  it("next year leaves out an expense that ends on Dec 31, while the monthly figure still carries it", async () => {
+    const fx = withRow(recurringRow({ id: "ending", name: "Office rent", amount: 115, hst_amount: 15, end_date: "2026-12-31" }));
+    const out = await callTool<ExpensesOutput>(await expenses(fakeSupabase(fx.tables)), "get_expenses");
+    const without = await callTool<ExpensesOutput>(await expenses(fakeSupabase(fixtures().tables)), "get_expenses");
+
+    expect(out.total_monthly_recurring).toBe(without.total_monthly_recurring + 100);
+    expect(out.next_year_expenses).toEqual(without.next_year_expenses);
+    expect(out.next_year_expenses.total).toBe(dashboardExpenses(fx).expensesNextYear);
+    expect(out).not.toHaveProperty("projected_annual_recurring");
+  });
+
+  it("next year counts an expense that ends or starts part-way through it by its charge dates", async () => {
+    const ends = withRow(recurringRow({ id: "ends", name: "Office rent", amount: 115, hst_amount: 15, end_date: "2027-06-30" }));
+    const endsOut = await callTool<ExpensesOutput>(await expenses(fakeSupabase(ends.tables)), "get_expenses");
+    // January through June: six charges of 100 net.
+    expect(endsOut.next_year_expenses).toMatchObject({ year: 2027, total: 7640, recurring: 7400 });
+    expect(endsOut.next_year_expenses.total).toBe(dashboardExpenses(ends).expensesNextYear);
+
+    const starts = withRow(recurringRow({ id: "starts", name: "New CRM", amount: 115, hst_amount: 15, start_date: "2027-07-01" }));
+    const startsOut = await callTool<ExpensesOutput>(await expenses(fakeSupabase(starts.tables)), "get_expenses");
+    // July through December. It is scheduled, so the monthly figure already has it.
+    expect(startsOut.next_year_expenses).toMatchObject({ year: 2027, total: 7640, recurring: 7400 });
+    expect(startsOut.total_monthly_recurring).toBe(endsOut.total_monthly_recurring);
+  });
+
+  it("next year is named, and on Dec 31 evening (already Jan 1 in UTC) it is still the coming Atlantic year", async () => {
+    vi.setSystemTime(new Date("2027-01-01T02:00:00Z"));
+    const out = await callTool<ExpensesOutput>(await expenses(fakeSupabase(fixtures().tables)), "get_expenses");
+    expect(out.next_year_expenses.year).toBe(2027);
+    expect(out.next_year_expenses.formula).toMatch(/charge dates/);
   });
 });
 
@@ -764,6 +805,7 @@ describe("the dashboard lines the MCP mirrors have not moved", () => {
       "expensesYTD={expenseTotals.expensesYTD}",
       "monthlyRecurring={expenseTotals.monthlyRecurring}",
       "expensesRemaining={expenseTotals.expensesRemaining}",
+      "expensesNextYear={expenseTotals.expensesNextYear}",
     ]) {
       expect(page, line).toContain(line);
     }

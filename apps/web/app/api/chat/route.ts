@@ -423,12 +423,15 @@ export async function POST(req: NextRequest) {
         settings.goal_gci > 0 ? `Annual GCI Goal (${incomeGoalCurrentYear()}): ${fmtCurrency(settings.goal_gci)}` : `Annual GCI Goal (${incomeGoalCurrentYear()}): Not set`,
         // Goals are per calendar year (Settings → Annual Goal); future years included.
         describeIncomeGoals(incomeGoalRows ?? [], incomeGoalCurrentYear()),
-        // Dashboard "next year plan" view (year-plan-engine): what's already lined up.
+        // Dashboard "next year plan" view (year-plan-engine): what's already
+        // lined up, and the business expenses its take-home deducts. That
+        // figure is the engine's (expensesNextYear): recurring expenses by
+        // their charge dates in that year, never the monthly figure times 12.
         (() => {
           const ny = incomeGoalCurrentYear() + 1;
           const lined = pipelineLinedUpForYear(pipeline ?? [], ny);
           const goal = hasGoalRow(incomeGoalRows ?? [], ny) ? goalForYear(incomeGoalRows ?? [], ny) : null;
-          return `Next-year plan (${ny}): goal ${goal == null ? "not set" : goal > 0 ? fmtCurrency(goal) : "none ($0)"}; ${fmtCurrency(lined.weightedGCI)} probability-weighted GCI already lined up from ${lined.dealCount} active deal(s) expected to close in ${ny}${lined.undatedCount > 0 ? ` (${lined.undatedCount} active deal(s) have no expected close date)` : ""}`;
+          return `Next-year plan (${ny}): goal ${goal == null ? "not set" : goal > 0 ? fmtCurrency(goal) : "none ($0)"}; ${fmtCurrency(lined.weightedGCI)} probability-weighted GCI already lined up from ${lined.dealCount} active deal(s) expected to close in ${ny}${lined.undatedCount > 0 ? ` (${lined.undatedCount} active deal(s) have no expected close date)` : ""}; business expenses in the plan: ${fmtCurrency(expenseTotals.expensesNextYear)} (each Recurring Expenses entry by its charge dates in ${ny}, so one with an end date counts only up to it and one that starts in ${ny} counts from its start date, plus 12 months of the "/mo" figures on expense items; not Monthly Recurring x 12)`;
         })(),
         settings.experience_years != null ? `Years of Experience: ${settings.experience_years}` : null,
         expensesYTD > 0

@@ -300,6 +300,7 @@ export default async function DashboardPage({
       activeListings={(listingResult.data ?? []) as ListingAppointment[]}
       teamWelcome={teamWelcome}
       expensesRemaining={expenseTotals.expensesRemaining}
+      expensesNextYear={expenseTotals.expensesNextYear}
       dataAsOf={new Date().toISOString()}
       scoreHistory={scoreHistory}
       incomeGoals={(incomeGoalsResult.data ?? []) as IncomeGoalRow[]}

@@ -11,6 +11,12 @@
  * at goal. Every number comes from packages/core/engines/year-plan-engine.ts,
  * which reuses the same pipeline, seasonality, plan/fee and tax engines as
  * the rest of the app.
+ *
+ * The plan's business expenses are handed in (`expensesNextYear`, from the
+ * dashboard page's one ytdExpenseTotals call): each recurring expense by its
+ * charge dates in the planned year, plus twelve months of the per-item
+ * monthly figures. Until 2026-10-13 the row was today's monthly figure
+ * times twelve, which counted a lease ending Dec 31 for all of next year.
  */
 
 import { useState } from "react";
@@ -108,7 +114,7 @@ export function NextYearPlan({
   seasonalWeights,
   seasonalSource,
   settings,
-  monthlyRecurring,
+  expensesNextYear,
 }: {
   year:             number;
   currentYear:      number;
@@ -122,7 +128,8 @@ export function NextYearPlan({
   seasonalWeights:  number[];
   seasonalSource:   "agent" | "national" | "default";
   settings:         UserSettings;
-  monthlyRecurring: number;
+  /** `year`'s business expenses: ytdExpenseTotals(...).expensesNextYear. */
+  expensesNextYear: number;
 }) {
   const [draft, setDraft] = useState(goal != null ? String(goal) : "");
   const [saving, setSaving] = useState(false);
@@ -134,7 +141,7 @@ export function NextYearPlan({
   const targets = monthlyTargets(goalAmount, seasonalWeights);
   const dealsAtGoal = avg && goalAmount > 0 ? Math.max(1, Math.round(goalAmount / avg.avg)) : undefined;
   const takeHome = goalAmount > 0
-    ? planTakeHome({ gci: goalAmount, settings, monthlyRecurring, dealCount: dealsAtGoal, year })
+    ? planTakeHome({ gci: goalAmount, settings, expenses: expensesNextYear, dealCount: dealsAtGoal, year })
     : null;
   const coveredPct = goalAmount > 0 ? Math.min(100, (linedUp.weightedGCI / goalAmount) * 100) : 0;
 
@@ -284,13 +291,19 @@ export function NextYearPlan({
               <Row label="GCI at goal" value={fmtCurrency(takeHome.gci)} />
               <Row label="After commission split and plan fees" value={fmtCurrency(takeHome.afterPlan)} />
               {takeHome.brokerageFees > 0 && <Row label="Brokerage desk fees" value={`−${fmtCurrency(takeHome.brokerageFees)}`} />}
-              <Row label="Business expenses (current recurring × 12)" value={`−${fmtCurrency(takeHome.expenses)}`} />
+              <Row label={`Business expenses (recurring expenses expected in ${year})`} value={`−${fmtCurrency(takeHome.expenses)}`} />
               <Row label="Estimated income tax and CPP" value={`−${fmtCurrency(takeHome.incomeTaxAndCpp)}`} />
               <div className="mt-1 border-t border-slate-200 pt-1.5 dark:border-slate-700">
                 <Row label="Estimated take-home" value={fmtCurrency(takeHome.takeHome)} strong />
               </div>
             </dl>
-            <p className="mt-3 text-[11px] text-slate-400">{CANONICAL_TAX_DISCLAIMER_SHORT}</p>
+            <p className="mt-3 text-[11px] text-slate-400">
+              Business expenses: each entry in your Recurring Expenses list counts on its charge dates in {year}, so
+              an entry with an end date stops counting after it, and one that starts during {year} counts from its
+              start date. Monthly figures on expense items count for 12 months. One-time receipts are not carried
+              into {year}.
+            </p>
+            <p className="mt-1.5 text-[11px] text-slate-400">{CANONICAL_TAX_DISCLAIMER_SHORT}</p>
           </CardContent>
         </Card>
       )}
@@ -302,7 +315,7 @@ function Row({ label, value, strong = false }: { label: string; value: string; s
   return (
     <div className="flex items-baseline justify-between gap-4">
       <dt className={cn("text-slate-500", strong && "font-semibold text-slate-900 dark:text-white")}>{label}</dt>
-      <dd className={cn("tabular-nums", strong ? "text-base font-bold" : "font-medium")}>{value}</dd>
+      <dd className={cn("shrink-0 whitespace-nowrap tabular-nums", strong ? "text-base font-bold" : "font-medium")}>{value}</dd>
     </div>
   );
 }

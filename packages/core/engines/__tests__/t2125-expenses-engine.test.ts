@@ -812,3 +812,111 @@ describe("ytdExpenseTotals — one year-to-date total for every screen", () => {
     expect(ytdExpenseTotals({ receipts: null, recurring: null, expenseItems: null, ctx: REGISTRANT, now: NOW }).expensesYTD).toBe(0);
   });
 });
+
+// ── Next year's expenses ───────────────────────────────────────────────────
+//
+// The dashboard's next-year plan (year-plan-engine) takes one figure for the
+// year's business expenses. Until 2026-10-13 it was `monthlyRecurring` × 12:
+// what the list costs each month today, twelve times. A lease with an end
+// date of Dec 31 was counted for all of next year until Jan 1, and a row
+// starting in July for the whole year.
+//
+// A Recurring Expenses row has dates, so it counts by the charge dates that
+// fall in next year. A per-item monthly figure has none: twelve months of it.
+describe("ytdExpenseTotals — next year's expenses, for the dashboard's plan", () => {
+  const NOW = new Date(2026, 9, 13, 12);
+  const nextYear = (
+    rows: RecurringExpense[],
+    expenseItems: { key: string; monthly_recurring?: number | string | null }[] = [],
+    ctx = REGISTRANT,
+    now = NOW,
+  ) => ytdExpenseTotals({ receipts: [], recurring: rows, expenseItems, ctx, now });
+
+  it("a recurring expense with no end date is twelve charges, net of ITC", () => {
+    // $115 with $15 HST: 100 for a registrant, 115 for someone who is not.
+    expect(nextYear([recurring({})]).expensesNextYear).toBe(1200);
+    expect(nextYear([recurring({})]).recurringNextYear).toBe(1200);
+    expect(nextYear([recurring({})], [], NOT_REGISTERED).expensesNextYear).toBe(1380);
+  });
+
+  it("one that ends on Dec 31 this year is not in next year, while today's monthly figure still carries it", () => {
+    const t = nextYear([recurring({ end_date: "2026-12-31" })]);
+    expect(t.monthlyRecurring).toBe(100);
+    expect(t.expensesNextYear).toBe(0);
+  });
+
+  it("one that ends part-way through next year counts up to its end date", () => {
+    expect(nextYear([recurring({ end_date: "2027-06-30" })]).expensesNextYear).toBe(600);
+  });
+
+  it("one that starts part-way through next year counts from its start date", () => {
+    const t = nextYear([recurring({ start_date: "2027-07-01" })]);
+    expect(t.expensesNextYear).toBe(600);
+    // Scheduled, so already in today's monthly figure: × 12 would be a full year.
+    expect(t.monthlyRecurring * 12).toBe(1200);
+  });
+
+  it("an annual fee counts once, in full, on its date", () => {
+    const dues = recurring({ frequency: "annual", amount: 1150, hst_amount: 150, month_of_year: 11, day_of_month: 1 });
+    expect(nextYear([dues]).expensesNextYear).toBe(1000);
+    // Ended before the renewal date: none of it, where a twelfth a month × 12 counted it all.
+    expect(nextYear([{ ...dues, end_date: "2027-06-30" }]).expensesNextYear).toBe(0);
+  });
+
+  it("a per-item monthly figure has no dates: twelve months of it", () => {
+    const t = nextYear([], [{ key: "office_phone", monthly_recurring: 20 }]);
+    expect(t.recurringNextYear).toBe(0);
+    expect(t.expensesNextYear).toBe(240);
+  });
+
+  it("is the monthly figures × 12 plus the recurring list's charges next year", () => {
+    const t = nextYear(
+      [recurring({ id: "a" }), recurring({ id: "b", end_date: "2026-12-31" }), recurring({ id: "c", end_date: "2027-03-31" })],
+      [{ key: "office_phone", monthly_recurring: 20 }, { key: "marketing_digital", monthly_recurring: "30" }],
+    );
+    expect(t.recurringNextYear).toBe(1200 + 0 + 300);
+    expect(t.expensesNextYear).toBe(50 * 12 + 1500);
+    // The figure it replaces counted all three rows for the whole year.
+    expect(t.monthlyRecurring * 12).toBe((50 + 300) * 12);
+  });
+
+  it("with nothing dated it is the monthly figure × 12, as before", () => {
+    const t = nextYear([recurring({ id: "a" }), recurring({ id: "b", amount: 230, hst_amount: 30 })], [{ key: "office_phone", monthly_recurring: 20 }]);
+    expect(t.expensesNextYear).toBe(t.monthlyRecurring * 12);
+  });
+
+  it("receipts are not projected into next year", () => {
+    const t = ytdExpenseTotals({
+      receipts: [{ category_key: "prof_board_mls", total_amount: 115, tax_amount: 15 }],
+      recurring: [], expenseItems: [], ctx: REGISTRANT, now: NOW,
+    });
+    expect(t.expensesYTD).toBe(100);
+    expect(t.expensesNextYear).toBe(0);
+  });
+
+  it("a vehicle or home row counts as it does in every other total", () => {
+    // Lease $575 with $75 HST at 80% use: ITC 60, personal 15 → 500 a charge.
+    const lease = recurring({ id: "lease", amount: 575, hst_amount: 75, category_key: "vehicle_payment", vehicle_pct_applicable: true });
+    expect(nextYear([lease]).expensesNextYear).toBe(6000);
+    // A $200 home internet bill with no HST recorded, at the 15% share: 30 a charge.
+    const internet = recurring({ id: "net", amount: 200, hst_amount: 0, hst_included: false, category_key: "home_utilities" });
+    expect(nextYear([internet]).expensesNextYear).toBeCloseTo(360, 6);
+  });
+
+  it("a paused row counts nothing", () => {
+    expect(nextYear([recurring({ is_active: false })]).expensesNextYear).toBe(0);
+  });
+
+  it("next year is the year after the anchor's", () => {
+    const endsMid2027 = recurring({ end_date: "2027-06-30" });
+    expect(nextYear([endsMid2027], [], REGISTRANT, new Date(2026, 11, 31, 12)).expensesNextYear).toBe(600);
+    // On Jan 1 2027 the plan is 2028's, and the row is over by then.
+    expect(nextYear([endsMid2027], [], REGISTRANT, new Date(2027, 0, 1, 12)).expensesNextYear).toBe(0);
+  });
+
+  it("accepts null lists", () => {
+    const t = ytdExpenseTotals({ receipts: null, recurring: null, expenseItems: null, ctx: REGISTRANT, now: NOW });
+    expect(t.recurringNextYear).toBe(0);
+    expect(t.expensesNextYear).toBe(0);
+  });
+});

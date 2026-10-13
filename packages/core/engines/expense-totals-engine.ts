@@ -323,7 +323,7 @@ export function recurringNetOfItc(
 /**
  * Copies of the recurring expenses with `amount` net of ITC, to pass to the
  * recurring-expense-engine totals (totalRecurringMonthly, totalRecurringYTD,
- * totalRecurringRemaining). FOR TOTALS ONLY: a list that shows the user
+ * totalRecurringRemaining, totalRecurringInYear). FOR TOTALS ONLY: a list that shows the user
  * what they entered, and anything that reads `hst_amount` for ITCs, takes
  * the original rows.
  */
@@ -371,6 +371,31 @@ export function remainingYearExpenses(
 ): number {
   const monthsLeft = Math.max(0, 12 - (now.getMonth() + 1));
   return legacyMonthlyRecurring * monthsLeft + recurringRemaining;
+}
+
+// ── A year that has not started ────────────────────────────────────────────
+//
+// Next year's plan on the dashboard needs that year's expenses, and next
+// year has no year to date. `ytdExpenseTotals` returns it as
+// `expensesNextYear`:
+//
+//   expensesNextYear = monthly figures × 12
+//                      + the recurring list's charges dated in that year
+//
+// Until 2026-10-13 the plan was today's monthly figure × 12 for both kinds,
+// so a recurring expense known to stop before or during next year was
+// counted for all of it. Receipts are not projected: nothing says they
+// repeat.
+
+/**
+ * Expenses over a whole calendar year that has not started. The legacy
+ * monthly figure has no dates, so it is twelve months of it. The recurring
+ * list is the charge dates that fall in that year (`totalRecurringInYear` on
+ * the net-of-ITC copies): a row with an end date counts up to it, and a row
+ * that starts during the year counts from its start date.
+ */
+export function fullYearExpenses(legacyMonthlyRecurring: number, recurringInYear: number): number {
+  return legacyMonthlyRecurring * 12 + recurringInYear;
 }
 
 // ── Input tax credits for a period ─────────────────────────────────────────
