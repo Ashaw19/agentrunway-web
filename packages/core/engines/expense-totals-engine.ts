@@ -2,10 +2,12 @@
  * Expense Totals Engine — what an expense counts for once the GST/HST a
  * registrant gets back is taken out.
  *
- * CANONICAL source for every expense TOTAL in the app (Expenses KPI and
- * "Est. Tax Deductible", expense ratio, T2125 lines, income-tax estimate,
- * overhead, forecast, cash position, Flight Crew context, weekly digest,
- * mobile, and the MCP server through its Deno copy). Created 2026-10-13.
+ * CANONICAL source for what ONE expense, and a set of receipts, counts for.
+ * Every expense total in the app is built on it (Expenses KPI and "Est. Tax
+ * Deductible", expense ratio, T2125 lines, income-tax estimate, overhead,
+ * forecast, cash position, Flight Crew context, weekly digest, mobile, and
+ * the MCP server through its Deno copy). The year-to-date total itself is
+ * `ytdExpenseTotals` in t2125-expenses-engine. Created 2026-10-13.
  *
  * `receipt_expenses.total_amount` and `recurring_expenses.amount` are what
  * was PAID, GST/HST included. Until this engine every surface summed those
@@ -55,12 +57,7 @@
  */
 
 import { itcForExpense } from "./gst34-engine";
-import {
-  recurringHSTEntriesForPeriod,
-  totalRecurringMonthly,
-  totalRecurringRemaining,
-  totalRecurringYTD,
-} from "./recurring-expense-engine";
+import { recurringHSTEntriesForPeriod } from "./recurring-expense-engine";
 import { isHomeOfficeKey } from "./t2125-engine";
 import type { RecurringExpense } from "../types/database";
 
@@ -282,27 +279,19 @@ export function recurringExpensesNetOfItc<T extends RecurringExpense>(
   return (expenses ?? []).map((re) => ({ ...re, amount: recurringNetOfItc(re, ctx).net }));
 }
 
-// ── Year to date, across the three places an expense is recorded ───────────
+// ── Year to date ───────────────────────────────────────────────────────────
 //
-// The dashboard's total (dashboard/page.tsx + dashboard-content.tsx), as one
-// call for a server surface that can't render the dashboard (the MCP server):
-//
-//   receipts          `receipt_expenses` dated this calendar year, net.
-//   recurring         active `recurring_expenses`, net, year to date.
-//                     (Net as above: a home bill at the workspace share.)
-//   legacy estimate   `expense_items.monthly_recurring` × months elapsed: the
-//                     older "monthly amount per line" entry. It stands in for
-//                     the receipts only when it is the larger of the two, so
-//                     a cost typed there and also captured as receipts is
-//                     counted once.
-//
-//   expensesYTD = max(receipts, legacy estimate) + recurring
+// The year-to-date total across the three places an expense is recorded
+// (receipts, the per-item monthly figure, the Recurring Expenses list) is
+// `ytdExpenseTotals` in t2125-expenses-engine. It is the sum of the lines the
+// Expenses page shows, so it lives beside them. Nothing here, and no surface,
+// combines the three on its own.
 //
 // The year's expenses (the income-tax estimate, the forecast, Flight Crew)
-// are that plus what is still to come:
+// are that plus what is still to come, which `ytdExpenseTotals` also returns:
 //
-//   expensesRemaining = legacy monthly figure × the whole months after this
-//                       one + the recurring list's charges after today
+//   expensesRemaining = monthly figures × the whole months after this one
+//                       + the recurring list's charges after today
 //   annual expenses   = expensesYTD + expensesRemaining
 //
 // A recurring expense counts by its charge dates on both sides, so each
@@ -312,44 +301,6 @@ export function recurringExpensesNetOfItc<T extends RecurringExpense>(
 // once year to date waited for the charge day, the current month's charge
 // was in neither until that day, and an annual fee was a twelfth per month
 // left whether it had been charged or not.
-//
-// `expense_items.ytd_amount` is NOT an input: nothing in the app has written
-// it since receipts replaced it, so it holds 0 or a stale figure.
-
-export interface YtdExpenseInputs {
-  /** `receipt_expenses` rows with expense_date on or after Jan 1 (category_key, total_amount, tax_amount). */
-  receipts: readonly ReceiptTotalsRow[] | null | undefined;
-  /** `recurring_expenses` rows where is_active, as stored (GST/HST included). */
-  recurring: readonly RecurringExpense[] | null | undefined;
-  /** `expense_items` rows; only monthly_recurring is read. */
-  legacyItems: readonly { monthly_recurring?: Numeric }[] | null | undefined;
-  ctx: ExpenseTaxContext;
-  /** Calendar anchor for the year and month. Server callers pass atlanticNoon(). */
-  now: Date;
-}
-
-export interface YtdExpenseTotals {
-  /** The receipt totals the figures below are built from (per key, ITCs, amount paid). */
-  receipts: ReceiptTotals;
-  /** Receipts this year, net. */
-  receiptYTD: number;
-  /** Sum of `expense_items.monthly_recurring`. */
-  legacyMonthlyRecurring: number;
-  /** legacyMonthlyRecurring × months elapsed (1 to 12). */
-  legacyRecurringYTDEstimate: number;
-  /** Monthly equivalent of the active recurring expenses, net. */
-  recurringMonthly: number;
-  /** Active recurring expenses year to date, net. */
-  recurringYTD: number;
-  /** Legacy + recurring per month: the dashboard's `monthlyRecurring`. */
-  monthlyRecurring: number;
-  /** The dashboard's `expensesYTD`. */
-  expensesYTD: number;
-  /** Active recurring expenses' charges after today, through Dec 31, net. */
-  recurringRemaining: number;
-  /** The dashboard's `expensesRemaining`: expensesYTD + this = the year's expenses. */
-  expensesRemaining: number;
-}
 
 /**
  * Expenses still to come this calendar year, after `now`'s day. The legacy
@@ -365,40 +316,6 @@ export function remainingYearExpenses(
 ): number {
   const monthsLeft = Math.max(0, 12 - (now.getMonth() + 1));
   return legacyMonthlyRecurring * monthsLeft + recurringRemaining;
-}
-
-export function ytdExpenseTotals(inputs: YtdExpenseInputs): YtdExpenseTotals {
-  const { ctx, now } = inputs;
-
-  const receipts = aggregateReceiptTotals(inputs.receipts, ctx);
-  const receiptYTD = receipts.total;
-
-  const recurringNet = recurringExpensesNetOfItc(inputs.recurring, ctx);
-  const recurringMonthly = totalRecurringMonthly(recurringNet);
-  const recurringYTD = totalRecurringYTD(recurringNet, now);
-  const recurringRemaining = totalRecurringRemaining(recurringNet, now);
-
-  const legacyMonthlyRecurring = (inputs.legacyItems ?? []).reduce(
-    (sum, item) => sum + toNumber(item.monthly_recurring),
-    0,
-  );
-  // Whole months, 1 to 12: the dashboard's `expMonthsElapsed`. A fractional
-  // month here once made Flight Crew's expenses differ from the dashboard's.
-  const monthsElapsed = now.getMonth() + 1;
-  const legacyRecurringYTDEstimate = legacyMonthlyRecurring * monthsElapsed;
-
-  return {
-    receipts,
-    receiptYTD,
-    legacyMonthlyRecurring,
-    legacyRecurringYTDEstimate,
-    recurringMonthly,
-    recurringYTD,
-    monthlyRecurring: legacyMonthlyRecurring + recurringMonthly,
-    expensesYTD: Math.max(receiptYTD, legacyRecurringYTDEstimate) + recurringYTD,
-    recurringRemaining,
-    expensesRemaining: remainingYearExpenses(legacyMonthlyRecurring, recurringRemaining, now),
-  };
 }
 
 // ── Input tax credits for a period ─────────────────────────────────────────

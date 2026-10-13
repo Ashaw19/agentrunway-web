@@ -3,9 +3,8 @@ import { redirect } from "next/navigation";
 import { DashboardContent } from "./dashboard-content";
 import type { HistoryItem, ContactTask, Client, ContactActivity, ClientRecord, ListingAppointment, RunwayScoreHistory, RunwayScoreHistoryComponent } from "@/lib/types/database";
 import { computeIntelligenceBriefing, type BriefingItem } from "@/lib/engines/crm-analytics-engine";
-import { totalRecurringMonthly, totalRecurringRemaining, totalRecurringYTD } from "@agent-runway/core/engines/recurring-expense-engine";
-import { aggregateReceiptTotals, expenseTaxContext, recurringExpensesNetOfItc } from "@agent-runway/core/engines/expense-totals-engine";
-import { buildT2125Expenses } from "@agent-runway/core/engines/t2125-expenses-engine";
+import { expenseTaxContext } from "@agent-runway/core/engines/expense-totals-engine";
+import { ytdExpenseTotals } from "@agent-runway/core/engines/t2125-expenses-engine";
 import { deductionTrackingFlags } from "@agent-runway/core/engines/tax-optimization-engine";
 import type { RecurringExpense } from "@/lib/types/database";
 import { computeIsPro } from "@/lib/compute-is-pro";
@@ -154,15 +153,18 @@ export default async function DashboardPage({
     unwrap(settledResults[15]), unwrap(settledResults[16]), unwrap(settledResults[17]),
   ];
 
-  // Net of the GST/HST a registrant claims back as ITCs (expense-totals-engine).
-  const taxCtx = expenseTaxContext(settingsRow);
-  const recurringExpenses = recurringExpensesNetOfItc(
-    (recurringExpResult.data ?? []) as RecurringExpense[],
-    taxCtx,
-  );
-  const recurringExpMonthly = totalRecurringMonthly(recurringExpenses);
-  const recurringExpYTD = totalRecurringYTD(recurringExpenses, today);
-  const recurringExpRemaining = totalRecurringRemaining(recurringExpenses, today);
+  // Year-to-date expenses and the monthly figure: one engine call
+  // (t2125-expenses-engine), the same one the Expenses page, Reports and
+  // every other surface make, so "YTD Expenses" is one number everywhere.
+  // Receipts, the per-item monthly figures and the Recurring Expenses list,
+  // net of the GST/HST a registrant claims back as ITCs.
+  const expenseTotals = ytdExpenseTotals({
+    receipts: receiptTotalsResult.data,
+    recurring: (recurringExpResult.data ?? []) as RecurringExpense[],
+    expenseItems: expItemResult.data,
+    ctx: expenseTaxContext(settingsRow),
+    now: today,
+  });
 
   // ── Runway Score trajectory backing (last 12 daily rows, DESC → ASC) ────
   // NUMERIC columns can arrive as strings over the wire — coerce defensively.
@@ -181,22 +183,9 @@ export default async function DashboardPage({
     items: (expItemResult.data ?? []).filter((i) => i.category_id === cat.id),
   }));
 
-  const receiptTotals = aggregateReceiptTotals(receiptTotalsResult.data, taxCtx);
-  const receiptYTD = receiptTotals.total;
-
-  // Which expense categories the agent tracks, for the tax cards. From the
-  // same lines as the Expenses page and the T2125 (t2125-expenses-engine):
-  // receipts, the per-item monthly figure and the Recurring Expenses list.
-  const deductionTracking = deductionTrackingFlags(
-    buildT2125Expenses({
-      receiptTotals,
-      expenseItems: expItemResult.data,
-      recurringExpenses: (recurringExpResult.data ?? []) as RecurringExpense[],
-      ctx: taxCtx,
-      now: today,
-    }).lines,
-    expenseCategories,
-  );
+  // Which expense categories the agent tracks, for the tax cards: the lines
+  // the two totals above are the sums of.
+  const deductionTracking = deductionTrackingFlags(expenseTotals.tracked.lines, expenseCategories);
 
   const mileageKmTotal = (mileageResult.data ?? []).reduce(
     (sum, r) => sum + Number(r.km ?? 0),
@@ -287,8 +276,8 @@ export default async function DashboardPage({
       transactions={txResult.data ?? []}
       pipelineDeals={pipelineResult.data ?? []}
       settings={settingsRow}
-      expenseCategories={expenseCategories}
-      receiptYTD={receiptYTD}
+      expensesYTD={expenseTotals.expensesYTD}
+      monthlyRecurring={expenseTotals.monthlyRecurring}
       deductionTracking={deductionTracking}
       historyItems={(historyResult.data ?? []) as HistoryItem[]}
       initialDashboardView={settingsRow?.dashboard_view ?? "standard"}
@@ -310,9 +299,7 @@ export default async function DashboardPage({
       aiProfilePromptDismissedAt={settingsRow?.ai_profile_prompt_dismissed_at ?? null}
       activeListings={(listingResult.data ?? []) as ListingAppointment[]}
       teamWelcome={teamWelcome}
-      recurringExpMonthly={recurringExpMonthly}
-      recurringExpYTD={recurringExpYTD}
-      recurringExpRemaining={recurringExpRemaining}
+      expensesRemaining={expenseTotals.expensesRemaining}
       dataAsOf={new Date().toISOString()}
       scoreHistory={scoreHistory}
       incomeGoals={(incomeGoalsResult.data ?? []) as IncomeGoalRow[]}

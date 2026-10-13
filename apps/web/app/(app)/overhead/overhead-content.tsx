@@ -46,7 +46,6 @@ import {
   type Transaction,
   type PipelineDeal,
   type UserSettings,
-  type ExpenseCategoryWithItems,
   type HistoryItem,
 } from "@/lib/types/database";
 import { computePlanGross } from "@/lib/engines/real-compensation-engine";
@@ -69,7 +68,6 @@ import { ExplainButton } from "@/components/explain-button";
 import { GuideLink } from "@/components/guide-link";
 import { ScenariosContent } from "@/app/(app)/scenarios/scenarios-content";
 import type { ScenarioSeedData } from "@/app/(app)/scenarios/page";
-import { remainingYearExpenses } from "@agent-runway/core/engines/expense-totals-engine";
 import { SlidersHorizontal } from "lucide-react";
 import { localISODate } from "@agent-runway/core/lib/local-date";
 
@@ -503,8 +501,8 @@ function MetricInfo({ tip }: { tip: string }) {
 interface Props {
   transactions: Transaction[];
   settings: UserSettings | null;
-  expenseCategories: ExpenseCategoryWithItems[];
-  receiptYTD?: number;
+  /** Year-to-date expenses: ytdExpenseTotals(...).expensesYTD (t2125-expenses-engine), the Expenses page's total. */
+  expensesYTD?: number;
   /**
    * Which commonly missed expense categories the agent already tracks
    * (`deductionTrackingFlags`, from receipts, the per-item monthly figure and
@@ -517,9 +515,8 @@ interface Props {
   pipelineDeals?: PipelineDeal[];
   isPro?: boolean;
   scenarioSeed?: ScenarioSeedData | null;
-  recurringExpYTD?: number;
-  /** Pre-computed: what the recurring_expenses table is still to charge this year */
-  recurringExpRemaining: number;
+  /** Still to come this year: ytdExpenseTotals(...).expensesRemaining. expensesYTD + this = the year's expenses. */
+  expensesRemaining: number;
 }
 
 type OverheadTab = "overview" | "scenarios";
@@ -573,8 +570,7 @@ function OverheadBanner() {
 export function OverheadContent({
   transactions,
   settings,
-  expenseCategories,
-  receiptYTD = 0,
+  expensesYTD = 0,
   deductionTracking,
   mileageKmTotal = 0,
   ccaAssetCount = 0,
@@ -582,8 +578,7 @@ export function OverheadContent({
   pipelineDeals = [],
   isPro: isPro = false,
   scenarioSeed = null,
-  recurringExpYTD = 0,
-  recurringExpRemaining,
+  expensesRemaining,
 }: Props) {
   const [activeTab, setActiveTab] = useState<OverheadTab>("overview");
   const now = new Date();
@@ -628,21 +623,12 @@ export function OverheadContent({
   const projectedDealCount = projectedYearEndTransactions(ytdDealCount, pipelineCount, fraction);
 
   // ── Expenses ───────────────────────────────────────────────────────────
-  // Includes both legacy expense_items.monthly_recurring AND new recurring_expenses table
-  const receiptTotal = receiptYTD;
-  const legacyMonthlyRecurring = expenseCategories.reduce(
-    (sum, cat) =>
-      sum + cat.items.reduce((s, i) => s + Number(i.monthly_recurring), 0),
-    0,
-  );
-  // Integer months elapsed (1-12) — matches the dashboard. See
-  // dashboard_metric_divergence_fix_2026-06-26.md.
-  const expMonthsElapsed = now.getMonth() + 1;
-  const legacyRecurringYTDEstimate = legacyMonthlyRecurring * expMonthsElapsed;
-  const expensesYTD = Math.max(receiptTotal, legacyRecurringYTDEstimate) + recurringExpYTD;
+  // `expensesYTD` and `expensesRemaining` arrive from the page's one engine
+  // call (ytdExpenseTotals, t2125-expenses-engine): receipts, the per-item
+  // monthly figures and the Recurring Expenses list. Nothing here combines
+  // them, so this is the dashboard's and the Expenses page's figure.
 
   // The year's expenses: to date + what is still to come (matches the dashboard).
-  const expensesRemaining = remainingYearExpenses(legacyMonthlyRecurring, recurringExpRemaining, now);
   const annualExpenses = expensesYTD + expensesRemaining;
 
   // ── Agent net (after split/fees) — plan-aware (REAL waterfall or legacy) ──

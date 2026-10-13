@@ -2,8 +2,8 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { ScenariosContent } from "./scenarios-content";
 import type { Transaction, PipelineDeal, SplitPreset, RecurringExpense } from "@/lib/types/database";
-import { totalRecurringMonthly, totalRecurringRemaining, totalRecurringYTD } from "@agent-runway/core/engines/recurring-expense-engine";
-import { aggregateReceiptTotals, expenseTaxContext, recurringExpensesNetOfItc, remainingYearExpenses } from "@agent-runway/core/engines/expense-totals-engine";
+import { expenseTaxContext } from "@agent-runway/core/engines/expense-totals-engine";
+import { ytdExpenseTotals } from "@agent-runway/core/engines/t2125-expenses-engine";
 import { computeGCI, computeWeightedGCI, activePipelineDeals } from "@/lib/types/database";
 import { projectedYearEndGCI, projectedYearEndTransactions, seasonalFractionElapsed } from "@/lib/engines/projection-engine";
 import { computeEffectiveCashForSurvival } from "@/lib/engines/effective-cash";
@@ -27,9 +27,9 @@ export interface ScenarioSeedData {
   dealCount: number;
   /** Pipeline weighted GCI total */
   pipelineWeightedGCI: number;
-  /** Monthly recurring expenses (from expense item monthly_recurring fields — matches dashboard) */
+  /** Expected each month: ytdExpenseTotals(...).monthlyRecurring (matches dashboard) */
   monthlyRecurring: number;
-  /** Sum of all expense items + receipt expenses YTD */
+  /** Year-to-date expenses: ytdExpenseTotals(...).expensesYTD (matches dashboard) */
   expensesYTD: number;
   /** Expenses still to come this year (remainingYearExpenses): with expensesYTD, the year's expenses */
   expensesRemaining: number;
@@ -115,15 +115,6 @@ export default async function ScenariosPage() {
           .limit(10000),
       ]);
 
-    // Net of the GST/HST a registrant claims back as ITCs (expense-totals-engine).
-    const taxCtx = expenseTaxContext(settingsRow);
-    const recurringExps = recurringExpensesNetOfItc(
-      (recurringExpResult.data ?? []) as RecurringExpense[],
-      taxCtx,
-    );
-    const recurringExpMonthly = totalRecurringMonthly(recurringExps);
-    const recurringExpYTDValue = totalRecurringYTD(recurringExps, today);
-
     const transactions = (txResult.data ?? []) as Transaction[];
     const pipelineDeals = (pipelineResult.data ?? []) as PipelineDeal[];
 
@@ -137,25 +128,17 @@ export default async function ScenariosPage() {
       0,
     );
 
-    // Monthly recurring from expense items + recurring_expenses table
-    const expenseItems = expItemResult.data ?? [];
-    const legacyMonthlyRecurring = expenseItems.reduce(
-      (sum, i) => sum + Number(i.monthly_recurring ?? 0),
-      0,
-    );
-    const monthlyRecurring = legacyMonthlyRecurring + recurringExpMonthly;
-    const receiptYTD = aggregateReceiptTotals(receiptResult.data, taxCtx).total;
-    // Integer months elapsed (1-12) — matches the dashboard. See
-    // dashboard_metric_divergence_fix_2026-06-26.md.
-    const expMonthsElapsed = today.getMonth() + 1;
-    const legacyRecurringYTDEstimate = legacyMonthlyRecurring * expMonthsElapsed;
-    const expensesYTD = Math.max(receiptYTD, legacyRecurringYTDEstimate) + recurringExpYTDValue;
-    // Still to come this year: with expensesYTD, the year's expenses.
-    const expensesRemaining = remainingYearExpenses(
-      legacyMonthlyRecurring,
-      totalRecurringRemaining(recurringExps, today),
-      today,
-    );
+    // Year-to-date expenses, the monthly figure and what is still to come
+    // this year: the dashboard's one engine call (t2125-expenses-engine).
+    // Receipts, the per-item monthly figures and the Recurring Expenses list,
+    // net of the ITCs a registrant claims.
+    const { expensesYTD, monthlyRecurring, expensesRemaining } = ytdExpenseTotals({
+      receipts: receiptResult.data,
+      recurring: (recurringExpResult.data ?? []) as RecurringExpense[],
+      expenseItems: expItemResult.data,
+      ctx: expenseTaxContext(settingsRow),
+      now: today,
+    });
 
     const qPcts = settingsRow?.national_quarter_pcts ?? [0.25, 0.25, 0.25, 0.25];
     const fraction = seasonalFractionElapsed(qPcts);

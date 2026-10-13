@@ -41,10 +41,24 @@
  *      otherwise a charge due later this month is in neither, and an annual
  *      fee is a twelfth per month left whether it has been charged or not.
  *      Eight surfaces carried their own copy of that multiplication
+ *   8. a YEAR-TO-DATE total combined by hand. Receipts, the per-item monthly
+ *      figure (`expense_items.monthly_recurring`) and the Recurring Expenses
+ *      list are combined in one place, `ytdExpenseTotals`
+ *      (t2125-expenses-engine), whose total is the sum of the Expenses
+ *      page's lines. Until 2026-10-13 ten surfaces did it themselves with
+ *      `Math.max(receiptTotal, legacyMonthlyRecurring * months) + recurring`,
+ *      which compared the two totals and dropped the smaller side whole: an
+ *      account with monthly figures on some items and receipts on others read
+ *      lower on its dashboard than on its Expenses page
+ *   9. a category table built from receipts alone (`receiptTotalsByKey`)
+ *      under a Total that holds all three sources, so the rows come short of
+ *      it. Category rows come from `expenseCategoryRows`
+ *      (lib/expenses/category-lines)
  *
  * A regex can't prove a total is right, only that it didn't bypass the
  * engine. The numbers are tested in
- * packages/core/engines/__tests__/expense-totals-engine.test.ts.
+ * packages/core/engines/__tests__/expense-totals-engine.test.ts,
+ * t2125-expenses-engine.test.ts and cross-surface-parity.test.ts.
  */
 import { describe, expect, it } from "vitest";
 import { readdirSync, readFileSync, statSync } from "node:fs";
@@ -117,6 +131,57 @@ const ALLOWED_SELECTS: Record<string, { count: number; why: string }> = {
     why: "Per-receipt read (search results) that shows one receipt's amount paid. No total.",
   },
 };
+
+/**
+ * A year-to-date estimate from the monthly figure, or the larger-of-the-totals
+ * rule: `i.monthly_recurring * months`, `legacyMonthlyRecurring * monthsElapsed`,
+ * `legacyRecurringYTDEstimate`, `Math.max(receiptTotal, …`.
+ * `monthlyRecurring * expRemainingMonths` (the months still to come, added to
+ * the year-to-date total for a full-year projection) is not one.
+ */
+const HAND_ROLLED_YTD =
+  /\bmonthly_recurring\b[^;\n]{0,40}\*\s*\(?\s*\w*[mM]onths?\w*|\blegacy\w*\s*\*\s*\w*[mM]onths?\w*|\b(?:legacy)?[rR]ecurringYTDEstimate\b|Math\.max\(\s*receipt\w*(?:\.\w+)?\s*,/g;
+
+const ALLOWED_HAND_ROLLED_YTD: Record<string, { count: number; why: string }> = {
+  "apps/web/app/accountant/[token]/page.tsx": {
+    count: 2,
+    why: "Accountant share page. The feature is switched off (api/accountant-share returns 503), so this never renders with data. Rebuild it on ytdExpenseTotals + expenseCategoryRows before switching it back on.",
+  },
+};
+
+/** Per-category receipts read off the per-key map: rows that leave out the other two sources. */
+const RECEIPTS_BY_KEY_PROP = /\breceiptTotalsByKey\b/g;
+
+const ALLOWED_RECEIPTS_BY_KEY: Record<string, { count: number; why: string }> = {
+  "apps/web/app/accountant/[token]/page.tsx": {
+    count: 3,
+    why: "Accountant share page, switched off (see above).",
+  },
+};
+
+/** Every surface that shows or uses year-to-date expenses. Each makes the one engine call. */
+const YTD_EXPENSE_SURFACES = [
+  "apps/web/app/(app)/dashboard/page.tsx",
+  "apps/web/app/(app)/expenses/expenses-content.tsx",
+  "apps/web/app/(app)/reports/page.tsx",
+  "apps/web/app/(app)/forecast/page.tsx",
+  "apps/web/app/(app)/overhead/page.tsx",
+  "apps/web/app/(app)/altimeter/page.tsx",
+  "apps/web/app/(app)/scenarios/page.tsx",
+  "apps/web/app/demo/dashboard/page.tsx",
+  "apps/web/app/api/chat/route.ts",
+  "apps/web/app/api/cron/weekly-digest/route.ts",
+  "apps/web/lib/chat-diagnostics.ts",
+  "apps/web/supabase/functions/mcp-server/lib/expense-inputs.ts",
+] as const;
+
+/** Client components that are handed the total by their page. They work nothing out. */
+const YTD_EXPENSE_RECEIVERS = [
+  "apps/web/app/(app)/dashboard/dashboard-content.tsx",
+  "apps/web/app/(app)/reports/reports-content.tsx",
+  "apps/web/app/(app)/forecast/forecast-content.tsx",
+  "apps/web/app/(app)/overhead/overhead-content.tsx",
+] as const;
 
 function sourceFiles(dir: string): string[] {
   const out: string[] = [];
@@ -272,6 +337,75 @@ describe("REGRESSION — expense totals are net of ITCs through expense-totals-e
     }
   });
 
+  it("no year-to-date expense total is combined by hand outside the allowlist", () => {
+    const offenders: string[] = [];
+    const allowedSeen: Record<string, number> = {};
+    for (const file of files) {
+      const r = rel(file);
+      const src = readFileSync(file, "utf8");
+      for (const m of src.matchAll(HAND_ROLLED_YTD)) {
+        if (ALLOWED_HAND_ROLLED_YTD[r]) {
+          allowedSeen[r] = (allowedSeen[r] ?? 0) + 1;
+          continue;
+        }
+        offenders.push(`${r}:${lineOf(src, m.index ?? 0)} ${m[0]}`);
+      }
+    }
+    expect(offenders).toEqual([]);
+    for (const [r, { count }] of Object.entries(ALLOWED_HAND_ROLLED_YTD)) {
+      expect({ file: r, matches: allowedSeen[r] ?? 0 }).toEqual({ file: r, matches: count });
+    }
+  });
+
+  it("every surface with year-to-date expenses takes them from ytdExpenseTotals", () => {
+    const byRel = new Map(files.map((file) => [rel(file), file]));
+    for (const surface of YTD_EXPENSE_SURFACES) {
+      const file = byRel.get(surface);
+      expect(file, `${surface} not found`).toBeDefined();
+      expect(readFileSync(file!, "utf8"), surface).toMatch(/\bytdExpenseTotals\s*\(/);
+    }
+    // The line builder is called through ytdExpenseTotals, so a surface can't
+    // total its own subset of the three sources.
+    const code = (src: string) => src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+    const callsBuilder = files.filter((file) => /\bbuildT2125Expenses\s*\(/.test(code(readFileSync(file, "utf8")))).map(rel);
+    expect(callsBuilder).toEqual([]);
+    for (const receiver of YTD_EXPENSE_RECEIVERS) {
+      const file = byRel.get(receiver);
+      expect(file, `${receiver} not found`).toBeDefined();
+      const src = readFileSync(file!, "utf8");
+      expect(src, receiver).toMatch(/\bexpensesYTD = 0,/);
+      // Overhead shows no monthly figure of its own (the scenario seed carries it).
+      if (!receiver.endsWith("overhead-content.tsx")) expect(src, receiver).toMatch(/\bmonthlyRecurring = 0,/);
+      expect(src, receiver).not.toMatch(/\bconst (?:expensesYTD|monthlyRecurring)\b/);
+    }
+  });
+
+  it("no category table is built from the per-key receipt map outside the allowlist", () => {
+    const offenders: string[] = [];
+    const allowedSeen: Record<string, number> = {};
+    for (const file of files) {
+      const r = rel(file);
+      const src = readFileSync(file, "utf8");
+      for (const m of src.matchAll(RECEIPTS_BY_KEY_PROP)) {
+        if (ALLOWED_RECEIPTS_BY_KEY[r]) {
+          allowedSeen[r] = (allowedSeen[r] ?? 0) + 1;
+          continue;
+        }
+        offenders.push(`${r}:${lineOf(src, m.index ?? 0)}`);
+      }
+    }
+    expect(offenders).toEqual([]);
+    for (const [r, { count }] of Object.entries(ALLOWED_RECEIPTS_BY_KEY)) {
+      expect({ file: r, matches: allowedSeen[r] ?? 0 }).toEqual({ file: r, matches: count });
+    }
+    // The Reports table, its donut and the PDF read the shared rows.
+    const read = (r: string) => readFileSync(path.join(REPO_ROOT, r), "utf8");
+    expect(read("apps/web/app/(app)/reports/page.tsx")).toMatch(/\bexpenseCategoryRows\s*\(/);
+    expect(read("apps/web/app/(app)/reports/reports-content.tsx")).toMatch(/\bexpenseRows\b/);
+    expect(read("apps/web/components/pdf/business-report-pdf.tsx")).toMatch(/\bexpenseRows\b/);
+    expect(read("apps/web/app/(app)/expenses/expenses-content.tsx")).toMatch(/\bgroupExpenseLinesByCategory\s*\(/);
+  });
+
   it("nothing projects the year's expenses as a monthly figure × months left", () => {
     const engineFiles = sourceFiles(CORE_ENGINES);
     expect(engineFiles.map(rel)).toContain("packages/core/engines/effective-cash.ts");
@@ -281,21 +415,46 @@ describe("REGRESSION — expense totals are net of ITCs through expense-totals-e
       for (const m of src.matchAll(MONTHLY_TIMES_MONTHS_LEFT)) offenders.push(`${rel(file)}:${lineOf(src, m.index ?? 0)}`);
     }
     expect(offenders).toEqual([]);
-    // The surfaces that project the year take what is still to come from the engine.
-    for (const must of [
-      "apps/web/app/(app)/dashboard/dashboard-content.tsx",
-      "apps/web/app/(app)/forecast/forecast-content.tsx",
-      "apps/web/app/(app)/overhead/overhead-content.tsx",
-      "apps/web/app/(app)/reports/reports-content.tsx",
+    // The surfaces that project the year take what is still to come from the
+    // engine: `expensesRemaining`, from the same ytdExpenseTotals call that
+    // gives them year to date. The four client components are handed it.
+    const read = (r: string) => readFileSync(path.join(REPO_ROOT, r), "utf8");
+    for (const receiver of YTD_EXPENSE_RECEIVERS) {
+      expect(read(receiver), receiver).toMatch(/^  expensesRemaining,$/m);
+      expect(read(receiver), receiver).toContain("expensesYTD + expensesRemaining");
+      expect(read(receiver), receiver).not.toContain("remainingYearExpenses(");
+    }
+    for (const surface of [
       "apps/web/app/api/chat/route.ts",
       "apps/web/app/api/cron/weekly-digest/route.ts",
       "apps/web/lib/chat-diagnostics.ts",
     ]) {
-      expect(readFileSync(path.join(REPO_ROOT, must), "utf8"), must).toContain("remainingYearExpenses(");
+      expect(read(surface), surface).toMatch(/\{ expensesYTD, monthlyRecurring, expensesRemaining \} = /);
+      expect(read(surface), surface).not.toContain("remainingYearExpenses(");
     }
+    // One place adds the two parts of "still to come" together.
+    expect(read("packages/core/engines/t2125-expenses-engine.ts")).toContain("expensesRemaining: remainingYearExpenses(");
   });
 
   it("the regexes catch the hand-rolled shapes and spare the canonical ones", () => {
+    const badYtd = [
+      `const expensesYTD = Math.max(receiptTotal, legacyRecurringYTDEstimate) + recurringExpYTD;`,
+      `const altExpensesYTD = Math.max(receiptYTD, legacyMonthlyRecurring * expMonthsElapsed) + recurringExpYTD;`,
+      `const expensesPaidYTD = Math.max(receiptTotals.paid, estimate) + paid;`,
+      `const recurringYTDEstimate = legacyMonthlyRecurring * expMonthsElapsed;`,
+      `(s, i) => s + i.monthly_recurring * completedMonths,`,
+      `const est = Number(item.monthly_recurring ?? 0) * monthsElapsed;`,
+    ];
+    const goodYtd = [
+      `const { expensesYTD, monthlyRecurring } = ytdExpenseTotals({ receipts, recurring, expenseItems, ctx, now: today });`,
+      `const annualExpenses = expensesYTD + expensesRemaining;`,
+      `projected_annual_recurring: round2(totals.monthlyRecurring * 12),`,
+      `monthly_recurring: line.monthlyAmount,`,
+      `const maxCatYTD = Math.max(...filteredExpenses.map((c) => c.ytd), 1);`,
+    ];
+    for (const s of badYtd) expect([...s.matchAll(HAND_ROLLED_YTD)].length, s).toBeGreaterThan(0);
+    for (const s of goodYtd) expect([...s.matchAll(HAND_ROLLED_YTD)], s).toHaveLength(0);
+
     const monthsLeft = (s: string) => [...s.matchAll(MONTHLY_TIMES_MONTHS_LEFT)].length;
     for (const s of [
       `const annualExpenses = expensesYTD + monthlyRecurring * expRemainingMonths;`,

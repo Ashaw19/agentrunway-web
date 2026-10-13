@@ -56,10 +56,10 @@ import {
   deviationPromptFragment,
 } from "@agent-runway/core/engines/deviation-engine";
 import { generateInsights, type Insight } from "@agent-runway/core/engines/insights-engine";
-import { totalRecurringMonthly, totalRecurringRemaining, totalRecurringYTD, recurringHSTEntriesForPeriod } from "@agent-runway/core/engines/recurring-expense-engine";
+import { recurringHSTEntriesForPeriod } from "@agent-runway/core/engines/recurring-expense-engine";
 import { itcForExpense } from "@agent-runway/core/engines/gst34-engine";
-import { aggregateReceiptTotals, expenseTaxContext, recurringExpensesNetOfItc, remainingYearExpenses } from "@agent-runway/core/engines/expense-totals-engine";
-import { buildT2125Expenses } from "@agent-runway/core/engines/t2125-expenses-engine";
+import { expenseTaxContext } from "@agent-runway/core/engines/expense-totals-engine";
+import { ytdExpenseTotals, ytdExpensesGstHstIncluded } from "@agent-runway/core/engines/t2125-expenses-engine";
 import { ccaOpportunityLine, documentationLine, expenseItemsOf, missingDeductionsLine, trackedExpenseCounts, type ExpenseCategoryRow } from "@/lib/ai/expense-tax-intel";
 import { getCurrentFilingPeriod, deadlineUrgency } from "@agent-runway/core/engines/filing-period-engine";
 
@@ -294,8 +294,8 @@ export async function POST(req: NextRequest) {
         supabase.from("expense_categories").select("key, expense_items(key, monthly_recurring)").eq("user_id", user.id),                   // 3
         supabase.from("clients").select("id", { count: "exact", head: true }).eq("user_id", user.id).is("archived_at", null).in("status", ["boarding", "in_flight"]).lt("last_contact_at", new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()), // 4
         supabase.from("clients").select("id", { count: "exact", head: true }).eq("user_id", user.id).is("archived_at", null).in("status", ["boarding", "in_flight"]).lt("last_contact_at", new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString()), // 5
-        supabase.from("receipt_expenses").select("category_key, total_amount, tax_amount").eq("user_id", user.id).gte("expense_date", ytdStart),       // 6
-        supabase.from("recurring_expenses").select("*").eq("user_id", user.id).eq("is_active", true),                                                  // 7
+        supabase.from("receipt_expenses").select("category_key, total_amount, tax_amount").eq("user_id", user.id).gte("expense_date", ytdStart).limit(10000), // 6
+        supabase.from("recurring_expenses").select("*").eq("user_id", user.id).eq("is_active", true).limit(10000),                                    // 7
         supabase.from("receipt_expenses").select("id", { count: "exact", head: true }).eq("user_id", user.id).gte("expense_date", ytdStart),            // 8
         supabase.from("receipt_expenses").select("total_amount, tax_amount, category_key, expense_date").eq("user_id", user.id).gte("expense_date", ytdStart), // 9
         // ── Phase 2 context injection queries ──
@@ -336,10 +336,6 @@ export async function POST(req: NextRequest) {
     // (expense-totals-engine), same as the dashboard. `recurringExps` keeps
     // the amounts as entered for the ITC forecast below.
     const expenseTaxCtx = expenseTaxContext(settings);
-    const recurringExpsNet = recurringExpensesNetOfItc(recurringExps, expenseTaxCtx);
-    const recurringExpMonthly = totalRecurringMonthly(recurringExpsNet);
-    const recurringExpYTDTotal = totalRecurringYTD(recurringExpsNet, today);
-    const recurringExpRemaining = totalRecurringRemaining(recurringExpsNet, today);
 
     if (settings && transactions) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -360,42 +356,33 @@ export async function POST(req: NextRequest) {
       const listingWeightedGCI = computeListingWeightedGCI(
         (listingApptRows ?? []) as { estimated_list_price: number | null; estimated_commission_pct: number | null; status: string }[],
       );
-      // Match dashboard expense logic: Math.max(receiptTotal, legacyRecurring * monthsElapsed) + recurringExpYTD
-      const receiptTotals = aggregateReceiptTotals(receiptRows, expenseTaxCtx);
-      const receiptTotal = receiptTotals.total;
-      const legacyMonthlyRecurring = (expenseCategories ?? []).reduce(
-        (sum: number, cat: { expense_items?: { monthly_recurring?: number | string }[] }) =>
-          sum + (cat.expense_items ?? []).reduce((s: number, i: { monthly_recurring?: number | string }) => s + Number(i.monthly_recurring ?? 0), 0),
-        0,
-      );
-      const monthlyRecurring = legacyMonthlyRecurring + recurringExpMonthly;
-      // Months elapsed for the recurring-expense YTD estimate. MUST match the
-      // dashboard exactly: integer `getMonth() + 1` (1–12), NOT the fractional
-      // `getMonth() + getDate()/30`. The fractional form (fixed 2026-06-26)
-      // made the chat's expensesYTD diverge from the dashboard's, which
-      // propagated into the Runway Score, survival, tax projection, and
-      // expense-ratio surfaced in Captain's answer. See dashboard-content.tsx
-      // (expMonthsElapsed) + memory/findings/dashboard_metric_divergence_fix_2026-06-26.md.
-      const expMonthsElapsed = today.getMonth() + 1;
-      const legacyRecurringYTDEstimate = legacyMonthlyRecurring * expMonthsElapsed;
-      const expensesYTD = Math.max(receiptTotal, legacyRecurringYTDEstimate) + recurringExpYTDTotal;
-      // Still to come this year: with expensesYTD, the dashboard's annualExpenses.
-      const expensesRemaining = remainingYearExpenses(legacyMonthlyRecurring, recurringExpRemaining, today);
-      // What was actually paid, GST/HST included: context only, so Flight Crew
-      // can explain why a registrant's expense total is below their receipts.
-      const expensesPaidYTD = Math.max(receiptTotals.paid, legacyRecurringYTDEstimate) + totalRecurringYTD(recurringExps, today);
-      // Which expenses are tracked, for the tax-intel lines below: the lines
-      // behind the Expenses page and the T2125 (receipts, the per-item
-      // monthly figure, the Recurring Expenses list). Until 2026-10-13 those
-      // lines read expense_items.ytd_amount, which the app stopped writing.
+      // Year-to-date expenses and the monthly figure: the dashboard's one
+      // engine call (ytdExpenseTotals, t2125-expenses-engine), so Captain's
+      // Runway Score, survival months, tax projection and expense ratio run
+      // on the figure the dashboard and the Expenses page show. Receipts, the
+      // per-item monthly figures and the Recurring Expenses list; nothing
+      // here combines them.
       const expenseCategoryRows = (expenseCategories ?? []) as ExpenseCategoryRow[];
-      const trackedExpenseLines = buildT2125Expenses({
-        receiptTotals,
+      const expenseInputs = {
+        receipts: receiptRows,
+        recurring: recurringExps,
         expenseItems: expenseItemsOf(expenseCategoryRows),
-        recurringExpenses: recurringExps,
         ctx: expenseTaxCtx,
         now: today,
-      }).lines;
+      };
+      const expenseTotals = ytdExpenseTotals(expenseInputs);
+      // `expensesRemaining`: still to come this year. With expensesYTD, the
+      // dashboard's annualExpenses.
+      const { expensesYTD, monthlyRecurring, expensesRemaining } = expenseTotals;
+      // The same expenses with the GST/HST left in: context only, so Flight
+      // Crew can say how much of a registrant's total was claimed back.
+      const expensesPaidYTD = ytdExpensesGstHstIncluded(expenseInputs);
+      // Which expenses are tracked, for the tax-intel lines below: the lines
+      // that total is the sum of (receipts, the per-item monthly figure, the
+      // Recurring Expenses list). Until 2026-10-13 those lines read
+      // expense_items.ytd_amount, which the app stopped writing.
+      const receiptTotals = expenseTotals.receipts;
+      const trackedExpenseLines = expenseTotals.tracked.lines;
       // Plan-aware label: 'real' has no pXX_YY preset — describeSplit renders
       // "REAL plan (~XX% effective)" instead of a null regex match.
       const splitLabel = describeSplit(settings);
@@ -446,7 +433,7 @@ export async function POST(req: NextRequest) {
         expensesYTD > 0
           ? `YTD Business Expenses: ${fmtCurrency(expensesYTD)}` +
             (expenseTaxCtx.gstHstRegistered && expensesPaidYTD - expensesYTD >= 0.01
-              ? ` (net of GST/HST claimed as input tax credits; amount paid including GST/HST: ${fmtCurrency(expensesPaidYTD)})`
+              ? ` (net of GST/HST claimed as input tax credits; the same expenses with GST/HST included: ${fmtCurrency(expensesPaidYTD)})`
               : "")
           : null,
         monthlyRecurring > 0 ? `Monthly Recurring Expenses: ${fmtCurrency(monthlyRecurring)}` : null,

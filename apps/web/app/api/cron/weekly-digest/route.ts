@@ -28,8 +28,8 @@ import { compare as benchmarkCompare } from "@agent-runway/core/engines/benchmar
 import { survivalResult } from "@agent-runway/core/engines/survival-engine";
 import { computeEffectiveCashForSurvival, computePipelineMonthlyIncome } from "@agent-runway/core/engines/effective-cash";
 import { projectedYearEndTransactions } from "@agent-runway/core/engines/projection-engine";
-import { totalRecurringMonthly, totalRecurringRemaining, totalRecurringYTD } from "@agent-runway/core/engines/recurring-expense-engine";
-import { aggregateReceiptTotals, expenseTaxContext, recurringExpensesNetOfItc, remainingYearExpenses } from "@agent-runway/core/engines/expense-totals-engine";
+import { aggregateReceiptTotals, expenseTaxContext } from "@agent-runway/core/engines/expense-totals-engine";
+import { ytdExpenseTotals } from "@agent-runway/core/engines/t2125-expenses-engine";
 import { atlanticNoon } from "@agent-runway/core/lib/local-date";
 import type { RecurringExpense } from "@/lib/types/database";
 import { generateText } from "ai";
@@ -286,51 +286,38 @@ export async function GET(req: NextRequest) {
           ? Math.round(paceVsGoalPercent(goalGCI, ytdGCI, fraction) + 100)
           : 0;
 
-      // YTD expenses for health report: receipt total + recurring estimate
-      const { data: expenseCatRows } = await admin
-        .from("expense_categories")
-        .select("expense_items(monthly_recurring)")
-        .eq("user_id", user.user_id);
-
-      const legacyMonthlyRecurring = (expenseCatRows ?? []).reduce(
-        (sum: number, cat: { expense_items?: { monthly_recurring?: number | string }[] }) =>
-          sum + (cat.expense_items ?? []).reduce(
-            (s: number, i: { monthly_recurring?: number | string }) => s + Number(i.monthly_recurring ?? 0), 0,
-          ),
-        0,
-      );
+      // Year-to-date expenses and the monthly figure for the health report:
+      // the dashboard's rows through the dashboard's one engine call
+      // (ytdExpenseTotals, t2125-expenses-engine), so the digest's Runway
+      // Score, survival months, tax projection and expense ratio agree with
+      // it. Receipts, the per-item monthly figures (with their item keys) and
+      // the Recurring Expenses list; nothing here combines them.
+      const { data: expenseItemRows } = await admin
+        .from("expense_items")
+        .select("key, monthly_recurring")
+        .eq("user_id", user.user_id)
+        .limit(10000);
       const receiptYTDQuery = await admin
         .from("receipt_expenses")
         .select("category_key, total_amount, tax_amount")
         .eq("user_id", user.user_id)
-        .gte("expense_date", `${year}-01-01`);
-      const receiptYTD = aggregateReceiptTotals(receiptYTDQuery.data, taxCtx).total;
-      // Integer months elapsed (1-12) — MUST match the dashboard's
-      // expMonthsElapsed (getMonth()+1), not the fractional getDate()/30 form.
-      // The fractional form (fixed 2026-06-26) made the digest's expensesYTD —
-      // and the Runway Score / expense ratio derived from it — disagree with
-      // the dashboard. See dashboard_metric_divergence_fix_2026-06-26.md.
-      const expMonthsElapsed = today.getMonth() + 1;
-      const recurringYTDEstimate = legacyMonthlyRecurring * expMonthsElapsed;
-      // Also include new recurring_expenses table (matches dashboard canonical formula)
+        .gte("expense_date", `${year}-01-01`)
+        .limit(10000);
       const { data: recurringExpRows } = await admin
         .from("recurring_expenses")
         .select("*")
         .eq("user_id", user.user_id)
-        .eq("is_active", true);
-      const recurringNet = recurringExpensesNetOfItc((recurringExpRows ?? []) as RecurringExpense[], taxCtx);
-      const recurringExpYTD = totalRecurringYTD(recurringNet, today);
-      const expensesYTD = Math.max(receiptYTD, recurringYTDEstimate) + recurringExpYTD;
-      // Legacy items PLUS the recurring_expenses table, as on the dashboard.
-      // Until 2026-10-13 the table was left out here, so the digest's
-      // survival months and tax projection ran on a lower monthly figure.
-      const monthlyRecurring = legacyMonthlyRecurring + totalRecurringMonthly(recurringNet);
-      // Still to come this year: with expensesYTD, the dashboard's annualExpenses.
-      const expensesRemaining = remainingYearExpenses(
-        legacyMonthlyRecurring,
-        totalRecurringRemaining(recurringNet, today),
-        today,
-      );
+        .eq("is_active", true)
+        .limit(10000);
+      // `expensesRemaining`: still to come this year. With expensesYTD, the
+      // dashboard's annualExpenses.
+      const { expensesYTD, monthlyRecurring, expensesRemaining } = ytdExpenseTotals({
+        receipts: receiptYTDQuery.data,
+        recurring: (recurringExpRows ?? []) as RecurringExpense[],
+        expenseItems: expenseItemRows,
+        ctx: taxCtx,
+        now: today,
+      });
 
       // Health report (canonical 3 sub-scores: pace, pipeline, expenses)
       const healthReport = buildHealthReport(

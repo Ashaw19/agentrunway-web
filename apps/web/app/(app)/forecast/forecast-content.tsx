@@ -24,7 +24,6 @@ import {
   type Transaction,
   type PipelineDeal,
   type UserSettings,
-  type ExpenseCategoryWithItems,
   type HistoryItem,
   type ListingAppointment,
 } from "@/lib/types/database";
@@ -45,7 +44,6 @@ import { calculateCorporateTax } from "@/lib/engines/corporate-tax-engine";
 import { probabilityBands, fiveYearBands } from "@/lib/engines/probabilistic-forecast-engine";
 import { survivalResult, riskColorBand, type RiskColorBand } from "@/lib/engines/survival-engine";
 import { computeEffectiveCashForSurvival, computePipelineMonthlyIncome } from "@/lib/engines/effective-cash";
-import { remainingYearExpenses } from "@agent-runway/core/engines/expense-totals-engine";
 import { compare } from "@/lib/engines/benchmark-engine";
 import { generateAdvisory, type AdvisorCard } from "@/lib/engines/advisor-engine";
 import { generateTaxOptimizations, type DeductionTrackingFlags, type TaxOptimizationCard } from "@/lib/engines/tax-optimization-engine";
@@ -78,11 +76,13 @@ interface Props {
   settings: UserSettings | null;
   transactions: Transaction[];
   pipelineDeals: PipelineDeal[];
-  expenseCategories: ExpenseCategoryWithItems[];
   historyItems: HistoryItem[];
   listingAppointments?: ListingAppointment[];
   isPro?: boolean;
-  receiptYTD?: number;
+  /** Year-to-date expenses: ytdExpenseTotals(...).expensesYTD (t2125-expenses-engine), the Expenses page's total. */
+  expensesYTD?: number;
+  /** Expected each month: ytdExpenseTotals(...).monthlyRecurring. */
+  monthlyRecurring?: number;
   /**
    * Which commonly missed expense categories the agent already tracks
    * (`deductionTrackingFlags`, from receipts, the per-item monthly figure and
@@ -91,10 +91,8 @@ interface Props {
   deductionTracking: DeductionTrackingFlags;
   mileageKmTotal?: number;
   ccaAssetCount?: number;
-  recurringExpMonthly?: number;
-  recurringExpYTD?: number;
-  /** Pre-computed: what the recurring_expenses table is still to charge this year */
-  recurringExpRemaining: number;
+  /** Still to come this year: ytdExpenseTotals(...).expensesRemaining. expensesYTD + this = the year's expenses. */
+  expensesRemaining: number;
 }
 
 export function ForecastContent({
@@ -102,16 +100,14 @@ export function ForecastContent({
   transactions,
   pipelineDeals,
   listingAppointments,
-  expenseCategories,
   historyItems,
   isPro: isPro = false,
-  receiptYTD: receiptYTDProp = 0,
+  expensesYTD = 0,
+  monthlyRecurring = 0,
   deductionTracking,
   mileageKmTotal = 0,
   ccaAssetCount = 0,
-  recurringExpMonthly = 0,
-  recurringExpYTD = 0,
-  recurringExpRemaining,
+  expensesRemaining,
 }: Props) {
   // ── Scenario selector (Conservative −15% / Base / Optimistic +15%) ────
   const [scenario, setScenario] = useState<"conservative" | "base" | "optimistic">("base");
@@ -198,22 +194,12 @@ export function ForecastContent({
   const projectedNet = planProjected.grossAfterPlan - brokerageFeeAnnual;
 
   // ── Expenses ──────────────────────────────────────────────────────────
-  // Includes both legacy expense_items.monthly_recurring AND new recurring_expenses table
-  const receiptTotal = receiptYTDProp;
-  const legacyMonthlyRecurring = expenseCategories.reduce(
-    (sum, cat) => sum + cat.items.reduce((s, i) => s + Number(i.monthly_recurring), 0),
-    0,
-  );
-  const monthlyRecurring = legacyMonthlyRecurring + recurringExpMonthly;
+  // `expensesYTD` and `monthlyRecurring` arrive from the page's one engine
+  // call (ytdExpenseTotals, t2125-expenses-engine): receipts, the per-item
+  // monthly figures and the Recurring Expenses list. Nothing here combines
+  // them, so this is the dashboard's and the Expenses page's figure.
   const _now = new Date();
-  // Integer months elapsed (1-12) — matches the dashboard's expMonthsElapsed.
-  // Fractional getDate()/30 (fixed 2026-06-26) diverged expensesYTD from the
-  // dashboard. See dashboard_metric_divergence_fix_2026-06-26.md.
-  const _monthsElapsed = _now.getMonth() + 1;
-  const legacyRecurringYTDEstimate = legacyMonthlyRecurring * _monthsElapsed;
-  const expensesYTD = Math.max(receiptTotal, legacyRecurringYTDEstimate) + recurringExpYTD;
   // Project full-year: actual YTD + what is still to come (matches the dashboard)
-  const expensesRemaining = remainingYearExpenses(legacyMonthlyRecurring, recurringExpRemaining, _now);
   const annualExpenses = expensesYTD + expensesRemaining;
 
   // ── Tax estimate ──────────────────────────────────────────────────────
