@@ -18,8 +18,8 @@ import { cn } from "@/lib/utils";
 import { fmtCurrency, fmtPct } from "@/lib/formatters";
 import { PROVINCE_LABELS, CCA_CLASSES } from "@/lib/types/database";
 import type { UserSettings, Transaction, CcaAsset } from "@/lib/types/database";
-import { computeT2125 } from "@/lib/engines/t2125-engine";
-import type { HomeOfficeCostType, T2125Result } from "@/lib/engines/t2125-engine";
+import { computeT2125, t2125LineForExpenseKey, T2125_OTHER_EXPENSES } from "@/lib/engines/t2125-engine";
+import type { HomeOfficeCostType, T2125ExpenseEntry, T2125Result } from "@/lib/engines/t2125-engine";
 import { generateTaxOptimizations } from "@/lib/engines/tax-optimization-engine";
 import { T2125Pdf } from "@/components/pdf/t2125-pdf";
 import { createClient } from "@/lib/supabase/client";
@@ -36,7 +36,8 @@ interface MileageLogRow {
 interface Props {
   settings: UserSettings | null;
   transactions: Transaction[];
-  expenseAmounts: Record<string, number>;
+  /** Expenses to date for the T2125 lines: buildT2125Expenses(...).entries. */
+  expenses: T2125ExpenseEntry[];
   /** Home Office bills by key, in full (before the home office share). */
   homeOfficeCosts?: Record<string, number>;
   ccaAssets: CcaAsset[];
@@ -150,7 +151,7 @@ function EditableAmount({
 export function ReportsT2125Tab({
   settings,
   transactions,
-  expenseAmounts,
+  expenses,
   homeOfficeCosts,
   ccaAssets: initialCcaAssets,
   mileageLogs,
@@ -185,13 +186,20 @@ export function ReportsT2125Tab({
     return computeT2125({
       settings: localSettings,
       transactions,
-      expenseAmounts,
+      expenses,
       homeOfficeCosts,
       ccaAssets,
       taxYear,
       otherIncome,
     });
-  }, [localSettings, transactions, expenseAmounts, homeOfficeCosts, ccaAssets, taxYear, otherIncome]);
+  }, [localSettings, transactions, expenses, homeOfficeCosts, ccaAssets, taxYear, otherIncome]);
+
+  // Line 9270 also carries expenses whose key has no line of its own (a
+  // custom item, or no category at all). Shown so the amount isn't a
+  // surprise next to "Gifts, Education".
+  const unfiledOtherExpenses = (result?.expenseLines ?? [])
+    .filter((l) => l.lineNumber === "9270" && t2125LineForExpenseKey(l.key) === T2125_OTHER_EXPENSES)
+    .reduce((sum, l) => sum + l.deductibleAmount, 0);
 
   // A home cost with bills logged under Home Office (Expenses page) uses
   // those bills; the estimate typed here is set aside for that cost.
@@ -292,6 +300,8 @@ export function ReportsT2125Tab({
       } : undefined;
 
       // Compute tax optimization cards
+      const hasExpenseKey = (matches: (key: string) => boolean) =>
+        result.expenseLines.some((l) => l.rawAmount > 0 && l.key != null && matches(l.key));
       const projectedGCI = result.totalGrossIncome;
       const totalExpenses = result.line9369_totalExpenses + result.line9936_totalCca + result.line9945_homeOfficeDeduction;
       const netIncome = result.line8270_netBusinessIncome;
@@ -331,11 +341,14 @@ export function ReportsT2125Tab({
         gstHstRemitted: gstRemitted,
         taxInstalmentsPaid: taxInstalments,
         cppInstalmentPaidYTD: localSettings.cpp_instalment_paid_ytd ?? 0,
-        hasProfDevExpenses: (expenseAmounts["professional_development"] ?? 0) > 0,
-        hasMarketingExpenses: (expenseAmounts["marketing"] ?? 0) > 0,
-        hasClientGiftExpenses: (expenseAmounts["client_gifts"] ?? 0) > 0,
-        hasMealExpenses: (expenseAmounts["meals_entertainment"] ?? 0) > 0,
-        hasLicensingExpenses: (expenseAmounts["licenses_dues"] ?? 0) > 0,
+        // From the computed lines. These used to look up keys no expense
+        // has ever carried ("professional_development", "licenses_dues"...),
+        // so every one was false whatever had been logged.
+        hasProfDevExpenses: hasExpenseKey((k) => k.startsWith("edu_") || k === "education"),
+        hasMarketingExpenses: hasExpenseKey((k) => k.startsWith("marketing")),
+        hasClientGiftExpenses: hasExpenseKey((k) => k === "marketing_gifts"),
+        hasMealExpenses: result.line8523_mealsEntertainmentGross > 0,
+        hasLicensingExpenses: hasExpenseKey((k) => k.startsWith("prof_") || k === "professional"),
         ccaAssetCount: ccaAssets.length,
         dismissed: [],
       });
@@ -524,8 +537,8 @@ export function ReportsT2125Tab({
               label="Deductible Expenses (Lines 8521–9369)"
               subtitle={
                 localSettings.gst_hst_registered
-                  ? "Auto-filled from your expense tracking, net of the GST/HST claimed as input tax credits"
-                  : "Auto-filled from your expense tracking"
+                  ? "Auto-filled from your receipts and recurring expenses to date, net of the GST/HST claimed as input tax credits"
+                  : "Auto-filled from your receipts and recurring expenses to date"
               }
               color="text-slate-600"
             />
@@ -542,7 +555,16 @@ export function ReportsT2125Tab({
             <LineRow lineNum="8521" label="Advertising & Marketing" value={result.line8521_advertising} />
             <LineRow lineNum="8811" label="Office Supplies & Software" value={result.line8811_officeSupplies} />
             <LineRow lineNum="9220" label="Utilities (Phone, Internet)" value={result.line9220_utilities} />
-            <LineRow lineNum="9270" label="Other Expenses (Gifts, Education)" value={result.line9270_otherExpenses} />
+            <LineRow
+              lineNum="9270"
+              label="Other Expenses (Gifts, Education)"
+              value={result.line9270_otherExpenses}
+              note={
+                unfiledOtherExpenses > 0
+                  ? `Includes ${fmtCurrency(unfiledOtherExpenses)} with no category or under a custom item. An expense filed under a specific item shows on that item's line.`
+                  : undefined
+              }
+            />
             <LineRow lineNum="8760" label="Licences, Memberships & Dues" value={result.line8760_licencesMemberships} />
             {result.line8690_insurance > 0 && (
               <LineRow lineNum="8690" label="Insurance (E&O)" value={result.line8690_insurance} />
@@ -577,7 +599,7 @@ export function ReportsT2125Tab({
                 </p>
               </div>
               <div className="flex justify-between text-xs text-amber-800 mb-1 px-3">
-                <span>Gross receipts</span>
+                <span>Gross amount</span>
                 <span>{fmtCurrency(result.line8523_mealsEntertainmentGross)}</span>
               </div>
               <LineRow

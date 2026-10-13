@@ -86,6 +86,9 @@ const CATEGORIES: Record<string, string> = {
   other_misc:            "Miscellaneous",
 };
 
+/** Receipt cards shown under "Recent Receipts". The totals use every receipt. */
+const RECENT_RECEIPTS_SHOWN = 50;
+
 // ── Types ──────────────────────────────────────────────────────────────────────
 
 type ScreenState = "idle" | "camera" | "review" | "uploading";
@@ -193,7 +196,9 @@ export default function ScanScreen() {
 
     let ytdTotal = 0;
     let monthTotal = 0;
-    const totalCount = receipts.length;
+    // This year's receipts, like the two totals beside it. The store also
+    // holds last year's (it loads every receipt, not the last 50).
+    let totalCount = 0;
 
     receipts.forEach((r) => {
       const amt = expenseNetOfItc(r.total_amount, r.tax_amount, r.category_key, expenseTaxCtx).net;
@@ -201,6 +206,7 @@ export default function ScanScreen() {
         const d = new Date(r.expense_date + "T00:00:00");
         if (d.getFullYear() === currentYear) {
           ytdTotal += amt;
+          totalCount += 1;
           if (d.getMonth() === currentMonth) {
             monthTotal += amt;
           }
@@ -210,6 +216,7 @@ export default function ScanScreen() {
         const created = new Date(r.created_at);
         if (created.getFullYear() === currentYear) {
           ytdTotal += amt;
+          totalCount += 1;
           if (created.getMonth() === currentMonth) {
             monthTotal += amt;
           }
@@ -864,7 +871,14 @@ export default function ScanScreen() {
               onAction={openCamera}
             />
           ) : (
-            receipts.map((r) => <ReceiptCard key={r.id} receipt={r} />)
+            <>
+              {receipts.slice(0, RECENT_RECEIPTS_SHOWN).map((r) => <ReceiptCard key={r.id} receipt={r} />)}
+              {receipts.length > RECENT_RECEIPTS_SHOWN && (
+                <Text style={{ ...Type.caption, color: c.textDim, textAlign: "center" }}>
+                  Showing your {RECENT_RECEIPTS_SHOWN} most recent receipts. The totals above include all of them. See the full list on the web.
+                </Text>
+              )}
+            </>
           )}
         </View>
       </ScrollView>

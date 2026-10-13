@@ -28,6 +28,12 @@
  *      slice an expense context is built from) without
  *      `home_office_business_use_pct`: home bills then count for $0 on that
  *      surface and at the share on every other
+ *   6. a `receipt_expenses` query capped at a small `.limit(N)`. The web
+ *      Expenses page and the mobile store both loaded "the last 50" and then
+ *      totalled or filtered that list, so past 50 receipts a year the GST34
+ *      summary, the exports and the mobile totals went short without an
+ *      error. A list for display pages on screen; it is not capped in the
+ *      query
  *
  * A regex can't prove a total is right, only that it didn't bypass the
  * engine. The numbers are tested in
@@ -76,6 +82,17 @@ const ALLOWED_SUMS: Record<string, { count: number; why: string }> = {
 
 /** `.from("user_settings").select("…")` with the column list captured. */
 const SETTINGS_SELECT = /\.from\(\s*["']user_settings["']\s*\)\s*\.select\(\s*(?:\/\/[^\n]*\n\s*)*["'`]([^"'`]*)["'`]/g;
+
+/** A `receipt_expenses` query and the `.limit(N)` on it (same statement, before the next `.from(`). */
+const RECEIPT_LIMIT = /\.from\(\s*["']receipt_expenses["']\s*\)(?:(?!\.from\(|;)[\s\S]){0,600}?\.limit\(\s*(\d+)\s*\)/g;
+const SMALL_LIMIT = 1000;
+
+const ALLOWED_SMALL_LIMITS: Record<string, { count: number; why: string }> = {
+  "apps/web/lib/ai/tools.ts": {
+    count: 1,
+    why: "searchExpenses: the 10 best vendor matches for Flight Crew to pick from. Nothing is totalled.",
+  },
+};
 
 const ALLOWED_SELECTS: Record<string, { count: number; why: string }> = {
   "apps/web/lib/ai/tools.ts": {
@@ -217,6 +234,27 @@ describe("REGRESSION — expense totals are net of ITCs through expense-totals-e
     expect(slices).toBeGreaterThanOrEqual(2);
   });
 
+  it("no receipt_expenses query is capped at a small limit outside the allowlist", () => {
+    const offenders: string[] = [];
+    const allowedSeen: Record<string, number> = {};
+    for (const file of files) {
+      const r = rel(file);
+      const src = readFileSync(file, "utf8");
+      for (const m of src.matchAll(RECEIPT_LIMIT)) {
+        if (Number(m[1]) >= SMALL_LIMIT) continue;
+        if (ALLOWED_SMALL_LIMITS[r]) {
+          allowedSeen[r] = (allowedSeen[r] ?? 0) + 1;
+          continue;
+        }
+        offenders.push(`${r}:${lineOf(src, m.index ?? 0)} .limit(${m[1]})`);
+      }
+    }
+    expect(offenders).toEqual([]);
+    for (const [r, { count }] of Object.entries(ALLOWED_SMALL_LIMITS)) {
+      expect({ file: r, matches: allowedSeen[r] ?? 0 }).toEqual({ file: r, matches: count });
+    }
+  });
+
   it("the regexes catch the hand-rolled shapes and spare the canonical ones", () => {
     const badSums = [
       `rows.reduce((sum, r) => sum + Number(r.total_amount ?? 0), 0)`,
@@ -232,6 +270,12 @@ describe("REGRESSION — expense totals are net of ITCs through expense-totals-e
     ];
     for (const s of badSums) expect([...s.matchAll(SUMS_TOTAL_AMOUNT)], s).toHaveLength(1);
     for (const s of goodSums) expect([...s.matchAll(SUMS_TOTAL_AMOUNT)], s).toHaveLength(0);
+
+    const limits = (s: string) => [...s.matchAll(RECEIPT_LIMIT)].map((m) => Number(m[1]));
+    expect(limits(`supabase\n  .from("receipt_expenses")\n  .select("*")\n  .eq("user_id", user.id)\n  .order("created_at", { ascending: false })\n  .limit(50);`)).toEqual([50]);
+    expect(limits(`supabase.from("receipt_expenses").select("category_key, total_amount, tax_amount").limit(10000),`)).toEqual([10000]);
+    // The limit belongs to the NEXT query, not the receipts one.
+    expect(limits(`supabase.from("receipt_expenses").select("id").eq("user_id", id),\n supabase.from("contact_tasks").select("id").limit(5)`)).toEqual([]);
 
     const settingsSelect = (s: string) => [...s.matchAll(SETTINGS_SELECT)].map((m) => m[1]);
     expect(settingsSelect(`supabase.from("user_settings").select("gst_hst_registered, vehicle_business_use_pct")`)).toEqual([

@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+import { RECEIPT_LIST_COLUMNS, receiptListDateFilter } from "@/lib/expenses/receipt-list";
 import { ExpensesContent } from "./expenses-content";
 import { computeIsPro } from "@/lib/compute-is-pro";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -222,18 +223,22 @@ export default async function ExpensesPage() {
     // needed too: a GST/HST registrant's totals are net of the ITCs claimed.
     supabase
       .from("receipt_expenses")
-      .select("category_key, total_amount, tax_amount")
+      // expense_date: the GST34 summary filters these rows by filing period.
+      .select("category_key, total_amount, tax_amount, expense_date")
       .eq("user_id", user.id)
       .gte("expense_date", `${year}-01-01`)
       .limit(10000),
-    // Last 50 receipts for the display log (full row)
+    // The receipt list: every receipt dated this year or last, not "the last
+    // 50". The period filter and the exports are built on it, so a cap here
+    // silently drops receipts from them (lib/expenses/receipt-list.ts).
     supabase
       .from("receipt_expenses")
-      .select("*")
+      .select(RECEIPT_LIST_COLUMNS)
       .eq("user_id", user.id)
+      .or(receiptListDateFilter(year))
       .order("expense_date", { ascending: false })
       .order("created_at", { ascending: false })
-      .limit(50),
+      .limit(10000),
     // Prior year history for YoY comparison (last 4 years excluding current)
     supabase
       .from("history_items")
@@ -340,9 +345,16 @@ export default async function ExpensesPage() {
       return true;
     });
 
+  // Items of the categories filtered out above: not shown, still counted.
+  const shownCategoryIds = new Set(categories.map((cat) => cat.id));
+  const hiddenExpenseItems = items
+    .filter((item) => !shownCategoryIds.has(item.category_id))
+    .map((item) => ({ key: item.key, monthly_recurring: item.monthly_recurring }));
+
   return (
     <ExpensesContent
       initialCategories={categories}
+      hiddenExpenseItems={hiddenExpenseItems}
       settings={settings}
       isPro={isPro}
       transactions={txResult.data ?? []}

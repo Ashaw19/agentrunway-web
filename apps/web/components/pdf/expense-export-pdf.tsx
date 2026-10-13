@@ -18,9 +18,8 @@ import {
   View,
   StyleSheet,
 } from "@react-pdf/renderer";
-import type { ExpenseCategoryWithItems, UserSettings } from "@/lib/types/database";
+import type { UserSettings } from "@/lib/types/database";
 import { PROVINCE_LABELS } from "@/lib/types/database";
-import { EXPENSE_KEY_TO_T2125, isHomeOfficeKey } from "@/lib/engines/t2125-engine";
 import type { ReceiptExpense } from "@/lib/types/receipt";
 import { RECEIPT_CATEGORIES } from "@/lib/types/receipt";
 
@@ -85,18 +84,33 @@ const S = StyleSheet.create({
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
+export interface ExpenseExportCategoryRow {
+  name: string;
+  ytd: number;
+  deductible: number;
+  /** "100%", "50% rule", "80% biz use", "15% of home bills" or "Mixed". */
+  rule: string;
+}
+
 export interface ExpenseExportPdfProps {
   year: number;
   settings: UserSettings | null;
-  categories: ExpenseCategoryWithItems[];
-  receiptTotals: Record<string, number>;
+  /**
+   * The category table, worked out by the Expenses page from
+   * t2125-expenses-engine (receipts, the per-item monthly figure and the
+   * Recurring Expenses list). This file is `@ts-nocheck`, so it does no
+   * arithmetic of its own on expenses.
+   */
+  categoryRows: ExpenseExportCategoryRow[];
+  /** Expenses to date: the Expenses page's YTD Expenses, every line counted. */
+  totalYtd: number;
   vehiclePct: number;
   receipts: ReceiptExpense[];
   totalDeductible: number;
   deductFull: number;
   deductMeals: number;
   deductVehicle: number;
-  /** Home Office bills at the home office share (already inside `receiptTotals`). */
+  /** Home Office bills at the home office share. */
   deductHome?: number;
   /** user_settings.home_office_business_use_pct, 0–1. */
   homePct?: number;
@@ -109,8 +123,8 @@ export interface ExpenseExportPdfProps {
 export function ExpenseExportPdf({
   year,
   settings,
-  categories,
-  receiptTotals,
+  categoryRows,
+  totalYtd,
   vehiclePct,
   receipts,
   totalDeductible,
@@ -121,7 +135,6 @@ export function ExpenseExportPdf({
   homePct = 0,
   netOfItc = false,
 }: ExpenseExportPdfProps) {
-  const totalYtd = Object.values(receiptTotals).reduce((s, v) => s + v, 0);
   const province = settings?.province
     ? PROVINCE_LABELS[settings.province] ?? settings.province
     : "—";
@@ -138,36 +151,14 @@ export function ExpenseExportPdf({
     return b.expense_date.localeCompare(a.expense_date);
   });
 
-  // Category rows for summary page
-  const catRows = categories
-    .map((cat) => {
-      const ytd = cat.items.reduce((s, i) => s + (receiptTotals[i.key] ?? 0), 0);
-      const deductible = cat.items.reduce((s, i) => {
-        const v = receiptTotals[i.key] ?? 0;
-        const map = EXPENSE_KEY_TO_T2125[i.key];
-        if (!map) return s + v;
-        if (map.applyVehicleUse) return s + v * vehiclePct;
-        return s + v * map.deductiblePct;
-      }, 0);
-      // Home Office rows are already the home office share of the bills
-      // (expense-totals-engine), so both columns show that share.
-      const rule = cat.items.some((i) => isHomeOfficeKey(i.key))
-        ? `${Math.round(homePct * 100)}% of home bills`
-        : cat.items.some((i) => EXPENSE_KEY_TO_T2125[i.key]?.applyVehicleUse)
-        ? `${Math.round(vehiclePct * 100)}% biz use`
-        : cat.items.some((i) => (EXPENSE_KEY_TO_T2125[i.key]?.deductiblePct ?? 1) < 1)
-        ? "50% rule"
-        : "100%";
-      return { name: cat.title, ytd, deductible, rule };
-    })
-    .filter((r) => r.ytd > 0);
+  const catRows = categoryRows;
 
   const Disclaimer = () => (
     <View style={S.disclaimer}>
       <Text style={S.discText}>
         Agent Runway · Expense Summary Report · {year} · Generated {generatedOn}
         {"\n"}
-        FOR PLANNING PURPOSES ONLY — NOT A FILED CRA RETURN. This report is an estimate based on receipts entered into Agent Runway.
+        FOR PLANNING PURPOSES ONLY — NOT A FILED CRA RETURN. This report is an estimate based on the receipts and recurring expenses entered into Agent Runway.
         {" "}Actual deductible amounts may differ. Always consult a qualified accountant or tax professional before filing.
         {"\n"}
         © 2026 Agent Runway Inc. · Canada Corporation No. 1786542-2
