@@ -651,6 +651,9 @@ const TOPIC_RULES: TopicRule[] = [
       "line 101",
       "line 103",
       "line 109",
+      "already capturing",
+      "untapped potential",
+      "savings impact",
     ],
   },
   {

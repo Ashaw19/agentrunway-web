@@ -19,6 +19,8 @@ export {
   type DealGstHstCopyInput,
 } from "./deal-tax-portion";
 
+export { alreadyCapturingNote } from "./deduction-estimate";
+
 export {
   FORBIDDEN_VERBS,
   FORBIDDEN_PHRASES,
