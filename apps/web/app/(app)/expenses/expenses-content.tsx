@@ -3,13 +3,7 @@
 import { Fragment, useState, useEffect, useMemo, useRef } from "react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { validateExpenseAmount, validateMonthlyRecurring, validateVehicleBusinessPct, parseDollar, FIELD_LIMITS } from "@agent-runway/core/validation/input-guards";
@@ -36,6 +30,13 @@ import {
   linesYtd,
 } from "@/lib/expenses/category-lines";
 import { KpiCard } from "@/components/kpi-card";
+import { CollapsibleCard, useCollapsedSections } from "@/components/collapsible-card";
+import {
+  EXPENSES_COLLAPSED_BY_DEFAULT,
+  EXPENSES_COLLAPSED_COOKIE,
+  EXPENSES_SECTIONS,
+  type ExpensesSection,
+} from "@/lib/collapsed-sections";
 import {
   computeGCI,
   type ExpenseCategoryWithItems,
@@ -174,6 +175,11 @@ interface Props {
   historyItems?: HistoryItem[];
   /** Active recurring expenses — server-fetched for SSR parity with dashboard */
   recurringExpenses?: RecurringExpense[];
+  /**
+   * Sections minimized to their title bar, read from the cookie by page.tsx;
+   * null when this browser has no saved choice.
+   */
+  initialCollapsedSections?: ExpensesSection[] | null;
 }
 
 // Per-category colour accent (left border + header icon tint)
@@ -204,6 +210,7 @@ export function ExpensesContent({
   isPro: isProProp = false,
   pipelineDeals = [], historyItems = [], recurringExpenses: recurringExpensesSeed = [],
   hiddenExpenseItems = NO_HIDDEN_ITEMS,
+  initialCollapsedSections = null,
 }: Props) {
   const supabase = useMemo(() => createClient(), []);
   const thisYear = currentYear ?? new Date().getFullYear();
@@ -212,6 +219,18 @@ export function ExpensesContent({
 
   // ── Tab state ─────────────────────────────────────────────────────────────
   const [tab, setTab] = useState<"receipts" | "mileage" | "imports">("receipts");
+
+  // ── Sections minimized to their title bar (remembered per browser) ──────
+  const sections = useCollapsedSections<ExpensesSection>({
+    cookie: EXPENSES_COLLAPSED_COOKIE,
+    known: EXPENSES_SECTIONS,
+    initial: initialCollapsedSections ?? EXPENSES_COLLAPSED_BY_DEFAULT,
+  });
+  const section = (id: ExpensesSection) => ({
+    id: `expenses-${id}`,
+    collapsed: sections.isCollapsed(id),
+    onToggle: () => sections.toggle(id),
+  });
   // Bank Imports tab is hidden; pendingImportsCount kept for code retention.
   const _pendingImportsCount = plaidTransactions.filter(
     (t) => t.amount > 0 && t.review_status === "pending",
@@ -820,7 +839,6 @@ export function ExpensesContent({
   );
 
   const [taxIQExpanded, setTaxIQExpanded] = useState(false);
-  const [yoyExpanded, setYoyExpanded] = useState(false);
   const [addingTo, setAddingTo] = useState<string | null>(null);
   const [newItemTitle, setNewItemTitle] = useState("");
 
@@ -1512,7 +1530,7 @@ export function ExpensesContent({
       {/* "Bank Imports" tab is hidden — bank-account connectivity is a planned
           future capability and is not currently offered. See
           memory/project_plaid_status.md. */}
-      <div className="flex items-center gap-1 border-b border-border/60">
+      <div className="flex flex-wrap items-center gap-1 border-b border-border/60">
         {(["receipts", "mileage"] as const).map((t) => (
           <button
             key={t}
@@ -1527,6 +1545,16 @@ export function ExpensesContent({
             {t === "mileage"  && "Mileage"}
           </button>
         ))}
+        {/* Every section below can be minimized to its title bar; this does them all. */}
+        <Button
+          variant="ghost"
+          size="sm"
+          className="ml-auto h-7 gap-1.5 px-2.5 text-xs text-muted-foreground hover:text-foreground"
+          onClick={() => sections.setAll(!sections.allCollapsed)}
+        >
+          <ChevronsUpDown className="h-3.5 w-3.5" />
+          {sections.allCollapsed ? "Expand all sections" : "Collapse all sections"}
+        </Button>
       </div>
 
       {/* ── Tab: Mileage ─────────────────────────────────────────────────── */}
@@ -1535,6 +1563,7 @@ export function ExpensesContent({
           mileageLogs={mileageLogs}
           year={thisYear}
           settings={settings}
+          tripLogSection={section("trip-log")}
         />
       )}
 
@@ -1571,30 +1600,25 @@ export function ExpensesContent({
         const refund = result.line === "114";
         const tone = refund ? "emerald" : result.amount > 0 ? "red" : "slate";
         return (
-        <Card className="border-l-4 border-l-sky-500">
-          <CardHeader className="pb-2">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <CardTitle className="text-base flex items-center gap-2">
-                  {tax} Return: {gst34Result.periodLabel}
-                </CardTitle>
-                <CardDescription className="mt-0.5 text-xs">
-                  Line by line, as CRA&apos;s Form GST34 asks for it
-                </CardDescription>
+        <CollapsibleCard
+          {...section("gst-return")}
+          className="border-l-4 border-l-sky-500"
+          title={<>{tax} Return: {gst34Result.periodLabel}</>}
+          description={<>Line by line, as CRA&apos;s Form GST34 asks for it</>}
+          aside={
+            <div className="text-right">
+              <div className={cn(
+                "text-2xl font-bold tabular-nums",
+                tone === "red" ? "text-red-700" : tone === "emerald" ? "text-emerald-700" : "text-slate-700",
+              )}>
+                {fmtCents(result.amount)}
               </div>
-              <div className="text-right">
-                <div className={cn(
-                  "text-2xl font-bold tabular-nums",
-                  tone === "red" ? "text-red-700" : tone === "emerald" ? "text-emerald-700" : "text-slate-700",
-                )}>
-                  {fmtCents(result.amount)}
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  {refund ? "Est. refund" : result.amount > 0 ? "Est. balance owing" : "Net zero"}
-                </p>
-              </div>
+              <p className="text-xs text-muted-foreground">
+                {refund ? "Est. refund" : result.amount > 0 ? "Est. balance owing" : "Net zero"}
+              </p>
             </div>
-          </CardHeader>
+          }
+        >
           <CardContent className="pt-0 space-y-3">
             <div className="rounded-lg border text-sm">
               {shown.map((line, i) => {
@@ -1696,34 +1720,29 @@ export function ExpensesContent({
 
             <TaxDisclaimer />
           </CardContent>
-        </Card>
+        </CollapsibleCard>
         );
       })()}
 
       {/* ── Brokerage Statement Reconciliation ─────────────────────────────── */}
       {gst34Result && activePeriod && (
-        <Card className="border-l-4 border-l-indigo-400">
-          <CardHeader className="pb-2">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <CardTitle className="text-base flex items-center gap-2">
-                  <FileText className="h-4 w-4 text-indigo-500" />
-                  Verify with Brokerage Statement
-                </CardTitle>
-                <CardDescription className="mt-0.5 text-xs">
-                  Upload your brokerage commission statement to cross-check deals in {gst34Result.periodLabel}
-                </CardDescription>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setReconOpen(!reconOpen)}
-                className="shrink-0"
-              >
-                {reconOpen ? "Close" : "Upload Statement"}
-              </Button>
-            </div>
-          </CardHeader>
+        <CollapsibleCard
+          {...section("brokerage-statement")}
+          className="border-l-4 border-l-indigo-400"
+          icon={<FileText className="h-4 w-4 text-indigo-500" />}
+          title="Verify with Brokerage Statement"
+          description={<>Upload your brokerage commission statement to cross-check deals in {gst34Result.periodLabel}</>}
+          aside={
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setReconOpen(!reconOpen)}
+              className="shrink-0"
+            >
+              {reconOpen ? "Close" : "Upload Statement"}
+            </Button>
+          }
+        >
           {reconOpen && (
             <CardContent className="pt-0 space-y-3">
               {/* Upload area */}
@@ -1884,7 +1903,7 @@ export function ExpensesContent({
               )}
             </CardContent>
           )}
-        </Card>
+        </CollapsibleCard>
       )}
 
       {/* ── Deadline approaching (for "All YTD" view — show when within 30 days) ── */}
@@ -1900,32 +1919,33 @@ export function ExpensesContent({
 
       {/* ── Tax Deductibility Summary ────────────────────────────────────── */}
       {effectiveTotal > 0 && (
-        <Card className="border-l-4 border-l-emerald-500">
-          <CardHeader className="pb-2">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <CardTitle className="text-base">Est. Tax Deductible YTD</CardTitle>
-                <CardDescription className="mt-0.5 text-xs">
-                  Based on CRA rules · Meals & entertainment at 50% · Vehicle at{" "}
-                  {Math.round(vehiclePct * 100)}% business use
-                  {deductBreakdown.home > 0 && <> · Home bills at {homePctLabel} home office use</>}
-                  {gstHstRegistered && (
-                    <>
-                      {" "}· Net of the {settings ? gstHstLabel(settings.province) : "GST/HST"} claimed as input tax credits
-                    </>
-                  )}
-                </CardDescription>
+        <CollapsibleCard
+          {...section("tax-deductible")}
+          className="border-l-4 border-l-emerald-500"
+          title="Est. Tax Deductible YTD"
+          description={
+            <>
+              Based on CRA rules · Meals & entertainment at 50% · Vehicle at{" "}
+              {Math.round(vehiclePct * 100)}% business use
+              {deductBreakdown.home > 0 && <> · Home bills at {homePctLabel} home office use</>}
+              {gstHstRegistered && (
+                <>
+                  {" "}· Net of the {settings ? gstHstLabel(settings.province) : "GST/HST"} claimed as input tax credits
+                </>
+              )}
+            </>
+          }
+          aside={
+            <div className="text-right">
+              <div className="text-2xl font-bold tabular-nums text-emerald-700">
+                {fmtCurrency(totalDeductible)}
               </div>
-              <div className="text-right">
-                <div className="text-2xl font-bold tabular-nums text-emerald-700">
-                  {fmtCurrency(totalDeductible)}
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  of {fmtCurrency(effectiveTotal)} in expenses ({effectiveTotal > 0 ? Math.round((totalDeductible / effectiveTotal) * 100) : 0}% deductible)
-                </p>
-              </div>
+              <p className="text-xs text-muted-foreground">
+                of {fmtCurrency(effectiveTotal)} in expenses ({effectiveTotal > 0 ? Math.round((totalDeductible / effectiveTotal) * 100) : 0}% deductible)
+              </p>
             </div>
-          </CardHeader>
+          }
+        >
           <CardContent className="pt-0">
             {/* Breakdown pills */}
             <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
@@ -1986,28 +2006,23 @@ export function ExpensesContent({
               </a>
             </div>
           </CardContent>
-        </Card>
+        </CollapsibleCard>
       )}
 
       {/* ── Tax IQ Tips ──────────────────────────────────────────────────── */}
       {taxIQTips.length > 0 && (
-        <Card className="border-l-4 border-l-amber-400">
-          <CardHeader className="pb-2">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Lightbulb className="h-4 w-4 text-amber-500" />
-                  Tax IQ
-                </CardTitle>
-                <CardDescription className="mt-0.5 text-xs">
-                  CRA-referenced tips based on your expenses and filing activity
-                </CardDescription>
-              </div>
-              <Badge variant="outline" className="text-[10px] shrink-0">
-                {taxIQTips.length} tip{taxIQTips.length !== 1 ? "s" : ""}
-              </Badge>
-            </div>
-          </CardHeader>
+        <CollapsibleCard
+          {...section("tax-iq")}
+          className="border-l-4 border-l-amber-400"
+          icon={<Lightbulb className="h-4 w-4 text-amber-500" />}
+          title="Tax IQ"
+          description="CRA-referenced tips based on your expenses and filing activity"
+          aside={
+            <Badge variant="outline" className="text-[10px] shrink-0">
+              {taxIQTips.length} tip{taxIQTips.length !== 1 ? "s" : ""}
+            </Badge>
+          }
+        >
           <CardContent className="pt-0 space-y-2">
             {(taxIQExpanded ? taxIQTips : taxIQTips.slice(0, 1)).map((tip) => (
               <div
@@ -2072,34 +2087,26 @@ export function ExpensesContent({
             )}
             <TaxDisclaimer />
           </CardContent>
-        </Card>
+        </CollapsibleCard>
       )}
 
       {/* ── Year-over-Year Expense History ──────────────────────────────── */}
       {(priorRows.length > 0 || effectiveTotal > 0) && (
-        <Card className="rounded-2xl shadow-sm">
-          <CardHeader className="pb-3">
-            <button
-              className="flex w-full items-center justify-between text-left"
-              onClick={() => setYoyExpanded(!yoyExpanded)}
-            >
-              <div>
-                <CardTitle className="text-base flex items-center gap-2">
-                  Year-over-Year Expenses
-                  {!yoyExpanded && priorRows.length > 0 && (
-                    <Badge variant="outline" className="text-[10px]">{priorRows.length} yr{priorRows.length !== 1 ? "s" : ""}</Badge>
-                  )}
-                </CardTitle>
-                <CardDescription className="mt-0.5 text-xs">
-                  Enter prior year totals to track your expense trend · Edits save automatically
-                </CardDescription>
-              </div>
-              {yoyExpanded
-                ? <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
-                : <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />}
-            </button>
-          </CardHeader>
-          {yoyExpanded && <CardContent className="p-0">
+        <CollapsibleCard
+          {...section("year-over-year")}
+          className="rounded-2xl shadow-sm"
+          headerClassName="pb-3"
+          title={
+            <span className="flex items-center gap-2">
+              Year-over-Year Expenses
+              {sections.isCollapsed("year-over-year") && priorRows.length > 0 && (
+                <Badge variant="outline" className="text-[10px]">{priorRows.length} yr{priorRows.length !== 1 ? "s" : ""}</Badge>
+              )}
+            </span>
+          }
+          description="Enter prior year totals to track your expense trend · Edits save automatically"
+        >
+          <CardContent className="p-0">
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
@@ -2204,14 +2211,18 @@ export function ExpensesContent({
                 tab and they&apos;ll appear here for comparison.
               </p>
             )}
-          </CardContent>}
-        </Card>
+          </CardContent>
+        </CollapsibleCard>
       )}
 
       {/* Expense ratio + Donut — side-by-side */}
       {(ytdGCI > 0 || donutData.length > 0) && (
-        <Card className="rounded-2xl shadow-sm">
-          <CardContent className="p-4">
+        <CollapsibleCard
+          {...section("expense-ratio")}
+          className="rounded-2xl shadow-sm"
+          title={ytdGCI > 0 && donutData.length > 0 ? "Expense Ratio and Breakdown" : ytdGCI > 0 ? "Expense Ratio" : "Expense Breakdown"}
+        >
+          <CardContent className="pt-0">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Left: Expense Ratio */}
               {ytdGCI > 0 && (
@@ -2250,7 +2261,7 @@ export function ExpensesContent({
               )}
             </div>
           </CardContent>
-        </Card>
+        </CollapsibleCard>
       )}
 
       {/* Onboarding tip — shown only when no data entered yet */}
@@ -2278,33 +2289,33 @@ export function ExpensesContent({
       )}
 
       {/* Categories — compact table */}
-      <Card className="rounded-2xl shadow-sm">
-        <CardHeader className="pb-2">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">
-              Categories
-            </CardTitle>
-            <div className="flex items-center gap-1">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 gap-1.5 px-2.5 text-xs text-muted-foreground hover:text-foreground"
-                onClick={() => setExpanded(new Set(categories.map((c) => c.id)))}
-              >
-                <ChevronsUpDown className="h-3.5 w-3.5" />
-                Expand all
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 gap-1.5 px-2.5 text-xs text-muted-foreground hover:text-foreground"
-                onClick={() => setExpanded(new Set())}
-              >
-                Collapse all
-              </Button>
-            </div>
+      <CollapsibleCard
+        {...section("categories")}
+        className="rounded-2xl shadow-sm"
+        title="Categories"
+        titleClassName="text-sm font-semibold uppercase tracking-widest text-muted-foreground"
+        aside={
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 gap-1.5 px-2.5 text-xs text-muted-foreground hover:text-foreground"
+              onClick={() => setExpanded(new Set(categories.map((c) => c.id)))}
+            >
+              <ChevronsUpDown className="h-3.5 w-3.5" />
+              Expand all
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 gap-1.5 px-2.5 text-xs text-muted-foreground hover:text-foreground"
+              onClick={() => setExpanded(new Set())}
+            >
+              Collapse all
+            </Button>
           </div>
-        </CardHeader>
+        }
+      >
         <CardContent className="p-0">
           <div className="overflow-x-auto">
             <Table>
@@ -2622,25 +2633,25 @@ export function ExpensesContent({
             </Table>
           </div>
         </CardContent>
-      </Card>
+      </CollapsibleCard>
 
       {/* ── Recurring Expenses ──────────────────────────────────────────────── */}
-      <Card className="rounded-2xl border-slate-200 shadow-sm">
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <RefreshCw className="h-4 w-4 text-muted-foreground" />
-              <CardTitle className="text-base font-semibold">Recurring Expenses</CardTitle>
-            </div>
-            <Button size="sm" variant="outline" className="gap-1.5" onClick={() => openRecurringDialog()}>
-              <Plus className="h-3.5 w-3.5" />
-              Add Recurring
-            </Button>
-          </div>
-          <CardDescription className="mt-1">
-            Expenses that repeat on a schedule (e.g. vehicle lease, software subscriptions). Each one counts in your totals and deductible figures by that schedule. One that has stopped keeps its earlier charges when it is given an end date.
-          </CardDescription>
-        </CardHeader>
+      <CollapsibleCard
+        {...section("recurring")}
+        className="rounded-2xl border-slate-200 shadow-sm"
+        headerClassName="pb-3"
+        icon={<RefreshCw className="h-4 w-4 text-muted-foreground" />}
+        title="Recurring Expenses"
+        titleClassName="font-semibold"
+        description="Expenses that repeat on a schedule (e.g. vehicle lease, software subscriptions). Each one counts in your totals and deductible figures by that schedule. One that has stopped keeps its earlier charges when it is given an end date."
+        descriptionClassName="mt-1 text-sm"
+        aside={
+          <Button size="sm" variant="outline" className="gap-1.5" onClick={() => openRecurringDialog()}>
+            <Plus className="h-3.5 w-3.5" />
+            Add Recurring
+          </Button>
+        }
+      >
         <CardContent>
           {recurringExpenses.length === 0 ? (
             <div className="flex flex-col items-center gap-2 py-6">
@@ -2738,30 +2749,30 @@ export function ExpensesContent({
             </span>
           </div>
         </CardContent>
-      </Card>
+      </CollapsibleCard>
 
       {/* ── Receipt Log ─────────────────────────────────────────────────────── */}
-      <Card className="rounded-2xl border-slate-200 shadow-sm">
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Receipt className="h-4 w-4 text-muted-foreground" />
-              <CardTitle className="text-base font-semibold">Receipt Log</CardTitle>
-            </div>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setCaptureOpen(true)}
-              className="gap-1.5 h-7 text-xs"
-            >
-              <Camera className="h-3 w-3" />
-              Add Receipt
-            </Button>
-          </div>
-          <CardDescription className="mt-1">
-            Individual receipts captured from photos
-          </CardDescription>
-        </CardHeader>
+      <CollapsibleCard
+        {...section("receipts")}
+        className="rounded-2xl border-slate-200 shadow-sm"
+        headerClassName="pb-3"
+        icon={<Receipt className="h-4 w-4 text-muted-foreground" />}
+        title="Receipt Log"
+        titleClassName="font-semibold"
+        description="Individual receipts captured from photos"
+        descriptionClassName="mt-1 text-sm"
+        aside={
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setCaptureOpen(true)}
+            className="gap-1.5 h-7 text-xs"
+          >
+            <Camera className="h-3 w-3" />
+            Add Receipt
+          </Button>
+        }
+      >
         <CardContent>
           {filteredReceipts.length === 0 ? (
             <div className="flex flex-col items-center gap-3 py-8">
@@ -2881,7 +2892,7 @@ export function ExpensesContent({
             </div>
           )}
         </CardContent>
-      </Card>
+      </CollapsibleCard>
 
       </>)}
 

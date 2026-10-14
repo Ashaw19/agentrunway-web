@@ -595,6 +595,9 @@ If a user asks "what are these tips?" or "why is Agent Runway showing me this?" 
 
 ### Common Problems & Diagnostics
 
+**"Where did my Receipt Log go?" / "A section only shows its title" / "How do I hide sections on the Expenses page?"**
+→ Every section on the Expenses page can be minimized to its title bar (added 2026-10-14): GST/HST return, Verify with Brokerage Statement, Est. Tax Deductible YTD, Tax IQ, Year-over-Year Expenses, Expense Ratio and Breakdown, Categories, Recurring Expenses, Receipt Log, and Trip Log on the Mileage tab. Click the title or its chevron to open or minimize it. "Collapse all sections" / "Expand all sections", at the right of the Receipts and Mileage tabs, does them all. The choice is remembered in that browser only (a cookie), so a phone and a computer can differ, and clearing cookies opens everything again (Year-over-Year starts minimized). A minimized section's buttons (Add Recurring, Add Receipt, Upload Statement) show again when it is opened. Minimizing changes no figure: totals, the expense ratio and the tax estimates are the same open or closed.
+
 **"My expense ratio seems wrong"**
 1. Ratio = expenses ÷ GCI. If GCI is low (early year), ratio will be high even with normal spending
 2. Check for large one-time expenses inflating the number
