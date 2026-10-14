@@ -5,6 +5,7 @@
  * D-2 fix (Audit 1, 2026-04-22):
  *
  *   - computePipelineMonthlyIncome(pipelineWeightedGCI, fraction)
+ *   - pipelineIncomeMonthsLeft(fraction), the months it divides by
  *   - computeProjectedNetForTax({ projectedGCI, expensesYTD, expensesRemaining,
  *                                 settings, now })
  *
@@ -20,6 +21,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   computePipelineMonthlyIncome,
   computeProjectedNetForTax,
+  pipelineIncomeMonthsLeft,
 } from "../effective-cash";
 import { ytdExpenseTotals } from "../t2125-expenses-engine";
 import { createTestSettings } from "./test-data";
@@ -79,6 +81,32 @@ describe("computePipelineMonthlyIncome", () => {
     const oldFormula = (100_000 * 0.5) / 12;
     const newFormula = computePipelineMonthlyIncome(100_000, 0.5);
     expect(newFormula).toBeGreaterThan(oldFormula * 3);
+  });
+});
+
+// ── pipelineIncomeMonthsLeft ─────────────────────────────────────────────────
+// The divisor on its own, for a surface that prints the division (Flight
+// Crew's survival diagnostic). It comes from the seasonal fraction of the
+// year elapsed, not from the calendar month.
+
+describe("pipelineIncomeMonthsLeft", () => {
+  it("is 12 less the whole twelfths of the year elapsed", () => {
+    expect(pipelineIncomeMonthsLeft(0.1)).toBe(11);
+    expect(pipelineIncomeMonthsLeft(0.5)).toBe(6);
+    expect(pipelineIncomeMonthsLeft(0.54)).toBe(6);
+    expect(pipelineIncomeMonthsLeft(0.9)).toBe(2);
+  });
+
+  it("is never under 1", () => {
+    expect(pipelineIncomeMonthsLeft(0.99)).toBe(1);
+    expect(pipelineIncomeMonthsLeft(1)).toBe(1);
+  });
+
+  it("is what computePipelineMonthlyIncome divides by", () => {
+    for (let i = 1; i <= 100; i++) {
+      const fraction = i / 100;
+      expect(computePipelineMonthlyIncome(36_000, fraction) * pipelineIncomeMonthsLeft(fraction)).toBeCloseTo(36_000, 6);
+    }
   });
 });
 

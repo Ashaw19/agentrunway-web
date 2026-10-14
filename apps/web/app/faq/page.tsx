@@ -40,7 +40,7 @@ const FAQ_SECTIONS = [
       },
       {
         q: "What's included in the Professional plan?",
-        a: "Professional gives you the full platform: GCI tracking, CRM with flight statuses, probability-weighted forecasts (P10–P90), a six-component Runway Score, per-deal and quarterly tax estimates, AI business assistant, receipt scanning, mileage tracking, industry benchmark comparisons, and PDF-ready reports — everything serious agents need to run their business with clarity.",
+        a: "Professional gives you the full platform: GCI tracking, CRM with flight statuses, probability-weighted forecasts (P10–P90), a five-component Runway Score, per-deal and quarterly tax estimates, AI business assistant, receipt scanning, mileage tracking, industry benchmark comparisons, and PDF-ready reports — everything serious agents need to run their business with clarity.",
       },
       {
         q: "Can I cancel at any time?",

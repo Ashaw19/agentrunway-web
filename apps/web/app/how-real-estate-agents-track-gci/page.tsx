@@ -475,7 +475,7 @@ export default function HowRealEstateAgentsTrackGCIPage() {
                   {
                     icon: Activity,
                     title: "Financial runway measurement",
-                    body: "Agent Runway calculates your runway in months using your cash reserve and total monthly fixed costs — classified as Critical, Warning, Healthy, or Strong. A six-component composite score gives you a single letter grade.",
+                    body: "Agent Runway calculates your runway in months using your cash reserve and total monthly fixed costs — classified as Critical, Warning, Healthy, or Strong. A five-component composite score gives you a single letter grade.",
                   },
                   {
                     icon: Layers,
