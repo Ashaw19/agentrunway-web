@@ -38,6 +38,7 @@ import {
   Sparkles,
   Briefcase,
   ListChecks,
+  Contact,
 } from "lucide-react-native";
 import { getLocaleName, type SupportedLocale } from "@agent-runway/i18n";
 import { useT } from "@/lib/useT";
@@ -369,6 +370,15 @@ export default function ProfileScreen() {
               label={t("tools.flightControl")}
               description={t("tools.flightControlDesc")}
               onPress={() => router.push("/profile/outreach")}
+              c={c}
+            />
+            <Divider c={c} />
+            <MenuItem
+              icon={<Contact size={18} color={c.cyan} />}
+              iconBg={c.cyanDim}
+              label={t("tools.fillFromContacts")}
+              description={t("tools.fillFromContactsDesc")}
+              onPress={() => router.push("/profile/contacts-fill")}
               c={c}
             />
             <Divider c={c} />

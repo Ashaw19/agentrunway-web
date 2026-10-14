@@ -63,6 +63,12 @@
           "backgroundColor": "#0A0A0F"
         }
       ],
+      [
+        "expo-contacts",
+        {
+          "contactsPermission": "Agent Runway reads your contacts on this phone to suggest missing phone numbers, emails and birthdays for your clients. Only the details you approve are saved."
+        }
+      ],
       "./plugins/with-ios-scene-lifecycle"
     ],
     "experiments": {

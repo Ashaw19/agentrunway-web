@@ -197,6 +197,7 @@ import { dealFieldFeedsMemory } from "@/lib/ai/client-memory-deals";
 import { CompleteItemDialog } from "@/components/checklist/complete-item-dialog";
 import { AddToChecklistButton } from "@/components/checklist/add-to-checklist-button";
 import { validateClient, FIELD_LIMITS } from "@agent-runway/core/validation/input-guards";
+import { formatBirthdate } from "@agent-runway/core/lib/contact-match";
 import { parseMoneyLoose } from "@/lib/import/normalizers/normalize-money";
 import { normalizeDateFormats } from "@/lib/import/normalizers/normalize-dates";
 import { WorkflowSuggestionsPanel } from "@/components/workflow-suggestions-panel";
@@ -4573,6 +4574,7 @@ export function ClientsContent({
                           label="Birthday"
                           value={selectedClient.birthdate ?? ""}
                           type="date"
+                          format={formatBirthdate}
                           onSave={(v) => updateClientField(selectedClient.id, "birthdate", v || null)}
                           placeholder="Add birthday…"
                         />
@@ -7656,12 +7658,15 @@ function InlineEdit({
   onSave,
   placeholder = "—",
   type = "text",
+  format,
 }: {
   label?: string;
   value: string;
   onSave: (value: string) => void;
   placeholder?: string;
   type?: "text" | "date";
+  /** How to show a saved value when not editing (e.g. a birthday without a year). */
+  format?: (value: string) => string;
 }) {
   const [editing, setEditing] = useState(false);
   const [localVal, setLocalVal] = useState(value);
@@ -7706,7 +7711,7 @@ function InlineEdit({
         "text-xs inline-flex items-center gap-1 group-hover:text-primary transition-colors",
         value ? "text-foreground" : "text-muted-foreground/50",
       )}>
-        {value || placeholder}
+        {value ? (format ? format(value) : value) : placeholder}
         <Pencil className="h-2.5 w-2.5 opacity-0 group-hover:opacity-50 transition-opacity" />
       </span>
     </div>
