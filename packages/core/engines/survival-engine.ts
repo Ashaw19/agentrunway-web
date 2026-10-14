@@ -13,7 +13,13 @@ export type RiskBandLevel = Exclude<RiskLevel, "notConfigured">;
 /** The four bands, lowest first (public metric page, Flight Crew's table). */
 export const RISK_BAND_LEVELS: readonly RiskBandLevel[] = ["critical", "warning", "healthy", "strong"];
 
-/** The month count at which each band above critical starts. */
+/**
+ * The month count at which each band above critical starts.
+ *
+ * The Runway Score's Survival sub-score is laid out on these floors
+ * (runway-score-engine.ts, SURVIVAL_SCORE_STEPS), so moving one changes
+ * users' scores: bump SCORE_VERSION with it.
+ */
 export const RISK_BAND_FLOOR_MONTHS = { warning: 2, healthy: 4, strong: 6 } as const;
 
 export function riskLevelFromMonths(months: number): RiskLevel {
