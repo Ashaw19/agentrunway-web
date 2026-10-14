@@ -5,6 +5,7 @@ import { MarketingNav } from "@/components/marketing-nav";
 import { MarketingFooter } from "@/components/marketing-footer";
 import { EmailCapture } from "@/components/email-capture";
 import { articleSchema } from "@/lib/schema";
+import { GST_RATE_GROUP, HST_RATE_GROUPS } from "@agent-runway/core/tax-copy";
 
 export const metadata: Metadata = {
   title:
@@ -45,7 +46,7 @@ const JSON_LD_ARTICLE = articleSchema({
     "How motor vehicle expenses work for self-employed Canadian real estate agents in 2025 — the CRA logbook rule, the simplified three-month base period, the 2025 Class 10.1 ceiling, the $1,100 lease cap and $350 interest cap, and the 90% \"all or substantially all\" GST/HST input-tax-credit threshold.",
   url: "/vehicle-expenses-real-estate-agents-canada",
   datePublished: "2026-05-09",
-  dateModified: "2026-05-09",
+  dateModified: "2026-10-13",
 });
 
 // ─── CRA primary sources (audit registry) ─────────────────────────────────────
@@ -728,23 +729,16 @@ export default function VehicleExpensesRealEstateAgentsCanadaPage() {
               </p>
 
               <ul>
+                {HST_RATE_GROUPS.map((group) => (
+                  <li key={group.percent}>
+                    <strong>{group.percent} HST:</strong> {group.names}.
+                  </li>
+                ))}
                 <li>
-                  <strong>HST provinces (15%):</strong> New Brunswick, Nova
-                  Scotia, Prince Edward Island, Newfoundland and Labrador.
-                  ITCs on eligible vehicle expenses recover 15 cents on the
-                  dollar of HST paid.
-                </li>
-                <li>
-                  <strong>HST province (13%):</strong> Ontario. ITCs recover
-                  13 cents on the dollar.
-                </li>
-                <li>
-                  <strong>GST-only provinces (5%):</strong> British Columbia,
-                  Alberta, Saskatchewan, Manitoba, Yukon, Northwest
-                  Territories, Nunavut. ITCs recover 5 cents on the dollar of
-                  GST paid; provincial sales tax (where applicable, e.g. PST
-                  in BC, Saskatchewan, Manitoba) is not recoverable through
-                  GST ITCs.
+                  <strong>{GST_RATE_GROUP.percent} GST only:</strong>{" "}
+                  {GST_RATE_GROUP.names}. Provincial sales tax (where
+                  applicable, e.g. PST in BC, Saskatchewan, Manitoba) is not
+                  recoverable through GST ITCs.
                 </li>
               </ul>
 

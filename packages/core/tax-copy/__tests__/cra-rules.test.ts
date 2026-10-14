@@ -23,6 +23,17 @@
  *      either of the two before it), the Quebec limit, and interest on late or
  *      insufficient payments. Public pages used to say instalments apply to
  *      anyone who "expects to owe more than $3,000 in tax for a given year".
+ *   7. The GST/HST rate sentence prints the engine's rate for every province.
+ *      A blog post used to say "In most provinces, you charge 13% HST" (13% is
+ *      Ontario only) and several pages put Nova Scotia at 15% (14% since
+ *      April 1, 2025).
+ *   8. CRA's three instalment options are each stated the same way, with what
+ *      CRA says each is best for, and none is put above the others. A page
+ *      used to call the current-year option "the most effective planning
+ *      approach". CRA's condition on interest ("unless your estimated
+ *      instalment amounts are too low") is carried, not dropped.
+ *   9. The deduction rules (reasonable current expense, meals at 50% of the
+ *      lesser amount, capital property through CCA) are CRA's sentences.
  */
 
 import { describe, it, expect } from "vitest";
@@ -42,8 +53,32 @@ import {
   BROKERAGE_HST_WITHHOLDING,
   brokerageHstWithholdingHint,
   gstHstReportNote,
+  HST_RATE_GROUPS,
+  GST_RATE_GROUP,
+  GST_HST_RATE_RULE,
+  fmtGstHstRate,
+  gstHstRatePercent,
+  INPUT_TAX_CREDIT_RULE,
+  INPUT_TAX_CREDIT_EVIDENCE_RULE,
+  INPUT_TAX_CREDIT_NOTE,
+  CRA_GST_HST_SOURCES,
+  INSTALMENT_OPTIONS,
+  INSTALMENT_OPTION_LIST,
+  INSTALMENT_OPTIONS_RULE,
+  INSTALMENT_OPTION_INTEREST_RULE,
+  INSTALMENT_ENGINE_ESTIMATE,
+  INSTALMENT_PENALTY_INTEREST_FLOOR,
+  INSTALMENT_PENALTY_RULE,
+  INSTALMENT_INTEREST_LEAST_RULE,
+  INSTALMENT_REMINDERS_RULE,
+  BUSINESS_EXPENSE_RULE,
+  PERSONAL_EXPENSE_RULE,
+  MEALS_ENTERTAINMENT_RULE,
+  CAPITAL_COST_ALLOWANCE_RULE,
 } from "../cra-rules";
 import { computeHSTCollected } from "../../engines/hst-engine";
+import { calculate, gstHstLabel, gstHstRate } from "../../engines/canadian-tax-engine";
+import { PROVINCE_LABELS, type Province } from "../../types/database";
 import { validateTaxCopy } from "../validate";
 
 const errorsIn = (text: string) => validateTaxCopy(text).filter((d) => d.level === "error");
@@ -258,5 +293,244 @@ describe("GST/HST collected is held in trust", () => {
     expect(GST_HST_TRUST_RULE).toMatch(/deemed held in trust for the Crown until it is remitted/);
     expect(errorsIn(GST_HST_TRUST_RULE)).toEqual([]);
     expect(GST_HST_TRUST_RULE).not.toMatch(/\b(?:yours|aside)\b/i);
+  });
+});
+
+describe("GST/HST rate by province", () => {
+  const provinces = Object.keys(PROVINCE_LABELS).filter((key): key is Province => key in PROVINCE_LABELS);
+  const hstProvinces = provinces.filter((p) => gstHstLabel(p) === "HST");
+  const gstProvinces = provinces.filter((p) => gstHstLabel(p) === "GST");
+
+  it("the rates are CRA's table as read 2026-10-13, and they are the engine's", () => {
+    // canada.ca, "GST/HST calculator (and rates)", date modified 2025-04-01.
+    const cra: Partial<Record<Province, number>> = {
+      ontario: 0.13,
+      novaScotia: 0.14,
+      newBrunswick: 0.15,
+      newfoundland: 0.15,
+      princeEdwardIsland: 0.15,
+      alberta: 0.05,
+      britishColumbia: 0.05,
+      manitoba: 0.05,
+      saskatchewan: 0.05,
+      northwestTerritories: 0.05,
+      nunavut: 0.05,
+      yukon: 0.05,
+    };
+    for (const [province, rate] of Object.entries(cra)) expect(gstHstRate(province), province).toBe(rate);
+    expect(Object.keys(cra).sort()).toEqual([...hstProvinces, ...gstProvinces].sort());
+  });
+
+  it("every HST province is in one group, at the engine's rate, lowest rate first", () => {
+    expect(HST_RATE_GROUPS.flatMap((g) => g.provinces).sort()).toEqual([...hstProvinces].sort());
+    for (const group of HST_RATE_GROUPS) {
+      for (const province of group.provinces) expect(gstHstRate(province), province).toBe(group.rate);
+      expect(group.percent).toBe(fmtGstHstRate(group.rate));
+    }
+    const rates = HST_RATE_GROUPS.map((g) => g.rate);
+    expect([...rates].sort((a, b) => a - b)).toEqual(rates);
+    expect(new Set(rates).size).toBe(rates.length);
+  });
+
+  it("the GST provinces and territories share one rate", () => {
+    expect([...GST_RATE_GROUP.provinces].sort()).toEqual([...gstProvinces].sort());
+    for (const province of gstProvinces) expect(gstHstRate(province), province).toBe(GST_RATE_GROUP.rate);
+  });
+
+  it("the sentence prints each HST province beside its own rate", () => {
+    expect(GST_HST_RATE_RULE).toMatch(/^Per CRA, the GST\/HST rate to charge depends on the province or territory where the supply is made: /);
+    for (const group of HST_RATE_GROUPS) {
+      expect(GST_HST_RATE_RULE).toContain(`${group.percent} HST in ${group.names}`);
+    }
+    expect(GST_HST_RATE_RULE).toContain(`${GST_RATE_GROUP.percent} GST in the other provinces and territories`);
+    expect(GST_HST_RATE_RULE).toContain("13% HST in Ontario");
+    expect(GST_HST_RATE_RULE).toContain("14% HST in Nova Scotia");
+    expect(GST_HST_RATE_RULE).toContain("15% HST in New Brunswick, Newfoundland and Labrador and Prince Edward Island");
+  });
+
+  it("13% is Ontario's alone, and Nova Scotia is not at 15%", () => {
+    const thirteen = HST_RATE_GROUPS.find((g) => g.percent === "13%");
+    expect(thirteen?.provinces).toEqual(["ontario"]);
+    expect(gstHstRatePercent("novaScotia")).toBe("14%");
+    expect(GST_HST_RATE_RULE).not.toMatch(/most provinces/i);
+    expect(GST_HST_RATE_RULE).not.toMatch(/Maritimes/i);
+  });
+
+  it("prints a rate the way a reader writes it", () => {
+    expect(fmtGstHstRate(0.05)).toBe("5%");
+    expect(fmtGstHstRate(0.14)).toBe("14%");
+    expect(fmtGstHstRate(0.14975)).toBe("14.975%");
+  });
+
+  it("no advice wording and no em dash", () => {
+    expect(errorsIn(GST_HST_RATE_RULE)).toEqual([]);
+    expect(GST_HST_RATE_RULE).not.toContain("—");
+  });
+});
+
+describe("input tax credits", () => {
+  it("states who recovers what, and how", () => {
+    expect(INPUT_TAX_CREDIT_RULE).toMatch(/^Per CRA, a GST\/HST registrant recovers the GST\/HST paid or payable/);
+    expect(INPUT_TAX_CREDIT_RULE).toMatch(/by claiming input tax credits \(ITCs\)/);
+  });
+
+  it("the records condition is CRA's: evidence before the claim", () => {
+    expect(INPUT_TAX_CREDIT_EVIDENCE_RULE).toMatch(/^Per CRA, /);
+    expect(INPUT_TAX_CREDIT_EVIDENCE_RULE).toMatch(/sufficient documentary evidence/);
+    expect(INPUT_TAX_CREDIT_EVIDENCE_RULE).toMatch(/before the claim is made/);
+  });
+
+  it("the report note ends with the shared sentence", () => {
+    expect(registered.endsWith(INPUT_TAX_CREDIT_NOTE)).toBe(true);
+    expect(INPUT_TAX_CREDIT_NOTE).toMatch(/may reduce the amount remitted to CRA/);
+  });
+
+  it.each([
+    ["rule", INPUT_TAX_CREDIT_RULE],
+    ["evidence", INPUT_TAX_CREDIT_EVIDENCE_RULE],
+    ["note", INPUT_TAX_CREDIT_NOTE],
+  ])("%s: no directive about money left unclaimed, no advice wording, no em dash", (_name, text) => {
+    expect(text).not.toMatch(/on the table|than you need|leaving/i);
+    expect(errorsIn(text)).toEqual([]);
+    expect(text).not.toContain("—");
+  });
+
+  it("each GST/HST rule has a canada.ca page to cite", () => {
+    for (const source of Object.values(CRA_GST_HST_SOURCES)) {
+      expect(source.url).toMatch(
+        /^https:\/\/www\.canada\.ca\/en\/revenue-agency\/services\/tax\/businesses\/topics\/gst-hst-businesses\/[a-z/-]+\.html$/,
+      );
+      expect(source.label).toMatch(/^CRA: /);
+    }
+  });
+});
+
+describe("income tax instalments: the three options to calculate", () => {
+  const everything = [
+    INSTALMENT_OPTIONS_RULE,
+    INSTALMENT_OPTION_INTEREST_RULE,
+    ...INSTALMENT_OPTION_LIST.flatMap((o) => [o.how, o.bestIf]),
+  ];
+
+  it("there are three, in CRA's order", () => {
+    expect(INSTALMENT_OPTION_LIST.map((o) => o.name)).toEqual([
+      "No-calculation option",
+      "Prior-year option",
+      "Current-year option",
+    ]);
+    expect(INSTALMENT_OPTIONS_RULE).toContain("the no-calculation option, the prior-year option and the current-year option");
+  });
+
+  it("each is stated in the same two parts: how it is worked out, and what CRA says it is best for", () => {
+    for (const option of INSTALMENT_OPTION_LIST) {
+      expect(option.how).toMatch(/^Per CRA, under the [a-z-]+ option /);
+      expect(option.bestIf).toMatch(/^Per CRA, this option is best if /);
+    }
+  });
+
+  it("no-calculation: CRA works out the amounts and prints them on its reminders", () => {
+    const { how, bestIf } = INSTALMENT_OPTIONS.noCalculation;
+    expect(how).toMatch(/the CRA determines the instalment amounts from the latest assessed tax return/);
+    expect(how).toMatch(/instalment reminders/);
+    expect(bestIf).toMatch(/stay about the same from year to year/);
+  });
+
+  it("prior-year: from the return for the year before", () => {
+    const { how, bestIf } = INSTALMENT_OPTIONS.priorYear;
+    expect(how).toMatch(/the payer determines the instalment amounts from the tax return for the year before/);
+    expect(bestIf).toMatch(/similar to those of the year before but significantly different from those of two years before/);
+  });
+
+  it("current-year: from an estimate of the three amounts CRA lists", () => {
+    const { how, bestIf } = INSTALMENT_OPTIONS.currentYear;
+    expect(how).toMatch(/an estimate of the current year's net tax owing, CPP contributions payable and voluntary EI premiums/);
+    expect(bestIf).toMatch(/significantly different from those of the two years before/);
+  });
+
+  it("interest: CRA's condition is kept, and only the two options it is written under are named", () => {
+    expect(INSTALMENT_OPTION_INTEREST_RULE).toMatch(/under the prior-year option and the current-year option/);
+    expect(INSTALMENT_OPTION_INTEREST_RULE).toMatch(/payments made in full by the due dates/);
+    expect(INSTALMENT_OPTION_INTEREST_RULE).toMatch(/unless the estimated instalment amounts are too low/);
+    expect(INSTALMENT_OPTION_INTEREST_RULE).not.toMatch(/no-calculation/);
+  });
+
+  it.each(everything)("%s: none is ranked, promised or pushed", (text) => {
+    expect(text).not.toMatch(/most effective|most agents|the best (?:approach|method|option|way)|eliminates|minimi[sz]es|safest|default/i);
+    expect(text).not.toMatch(/\b20\d\d\b/);
+    expect(errorsIn(text)).toEqual([]);
+    expect(text).not.toContain("—");
+  });
+
+  it("penalty: may apply, and only above CRA's $1,000 of instalment interest", () => {
+    expect(INSTALMENT_PENALTY_INTEREST_FLOOR).toBe(1_000);
+    expect(INSTALMENT_PENALTY_RULE).toMatch(/^Per CRA, a penalty may also apply/);
+    expect(INSTALMENT_PENALTY_RULE).toMatch(/late or less than the required amount/);
+    expect(INSTALMENT_PENALTY_RULE).toMatch(/only if instalment interest charges for the year are more than \$1,000/);
+    expect(errorsIn(INSTALMENT_PENALTY_RULE)).toEqual([]);
+    expect(INSTALMENT_PENALTY_RULE).not.toContain("—");
+  });
+
+  it("interest is worked out on the option with the least interest, in CRA's words", () => {
+    expect(INSTALMENT_INTEREST_LEAST_RULE).toMatch(/^Per CRA, /);
+    expect(INSTALMENT_INTEREST_LEAST_RULE).toMatch(/from the day it was due to the balance due date/);
+    expect(INSTALMENT_INTEREST_LEAST_RULE).toMatch(/the payment calculation option that results in the least amount of interest/);
+    expect(INSTALMENT_INTEREST_LEAST_RULE).not.toMatch(/penalis|floor|eliminates/i);
+    expect(errorsIn(INSTALMENT_INTEREST_LEAST_RULE)).toEqual([]);
+  });
+
+  it("reminders: which reminder covers which payments", () => {
+    expect(INSTALMENT_REMINDERS_RULE).toMatch(/^Per CRA, /);
+    expect(INSTALMENT_REMINDERS_RULE).toMatch(/February reminder is for the March and June payments/);
+    expect(INSTALMENT_REMINDERS_RULE).toMatch(/August reminder is for the September and December payments/);
+    expect(errorsIn(INSTALMENT_REMINDERS_RULE)).toEqual([]);
+    expect(INSTALMENT_REMINDERS_RULE).not.toContain("—");
+  });
+
+  it("the options page is in the sources registry", () => {
+    expect(CRA_INSTALMENT_SOURCES.options.url).toMatch(/income-tax-instalments\/options-calculate\.html$/);
+  });
+
+  it("Agent Runway's part: one quarter of the engine's estimate, which is what the engine does", () => {
+    for (const province of ["newBrunswick", "ontario", "alberta"] as const) {
+      const result = calculate(100_000, province, 10);
+      // The engine rounds each figure to the cent.
+      expect(Math.abs(result.quarterlyEstimate - result.totalBurden / 4)).toBeLessThan(0.01);
+      expect(Math.abs(result.totalBurden - (result.federalTax + result.provincialTax + result.totalCPP))).toBeLessThan(0.02);
+    }
+    expect(INSTALMENT_ENGINE_ESTIMATE).toMatch(/one quarter of its tax engine's estimate for the current year/);
+    expect(INSTALMENT_ENGINE_ESTIMATE).toMatch(/federal income tax, provincial income tax and CPP contributions \(QPP in Quebec\)/);
+    expect(INSTALMENT_ENGINE_ESTIMATE).toMatch(/is not CRA's net tax owing/);
+    expect(INSTALMENT_ENGINE_ESTIMATE).not.toMatch(/most effective|exactly what|automatically/i);
+    expect(errorsIn(INSTALMENT_ENGINE_ESTIMATE)).toEqual([]);
+  });
+});
+
+describe("business expenses: what is deductible, meals, capital property", () => {
+  it("the general rule is a reasonable current expense incurred to earn business income, business part only", () => {
+    expect(BUSINESS_EXPENSE_RULE).toMatch(/any reasonable current expense incurred to earn business income is generally deductible/);
+    expect(PERSONAL_EXPENSE_RULE).toMatch(/personal expenses are not deductible/);
+    expect(PERSONAL_EXPENSE_RULE).toMatch(/only the business part of an expense is entered on Form T2125/);
+  });
+
+  it("meals: 50% of the lesser of two amounts, with CRA's exceptions noted", () => {
+    expect(MEALS_ENTERTAINMENT_RULE).toMatch(/50% of the lesser of the amount incurred and an amount that is reasonable in the circumstances/);
+    expect(MEALS_ENTERTAINMENT_RULE).toMatch(/cases where that limit does not apply/);
+  });
+
+  it("capital property: not an expense for the year, deducted over several years as CCA", () => {
+    expect(CAPITAL_COST_ALLOWANCE_RULE).toMatch(/is not deducted as an expense when net business income for the year is calculated/);
+    expect(CAPITAL_COST_ALLOWANCE_RULE).toMatch(/over a period of several years as capital cost allowance \(CCA\)/);
+  });
+
+  it.each([
+    ["general", BUSINESS_EXPENSE_RULE],
+    ["personal", PERSONAL_EXPENSE_RULE],
+    ["meals", MEALS_ENTERTAINMENT_RULE],
+    ["capital property", CAPITAL_COST_ALLOWANCE_RULE],
+  ])("%s: attributed to CRA, no advice wording, no em dash", (_name, rule) => {
+    expect(rule).toMatch(/^Per CRA, /);
+    expect(rule).not.toMatch(/strategy|well-managed|meaningfully/i);
+    expect(errorsIn(rule)).toEqual([]);
+    expect(rule).not.toContain("—");
   });
 });
