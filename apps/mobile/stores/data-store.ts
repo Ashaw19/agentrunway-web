@@ -29,7 +29,7 @@ import {
 import type { ChecklistContactMethod } from "@agent-runway/core/lib/checklist";
 import { markMemoryStale } from "@agent-runway/core/lib/client-memory-stale";
 import type { OpportunityLossReason } from "@agent-runway/core/lib/opportunity-loss-reasons";
-import { activityRow, clientRow, pipelineDealRow, transactionRow } from "../lib/write-rows";
+import { activityRow, clientRow, pipelineDealRow, transactionRow } from "@agent-runway/core/lib/write-rows";
 // Score is read directly from the web dashboard's snapshot in user_settings.
 // No local recomputation needed — guarantees exact parity.
 
