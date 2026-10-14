@@ -37,6 +37,7 @@ import { fmtCurrency, fmtCompact, fmtPct } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { CANONICAL_TAX_DISCLAIMER_SHORT } from "@/lib/flight-crew/constants";
+import { alreadyCapturingNote } from "@agent-runway/core/tax-copy";
 import {
   computeGCI,
   computeWeightedGCI,
@@ -47,16 +48,18 @@ import {
   type PipelineDeal,
   type UserSettings,
   type HistoryItem,
+  type ListingAppointment,
 } from "@/lib/types/database";
 import { computePlanGross } from "@/lib/engines/real-compensation-engine";
 import {
   seasonalFractionElapsed,
   projectedYearEndGCI,
   projectedYearEndTransactions,
+  computeListingWeightedGCI,
 } from "@/lib/engines/projection-engine";
 import { calculate as calculateTax, marginalRate } from "@/lib/engines/canadian-tax-engine";
 import { calculateCorporateTax, type CorporateTaxResult } from "@/lib/engines/corporate-tax-engine";
-import { generateTaxOptimizations, type DeductionTrackingFlags, type TaxOptimizationCard } from "@/lib/engines/tax-optimization-engine";
+import { deductionTaxRate, generateTaxOptimizations, type DeductionTrackingFlags, type TaxOptimizationCard } from "@/lib/engines/tax-optimization-engine";
 import { computeTimeValue } from "@/lib/engines/time-value";
 import {
   Tooltip,
@@ -238,7 +241,8 @@ function TaxOpportunityCard({ card, isExpanded, onToggle, onDismiss }: TaxCardPr
 interface TaxSavingsSectionProps {
   taxOptResult: { cards: TaxOptimizationCard[]; totalEstimatedSavings: number; cardCount: number };
   annualExpenses: number;
-  marginalTaxRate: number;
+  /** `deductionTaxRate(netForTax, province)`: the rate the cards are priced at. */
+  deductionRate: number;
   userId: string | null;
   initialDismissed: string[];
 }
@@ -246,7 +250,7 @@ interface TaxSavingsSectionProps {
 function TaxSavingsSection({
   taxOptResult,
   annualExpenses,
-  marginalTaxRate,
+  deductionRate,
   userId,
   initialDismissed,
 }: TaxSavingsSectionProps) {
@@ -292,8 +296,11 @@ function TaxSavingsSection({
   const medCards    = visibleCards.filter((c) => c.priority >= 40 && c.priority < 70);
   const lowCards    = visibleCards.filter((c) => c.priority < 40);
 
-  // Savings impact bar
-  const captured = annualExpenses * marginalTaxRate;
+  // Savings impact bar. "Already Capturing" prices the year's expenses the way
+  // tax-optimization-engine prices every "Untapped Potential" card
+  // (deductionTaxRate: the marginal rate on net income for tax, the rate the
+  // tax card prints), so the two segments are measured the same way.
+  const captured = annualExpenses * deductionRate;
   const potential = taxOptResult.totalEstimatedSavings;
   const totalBar = captured + potential;
   const capturedPct = totalBar > 0 ? (captured / totalBar) * 100 : 0;
@@ -337,7 +344,7 @@ function TaxSavingsSection({
                 <div
                   className="flex items-center justify-center bg-emerald-500 text-[9px] font-bold text-white transition-all"
                   style={{ width: `${Math.round(capturedPct)}%` }}
-                  title={`Already Capturing: ${fmtCurrency(Math.round(captured))}`}
+                  title={alreadyCapturingNote(captured, annualExpenses, deductionRate)}
                 >
                   {capturedPct > 12 && `${Math.round(capturedPct)}%`}
                 </div>
@@ -513,6 +520,8 @@ interface Props {
   ccaAssetCount?: number;
   historyItems?: HistoryItem[];
   pipelineDeals?: PipelineDeal[];
+  /** `listing_appointments` rows with status scheduled or active: the dashboard's listing query. */
+  activeListings?: ListingAppointment[];
   isPro?: boolean;
   scenarioSeed?: ScenarioSeedData | null;
   /** Still to come this year: ytdExpenseTotals(...).expensesRemaining. expensesYTD + this = the year's expenses. */
@@ -576,6 +585,7 @@ export function OverheadContent({
   ccaAssetCount = 0,
   historyItems = [],
   pipelineDeals = [],
+  activeListings = [],
   isPro: isPro = false,
   scenarioSeed = null,
   expensesRemaining,
@@ -596,6 +606,11 @@ export function OverheadContent({
     0,
   );
   const pipelineCount = livePipelineDeals.length;
+
+  // ── Listing appointment weighted GCI ───────────────────────────────────
+  // The dashboard's projected GCI counts listing appointments
+  // (computeListingWeightedGCI, projection-engine), so its tax estimate does.
+  const listingWeightedGCI = computeListingWeightedGCI(activeListings);
 
   // ── Seasonality ────────────────────────────────────────────────────────
   const agentSeasonalWeights = (() => {
@@ -619,7 +634,7 @@ export function OverheadContent({
 
   const fraction = seasonalFractionElapsed(seasonalWeights);
   const goalGCI = settings?.goal_gci ?? 0;
-  const projectedGCI = projectedYearEndGCI(ytdGCI, pipelineWeightedGCI, fraction, goalGCI);
+  const projectedGCI = projectedYearEndGCI(ytdGCI, pipelineWeightedGCI + listingWeightedGCI, fraction, goalGCI);
   const projectedDealCount = projectedYearEndTransactions(ytdDealCount, pipelineCount, fraction);
 
   // ── Expenses ───────────────────────────────────────────────────────────
@@ -662,8 +677,12 @@ export function OverheadContent({
     ? calculateTax(netForTax, settings.province, Math.max(projectedDealCount, 1))
     : null;
 
+  // Combined federal + provincial rate on the next dollar of net income for
+  // tax, the dashboard's and Forecast's figure. Income tax is charged on net
+  // business income, not on GCI (GCI is before the split, brokerage fees and
+  // expenses), so a rate looked up at GCI can sit in a higher bracket.
   const marginalTaxRate = settings
-    ? marginalRate(Math.max(projectedGCI, ytdGCI), settings.province)
+    ? marginalRate(netForTax, settings.province)
     : 0;
 
   const afterTaxPerDeal =
@@ -1095,7 +1114,7 @@ export function OverheadContent({
         <TaxSavingsSection
           taxOptResult={taxOptResult}
           annualExpenses={annualExpenses}
-          marginalTaxRate={marginalTaxRate}
+          deductionRate={settings ? deductionTaxRate(netForTax, settings.province) : 0}
           userId={settings?.user_id ?? null}
           initialDismissed={(settings?.tax_opt_dismissed as string[]) ?? []}
         />

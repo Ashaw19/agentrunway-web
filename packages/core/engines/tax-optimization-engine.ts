@@ -217,6 +217,19 @@ function currentMonth(): number {
   return new Date().getMonth() + 1; // 1–12
 }
 
+/**
+ * The rate this engine prices a deduction at: the combined federal +
+ * provincial marginal rate on net income for tax (the dashboard's
+ * `netForTax`), 0 when there is no net income to deduct from. A deduction of
+ * D is estimated to reduce income tax by D x this rate.
+ *
+ * Exported so a surface that prices the deductions already recorded (the
+ * Overhead page's "Already Capturing") uses the rule the cards use.
+ */
+export function deductionTaxRate(netIncome: number, province: Province): number {
+  return netIncome > 0 ? marginalRate(netIncome, province) : 0;
+}
+
 // ── Main engine ──────────────────────────────────────────────────────────────
 
 export function generateTaxOptimizations(
@@ -228,7 +241,7 @@ export function generateTaxOptimizations(
   }
 
   const cards: TaxOptimizationCard[] = [];
-  const mRate = input.netIncome > 0 ? marginalRate(input.netIncome, input.province) : 0;
+  const mRate = deductionTaxRate(input.netIncome, input.province);
 
   // ── Rule 1: RRSP Optimization ────────────────────────────────────────────
   if (

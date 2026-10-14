@@ -1916,6 +1916,11 @@ The Overhead page is your complete tax visibility dashboard:
    - Your actual overall tax rate = Total Tax ÷ Net Self-Employment Income
    - This is different from your marginal rate (the rate on your next dollar)
 
+   **Marginal rate** (a row on the Tax Readiness card)
+   - The combined federal + provincial income tax rate on the next dollar of projected net income for tax: projected GCI after the split, plan fees and brokerage fees, less the year's expenses. CPP is not in it
+   - The same figure as the dashboard's and Forecast's "Marginal rate". Projected GCI counts listing appointments (scheduled or active) the way the dashboard's does, so the whole card matches the dashboard's tax card
+   - Changed 2026-10-14: Overhead looked the rate up at projected GCI, before the split, fees and expenses, so it could show a higher bracket than the dashboard. It also left listing appointments out of projected GCI, so an agent with listing appointments saw a lower tax estimate on Overhead than on the dashboard
+
 3. **Quarterly Instalment Amounts**
    - CRA requires quarterly payments if you owe > $3,000 in tax
    - Deadlines: March 15, June 15, September 15, December 15
@@ -1940,7 +1945,13 @@ The Overhead page is your complete tax visibility dashboard:
    - Shows: original cost, UCC (undepreciated capital cost), CCA claimed
    - Half-year rule: first-year CCA is 50% of the normal rate
 
-7. **Per-Deal Tax Estimate** (shown as "Per-deal tax portion")
+7. **Savings Impact bar** (top of the Tax Deduction Estimates card)
+   - "Already Capturing" = the year's expenses (year to date + still to come) × the marginal rate above: an estimate of the income tax those expenses reduce. $0 when projected net income for tax is $0
+   - "Untapped Potential" = the total of the cards' estimates, each a deduction × the same rate (tax-optimization-engine, deductionTaxRate)
+   - Hovering "Already Capturing" shows the expenses and the rate it used
+   - Changed 2026-10-14: "Already Capturing" used the rate looked up at projected GCI, so it came out larger than the cards' method gives. It is an estimate, not a refund or an amount CRA has confirmed
+
+8. **Per-Deal Tax Estimate** (shown as "Per-deal tax portion")
    - Total annual tax estimate ÷ projected deal count
    - An estimate of the tax each closed deal carries, not an amount to set aside
    - The deal-close screens show the same estimate for one commission by its size ("Income tax and CPP (estimate)" = annual estimate × that commission ÷ projected year-end GCI). Equal to this figure for a deal of the projected average size
@@ -2028,6 +2039,8 @@ If the card doesn't show: the agent hasn't set 'estimated_weekly_hours' in Setti
 - **"Tax estimate seems too high/low"**: Check Settings → province, business structure (sole prop vs incorporated), and whether expenses are fully entered.
 - **"CCA not showing"**: You need to add CCA assets first — use the Flight Crew ("I bought a $2,400 laptop for work") or add manually on the Overhead page.
 - **"HST numbers wrong"**: Check "GST/HST Registered?" (Reports → T2125) and "Does your brokerage withhold HST from your commission cheques?" (Settings → Brokerage Fees; also asked in onboarding). The app counts GST/HST on commissions only when registration is on. With the brokerage question answered Yes, the dashboard, Forecast, Reports → Tax Snapshot, the deal-close screen and Flight Crew count none in the agent's hands; answered No, they show the estimate (GST/HST rate × GCI) as collected by the agent. The HST return on the Expenses page (line 103) and the T2125's GST/HST section do not read the brokerage answer: for a registrant both show GST/HST on commissions either way, so an agent who answered Yes still sees an amount there. The line under the question says so. Changed 2026-10-13: it used to mention set-aside recommendations and reminders, and onboarding said the answer changed take-home pay (it does not). Whether registration is required is CRA's small supplier rule ($30,000 of revenue from taxable supplies in a single calendar quarter or over four consecutive calendar quarters); whether it applies to this agent is a question for their accountant.
+- **"My marginal rate on Overhead changed" / "Overhead and the dashboard show different marginal rates"**: Since 2026-10-14 both are the rate on projected net income for tax, from the same projection (listing appointments included). Before that date Overhead looked it up at projected GCI. If they still differ, the two pages were loaded at different times (a deal, expense or listing appointment added in between); reload both.
+- **"Already Capturing went down"**: Since 2026-10-14 it is the year's expenses × the marginal rate on projected net income for tax, the method the cards use. Before that date it used the rate at projected GCI, which is the same or higher.
 - **"Instalment amounts changed"**: They update as your estimated tax changes throughout the year based on new transactions and expenses.
 - **"What is line 109 on my GST34?"**: Net tax = GST collected on commissions minus ITCs from expenses. Positive means you owe CRA; negative means CRA refunds you.
 - **"My ITCs seem low"**: Insurance premiums are GST/HST exempt — no ITC can be claimed. Meals & entertainment ITCs are 50% disallowed.
