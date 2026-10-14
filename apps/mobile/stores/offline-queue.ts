@@ -9,7 +9,7 @@ import { create } from "zustand";
 import { storage } from "../lib/mmkv";
 import { supabase } from "../lib/supabase";
 import { useToastStore } from "./toast-store";
-import { activityRow, clientRow, transactionRow } from "../lib/write-rows";
+import { activityRow, clientRow, transactionRow } from "@agent-runway/core/lib/write-rows";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -82,7 +82,7 @@ function saveFailed(failed: QueuedMutation[]) {
 }
 
 // ── Mutation Executors ───────────────────────────────────────────────────────
-// Rows go through lib/write-rows, as the store's own writes do: a payload
+// Rows go through core lib/write-rows, as the store's own writes do: a payload
 // queued before 2026-10-14 can carry a null in a NOT NULL text column, or a
 // client without name_search, which failed on every replay.
 

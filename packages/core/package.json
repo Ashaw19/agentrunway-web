@@ -13,6 +13,7 @@
     "./lib/checklist": "./lib/checklist.ts",
     "./lib/checklist-actions": "./lib/checklist-actions.ts",
     "./lib/record-pipeline-deal-close": "./lib/record-pipeline-deal-close.ts",
+    "./lib/write-rows": "./lib/write-rows.ts",
     "./types/database": "./types/database.ts",
     "./types/organizations": "./types/organizations.ts",
     "./formatters": "./formatters.ts",

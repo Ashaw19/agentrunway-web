@@ -1,5 +1,7 @@
 /**
- * The rows the phone writes, shaped so the database accepts them.
+ * Rows shaped so the database accepts them. The phone app writes through
+ * these (apps/mobile stores); they live in core so the rules are tested here
+ * (lib/__tests__/write-rows.test.ts) and any client can use them.
  *
  * `transactions.address / client_name / notes`, `pipeline_deals.address /
  * client_name / notes` and `contact_activities.description` are NOT NULL
@@ -12,7 +14,7 @@
  * queue's replay, so a queued write lands the same way.
  */
 
-import { toNameSearch } from "@agent-runway/core/lib/client-identity";
+import { toNameSearch } from "./client-identity";
 
 /** NOT NULL text columns with a '' default: send '' for a blank value. */
 function blankToEmpty<T extends Record<string, unknown>>(row: T, keys: readonly string[]): T {
