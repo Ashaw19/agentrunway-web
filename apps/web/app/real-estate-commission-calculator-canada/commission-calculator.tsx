@@ -3,29 +3,27 @@
 import { useState, useMemo } from "react";
 import Link from "next/link";
 import { Calculator, Info } from "lucide-react";
+import { gstHstRate } from "@agent-runway/core/engines/canadian-tax-engine";
+import { PROVINCE_ISO_CODES, PROVINCE_LABELS, type Province } from "@agent-runway/core/types/database";
 
 // ── Province HST/GST rates ──────────────────────────────────────────────────
+//
+// The engine's rate on a commission (`gstHstRate`), not a table typed here.
+// The typed table missed the April 1, 2025 change to one province's rate.
 
 interface ProvinceConfig {
   label: string;
   hstRate: number;
 }
 
-const PROVINCES: Record<string, ProvinceConfig> = {
-  AB: { label: "Alberta", hstRate: 0.05 },
-  BC: { label: "British Columbia", hstRate: 0.05 },
-  MB: { label: "Manitoba", hstRate: 0.05 },
-  NB: { label: "New Brunswick", hstRate: 0.15 },
-  NL: { label: "Newfoundland & Labrador", hstRate: 0.15 },
-  NS: { label: "Nova Scotia", hstRate: 0.15 },
-  ON: { label: "Ontario", hstRate: 0.13 },
-  PE: { label: "Prince Edward Island", hstRate: 0.15 },
-  QC: { label: "Quebec", hstRate: 0.14975 },
-  SK: { label: "Saskatchewan", hstRate: 0.05 },
-  NT: { label: "Northwest Territories", hstRate: 0.05 },
-  NU: { label: "Nunavut", hstRate: 0.05 },
-  YT: { label: "Yukon", hstRate: 0.05 },
-};
+const PROVINCES: Record<string, ProvinceConfig> = Object.fromEntries(
+  Object.keys(PROVINCE_LABELS)
+    .filter((key): key is Province => key in PROVINCE_LABELS)
+    .map((province) => [
+      PROVINCE_ISO_CODES[province],
+      { label: PROVINCE_LABELS[province], hstRate: gstHstRate(province) },
+    ]),
+);
 
 // ── Blended income tax estimate ─────────────────────────────────────────────
 
@@ -43,7 +41,7 @@ interface CommissionResult {
   hstRate: number;
 }
 
-function calculateCommission(
+export function calculateCommission(
   salePrice: number,
   commissionRate: number,
   brokerageSplit: number,

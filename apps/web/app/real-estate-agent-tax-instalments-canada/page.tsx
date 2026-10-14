@@ -5,6 +5,15 @@ import { MarketingNav } from "@/components/marketing-nav";
 import { MarketingFooter } from "@/components/marketing-footer";
 import { EmailCapture } from "@/components/email-capture";
 import { articleSchema } from "@/lib/schema";
+import {
+  INSTALMENT_ENGINE_ESTIMATE,
+  INSTALMENT_INTEREST_LEAST_RULE,
+  INSTALMENT_INTEREST_RULE,
+  INSTALMENT_OPTION_INTEREST_RULE,
+  INSTALMENT_OPTIONS,
+  INSTALMENT_OPTIONS_RULE,
+  INSTALMENT_REMINDERS_RULE,
+} from "@agent-runway/core/tax-copy";
 
 export const metadata: Metadata = {
   title:
@@ -43,7 +52,7 @@ const JSON_LD_ARTICLE = articleSchema({
     "When CRA requires quarterly tax instalments, how to calculate them under each of the three published methods, and the exact due dates for self-employed Canadian real estate agents.",
   url: "/real-estate-agent-tax-instalments-canada",
   datePublished: "2026-05-06",
-  dateModified: "2026-05-06",
+  dateModified: "2026-10-13",
 });
 
 // ─── CRA primary sources (audit registry) ─────────────────────────────────────
@@ -319,85 +328,43 @@ export default function RealEstateAgentTaxInstalmentsCanadaPage() {
               </h2>
 
               <p>
-                CRA publishes three methods for calculating each quarterly
-                instalment payment<CRACite id={3} />. A taxpayer may choose
-                any of the three for any given year — the choice is not
-                locked in advance, and switching methods between years is
-                permitted<CRACite id={3} />.
+                {INSTALMENT_OPTIONS_RULE}
+                <CRACite id={3} /> CRA describes each one the same way: how
+                the amounts are worked out, and the situation it is best for.
               </p>
 
               <h3>1. No-calculation option</h3>
 
               <p>
-                The no-calculation option is the default. CRA computes the
-                quarterly amount and prints it directly on the instalment
-                reminder. The figure is based on the most recent two years
-                of assessed returns: the March 15 and June 15 instalments
-                are each one-quarter of the second-most-recent year&apos;s net
-                tax owing, and the September 15 and December 15 instalments
-                are calculated to bring the year&apos;s total instalments to
-                the most-recent year&apos;s net tax owing<CRACite id={3} />.
-              </p>
-
-              <p>
-                Following the no-calculation option exactly — paying each
-                amount on or before its due date — eliminates instalment
-                interest exposure for that year, regardless of what the
-                actual current-year tax turns out to be<CRACite id={3} />
-                <CRACite id={6} />.
+                {INSTALMENT_OPTIONS.noCalculation.how}{" "}
+                {INSTALMENT_OPTIONS.noCalculation.bestIf}
+                <CRACite id={3} /> {INSTALMENT_REMINDERS_RULE}
+                <CRACite id={2} />
               </p>
 
               <h3>2. Prior-year option</h3>
 
               <p>
-                The prior-year option pays one quarter of the previous
-                year&apos;s net tax owing on each of the four due dates
-                <CRACite id={3} />. This option produces a lower figure than
-                the no-calculation option when income two years ago was
-                higher than income last year — the no-calculation method is
-                anchored to the older figure on the first two payments,
-                while the prior-year method uses only the most recent
-                assessed year.
-              </p>
-
-              <p>
-                Following the prior-year option exactly also eliminates
-                instalment interest exposure, even if current-year income
-                grows<CRACite id={3} />.
+                {INSTALMENT_OPTIONS.priorYear.how}{" "}
+                {INSTALMENT_OPTIONS.priorYear.bestIf}
+                <CRACite id={3} />
               </p>
 
               <h3>3. Current-year option</h3>
 
               <p>
-                The current-year option pays one quarter of the
-                taxpayer&apos;s own estimate of the current year&apos;s net
-                tax owing<CRACite id={3} />. This option produces the lowest
-                figure when income is expected to drop materially — for
-                example, when an agent moves to part-time, takes parental
-                leave, or transitions to a salaried role mid-year.
-              </p>
-
-              <p>
-                The trade-off is interest risk. If the current-year estimate
-                turns out to be low and actual tax owing is higher, CRA
-                charges instalment interest on the underpayment from the
-                original due date forward<CRACite id={6} />. Following the
-                current-year option exactly eliminates instalment interest
-                only if the estimate matches or exceeds actual current-year
-                tax.
+                {INSTALMENT_OPTIONS.currentYear.how}{" "}
+                {INSTALMENT_OPTIONS.currentYear.bestIf}
+                <CRACite id={3} />
               </p>
 
               <h3>How CRA charges interest across the three methods</h3>
 
               <p>
-                CRA&apos;s published rule is that instalment interest is
-                calculated on whichever of the three methods produces the
-                <em> lowest</em> required payment for the year
-                <CRACite id={6} />. A taxpayer who chooses the no-calculation
-                option and pays it correctly, but whose current-year option
-                would have been even lower, is not penalised — interest is
-                assessed against the floor, not the chosen method
-                <CRACite id={6} />.
+                {INSTALMENT_INTEREST_RULE}
+                <CRACite id={6} /> {INSTALMENT_INTEREST_LEAST_RULE}
+                <CRACite id={6} /> {INSTALMENT_OPTION_INTEREST_RULE}
+                <CRACite id={3} />
               </p>
 
               {/* ── Section 4 ── */}
@@ -582,29 +549,9 @@ export default function RealEstateAgentTaxInstalmentsCanadaPage() {
               </p>
 
               <p>
-                Because the instalment obligation is calculated against
-                figures only knowable at year-end — net business income,
-                deductible expenses, CPP contributions, HST owing — a running
-                estimate produced through the year tends to track reality
-                more closely than any single static figure printed on a
-                February reminder. The CRA-suggested no-calculation amount
-                is anchored to two-year-old data and may differ materially
-                from actual current-year tax for an agent whose business is
-                growing or shrinking.
-              </p>
-
-              <p>
-                Agent Runway&apos;s tax engine implements the CRA-published
-                instalment math directly. As deals close and net business
-                income accumulates, the engine produces a running estimate of
-                the year&apos;s federal income tax, provincial income tax,
-                self-employed CPP1 and CPP2, and HST owing — and combines
-                them into a quarterly instalment estimate aligned to the
-                March 15 / June 15 / September 15 / December 15 schedule.
-                The estimate updates as new transactions and expenses are
-                recorded, so the figure shown in early September reflects
-                actual income through August rather than a static projection
-                made in February.
+                {INSTALMENT_ENGINE_ESTIMATE} The estimate updates as
+                transactions and expenses are recorded, so the figure shown
+                in early September reflects income recorded through August.
               </p>
 
               <p>
