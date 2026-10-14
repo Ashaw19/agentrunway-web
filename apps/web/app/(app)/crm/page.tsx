@@ -1,7 +1,11 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { ClientsContent } from "./clients-content";
-import type { Client, ClientRecord, ContactActivity, ContactTask, UserSettings, ExpenseItem, ClientRelationship, ClientRecordCoParty, FlightPlan, FlightPlanStep, PropertyShowing, ListingAppointment } from "@/lib/types/database";
+import { computeGCI, type Client, type ClientRecord, type ContactActivity, type ContactTask, type UserSettings, type ClientRelationship, type ClientRecordCoParty, type FlightPlan, type FlightPlanStep, type PropertyShowing, type ListingAppointment, type RecurringExpense, type Transaction } from "@/lib/types/database";
+import { expenseTaxContext } from "@agent-runway/core/engines/expense-totals-engine";
+import { ytdExpenseTotals } from "@agent-runway/core/engines/t2125-expenses-engine";
+import { yearTaxEstimate } from "@agent-runway/core/engines/deal-tax-portion";
+import { atlanticNoon } from "@agent-runway/core/lib/local-date";
 
 
 /**
@@ -20,6 +24,10 @@ export default async function ClientsPage({
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
+
+  // Atlantic calendar, not the server's UTC clock (local-date.ts).
+  const today = atlanticNoon();
+  const taxYear = today.getFullYear();
 
   // ── Step 1: Fetch settings first to determine data source ───────────────
   const { data: settingsData } = await supabase
@@ -110,9 +118,73 @@ export default async function ClientsPage({
       .eq("user_id", user.id)
       .order("appointment_date", { ascending: false })
       .limit(10000),
+    // The five reads below, with expense_items and the scheduled/active
+    // listing appointments above, are the dashboard page's queries: the
+    // client tiers' tax factor and runway months use the dashboard's net
+    // income for tax and monthly expenses.
+    supabase
+      .from("transactions")
+      .select("*")
+      .eq("user_id", user.id)
+      .eq("status", "closed")
+      .gte("date", `${taxYear}-01-01`)
+      .order("date", { ascending: false })
+      .limit(10000),
+    supabase
+      .from("pipeline_deals")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(10000),
+    supabase
+      .from("history_items")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("year", { ascending: false })
+      .limit(10000),
+    supabase
+      .from("receipt_expenses")
+      .select("category_key, total_amount, tax_amount")
+      .eq("user_id", user.id)
+      .gte("expense_date", `${taxYear}-01-01`)
+      .limit(10000),
+    supabase
+      .from("recurring_expenses")
+      .select("*")
+      .eq("user_id", user.id)
+      .eq("is_active", true)
+      .limit(10000),
   ] as const;
 
-  const [clientsResult, recordsResult, activitiesResult, tasksResult, expensesResult, relationshipsResult, coPartiesResult, flightPlansResult, flightPlanStepsResult, showingsResult, listingApptsResult] = await Promise.all(queries);
+  const [clientsResult, recordsResult, activitiesResult, tasksResult, expensesResult, relationshipsResult, coPartiesResult, flightPlansResult, flightPlanStepsResult, showingsResult, listingApptsResult, transactionsResult, pipelineResult, historyResult, receiptTotalsResult, recurringExpResult] = await Promise.all(queries);
+
+  // Year-to-date expenses, what is still to come and the monthly figure: the
+  // dashboard's one engine call (t2125-expenses-engine), net of the ITCs a
+  // registrant claims.
+  const expenseTotals = ytdExpenseTotals({
+    receipts: receiptTotalsResult.data,
+    recurring: (recurringExpResult.data ?? []) as RecurringExpense[],
+    expenseItems: expensesResult.data,
+    ctx: expenseTaxContext(settings),
+    now: today,
+  });
+
+  // Projected net income for tax: the dashboard's (core/engines/deal-tax-portion).
+  const listingAppointments = (listingApptsResult.data ?? []) as ListingAppointment[];
+  const transactions = (transactionsResult.data ?? []) as Transaction[];
+  const netForTax = settings
+    ? yearTaxEstimate({
+        settings,
+        ytdGCI: transactions.reduce((sum, tx) => sum + computeGCI(tx), 0),
+        ytdDealCount: transactions.length,
+        pipelineDeals: pipelineResult.data ?? [],
+        listings: listingAppointments.filter((l) => l.status === "scheduled" || l.status === "active"),
+        historyItems: historyResult.data ?? [],
+        expensesYTD: expenseTotals.expensesYTD,
+        expensesRemaining: expenseTotals.expensesRemaining,
+        now: today,
+      }).netForTax
+    : 0;
 
   return (
     <ClientsContent
@@ -121,13 +193,14 @@ export default async function ClientsPage({
       activities={(activitiesResult.data ?? []) as ContactActivity[]}
       tasks={(tasksResult.data ?? []) as ContactTask[]}
       settings={settings}
-      expenseItems={(expensesResult.data ?? []) as ExpenseItem[]}
+      netForTax={netForTax}
+      monthlyRecurring={expenseTotals.monthlyRecurring}
       relationships={(relationshipsResult.data ?? []) as ClientRelationship[]}
       coParties={(coPartiesResult.data ?? []) as ClientRecordCoParty[]}
       flightPlans={(flightPlansResult.data ?? []) as FlightPlan[]}
       flightPlanSteps={(flightPlanStepsResult.data ?? []) as FlightPlanStep[]}
       showings={(showingsResult.data ?? []) as PropertyShowing[]}
-      listingAppointments={(listingApptsResult.data ?? []) as ListingAppointment[]}
+      listingAppointments={listingAppointments}
       userId={user.id}
       openClientId={openClientId ?? null}
     />

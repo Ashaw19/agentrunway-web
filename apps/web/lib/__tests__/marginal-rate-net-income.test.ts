@@ -166,15 +166,6 @@ describe("every marginalRate( call in apps/web", () => {
 // 2. Engines that look a marginal rate up at a `netIncome` input
 // ─────────────────────────────────────────────────────────────────────────
 
-/**
- * Known exception, out of this change's scope: the CRM client tiers' tax
- * factor is given `settings.ytd_gci` (a GCI figure) as `netIncome`. Listed so
- * the test fails when it is fixed and the entry can come out.
- */
-const KNOWN_NOT_NET: Record<string, string> = {
-  "app/(app)/crm/clients-content.tsx": "settings.ytd_gci",
-};
-
 describe("engines that look a marginal rate up at their netIncome input", () => {
   it("tax-optimization-engine is given net income for tax on every surface", () => {
     const calls = netIncomeArgs("generateTaxOptimizations");
@@ -190,13 +181,12 @@ describe("engines that look a marginal rate up at their netIncome input", () => 
     }
   });
 
-  it("client-valuation-engine: every caller is net income for tax, or a listed exception", () => {
+  it("client-valuation-engine is given net income for tax on every surface", () => {
+    // The CRM client tiers' After Tax factor: settings.ytd_gci until
+    // 2026-10-14 (client-tiers-net-income.test.ts).
     const calls = netIncomeArgs("computeClientValuations");
     expect(calls.map(([f]) => f)).toContain("app/(app)/crm/clients-content.tsx");
-    for (const [file, arg] of calls) {
-      if (file in KNOWN_NOT_NET) expect(arg, file).toBe(KNOWN_NOT_NET[file]);
-      else expect(arg, file).toBe("netForTax");
-    }
+    for (const [file, arg] of calls) expect(arg, file).toBe("netForTax");
   });
 });
 
