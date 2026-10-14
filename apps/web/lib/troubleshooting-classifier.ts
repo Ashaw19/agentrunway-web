@@ -358,6 +358,11 @@ const TOPIC_RULES: TopicRule[] = [
     secondary: ["send", "message", "tone", "formal", "casual", "friendly", "suppress", "newsletter", "sequence", "post-close", "re-engagement"],
     phrases: [
       "flight control",
+      "text queue",
+      "draft texts",
+      "draft a text",
+      "texts tab",
+      "text my clients",
       "outreach queue",
       "generate draft",
       "ai voice guide",

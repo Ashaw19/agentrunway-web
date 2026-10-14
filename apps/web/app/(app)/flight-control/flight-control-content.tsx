@@ -24,7 +24,7 @@ import {
   Handshake, Heart, Repeat2,
   Flower2, Leaf, PartyPopper, Receipt,
   RefreshCw, Timer, Lightbulb, ArrowRight,
-  AlertTriangle, Brain, Zap, Phone, PhoneCall,
+  AlertTriangle, Brain, Zap, Phone, PhoneCall, MessageSquare,
 } from "lucide-react";
 import type { OutreachQueueItem, OutreachOpportunityType, TopOpportunity, NewsletterQueue, ActivityType, ClientStatus } from "@/lib/types/database";
 import { ACTIVITY_TYPE_LABELS, ACTIVITY_TYPE_ICONS, CLIENT_STATUS_LABELS } from "@/lib/types/database";
@@ -70,6 +70,8 @@ const OPTYPE_ICON: Record<OutreachOpportunityType, React.ElementType> = {
   // Scan call cards (2026-10-07)
   lead_going_quiet:       PhoneCall,
   sphere_check_in:        Users,
+  // Text queue (00179): sent from the phone app, never listed here
+  text_message:           MessageSquare,
 };
 
 // Opportunity score is a HEALTH/magnitude number — it follows the §9.1 score

@@ -27,6 +27,7 @@ export default async function FlightControlPage() {
     .from("outreach_queue")
     .select("*, clients(name, city, province_region, email)")
     .eq("user_id", user.id)
+    .eq("channel", "email") // texts (00179) are sent from the phone app
     .in("status", ["draft", "ready"])
     .order("trigger_date", { ascending: true });
 

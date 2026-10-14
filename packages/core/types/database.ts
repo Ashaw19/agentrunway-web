@@ -719,8 +719,17 @@ export type OutreachOpportunityType =
   | "scheduled_date_approaching" // Client in Scheduled stage, future-intent date approaching (within 30d)
   // Scan call cards (2026-10-07) — Scan-only, call-first, never drafted as email
   | "lead_going_quiet"          // Boarding / In-Flight, 14+ days since last contact
-  | "sphere_check_in";          // Cruising, no deal ever, 90+ days since contact (max 2 per scan)
+  | "sphere_check_in"           // Cruising, no deal ever, 90+ days since contact (max 2 per scan)
+  // Text queue (00179) — a text the agent picked or asked Flight Crew for; channel "sms"
+  | "text_message";
 export type OutreachStatus          = "draft" | "ready" | "sent" | "skipped";
+
+/**
+ * How a queued message goes out. "email": Flight Control drafts and sends it.
+ * "sms": a text the agent sends from the phone app (Messages opens prefilled),
+ * always with opportunity_type "text_message" (00179).
+ */
+export type OutreachChannel         = "email" | "sms";
 
 export interface OutreachQueueItem {
   id:               string;
@@ -728,6 +737,7 @@ export interface OutreachQueueItem {
   client_id:        string | null;
   client_record_id: string | null;
   opportunity_type: OutreachOpportunityType;
+  channel:          OutreachChannel;
   trigger_date:     string;                  // ISO date
   context:          Record<string, unknown>;
   status:           OutreachStatus;

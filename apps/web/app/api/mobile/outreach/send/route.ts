@@ -63,6 +63,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       .eq("id", outreachId)
       .eq("user_id", user.id)
       .neq("status", "sent")
+      .eq("channel", "email") // a queued text (00179) goes through /texted
       .single();
 
     if (itemErr || !item) {

@@ -126,7 +126,7 @@ function daysSince(isoDate: string): number {
   return Math.round(-daysUntil(addDays(isoDate.slice(0, 10), 0)));
 }
 
-function extractFirstName(displayName: string | null): string {
+export function extractFirstName(displayName: string | null): string {
   if (displayName) return displayName.split(/\s+/)[0] ?? displayName;
   return "your agent";
 }
@@ -286,7 +286,7 @@ const BANNED_PHRASES = [
  * so the client's own client_records query never sees it. Feeds the CASL
  * gate only. A failed lookup is logged and treated as no co-bought deals.
  */
-async function coBoughtDeals(
+export async function coBoughtDeals(
   supabase: SupabaseClient,
   userId: string,
   clientId: string,

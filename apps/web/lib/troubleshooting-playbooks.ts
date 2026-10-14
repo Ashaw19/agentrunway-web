@@ -982,6 +982,14 @@ Each contact has a decayed engagement score based on recent activity history.
 
 If a user asks "why is Agent Runway reminding me about mortgage renewals?" — explain that a 5-year fixed mortgage (the most common Canadian term) means clients bought ~5 years ago are likely renewing, and this is a high-conversion touch-point for referrals and repeat business.
 
+### Text Queue (iPhone app)
+- Texts are drafted on request only (Clients → Select → Text in the iPhone app, or Dispatcher's draftClientTexts in chat). The nightly scan never drafts texts.
+- They wait in the iPhone app: More → Flight Control → Texts. They are not shown on the web Flight Control page.
+- "It didn't send": an iPhone app can only open Messages prefilled. The agent must tap Send in Messages. Only then is the text marked sent and logged as a Text activity.
+- "No text drafted (call instead)": the client opted out, or their last deal closed 2+ years ago (CASL implied consent from a purchase lasts 2 years and covers texts like email).
+- "No phone number on file": add the client's mobile number in Clients.
+- One text draft per client per day; drafting again the same day returns the waiting draft.
+
 ### Smart Suppression
 - Clients contacted within past 14 days are suppressed (no new outreach generated)
 - **Exception**: Birthday outreach is NEVER suppressed (always appropriate)

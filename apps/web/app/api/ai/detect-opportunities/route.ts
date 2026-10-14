@@ -3045,6 +3045,7 @@ export async function POST(req: NextRequest) {
       .from("outreach_queue")
       .select("*, clients(name, city, province_region, email)")
       .eq("user_id", userId)
+      .eq("channel", "email") // texts (00179) live in the phone app's Texts tab
       .in("status", ["draft", "ready"])
       .order("trigger_date", { ascending: true });
 
@@ -3068,6 +3069,7 @@ export async function GET(_req: NextRequest) {
     .from("outreach_queue")
     .select("*, clients(name, city, province_region, email)")
     .eq("user_id", user.id)
+    .eq("channel", "email") // texts (00179) live in the phone app's Texts tab
     .in("status", ["draft", "ready"])
     .order("trigger_date", { ascending: true });
 

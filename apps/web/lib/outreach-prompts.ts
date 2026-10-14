@@ -1293,3 +1293,66 @@ ${SUBJECT_LINE_RULES}
 On the very last line, write exactly:
 SUBJECT: [your subject line]`;
 }
+
+// ── Text messages (text queue, 00179) ─────────────────────────────────────────
+
+export const TEXT_PURPOSES = ["check_in", "market_update", "custom"] as const;
+export type TextPurpose = (typeof TEXT_PURPOSES)[number];
+
+export const TEXT_PURPOSE_LABELS: Record<TextPurpose, string> = {
+  check_in: "Check in",
+  market_update: "Offer a market update",
+  custom: "Your own message",
+};
+
+/**
+ * One short text to one client, in the agent's voice. The code appends the
+ * agent's name and the opt-out line, so the model writes the message only.
+ * Facts the app doesn't hold (prices, rates, inventory) are never stated:
+ * a market update is offered, not invented.
+ */
+export function buildTextMessagePrompt(input: {
+  agentFirst: string;
+  clientFirst: string;
+  purpose: TextPurpose;
+  note: string | null;
+  tone: Tone;
+  city: string | null;
+  lastDeal: { address: string | null; closeDate: string | null; side: string | null } | null;
+  monthsSinceContact: number | null;
+}): string {
+  const { agentFirst, clientFirst, purpose, note, tone, city, lastDeal, monthsSinceContact } = input;
+
+  const facts = [
+    city ? `- They live in or around ${city}.` : null,
+    lastDeal?.address
+      ? `- You helped them ${lastDeal.side === "seller" ? "sell" : lastDeal.side === "both" ? "buy and sell" : "buy"}${lastDeal.address ? ` ${lastDeal.address}` : ""}${lastDeal.closeDate ? ` (closed ${lastDeal.closeDate.slice(0, 7)})` : ""}.`
+      : null,
+    monthsSinceContact != null ? `- About ${monthsSinceContact} month${monthsSinceContact === 1 ? "" : "s"} since you were last in touch.` : null,
+  ].filter(Boolean).join("\n");
+
+  const goal =
+    purpose === "check_in"
+      ? `A friendly personal check-in. Ask how they're doing in a way that invites a reply. No sales pitch.`
+      : purpose === "market_update"
+        ? `Offer to send them a quick picture of what's happening with homes in their area (what nearby homes are selling for, or what their home might be worth today). Make it an easy yes/no offer. Do NOT state any prices, numbers, rates or market trends yourself.`
+        : `The agent wants to say this (keep its meaning, put it in the agent's words): "${note ?? ""}"`;
+
+  return `You are writing ONE text message (SMS) from ${agentFirst}, a Canadian real estate agent, to their client ${clientFirst}.
+
+GOAL: ${goal}
+
+WHAT YOU KNOW ABOUT ${clientFirst.toUpperCase()}:
+${facts || "- Nothing beyond their name."}
+${purpose === "custom" || !note ? "" : `\nAGENT'S NOTE (use it if it helps): "${note}"\n`}
+${TONE_INSTRUCTIONS[tone]}
+
+TEXT MESSAGE RULES (these override any length or format guidance elsewhere):
+- 1 to 3 short sentences, under 280 characters in total.
+- Start with their first name ("Hi ${clientFirst}," or "Hey ${clientFirst}," to suit the tone). No "Dear".
+- Sound like ${agentFirst} typed it on their phone: plain, warm, specific. No marketing language, no hashtags, no links, no emojis unless the tone is casual (then at most one).
+- Never state facts you weren't given: no prices, rates, statistics, listings or market claims.
+- No em dashes. Use a comma or a full stop instead.
+- No sign-off and no name at the end: the app adds ${agentFirst}'s name and an opt-out line.
+- Output ONLY the message text. No quotes, no labels, no explanation.`;
+}
