@@ -139,19 +139,34 @@ export default async function DashboardPage({
         .from("income_goals")
         .select("year, goal_gci")
         .eq("user_id", user.id),
+      // Pipeline rows already recorded as a transaction, any year or status:
+      // the Closing Day prompt skips them (dealsAwaitingCloseConfirmation).
+      supabase
+        .from("transactions")
+        .select("pipeline_deal_id")
+        .eq("user_id", user.id)
+        .not("pipeline_deal_id", "is", null)
+        .limit(10000),
     ]);
 
   // Extract results — failed queries return empty data instead of crashing the page
   const unwrap = <T,>(r: PromiseSettledResult<T>): T =>
     r.status === "fulfilled" ? r.value : ({ data: null, count: null, error: r.reason } as T);
-  const [txResult, pipelineResult, expCatResult, expItemResult, historyResult, receiptTotalsResult, tasksResult, mileageResult, ccaResult, activeClientsResult, recentActivitiesResult, briefingClientsResult, briefingActivitiesResult, briefingRecordsResult, listingResult, recurringExpResult, scoreHistoryResult, incomeGoalsResult] = [
+  const [txResult, pipelineResult, expCatResult, expItemResult, historyResult, receiptTotalsResult, tasksResult, mileageResult, ccaResult, activeClientsResult, recentActivitiesResult, briefingClientsResult, briefingActivitiesResult, briefingRecordsResult, listingResult, recurringExpResult, scoreHistoryResult, incomeGoalsResult, recordedDealsResult] = [
     unwrap(settledResults[0]), unwrap(settledResults[1]), unwrap(settledResults[2]),
     unwrap(settledResults[3]), unwrap(settledResults[4]), unwrap(settledResults[5]),
     unwrap(settledResults[6]), unwrap(settledResults[7]), unwrap(settledResults[8]),
     unwrap(settledResults[9]), unwrap(settledResults[10]), unwrap(settledResults[11]),
     unwrap(settledResults[12]), unwrap(settledResults[13]), unwrap(settledResults[14]),
     unwrap(settledResults[15]), unwrap(settledResults[16]), unwrap(settledResults[17]),
+    unwrap(settledResults[18]),
   ];
+
+  // null when the lookup failed: the prompt then asks about nothing this load
+  // rather than risk recording a deal a second time.
+  const recordedPipelineDealIds = recordedDealsResult.error || !recordedDealsResult.data
+    ? null
+    : recordedDealsResult.data.flatMap((t) => (t.pipeline_deal_id ? [t.pipeline_deal_id] : []));
 
   // Year-to-date expenses and the monthly figure: one engine call
   // (t2125-expenses-engine), the same one the Expenses page, Reports and
@@ -275,6 +290,7 @@ export default async function DashboardPage({
     <DashboardContent
       transactions={txResult.data ?? []}
       pipelineDeals={pipelineResult.data ?? []}
+      recordedPipelineDealIds={recordedPipelineDealIds}
       settings={settingsRow}
       expensesYTD={expenseTotals.expensesYTD}
       monthlyRecurring={expenseTotals.monthlyRecurring}

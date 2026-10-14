@@ -55,6 +55,7 @@ function localDateStr(): string {
 import { useConfetti } from "@/hooks/use-confetti";
 import { dealCloseTaxPortion, type YearTaxEstimateInputs } from "@agent-runway/core/engines/deal-tax-portion";
 import { DealCloseCelebration, type CelebrationData } from "./deal-close-celebration";
+import { recordPipelineDealClose } from "@/lib/record-pipeline-deal-close";
 
 interface Props {
   pipelineDeals: PipelineDeal[];
@@ -361,42 +362,24 @@ export function TransactionsPipelineTab({ pipelineDeals, settings, closedTransac
     const commPct   = closeValidation.parsed.commission_pct;
     const gci       = salePrice * commPct;
 
-    // Preserve original estimate for accuracy tracking — single write below avoids TOCTOU.
-    const preservedOriginalEstimate =
-      closeTarget.original_estimated_price ?? closeTarget.estimated_price;
-
-    const { data: txData, error: txErr } = await supabase.from("transactions").insert({
-      user_id: user.id,
-      address: closeTarget.address,
-      client_name: closeForm.client_name || "",
-      sale_price: salePrice,
-      commission_pct: commPct,
+    // The same write as the dashboard's Closing Day prompt: a linked
+    // transaction, and the row kept at stage='closed' (rolled back together).
+    const closed = await recordPipelineDealClose(supabase, {
+      userId: user.id,
+      deal: closeTarget,
+      clientName: closeForm.client_name || "",
+      salePrice,
+      commissionPct: commPct,
       side: closeForm.side,
-      status: "closed",
       date: closeForm.date,
-      source: "manual",
-      pipeline_deal_id: closeTarget.id,
-    }).select("id").single();
-    if (txErr || !txData) {
-      const detail = txErr?.code === "23514" ? "Value out of allowed range" : "Failed to create transaction";
-      toast.error(`Couldn't close deal: ${detail}`);
-      setClosing(false);
-      return;
-    }
-
-    const { error: closeErr } = await supabase
-      .from("pipeline_deals")
-      .update({
-        stage: "closed",
-        original_estimated_price: preservedOriginalEstimate,
-      })
-      .eq("id", closeTarget.id)
-      .eq("user_id", user.id);
-
-    if (closeErr) {
-      // Rollback: delete the transaction we just created to avoid inconsistent state
-      await supabase.from("transactions").delete().eq("id", txData.id).eq("user_id", user.id);
-      toast.error("Failed to close deal — changes rolled back");
+    });
+    if (!closed.ok) {
+      if (closed.failedAt === "transaction") {
+        const detail = closed.code === "23514" ? "Value out of allowed range" : "Failed to create transaction";
+        toast.error(`Couldn't close deal: ${detail}`);
+      } else {
+        toast.error("Failed to close deal — changes rolled back");
+      }
       setClosing(false);
       return;
     }
