@@ -325,7 +325,10 @@
     "errorTitle": "Error",
     "errorBody": "Could not save. Please try again.",
     "infoBanner": "Advanced settings like brokerage fees, seasonal weights, and tax configuration are managed on the web dashboard.",
-    "cashReserveNote": "Your cash reserve is one input the Runway Score estimate may use. It is not a target."
+    "cashReserveNote": "Your cash reserve is one input the Runway Score estimate may use. It is not a target.",
+    "textsSection": "TEXTS",
+    "textFooter": "Add my name and an opt-out line",
+    "textFooterDesc": "Ends each drafted text with your name, brokerage and “Reply STOP to opt out.” CASL asks business messages to say who they're from and offer a way to opt out."
   },
   "checklist": {
     "overdue": "Overdue",

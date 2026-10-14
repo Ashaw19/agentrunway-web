@@ -79,10 +79,12 @@ export function pickTextPhone(c: PhoneFields): string | null {
 /**
  * The model's text, made safe to send: quotes and labels stripped, no em or
  * en dashes (house style), no sign-off it added anyway, capped at
- * TEXT_BODY_MAX_CHARS on a sentence or word boundary. Then the agent's name
- * (with brokerage when set) and the opt-out line, each on its own line.
+ * TEXT_BODY_MAX_CHARS on a sentence or word boundary. With a footer, the
+ * agent's name (with brokerage when set) and the opt-out line follow, each on
+ * its own line; with `signOff` null (the agent turned it off in Settings,
+ * user_settings.text_footer) the message stands alone.
  */
-export function finalizeTextBody(raw: string, signOff: string, agentFirst: string): string {
+export function finalizeTextBody(raw: string, signOff: string | null, agentFirst: string): string {
   let body = raw.trim()
     .replace(/^(message|text|sms)\s*:\s*/i, "")
     .replace(/^["'“”]+|["'“”]+$/g, "")
@@ -102,7 +104,7 @@ export function finalizeTextBody(raw: string, signOff: string, agentFirst: strin
     const sentenceEnd = Math.max(cut.lastIndexOf(". "), cut.lastIndexOf("? "), cut.lastIndexOf("! "));
     body = sentenceEnd > 80 ? cut.slice(0, sentenceEnd + 1) : `${cut.slice(0, cut.lastIndexOf(" "))}…`;
   }
-  return `${body}\n${signOff}\n${TEXT_OPT_OUT_LINE}`;
+  return signOff === null ? body : `${body}\n${signOff}\n${TEXT_OPT_OUT_LINE}`;
 }
 
 function monthsSince(iso: string | null | undefined, now: Date): number | null {
@@ -171,7 +173,7 @@ export async function draftTextForClient(input: {
   const [settingsRes, recordsRes, coBought] = await Promise.all([
     supabase
       .from("user_settings")
-      .select("display_name, brokerage_name, ai_voice_guide")
+      .select("display_name, brokerage_name, ai_voice_guide, text_footer")
       .eq("user_id", userId)
       .maybeSingle(),
     supabase
@@ -213,11 +215,19 @@ export async function draftTextForClient(input: {
     return { status: "skipped", clientId, clientName, reason: "The AI service isn't configured." };
   }
 
-  const settings = settingsRes.data as { display_name?: string | null; brokerage_name?: string | null; ai_voice_guide?: string | null } | null;
+  const settings = settingsRes.data as {
+    display_name?: string | null;
+    brokerage_name?: string | null;
+    ai_voice_guide?: string | null;
+    text_footer?: boolean | null;
+  } | null;
   const agentName = settings?.display_name?.trim() || "";
   const agentFirst = extractFirstName(agentName || null);
   const brokerage = settings?.brokerage_name?.trim() || "";
-  const signOff = agentName ? (brokerage ? `${agentName}, ${brokerage}` : agentName) : agentFirst;
+  // Off in Settings → no name, brokerage or opt-out line (00180). Missing
+  // (an older row read before the column existed) keeps the footer.
+  const footer = settings?.text_footer !== false;
+  const signOff = !footer ? null : agentName ? (brokerage ? `${agentName}, ${brokerage}` : agentName) : agentFirst;
   const clientFirst = (client.first_name as string | null)?.trim() || clientName.split(/\s+/)[0] || clientName;
   const latest = records[0] as { address?: string | null; close_date?: string | null; side?: string | null } | undefined;
 

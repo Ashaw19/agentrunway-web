@@ -147,7 +147,7 @@ export default function ClientsScreen() {
   const { t: tCommon } = useTranslation("common");
 
   const {
-    clients, fetchClients, addClient, addActivity, updateClient, isLoading, draftTexts,
+    clients, fetchClients, addClient, addActivity, updateClient, isLoading, draftTexts, settings,
     smartListCounts, overdueFollowupClients, uncontactedLeadClients,
     clientPipelineContext,
   } = useDataStore();
@@ -713,7 +713,9 @@ export default function ClientsScreen() {
             ]}
           />
           <Text style={[Type.caption, { color: c.textDim }]}>
-            {"Each text ends with your name and \u201cReply STOP to opt out.\u201d You review every one before it goes out."}
+            {settings?.text_footer === false
+              ? "You review every text before it goes out."
+              : "Each text ends with your name and \u201cReply STOP to opt out.\u201d You review every one before it goes out."}
           </Text>
           <Button
             label={drafting ? "Drafting…" : `Draft ${selectedIds.length} text${selectedIds.length === 1 ? "" : "s"}`}
