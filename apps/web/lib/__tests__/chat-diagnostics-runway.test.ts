@@ -394,12 +394,6 @@ const ALLOWED_WITHOUT_ESTIMATE: Record<string, { count: number; why: string }> =
     count: 1,
     why: "Reads `.monthlyBurn` only (brokerage fee + recurring), for the client valuation. No runway is shown.",
   },
-  "apps/web/app/(app)/scenarios/scenarios-content.tsx": {
-    count: 1,
-    why:
-      "Known difference from the dashboard, not a decision: the Scenarios page models its own runway " +
-      "(cash ÷ burn, its own seasonal fraction, benchmark fixed at 50). Aligning its Current column is a separate task.",
-  },
 };
 
 function sourceFiles(dir: string): string[] {

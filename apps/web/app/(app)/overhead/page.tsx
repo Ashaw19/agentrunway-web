@@ -1,14 +1,11 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { OverheadContent } from "./overhead-content";
-import type { HistoryItem, Transaction, PipelineDeal, SplitPreset, RecurringExpense, ListingAppointment } from "@/lib/types/database";
+import type { HistoryItem, Transaction, PipelineDeal, RecurringExpense, ListingAppointment } from "@/lib/types/database";
 import { expenseTaxContext } from "@agent-runway/core/engines/expense-totals-engine";
 import { ytdExpenseTotals } from "@agent-runway/core/engines/t2125-expenses-engine";
 import { deductionTrackingFlags } from "@agent-runway/core/engines/tax-optimization-engine";
-import { computeGCI, computeWeightedGCI, activePipelineDeals } from "@/lib/types/database";
-import { projectedYearEndGCI, projectedYearEndTransactions, seasonalFractionElapsed } from "@/lib/engines/projection-engine";
-import { computeEffectiveCashForSurvival } from "@/lib/engines/effective-cash";
-import type { ScenarioSeedData } from "@/app/(app)/scenarios/page";
+import { buildScenarioSeed } from "@/lib/scenario-seed";
 import { computeIsPro } from "@/lib/compute-is-pro";
 import { atlanticNoon } from "@agent-runway/core/lib/local-date";
 
@@ -124,7 +121,7 @@ export default async function OverheadPage() {
     ctx: expenseTaxContext(rawSettings),
     now: today,
   });
-  const { expensesYTD, monthlyRecurring, expensesRemaining } = expenseTotals;
+  const { expensesYTD, expensesRemaining } = expenseTotals;
 
   // Which expense categories the agent tracks, for the tax cards: the lines
   // the two totals above are the sums of.
@@ -137,62 +134,16 @@ export default async function OverheadPage() {
 
   const ccaAssetCount = (ccaResult.data ?? []).length;
 
-  // ── Build scenario seed from the same data ──
-  const ytdGCI = transactions.reduce((sum, tx) => sum + computeGCI(tx), 0);
-  // Hoisted so the weighted-GCI reduce and the deal COUNT are derived from
-  // the SAME filtered array. #258 filtered the money and left the count raw,
-  // which fed terminal deals into projectedYearEndTransactions at +0.3 each.
-  const livePipelineDeals = activePipelineDeals(pipelineDeals);
-  const pipelineWeightedGCI = livePipelineDeals.reduce((sum, d) => sum + computeWeightedGCI(d), 0);
-  const qPcts = rawSettings?.national_quarter_pcts ?? [0.25, 0.25, 0.25, 0.25];
-  const fraction = seasonalFractionElapsed(qPcts);
-  const projectedGCI = projectedYearEndGCI(ytdGCI, pipelineWeightedGCI, fraction, rawSettings?.goal_gci ?? 0);
-
-  // Baseline cash for Survival MUST be cashPosition.effectiveCash (not raw
-  // cash_reserve) so the "current" scenario matches dashboard + chat. See
-  // memory/feedback_data_consistency_protocol.md.
-  const overheadProjectedDealCount = projectedYearEndTransactions(
-    transactions.length, livePipelineDeals.length, fraction,
-  );
-  const overheadBaselineCash = rawSettings
-    ? computeEffectiveCashForSurvival({
-        settings: rawSettings,
-        ytdGCI,
-        expensesYTD,
-        expensesRemaining,
-        projectedGCI,
-        projectedDealCount: overheadProjectedDealCount,
-        fraction,
-        now: today,
-      }).cashPosition.effectiveCash
-    : 0;
-
-  const scenarioSeed: ScenarioSeedData = {
-    // Full plan slice (REAL waterfall support); null settings → legacy defaults.
-    comp: rawSettings ?? null,
-    province: rawSettings?.province ?? "ontario",
-    goalGCI: rawSettings?.goal_gci ?? 0,
-    ytdGCI,
-    projectedAnnualGCI: projectedGCI,
-    dealCount: transactions.length,
-    pipelineWeightedGCI,
-    monthlyRecurring,
-    expensesYTD,
-    expensesRemaining,
-    monthlyBrokerageFee: rawSettings?.monthly_brokerage_fee ?? 0,
-    cashReserve: overheadBaselineCash,
-    isIncorporated: rawSettings?.is_incorporated ?? false,
-    compensationMethod: rawSettings?.compensation_method ?? "salary",
-    quarterPcts: qPcts,
-    splitPreset: (rawSettings?.split_preset ?? "p80_20") as SplitPreset,
-    postCapThreshold: rawSettings?.post_cap_threshold_gci ?? 0,
-    postCapAgentPct: rawSettings?.post_cap_agent_pct ?? 1,
-    postCapBrokeragePct: rawSettings?.post_cap_brokerage_pct ?? 0,
-    txFeeRate: rawSettings?.tx_fee_rate_pct ?? 0,
-    txFeeCap: rawSettings?.tx_fee_annual_cap ?? 0,
-    estimatedWeeklyHours: rawSettings?.estimated_weekly_hours ?? null,
-    vacationWeeks: rawSettings?.vacation_weeks_per_year ?? null,
-  };
+  // ── Scenario Engine seed: the dashboard's projection, seasonal weights,
+  // deal count, cash and benchmark (lib/scenario-seed.ts) ──
+  const scenarioSeed = buildScenarioSeed({
+    settings: rawSettings ?? null,
+    transactions,
+    pipelineDeals,
+    listings: (listingResult.data ?? []) as ListingAppointment[],
+    historyItems: (historyResult.data ?? []) as HistoryItem[],
+    expenses: expenseTotals,
+  });
 
   return (
     <OverheadContent
