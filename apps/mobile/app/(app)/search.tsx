@@ -46,6 +46,7 @@ import { Avatar } from "@/components/ui/Avatar";
 import { Badge } from "@/components/ui/Badge";
 import { Sheet } from "@/components/ui/Sheet";
 import { Button } from "@/components/ui/Button";
+import { computeGCI } from "@agent-runway/core/types/database";
 
 // ── Recent searches persistence ─────────────────────────────────────────────
 
@@ -430,7 +431,7 @@ function DealRowView({
       </View>
       <View style={styles.rowContent}>
         <Text style={[Type.bodyBold, { color: c.text }]} numberOfLines={1}>
-          {item.address ?? item.client_name ?? "Untitled Deal"}
+          {item.address || item.client_name || "Untitled Deal"}
         </Text>
         <Text style={[Type.caption, { color: c.textMuted }]} numberOfLines={1}>
           {fmtCurrency(item.estimated_price)}
@@ -459,7 +460,7 @@ function TransactionRowView({
   };
   const statusColor = statusColorMap[item.status] ?? c.textMuted;
   const statusLabel = item.status.charAt(0).toUpperCase() + item.status.slice(1);
-  const gci = item.gci_override ?? (item.sale_price * item.commission_pct * (item.team_split_pct ?? 1));
+  const gci = computeGCI(item);
 
   return (
     <Pressable
@@ -474,7 +475,7 @@ function TransactionRowView({
       </View>
       <View style={styles.rowContent}>
         <Text style={[Type.bodyBold, { color: c.text }]} numberOfLines={1}>
-          {item.address ?? item.client_name ?? "Transaction"}
+          {item.address || item.client_name || "Transaction"}
         </Text>
         <Text style={[Type.caption, { color: c.textMuted }]} numberOfLines={1}>
           GCI {fmtCurrency(gci)}

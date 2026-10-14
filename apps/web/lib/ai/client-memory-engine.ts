@@ -448,20 +448,7 @@ export async function getClientMemory(
 
 /**
  * Mark a client's memory profile as stale. Non-blocking, fire-and-forget.
- * Safe to call even if no profile exists yet (no-op in that case).
+ * Safe to call even if no profile exists yet (no-op in that case). Lives in
+ * core so the phone app marks it the same way after it logs a contact.
  */
-export async function markMemoryStale(
-  supabase: SupabaseClient,
-  userId: string,
-  clientId: string,
-): Promise<void> {
-  try {
-    await supabase
-      .from("client_memory_profiles")
-      .update({ stale: true })
-      .eq("client_id", clientId)
-      .eq("user_id", userId);
-  } catch {
-    // Fire-and-forget — never let stale marking break the caller
-  }
-}
+export { markMemoryStale } from "@agent-runway/core/lib/client-memory-stale";

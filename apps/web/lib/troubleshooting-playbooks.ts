@@ -357,7 +357,7 @@ When a deal closes: Pipeline deal → Closed transaction
 - The pipeline row is kept at stage='closed' (terminal) — it disappears from the Pipeline tab and from all active-pipeline totals, but the row itself is not deleted (Forecast accuracy compares its original estimate with the sale price)
 - ALL downstream metrics recalculate: GCI, pace, tax, score, etc.
 - A celebration opens with a "Commission breakdown" (GST/HST collected, "Income tax and CPP (estimate)", Fun money, Rest of this commission). See the Transactions playbook for how each row is worked out.
-- Moving a deal to the Closed stage some other way (the Flight Crew's stage change, the mobile Deals screen) does NOT record a transaction. The Closing Day prompt then asks about it on its expected close date.
+- Moving a deal to the Closed stage some other way (the Flight Crew's stage change) does NOT record a transaction. The Closing Day prompt then asks about it on its expected close date. The mobile app's Deals → Close deal records it exactly as Transactions → Pipeline → Close does (since 2026-10-14; before that the mobile app only moved the stage).
 
 ### Closing Day Prompt (dashboard)
 A pop-up on the dashboard for each pipeline deal that is due and not yet recorded (dealsAwaitingCloseConfirmation in database.ts):

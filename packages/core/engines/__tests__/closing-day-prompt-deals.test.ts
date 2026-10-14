@@ -31,7 +31,7 @@ describe("dealsAwaitingCloseConfirmation", () => {
   });
 
   it("the same row with no linked transaction is asked about: it was moved to closed without being recorded", () => {
-    // Flight Crew's updatePipelineDealStage and the mobile Deals screen can set
+    // Flight Crew's updatePipelineDealStage (and mobile Deals before 2026-10-14) can set
     // stage='closed' without writing a transaction. The prompt is where that
     // deal gets recorded.
     const deals = [row("closed-unrecorded", "closed", "2026-10-01")];

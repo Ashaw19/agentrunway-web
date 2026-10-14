@@ -29,7 +29,13 @@ import Svg, {
 } from "react-native-svg";
 import { Search } from "lucide-react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useDataStore, type Transaction, type PipelineDeal } from "@/stores/data-store";
+import {
+  useDataStore,
+  type PipelineDeal,
+  type PipelineDealCloseInput,
+  type Transaction,
+  type TransactionInput,
+} from "@/stores/data-store";
 import {
   useColors,
   useTheme,
@@ -51,9 +57,16 @@ import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useTranslation } from "react-i18next";
-import { validateSalePrice, validateCommissionPct, parsePercent, parseDollar } from "@agent-runway/core/validation/input-guards";
-import { PIPELINE_STAGE_DEFAULTS } from "@agent-runway/core/types/database";
+import { validateTransaction, parsePercent, parseDollar, FIELD_LIMITS } from "@agent-runway/core/validation/input-guards";
+import { PIPELINE_STAGE_DEFAULTS, computeGCI } from "@agent-runway/core/types/database";
 import { localISODate } from "@agent-runway/core/lib/local-date";
+import {
+  OPPORTUNITY_LOSS_REASONS,
+  lossReasonLabel,
+  type OpportunityLossReason,
+} from "@agent-runway/core/lib/opportunity-loss-reasons";
+import { DateField, formatDateLabel } from "@/components/ui/DateField";
+import { ClientNameField } from "@/components/ClientNameField";
 
 type Tab = "pipeline" | "closed" | "pending";
 
@@ -111,8 +124,12 @@ export default function DealsScreen() {
     pipeline,
     fetchAll,
     addTransaction,
+    updateTransaction,
+    deleteTransaction,
     advancePipelineStage,
     updatePipelineDeal,
+    closePipelineDeal,
+    markPipelineDealLost,
     isLoading,
   } = useDataStore();
   const c = useColors();
@@ -188,10 +205,11 @@ export default function DealsScreen() {
   const closed = useMemo(() => filteredTransactions.filter((t) => t.status === "closed"), [filteredTransactions]);
   const pending = useMemo(() => filteredTransactions.filter((t) => t.status === "pending"), [filteredTransactions]);
 
-  // Stats always from unfiltered data
+  // Stats always from unfiltered data. GCI per deal is core computeGCI;
+  // `pipeline` holds active deals only (the store filters closed and lost).
   const totalGci = transactions
     .filter((t) => t.status === "closed")
-    .reduce((s, t) => s + (t.gci_override ?? (t.sale_price * t.commission_pct * (t.team_split_pct ?? 1))), 0);
+    .reduce((s, t) => s + computeGCI(t), 0);
   const pipelineValue = pipeline.reduce((s, d) => s + d.estimated_price, 0);
   const pendingCount = transactions.filter((t) => t.status === "pending").length;
 
@@ -439,8 +457,9 @@ export default function DealsScreen() {
         onClose={() => setSelectedDeal(null)}
         onAdvance={async (deal) => {
           const idx = STAGE_ORDER.indexOf(deal.stage);
-          if (idx < STAGE_ORDER.length - 1) {
-            const nextStage = STAGE_ORDER[idx + 1];
+          const nextStage = STAGE_ORDER[idx + 1];
+          // Never a bare move to Closed: that is the Close deal form.
+          if (nextStage && nextStage !== "closed") {
             await advancePipelineStage(deal.id, nextStage);
             // Update local selected deal to reflect new stage
             setSelectedDeal((prev) =>
@@ -448,6 +467,8 @@ export default function DealsScreen() {
             );
           }
         }}
+        onCloseDeal={closePipelineDeal}
+        onMarkLost={(deal, reason, notes) => markPipelineDealLost(deal.id, reason, notes)}
         onUpdate={async (dealId, updates) => {
           const ok = await updatePipelineDeal(dealId, updates);
           if (ok) {
@@ -462,6 +483,12 @@ export default function DealsScreen() {
       <TransactionDetailSheet
         tx={selectedTx}
         onClose={() => setSelectedTx(null)}
+        onUpdate={async (id, input) => {
+          const ok = await updateTransaction(id, input);
+          if (ok) setSelectedTx((prev) => (prev && prev.id === id ? { ...prev, ...input } : prev));
+          return ok;
+        }}
+        onDelete={deleteTransaction}
       />
     </SafeAreaView>
   );
@@ -609,9 +636,9 @@ function PipelineCard({ deal, onPress }: { deal: PipelineDeal; onPress: () => vo
                   style={{ ...Type.bodyBold, color: c.text }}
                   numberOfLines={1}
                 >
-                  {deal.address ?? deal.client_name ?? t("pipeline.untitledDeal")}
+                  {deal.address || deal.client_name || t("pipeline.untitledDeal")}
                 </Text>
-                {deal.client_name && deal.address && (
+                {!!deal.client_name && !!deal.address && (
                   <Text
                     style={{ ...Type.caption, color: c.textDim, marginTop: 2 }}
                     numberOfLines={1}
@@ -695,7 +722,7 @@ function TransactionCard({ tx, onPress }: { tx: Transaction; onPress: () => void
   const sh = shadows(mode);
   const scale = useRef(new Animated.Value(1)).current;
 
-  const gci = tx.gci_override ?? (tx.sale_price * tx.commission_pct * (tx.team_split_pct ?? 1));
+  const gci = computeGCI(tx);
   const isPending = tx.status === "pending";
   const accentColor = isPending ? c.warning : c.success;
 
@@ -754,9 +781,9 @@ function TransactionCard({ tx, onPress }: { tx: Transaction; onPress: () => void
                   style={{ ...Type.bodyBold, color: c.text }}
                   numberOfLines={1}
                 >
-                  {tx.address ?? tx.client_name ?? t("transaction.transactionLabel")}
+                  {tx.address || tx.client_name || t("transaction.transactionLabel")}
                 </Text>
-                {tx.client_name && tx.address && (
+                {!!tx.client_name && !!tx.address && (
                   <Text style={{ ...Type.caption, color: c.textDim, marginTop: 2 }}>
                     {tx.client_name}
                   </Text>
@@ -809,39 +836,50 @@ function TransactionCard({ tx, onPress }: { tx: Transaction; onPress: () => void
 
 // ── Deal Detail Sheet ────────────────────────────────────────────────────────
 
+type DealUpdates = Partial<
+  Pick<
+    PipelineDeal,
+    | "address"
+    | "client_name"
+    | "estimated_price"
+    | "estimated_commission_pct"
+    | "stage"
+    | "expected_close_date"
+    | "probability_override"
+    | "notes"
+  >
+>;
+
+/** Web offers Lost only on an open buyer prospect (opportunities_v: buyer side, Lead or Showing). */
+function canMarkLost(deal: PipelineDeal): boolean {
+  return deal.side === "buyer" && (deal.stage === "lead" || deal.stage === "showing");
+}
+
+/** The stages a deal moves through before closing. Closing itself is the Close deal form. */
+const ACTIVE_STAGE_ORDER = STAGE_ORDER.filter((s) => s !== "closed");
+
 function DealDetailSheet({
   deal,
   onClose,
   onAdvance,
   onUpdate,
+  onCloseDeal,
+  onMarkLost,
 }: {
   deal: PipelineDeal | null;
   onClose: () => void;
   onAdvance: (deal: PipelineDeal) => Promise<void>;
-  onUpdate: (
-    dealId: string,
-    updates: Partial<
-      Pick<
-        PipelineDeal,
-        | "address"
-        | "client_name"
-        | "estimated_price"
-        | "estimated_commission_pct"
-        | "stage"
-        | "expected_close_date"
-        | "probability_override"
-        | "notes"
-      >
-    >,
-  ) => Promise<boolean>;
+  onUpdate: (dealId: string, updates: DealUpdates) => Promise<boolean>;
+  onCloseDeal: (deal: PipelineDeal, close: PipelineDealCloseInput) => Promise<boolean>;
+  onMarkLost: (deal: PipelineDeal, reason: OpportunityLossReason, notes: string) => Promise<boolean>;
 }) {
   const c = useColors();
   const { t } = useTranslation("deals");
   const { t: tCommon } = useTranslation("common");
   const [advancing, setAdvancing] = useState(false);
+  const [mode, setMode] = useState<"view" | "edit" | "close" | "lost">("view");
 
   // ── Edit mode state ──────────────────────────────────────────────────────
-  const [editing, setEditing] = useState(false);
   const [editAddress, setEditAddress] = useState("");
   const [editClientName, setEditClientName] = useState("");
   const [editPrice, setEditPrice] = useState("");
@@ -852,7 +890,20 @@ function DealDetailSheet({
   const [editNotes, setEditNotes] = useState("");
   const [savingEdit, setSavingEdit] = useState(false);
 
-  // Reset edit form when deal changes / sheet opens
+  // ── Close deal form (web's Close Deal dialog) ────────────────────────────
+  const [closeClient, setCloseClient] = useState("");
+  const [closePrice, setClosePrice] = useState("");
+  const [closeCommPct, setCloseCommPct] = useState("");
+  const [closeSide, setCloseSide] = useState<PipelineDealCloseInput["side"]>("buyer");
+  const [closeDate, setCloseDate] = useState(localISODate());
+  const [closing, setClosing] = useState(false);
+
+  // ── Lost form (web's Lost dialog) ────────────────────────────────────────
+  const [lostReason, setLostReason] = useState<OpportunityLossReason>("chose_other_agent");
+  const [lostNotes, setLostNotes] = useState("");
+  const [savingLost, setSavingLost] = useState(false);
+
+  // Reset every form when the deal changes / sheet opens
   useEffect(() => {
     if (!deal) return;
     setEditAddress(deal.address ?? "");
@@ -871,14 +922,28 @@ function DealDetailSheet({
         : "",
     );
     setEditNotes(deal.notes ?? "");
-    setEditing(false);
+    // Close form starts from the deal's estimate, as web's does.
+    setCloseClient(deal.client_name ?? "");
+    setClosePrice(deal.estimated_price > 0 ? String(deal.estimated_price) : "");
+    setCloseCommPct(
+      deal.estimated_commission_pct > 0
+        ? (deal.estimated_commission_pct * 100).toFixed(2).replace(/\.?0+$/, "")
+        : "",
+    );
+    setCloseSide(deal.side ?? "buyer");
+    setCloseDate(localISODate());
+    setLostReason("chose_other_agent");
+    setLostNotes("");
+    setMode("view");
   }, [deal?.id]);
 
   if (!deal) return null;
 
   const sc = STAGE_COLORS[deal.stage] ?? c.textDim;
   const prob = deal.probability_override ?? DEFAULT_PROBABILITIES[deal.stage] ?? 0.5;
-  const isLastStage = deal.stage === "closed";
+  const stageIdx = ACTIVE_STAGE_ORDER.indexOf(deal.stage as (typeof ACTIVE_STAGE_ORDER)[number]);
+  // From Firm the next step is closing, which records the sale.
+  const nextStage = stageIdx >= 0 && stageIdx < ACTIVE_STAGE_ORDER.length - 1 ? ACTIVE_STAGE_ORDER[stageIdx + 1] : null;
 
   const handleAdvance = async () => {
     setAdvancing(true);
@@ -916,41 +981,68 @@ function DealDetailSheet({
       probOverride = probNum / 100;
     }
 
-    // ── Expected close date — accept "" or YYYY-MM-DD ──
-    let expectedCloseDate: string | null = null;
-    const ecdTrim = editExpectedClose.trim();
-    if (ecdTrim !== "") {
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(ecdTrim)) {
-        Alert.alert(tCommon("status.error"), t("edit.invalidDate"));
-        return;
-      }
-      expectedCloseDate = ecdTrim;
-    }
-
     setSavingEdit(true);
     const ok = await onUpdate(deal.id, {
-      address: editAddress.trim() || null,
-      client_name: editClientName.trim() || null,
+      address: editAddress.trim(),
+      client_name: editClientName.trim(),
       estimated_price: priceNum,
       estimated_commission_pct: commNum / 100,
       stage: editStage,
-      expected_close_date: expectedCloseDate,
+      expected_close_date: editExpectedClose || null,
       probability_override: probOverride,
-      notes: editNotes.trim() || null,
+      notes: editNotes.trim(),
     });
     setSavingEdit(false);
-    if (ok) setEditing(false);
+    if (ok) setMode("view");
   };
 
+  const handleCloseDeal = async () => {
+    // Same validation as web's Close Deal dialog (core validateTransaction).
+    const check = validateTransaction({ sale_price: closePrice, commission_pct: closeCommPct });
+    if (!check.valid || !check.parsed) {
+      Alert.alert(t("close.invalidTitle"), check.errors[0]);
+      return;
+    }
+    setClosing(true);
+    const ok = await onCloseDeal(deal, {
+      clientName: closeClient.trim(),
+      salePrice: check.parsed.sale_price,
+      commissionPct: check.parsed.commission_pct,
+      side: closeSide,
+      date: closeDate,
+    });
+    setClosing(false);
+    if (ok) onClose();
+  };
+
+  const handleMarkLost = async () => {
+    if (lostReason === "other" && lostNotes.trim() === "") {
+      Alert.alert(t("lost.title"), t("lost.notesRequired"));
+      return;
+    }
+    setSavingLost(true);
+    const ok = await onMarkLost(deal, lostReason, lostNotes);
+    setSavingLost(false);
+    if (ok) onClose();
+  };
+
+  const closeGci = (parseDollar(closePrice) ?? 0) * (parsePercent(closeCommPct) ?? 0);
+
+  const cancelLink = (
+    <Pressable onPress={() => setMode("view")} style={{ paddingVertical: Space.md }}>
+      <Text style={[Type.bodyBold, { color: c.textMuted, textAlign: "center" }]}>
+        {tCommon("nav.cancel")}
+      </Text>
+    </Pressable>
+  );
+
+  const title =
+    mode === "edit" ? t("edit.title") : mode === "close" ? t("close.title") : mode === "lost" ? t("lost.title") : t("detail.title");
+
   return (
-    <Sheet
-      visible={!!deal}
-      onClose={onClose}
-      title={editing ? t("edit.title") : t("detail.title")}
-      maxHeight="95%"
-    >
+    <Sheet visible={!!deal} onClose={onClose} title={title} maxHeight="95%">
       {/* Edit button when viewing */}
-      {!editing && (
+      {mode === "view" && (
         <View
           style={{
             position: "absolute",
@@ -960,7 +1052,7 @@ function DealDetailSheet({
           }}
         >
           <Pressable
-            onPress={() => setEditing(true)}
+            onPress={() => setMode("edit")}
             hitSlop={8}
             style={{
               flexDirection: "row",
@@ -981,8 +1073,7 @@ function DealDetailSheet({
         </View>
       )}
 
-      {editing ? (
-        /* ── Edit mode ── */
+      {mode === "edit" && (
         <View style={{ gap: Space.md, paddingBottom: Space.lg }}>
           <Input
             label={t("addDeal.addressLabel")}
@@ -990,7 +1081,7 @@ function DealDetailSheet({
             onChange={setEditAddress}
             placeholder={t("addDeal.addressPlaceholder")}
           />
-          <Input
+          <ClientNameField
             label={t("detail.client")}
             value={editClientName}
             onChange={setEditClientName}
@@ -1011,13 +1102,13 @@ function DealDetailSheet({
             keyboardType="numeric"
           />
 
-          {/* Stage picker — replaces one-way "advance" with arbitrary edit (matches web) */}
+          {/* Stage picker. Closing is the Close deal button: it records the sale. */}
           <View style={{ gap: Space.xs }}>
             <Text style={[Type.caption, { color: c.textMuted, marginLeft: Space.xs }]}>
               {t("detail.stage")}
             </Text>
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: Space.sm }}>
-              {STAGE_ORDER.map((s) => {
+              {ACTIVE_STAGE_ORDER.map((s) => {
                 const isSelected = editStage === s;
                 const pillColor = STAGE_COLORS[s] ?? c.textDim;
                 return (
@@ -1061,12 +1152,12 @@ function DealDetailSheet({
             </View>
           </View>
 
-          <Input
+          <DateField
             label={t("edit.expectedCloseLabel")}
             value={editExpectedClose}
             onChange={setEditExpectedClose}
-            placeholder="YYYY-MM-DD"
-            keyboardType="numbers-and-punctuation"
+            clearable
+            pastShortcuts={false}
           />
           <Input
             label={t("edit.probabilityOverrideLabel")}
@@ -1093,34 +1184,128 @@ function DealDetailSheet({
               variant="primary"
               icon="checkmark-circle"
             />
-            <Pressable
-              onPress={() => setEditing(false)}
-              style={{ paddingVertical: Space.md }}
-            >
-              <Text
-                style={[
-                  Type.bodyBold,
-                  { color: c.textMuted, textAlign: "center" },
-                ]}
-              >
-                {tCommon("nav.cancel")}
-              </Text>
-            </Pressable>
+            {cancelLink}
           </View>
         </View>
-      ) : (
-        /* ── View mode (existing) ── */
+      )}
+
+      {mode === "close" && (
+        <View style={{ gap: Space.md, paddingBottom: Space.lg }}>
+          <Text style={[Type.h3, { color: c.text }]}>
+            {deal.address || deal.client_name || t("pipeline.untitledDeal")}
+          </Text>
+          <ClientNameField
+            label={t("addDeal.clientLabel")}
+            value={closeClient}
+            onChange={setCloseClient}
+            placeholder={t("addDeal.clientPlaceholder")}
+          />
+          <Input
+            label={t("addDeal.priceLabel")}
+            value={closePrice}
+            onChange={setClosePrice}
+            placeholder={t("addDeal.pricePlaceholder")}
+            keyboardType="numeric"
+          />
+          <Input
+            label={t("addDeal.commissionLabel")}
+            value={closeCommPct}
+            onChange={setCloseCommPct}
+            placeholder={t("addDeal.commissionPlaceholder")}
+            keyboardType="numeric"
+          />
+          <SidePicker label={t("addDeal.typeLabel")} value={closeSide} onChange={setCloseSide} />
+          <DateField label={t("close.dateLabel")} value={closeDate} onChange={(d) => setCloseDate(d || localISODate())} />
+          <Text style={[Type.caption, { color: c.textMuted }]}>
+            {t("close.gciPreview", { gci: fmtCurrency(closeGci) })}
+          </Text>
+          <Text style={[Type.micro, { color: c.textDim }]}>{t("close.explainer")}</Text>
+          <View style={{ gap: Space.sm }}>
+            <Button
+              label={closing ? t("close.saving") : t("close.save")}
+              onPress={handleCloseDeal}
+              loading={closing}
+              variant="primary"
+              icon="checkmark-circle"
+            />
+            {cancelLink}
+          </View>
+        </View>
+      )}
+
+      {mode === "lost" && (
+        <View style={{ gap: Space.md, paddingBottom: Space.lg }}>
+          <Text style={[Type.h3, { color: c.text }]}>
+            {deal.client_name || deal.address || t("pipeline.untitledDeal")}
+          </Text>
+          <Text style={[Type.caption, { color: c.textDim }]}>{t("lost.explainer")}</Text>
+          <View style={{ gap: Space.xs }}>
+            <Text style={[Type.caption, { color: c.textMuted, marginLeft: Space.xs }]}>
+              {t("lost.reasonLabel")}
+            </Text>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: Space.sm }}>
+              {OPPORTUNITY_LOSS_REASONS.map((r) => {
+                const isSelected = lostReason === r;
+                return (
+                  <Pressable
+                    key={r}
+                    onPress={() => setLostReason(r)}
+                    style={{
+                      paddingHorizontal: Space.md,
+                      minHeight: 34,
+                      justifyContent: "center",
+                      borderRadius: Radius.pill,
+                      borderWidth: 1,
+                      backgroundColor: isSelected ? c.dangerDim : c.card,
+                      borderColor: isSelected ? c.danger : c.cardBorder,
+                    }}
+                  >
+                    <Text
+                      style={[
+                        Type.caption,
+                        { color: isSelected ? c.danger : c.textDim, fontWeight: isSelected ? "700" : "500" },
+                      ]}
+                    >
+                      {lossReasonLabel(r)}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+          <Input
+            label={t("lost.notesLabel")}
+            value={lostNotes}
+            onChange={setLostNotes}
+            placeholder={lostReason === "other" ? t("lost.notesRequired") : t("lost.notesOptional")}
+            multiline
+          />
+          <View style={{ gap: Space.sm }}>
+            <Button
+              label={savingLost ? t("lost.saving") : t("lost.save")}
+              onPress={handleMarkLost}
+              loading={savingLost}
+              disabled={lostReason === "other" && lostNotes.trim() === ""}
+              variant="danger"
+              icon="close-circle"
+            />
+            {cancelLink}
+          </View>
+        </View>
+      )}
+
+      {mode === "view" && (
         <View style={{ gap: Space.lg, paddingBottom: Space.lg }}>
           {/* Address / title */}
           <Text style={{ ...Type.h2, color: c.text }}>
-            {deal.address ?? deal.client_name ?? t("pipeline.untitledDeal")}
+            {deal.address || deal.client_name || t("pipeline.untitledDeal")}
           </Text>
 
           {/* Info rows */}
-          {deal.client_name && (
+          {!!deal.client_name && (
             <InfoRow label={t("detail.client")} value={deal.client_name} />
           )}
-          {deal.address && deal.client_name && (
+          {!!deal.address && !!deal.client_name && (
             <InfoRow label={t("detail.address")} value={deal.address} />
           )}
           <InfoRow
@@ -1159,7 +1344,7 @@ function DealDetailSheet({
               value={`${(deal.estimated_commission_pct * 100).toFixed(1)}%`}
             />
           )}
-          {deal.notes && (
+          {!!deal.notes && (
             <View style={{ gap: Space.xs }}>
               <Text style={{ ...Type.label, color: c.textMuted }}>
                 {t("detail.notes")}
@@ -1168,30 +1353,86 @@ function DealDetailSheet({
             </View>
           )}
 
-          {/* Advance Stage button */}
-          <View style={{ marginTop: Space.sm }}>
+          <View style={{ marginTop: Space.sm, gap: Space.sm }}>
+            {/* Advance one stage; from Firm the next step is Close deal. */}
+            {nextStage && (
+              <Button
+                label={
+                  advancing
+                    ? t("detail.updating")
+                    : t("detail.advanceTo", { stage: t(`stages.${nextStage}`) })
+                }
+                variant="secondary"
+                icon="arrow-forward"
+                onPress={handleAdvance}
+                loading={advancing}
+              />
+            )}
+            {/* Web offers Close on every active deal. */}
             <Button
-              label={
-                advancing
-                  ? t("detail.updating")
-                  : isLastStage
-                    ? t("detail.markClosed")
-                    : t("detail.advanceTo", {
-                        stage: t(
-                          `stages.${STAGE_ORDER[STAGE_ORDER.indexOf(deal.stage) + 1]}`,
-                        ),
-                      })
-              }
+              label={t("close.button")}
               variant="primary"
-              icon={isLastStage ? "checkmark-circle" : "arrow-forward"}
-              onPress={handleAdvance}
-              loading={advancing}
-              disabled={isLastStage}
+              icon="checkmark-circle"
+              onPress={() => setMode("close")}
             />
+            {canMarkLost(deal) && (
+              <Button
+                label={t("lost.button")}
+                variant="ghost"
+                icon="close-circle-outline"
+                onPress={() => setMode("lost")}
+              />
+            )}
           </View>
         </View>
       )}
     </Sheet>
+  );
+}
+
+/** Buyer / Seller / Both, as web's Side select. */
+function SidePicker({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: "buyer" | "seller" | "both";
+  onChange: (side: "buyer" | "seller" | "both") => void;
+}) {
+  const c = useColors();
+  const { t } = useTranslation("deals");
+  return (
+    <View>
+      <Text style={{ ...Type.caption, color: c.textMuted, marginLeft: Space.xs, marginBottom: Space.xs }}>
+        {label}
+      </Text>
+      <View style={{ flexDirection: "row", gap: Space.sm }}>
+        {(["buyer", "seller", "both"] as const).map((s) => {
+          const isActive = value === s;
+          return (
+            <Pressable
+              key={s}
+              onPress={() => onChange(s)}
+              style={{
+                flex: 1,
+                minHeight: 44,
+                borderRadius: Radius.md,
+                backgroundColor: isActive ? c.primary : c.card,
+                borderWidth: 1.5,
+                borderColor: isActive ? c.primary : c.cardBorder,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Text style={{ ...Type.bodyBold, color: isActive ? "#fff" : c.textMuted }}>
+                {s === "buyer" ? t("addDeal.buy") : s === "seller" ? t("addDeal.sell") : t("addDeal.both")}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
   );
 }
 
@@ -1200,63 +1441,113 @@ function DealDetailSheet({
 function TransactionDetailSheet({
   tx,
   onClose,
+  onUpdate,
+  onDelete,
 }: {
   tx: Transaction | null;
   onClose: () => void;
+  onUpdate: (id: string, input: TransactionInput) => Promise<boolean>;
+  onDelete: (id: string) => Promise<boolean>;
 }) {
   const c = useColors();
   const { t } = useTranslation("deals");
+  const { t: tCommon } = useTranslation("common");
+  const [editing, setEditing] = useState(false);
+
+  useEffect(() => {
+    setEditing(false);
+  }, [tx?.id]);
 
   if (!tx) return null;
 
-  const gci = tx.gci_override ?? (tx.sale_price * tx.commission_pct * (tx.team_split_pct ?? 1));
+  const gci = computeGCI(tx);
   const isPending = tx.status === "pending";
   const accentColor = isPending ? c.warning : c.success;
 
-  return (
-    <Sheet visible={!!tx} onClose={onClose} title={t("transactionDetail.title")}>
-      <View style={{ gap: Space.lg, paddingBottom: Space.lg }}>
-        <Text style={{ ...Type.h2, color: c.text }}>
-          {tx.address ?? tx.client_name ?? t("transaction.transactionLabel")}
-        </Text>
+  const confirmDelete = () => {
+    Alert.alert(t("transactionDetail.deleteConfirmTitle"), t("transactionDetail.deleteConfirmBody"), [
+      { text: tCommon("nav.cancel"), style: "cancel" },
+      {
+        text: t("transactionDetail.delete"),
+        style: "destructive",
+        onPress: async () => {
+          if (await onDelete(tx.id)) onClose();
+        },
+      },
+    ]);
+  };
 
-        {tx.client_name && <InfoRow label={t("detail.client")} value={tx.client_name} />}
-        {tx.address && tx.client_name && <InfoRow label={t("detail.address")} value={tx.address} />}
-        <InfoRow label={t("transaction.salePrice")} value={fmtCurrency(tx.sale_price)} />
-        <InfoRow label={t("transaction.commission")} value={`${(tx.commission_pct * 100).toFixed(1)}%`} />
-        <InfoRow
-          label={t("transaction.gci")}
-          value={fmtCurrency(gci)}
-          valueColor={accentColor}
+  return (
+    <Sheet
+      visible={!!tx}
+      onClose={onClose}
+      title={editing ? t("transactionDetail.editTitle") : t("transactionDetail.title")}
+      maxHeight="95%"
+    >
+      {editing ? (
+        <TransactionForm
+          initial={tx}
+          submitLabel={t("edit.save")}
+          savingLabel={t("edit.saving")}
+          onSubmit={async (input) => {
+            const ok = await onUpdate(tx.id, input);
+            if (ok) setEditing(false);
+            return ok;
+          }}
+          onCancel={() => setEditing(false)}
         />
-        <InfoRow
-          label={t("transaction.side")}
-          value={tx.side.charAt(0).toUpperCase() + tx.side.slice(1)}
-        />
-        <View style={styles.infoRow}>
-          <Text style={{ ...Type.label, color: c.textMuted }}>{t("transaction.status")}</Text>
-          <Badge
-            label={tx.status.toUpperCase()}
-            color={accentColor}
-            size="sm"
+      ) : (
+        <View style={{ gap: Space.lg, paddingBottom: Space.lg }}>
+          <Text style={{ ...Type.h2, color: c.text }}>
+            {tx.address || tx.client_name || t("transaction.transactionLabel")}
+          </Text>
+
+          {!!tx.client_name && <InfoRow label={t("detail.client")} value={tx.client_name} />}
+          {!!tx.address && !!tx.client_name && <InfoRow label={t("detail.address")} value={tx.address} />}
+          <InfoRow label={t("transaction.salePrice")} value={fmtCurrency(tx.sale_price)} />
+          <InfoRow label={t("transaction.commission")} value={`${(tx.commission_pct * 100).toFixed(1)}%`} />
+          <InfoRow
+            label={t("transaction.gci")}
+            value={fmtCurrency(gci)}
+            valueColor={accentColor}
           />
-        </View>
-        <InfoRow
-          label={t("transaction.date")}
-          // date-only column — anchor at local noon or it renders the previous day
-          value={new Date(tx.date + "T12:00:00").toLocaleDateString("en-CA", {
-            year: "numeric",
-            month: "short",
-            day: "numeric",
-          })}
-        />
-        {tx.notes && (
-          <View style={{ gap: Space.xs }}>
-            <Text style={{ ...Type.label, color: c.textMuted }}>{t("detail.notes")}</Text>
-            <Text style={{ ...Type.body, color: c.text }}>{tx.notes}</Text>
+          <InfoRow
+            label={t("transaction.side")}
+            value={tx.side.charAt(0).toUpperCase() + tx.side.slice(1)}
+          />
+          <View style={styles.infoRow}>
+            <Text style={{ ...Type.label, color: c.textMuted }}>{t("transaction.status")}</Text>
+            <Badge
+              label={tx.status.toUpperCase()}
+              color={accentColor}
+              size="sm"
+            />
           </View>
-        )}
-      </View>
+          <InfoRow
+            label={t("transaction.date")}
+            // date-only column — anchor at local noon or it renders the previous day
+            value={new Date(tx.date + "T12:00:00").toLocaleDateString("en-CA", {
+              year: "numeric",
+              month: "short",
+              day: "numeric",
+            })}
+          />
+          {!!tx.commission_paid_date && (
+            <InfoRow label={t("transactionDetail.paidDate")} value={formatDateLabel(tx.commission_paid_date)} />
+          )}
+          {!!tx.notes && (
+            <View style={{ gap: Space.xs }}>
+              <Text style={{ ...Type.label, color: c.textMuted }}>{t("detail.notes")}</Text>
+              <Text style={{ ...Type.body, color: c.text }}>{tx.notes}</Text>
+            </View>
+          )}
+
+          <View style={{ marginTop: Space.sm, gap: Space.sm }}>
+            <Button label={t("transactionDetail.edit")} variant="secondary" icon="create-outline" onPress={() => setEditing(true)} />
+            <Button label={t("transactionDetail.delete")} variant="ghost" icon="trash-outline" onPress={confirmDelete} />
+          </View>
+        </View>
+      )}
     </Sheet>
   );
 }
@@ -1281,6 +1572,187 @@ function InfoRow({
   );
 }
 
+// ── Transaction Form (Add Deal / Edit Deal) ───────────────────────────────────
+
+const TX_STATUSES = ["closed", "pending", "fallen"] as const;
+
+/**
+ * The fields of web's Transactions → Deals form that matter on a phone:
+ * closing date (any day, not only today), client, side, status and the
+ * commission paid date (cash-method agents report a commission in the year
+ * it was paid). Validated with core validateTransaction, as web. An edit
+ * keeps the deal's GCI override and team split (set on web).
+ */
+function TransactionForm({
+  initial,
+  submitLabel,
+  savingLabel,
+  onSubmit,
+  onCancel,
+}: {
+  initial: Transaction | null;
+  submitLabel: string;
+  savingLabel: string;
+  onSubmit: (input: TransactionInput) => Promise<boolean>;
+  onCancel?: () => void;
+}) {
+  const c = useColors();
+  const { t } = useTranslation("deals");
+  const { t: tCommon } = useTranslation("common");
+
+  const blank = () => ({
+    address: initial?.address ?? "",
+    client: initial?.client_name ?? "",
+    price: initial ? String(initial.sale_price) : "",
+    commPct: initial ? (initial.commission_pct * 100).toFixed(3).replace(/\.?0+$/, "") : "2.5",
+    side: (initial?.side ?? "buyer") as Transaction["side"],
+    status: (initial?.status ?? "closed") as Transaction["status"],
+    date: initial?.date ?? localISODate(),
+    paidDate: initial?.commission_paid_date ?? "",
+    notes: initial?.notes ?? "",
+  });
+  const [form, setForm] = useState(blank);
+  const [saving, setSaving] = useState(false);
+  const set = <K extends keyof ReturnType<typeof blank>>(k: K, v: ReturnType<typeof blank>[K]) =>
+    setForm((f) => ({ ...f, [k]: v }));
+
+  useEffect(() => {
+    setForm(blank());
+  }, [initial?.id]);
+
+  const handleSubmit = async () => {
+    const check = validateTransaction({
+      sale_price: form.price,
+      commission_pct: form.commPct,
+      address: form.address,
+      notes: form.notes,
+      date: form.date,
+      commission_paid_date: form.paidDate || null,
+    });
+    if (!check.valid || !check.parsed) {
+      Alert.alert(t("close.invalidTitle"), check.errors[0]);
+      return;
+    }
+    setSaving(true);
+    const ok = await onSubmit({
+      date: form.date,
+      address: form.address.trim().slice(0, FIELD_LIMITS.address),
+      client_name: form.client.trim().slice(0, FIELD_LIMITS.clientName),
+      sale_price: check.parsed.sale_price,
+      commission_pct: check.parsed.commission_pct,
+      gci_override: initial?.gci_override ?? null,
+      team_split_pct: initial?.team_split_pct ?? null,
+      side: form.side,
+      status: form.status,
+      notes: form.notes.trim().slice(0, FIELD_LIMITS.notes),
+      commission_paid_date: check.parsed.commission_paid_date,
+    });
+    setSaving(false);
+    if (ok && !initial) setForm(blank());
+  };
+
+  const statusLabel = (s: Transaction["status"]) =>
+    s === "closed" ? t("tabs.closed") : s === "pending" ? t("tabs.pending") : t("addDeal.fallen");
+
+  return (
+    <View style={{ gap: Space.lg, paddingBottom: Space.lg }}>
+      <Input
+        label={t("addDeal.addressLabel")}
+        value={form.address}
+        onChange={(v) => set("address", v)}
+        placeholder={t("addDeal.addressPlaceholder")}
+      />
+      <ClientNameField
+        label={t("addDeal.clientLabel")}
+        value={form.client}
+        onChange={(v) => set("client", v)}
+        placeholder={t("addDeal.clientPlaceholder")}
+      />
+      <Input
+        label={t("addDeal.priceLabel")}
+        value={form.price}
+        onChange={(v) => set("price", v)}
+        placeholder={t("addDeal.pricePlaceholder")}
+        keyboardType="numeric"
+      />
+      <Input
+        label={t("addDeal.commissionLabel")}
+        value={form.commPct}
+        onChange={(v) => set("commPct", v)}
+        placeholder={t("addDeal.commissionPlaceholder")}
+        keyboardType="numeric"
+      />
+      <SidePicker label={t("addDeal.typeLabel")} value={form.side} onChange={(v) => set("side", v)} />
+
+      <View>
+        <Text style={{ ...Type.caption, color: c.textMuted, marginLeft: Space.xs, marginBottom: Space.xs }}>
+          {t("addDeal.statusLabel")}
+        </Text>
+        <View style={{ flexDirection: "row", gap: Space.sm }}>
+          {TX_STATUSES.map((s) => {
+            const isActive = form.status === s;
+            return (
+              <Pressable
+                key={s}
+                onPress={() => set("status", s)}
+                style={{
+                  flex: 1,
+                  minHeight: 40,
+                  borderRadius: Radius.md,
+                  backgroundColor: isActive ? c.primaryDim : c.card,
+                  borderWidth: 1.5,
+                  borderColor: isActive ? c.primary : c.cardBorder,
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Text style={{ ...Type.caption, fontWeight: "700", color: isActive ? c.primary : c.textMuted }}>
+                  {statusLabel(s)}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      </View>
+
+      <DateField
+        label={t("addDeal.closingDateLabel")}
+        value={form.date}
+        onChange={(d) => set("date", d || localISODate())}
+      />
+      <DateField
+        label={t("addDeal.paidDateLabel")}
+        value={form.paidDate}
+        onChange={(d) => set("paidDate", d)}
+        clearable
+        placeholder={t("addDeal.paidDatePlaceholder")}
+      />
+      <Input
+        label={t("detail.notes")}
+        value={form.notes}
+        onChange={(v) => set("notes", v)}
+        placeholder={t("edit.notesPlaceholder")}
+        multiline
+      />
+
+      <Button
+        label={saving ? savingLabel : submitLabel}
+        onPress={handleSubmit}
+        loading={saving}
+        variant="primary"
+        icon="checkmark"
+      />
+      {onCancel && (
+        <Pressable onPress={onCancel} style={{ paddingVertical: Space.md }}>
+          <Text style={[Type.bodyBold, { color: c.textMuted, textAlign: "center" }]}>
+            {tCommon("nav.cancel")}
+          </Text>
+        </Pressable>
+      )}
+    </View>
+  );
+}
+
 // ── Add Transaction Modal ─────────────────────────────────────────────────────
 
 function AddTransactionModal({
@@ -1290,113 +1762,17 @@ function AddTransactionModal({
 }: {
   visible: boolean;
   onClose: () => void;
-  onAdd: (tx: Omit<Transaction, "id" | "created_at">) => Promise<boolean>;
+  onAdd: (tx: TransactionInput) => Promise<boolean>;
 }) {
-  const c = useColors();
   const { t } = useTranslation("deals");
-
-  const [address, setAddress] = useState("");
-  const [price, setPrice] = useState("");
-  const [commPct, setCommPct] = useState("2.5");
-  const [side, setSide] = useState<"buyer" | "seller">("buyer");
-  const [saving, setSaving] = useState(false);
-
-  const handleSubmit = async () => {
-    const salePrice = parseDollar(price);
-    const pct = parsePercent(commPct);
-    const spCheck = validateSalePrice(salePrice);
-    const cpCheck = validateCommissionPct(pct);
-    if (!spCheck.valid) { Alert.alert("Invalid", spCheck.errors[0]); return; }
-    if (!cpCheck.valid) { Alert.alert("Invalid", cpCheck.errors[0]); return; }
-    setSaving(true);
-    const ok = await onAdd({
-      address: address || null,
-      sale_price: salePrice!,
-      commission_pct: pct!,
-      gci_override: null,
-      team_split_pct: null,
-      side,
-      status: "closed",
-      client_name: null,
-      notes: null,
-      date: localISODate(),
-    });
-    setSaving(false);
-    if (ok) {
-      setAddress("");
-      setPrice("");
-      setCommPct("2.5");
-    }
-  };
-
   return (
-    <Sheet visible={visible} onClose={onClose} title={t("addDeal.title")}>
-      <View style={{ gap: Space.lg }}>
-        <Input
-          label={t("addDeal.addressLabel")}
-          value={address}
-          onChange={setAddress}
-          placeholder={t("addDeal.addressPlaceholder")}
-        />
-        <Input
-          label={t("addDeal.priceLabel")}
-          value={price}
-          onChange={setPrice}
-          placeholder={t("addDeal.pricePlaceholder")}
-          keyboardType="numeric"
-        />
-        <Input
-          label={t("addDeal.commissionLabel")}
-          value={commPct}
-          onChange={setCommPct}
-          placeholder={t("addDeal.commissionPlaceholder")}
-          keyboardType="numeric"
-        />
-
-        <View>
-          <Text style={{ ...Type.caption, color: c.textMuted, marginLeft: Space.xs, marginBottom: Space.xs }}>
-            {t("addDeal.typeLabel")}
-          </Text>
-          <View style={{ flexDirection: "row", gap: Space.sm }}>
-            {(["buyer", "seller"] as const).map((s) => {
-              const isActive = side === s;
-              return (
-                <Pressable
-                  key={s}
-                  onPress={() => setSide(s)}
-                  style={{
-                    flex: 1,
-                    minHeight: 44,
-                    borderRadius: Radius.md,
-                    backgroundColor: isActive ? c.primary : c.card,
-                    borderWidth: 1.5,
-                    borderColor: isActive ? c.primary : c.cardBorder,
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  <Text
-                    style={{
-                      ...Type.bodyBold,
-                      color: isActive ? "#fff" : c.textMuted,
-                    }}
-                  >
-                    {s === "buyer" ? t("addDeal.buy") : t("addDeal.sell")}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-        </View>
-
-        <Button
-          label={saving ? t("addDeal.saving") : t("addDeal.save")}
-          onPress={handleSubmit}
-          loading={saving}
-          variant="primary"
-          icon="checkmark"
-        />
-      </View>
+    <Sheet visible={visible} onClose={onClose} title={t("addDeal.title")} maxHeight="95%">
+      <TransactionForm
+        initial={null}
+        submitLabel={t("addDeal.save")}
+        savingLabel={t("addDeal.saving")}
+        onSubmit={onAdd}
+      />
     </Sheet>
   );
 }

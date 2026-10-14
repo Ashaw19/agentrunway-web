@@ -89,7 +89,8 @@ describe("what closing does to the pipeline row", () => {
   });
 
   it("the writer links the transaction, keeps the row at closed, and never deletes it", () => {
-    const writer = source("lib/record-pipeline-deal-close.ts");
+    // The writer is shared with the phone app (packages/core); web re-exports it.
+    const writer = readFileSync(path.resolve(WEB, "../../packages/core/lib/record-pipeline-deal-close.ts"), "utf8");
     expect(writer).toContain("pipeline_deal_id: deal.id,");
     expect(writer).toContain('stage: "closed",');
     expect(writer).toContain("original_estimated_price: deal.original_estimated_price ?? deal.estimated_price,");

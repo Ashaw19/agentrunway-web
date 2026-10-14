@@ -87,7 +87,10 @@
   "nextUp": {
     "title": "NEXT UP",
     "overdue": "Overdue",
-    "high": "HIGH"
+    "high": "HIGH",
+    "seeAll": "Checklist ({{count}})",
+    "tickOff": "Tap to tick it off",
+    "ticked": "Ticked off."
   },
   "pipelinePreview": {
     "title": "PIPELINE",

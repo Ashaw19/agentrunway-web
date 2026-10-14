@@ -175,10 +175,6 @@ describe("REGRESSION — server code prints a timestamp on its Atlantic day, not
       count: 1,
       why: "\"Generated\" date; the PDF is rendered in the browser by expenses-content.tsx",
     },
-    "apps/web/lib/checklist/checklist.ts": {
-      count: 1,
-      why: "doneLabel weekday; only the checklist page's client component calls it",
-    },
     "apps/web/lib/crm/relative-date.ts": {
       count: 1,
       why: "relativeDate's \"Oct 6\" past six days; only the CRM tab's client components call it",

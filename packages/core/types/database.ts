@@ -1557,7 +1557,8 @@ export function activePipelineDeals<T extends { stage: string }>(deals: readonly
  * Closing a deal keeps its row at stage='closed' and links the transaction to
  * it, so a 'closed' row with a linked transaction is done and never prompts.
  * A 'closed' row with none was moved to closed without being recorded (Flight
- * Crew stage update, mobile Deals): the prompt is where it gets recorded.
+ * Crew stage update; mobile Deals before 2026-10-14): the prompt is where it
+ * gets recorded.
  */
 export function dealsAwaitingCloseConfirmation<
   T extends { id: string; stage: string; expected_close_date: string | null },

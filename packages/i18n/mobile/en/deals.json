@@ -75,7 +75,13 @@
     "buy": "Buyer",
     "sell": "Seller",
     "save": "Save Transaction",
-    "saving": "Saving..."
+    "saving": "Saving...",
+    "both": "Both",
+    "fallen": "Fell through",
+    "statusLabel": "Status",
+    "closingDateLabel": "Closing date",
+    "paidDateLabel": "Commission paid (optional)",
+    "paidDatePlaceholder": "Not paid yet"
   },
   "detail": {
     "title": "Deal Details",
@@ -93,7 +99,13 @@
     "updating": "Updating..."
   },
   "transactionDetail": {
-    "title": "Transaction Details"
+    "title": "Transaction Details",
+    "editTitle": "Edit Transaction",
+    "edit": "Edit",
+    "delete": "Remove deal",
+    "deleteConfirmTitle": "Remove this deal?",
+    "deleteConfirmBody": "It comes off your closed deals and your GCI.",
+    "paidDate": "Commission paid"
   },
   "edit": {
     "title": "Edit Deal",
@@ -110,5 +122,26 @@
     "invalidCommission": "Commission must be between 0 and 50%.",
     "invalidProbability": "Probability must be between 0 and 100%.",
     "invalidDate": "Use the format YYYY-MM-DD."
+  },
+  "close": {
+    "title": "Close Deal",
+    "button": "Close deal",
+    "save": "Close deal ✓",
+    "saving": "Closing...",
+    "dateLabel": "Closing date",
+    "gciPreview": "GCI: {{gci}}",
+    "explainer": "Records the sale in your closed deals, so it counts in your GCI, and keeps this deal at Closed in your pipeline history. Same as closing it on the web.",
+    "invalidTitle": "Check the numbers"
+  },
+  "lost": {
+    "button": "Mark lost",
+    "title": "Mark Lost",
+    "explainer": "Lost is final. The deal stops counting in your pipeline.",
+    "reasonLabel": "Reason",
+    "notesLabel": "Notes",
+    "notesRequired": "Required when the reason is Other",
+    "notesOptional": "Optional",
+    "save": "Mark lost",
+    "saving": "Saving..."
   }
 }
