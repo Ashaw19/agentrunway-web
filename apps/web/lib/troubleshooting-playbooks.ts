@@ -288,6 +288,12 @@ Required when annual tax owing >$3,000 (>$1,800 in Quebec)
 **"How much should I set aside per deal?"**
 → Direct them to Forecast page → Tax Estimates card ("Per-deal tax portion"). Formula: Annual tax estimate ÷ projected deal count. State it as the engine's estimate of the tax each deal carries. Do not give a percentage of a commission and do not tell them what to do with the money.
 
+**"How much of THIS commission is tax?" / "What is 'Income tax and CPP (estimate)' on the deal-close screen?"**
+→ The tax portion of one commission = this year's tax estimate × that commission ÷ projected year-end GCI. The year's estimate is the dashboard Tax Readiness card's total (federal + provincial income tax + CPP on projected net business income). The deal-close screens (dashboard "Closing Day" prompt, Transactions → Pipeline → close) print it for the commission just closed, with the deal already counted as closed, and the note under the row gives the three figures used. It is the same definition as the Per-deal tax portion: that one divides the year's estimate evenly across projected deals, this one gives a commission its share by size, and the two are equal for a deal of the projected average size. Income tax is worked out on net income for the whole year, so this is a share of the year's estimate, not a tax charged on the deal. State the dollar estimate. Do not state a percentage of the commission or a marginal rate, and do not tell them what to do with the money.
+
+**"The tax on my closed deal is lower than it used to be" / "It used to say Income tax reserve"**
+→ Changed 2026-10-13. The row was "Income tax reserve" = the commission × a marginal rate (the rate on the next dollar, looked up at GCI instead of net income, CPP left out), so the top rate was applied to the whole commission. It is now the tax engine's estimate as defined above, CPP included. No tax rate, bracket or setting changed, and no other screen's figure moved. An incorporated agent's row uses the personal estimate on the Tax Readiness card, not the Corporate Tax Estimate card.
+
 **"Should I incorporate?"**
 → This is a professional advice question. Explain the tax deferral advantage (combined SBD rate ~12-14% vs personal 30-50%) but emphasize it depends on their total income, retention needs, and accountant guidance. NEVER recommend incorporating — only explain the math.
 
@@ -340,6 +346,7 @@ When a deal closes: Pipeline deal → Closed transaction
 - This creates a new closed transaction with the pipeline data pre-filled
 - The pipeline row is kept at stage='closed' (terminal) — it disappears from the Pipeline tab and from all active-pipeline totals, but the row itself is not deleted
 - ALL downstream metrics recalculate: GCI, pace, tax, score, etc.
+- A celebration opens with a "Commission breakdown" (GST/HST collected, "Income tax and CPP (estimate)", Fun money, Rest of this commission). See the Transactions playbook for how each row is worked out.
 
 ### Listing & Buyer Sub-Stages (pipeline-forecast-engine.ts)
 
@@ -1119,6 +1126,17 @@ Adding/changing a closed deal triggers recalculation of:
 10. Per-deal tax portion
 11. Waterfall projection
 12. Client tier recalculation
+
+### Deal-Close Celebration: "Commission breakdown"
+Where: closing a pipeline deal, from the dashboard's "Closing Day" prompt (Yes, it's closed → Register & Close) or from Transactions → Pipeline → close. Both screens show the same rows, figures and words, with the short tax disclaimer under them:
+1. **GST/HST collected (estimate)** (labelled HST, GST or GST + QST by province): provincial rate × the commission for a GST/HST registrant. $0 with a note when Settings say the agent is not registered, or that the brokerage holds back and remits the tax.
+2. **Income tax and CPP (estimate)**: the tax portion of this commission = this year's tax estimate × this commission ÷ projected year-end GCI, worked out with the deal already counted as closed (its GCI in the year to date, its row out of the pipeline). The note under the row prints the estimate and the projected GCI used. The year's estimate is the dashboard Tax Readiness card's total. No percentage is shown beside this row.
+3. **Fun money (10%)**: 10% of the commission.
+4. **Rest of this commission**: the commission less rows 2 and 3. It is before the brokerage's split and fees and business expenses, so it is not take-home pay. GST/HST is on top of the commission and is not taken off here.
+
+Row 2 and the "Per-deal tax portion" (dashboard, Forecast, Reports, Overhead) are one definition: the same yearly estimate, divided evenly across projected deals there and by this commission's size here. They are equal for a deal of the projected average size, and the portions of every deal in the projected year add up to the year's estimate.
+
+Changed 2026-10-13: the heading was "How to allocate your commission", row 2 was "Income tax reserve" (the commission × a marginal rate, shown with that percentage, CPP left out) and row 4 was "Keep / invest". Row 2 is usually lower now; nothing else in the app changed.
 
 ### History Tab
 Annual summaries by year. Import via CSV/PDF for prior years. Shows:
@@ -1922,6 +1940,7 @@ The Overhead page is your complete tax visibility dashboard:
 7. **Per-Deal Tax Estimate** (shown as "Per-deal tax portion")
    - Total annual tax estimate ÷ projected deal count
    - An estimate of the tax each closed deal carries, not an amount to set aside
+   - The deal-close screens show the same estimate for one commission by its size ("Income tax and CPP (estimate)" = annual estimate × that commission ÷ projected year-end GCI). Equal to this figure for a deal of the projected average size
 
 ### GST/HST Return, line by line (from gst34-engine.ts)
 

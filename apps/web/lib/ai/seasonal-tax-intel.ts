@@ -8,6 +8,7 @@
  * Tax copy is information, not advice: the line states engine estimates and
  * tells the model to describe no action.
  */
+import { taxPortionOfCommission } from "@agent-runway/core/engines/deal-tax-portion";
 import { currentQuarter } from "@agent-runway/core/engines/projection-engine";
 import { fmtCurrency } from "@/lib/formatters";
 
@@ -25,8 +26,8 @@ export interface SeasonalCommissionInput {
   ytdTx: { date: string }[];
   /** Projected year-end GCI. */
   projectedGCI: number;
-  /** canadian-tax-engine `effectiveRate`. */
-  effectiveRate: number;
+  /** canadian-tax-engine `totalBurden`: the year's estimate. */
+  annualTaxEstimate: number;
   /** canadian-tax-engine `perDealSetAside`. */
   perDealSetAside: number;
 }
@@ -65,14 +66,18 @@ export function seasonalCommissionPatternLine(input: SeasonalCommissionInput): s
   const { quarter, weight, deals } = seasonalQuarterStats(input.today, input.seasonalWeights, input.ytdTx);
   if (weight <= HEAVY_QUARTER_WEIGHT || deals < MIN_QUARTER_DEALS) return null;
 
-  // Estimate Q-specific tax liability at marginal rate against Q's share of projected year-end GCI
+  // The quarter's tax portion: the year's estimate by the quarter's share of
+  // projected GCI, the definition the deal-close screens use for one
+  // commission. This line used to multiply the quarter's GCI by the engine's
+  // `effectiveRate` (a share of NET income) and call that a marginal rate.
   const qProjectedGCI = input.projectedGCI * weight;
-  const qEstimatedTaxLiability = qProjectedGCI * input.effectiveRate;
+  const qTaxPortion = taxPortionOfCommission(qProjectedGCI, input.projectedGCI, input.annualTaxEstimate);
   return (
     `[SEASONAL COMMISSION PATTERN] Q${quarter} seasonal weight: ${(weight * 100).toFixed(0)}% of annual. ` +
     `Agent closed ${deals} deals in Q${quarter}. ` +
-    `Estimated tax liability on this quarter's projected GCI at marginal rate ${(input.effectiveRate * 100).toFixed(1)}%: ~${fmtCurrency(qEstimatedTaxLiability)}. ` +
-    `Per-deal equivalent: ${fmtCurrency(input.perDealSetAside)}. ` +
+    `Tax portion of this quarter's projected GCI of ${fmtCurrency(qProjectedGCI)}: ~${fmtCurrency(qTaxPortion)}, ` +
+    `the quarter's share of the year's estimate of ${fmtCurrency(input.annualTaxEstimate)}. ` +
+    `Per-deal tax portion: ${fmtCurrency(input.perDealSetAside)}. ` +
     `State the math only — describe no action.`
   );
 }

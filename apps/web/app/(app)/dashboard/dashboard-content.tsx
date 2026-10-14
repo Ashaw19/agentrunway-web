@@ -3086,6 +3086,18 @@ export function DashboardContent({
         ytdTransactions={transactions
           .filter((t) => t.status === "closed")
           .map((t) => ({ sale_price: t.sale_price, commission_pct: t.commission_pct, date: t.date }))}
+        // The same rows the "Tax estimate" block above reads, so the prompt's
+        // tax row is this dashboard's estimate with the deal closed.
+        taxEstimateInputs={settings ? {
+          settings,
+          ytdGCI,
+          ytdDealCount,
+          pipelineDeals,
+          listings: activeListings,
+          historyItems,
+          expensesYTD,
+          expensesRemaining,
+        } : null}
       />
 
       </>

@@ -9,8 +9,8 @@ import { Label } from "@/components/ui/label";
 import { createClient } from "@/lib/supabase/client";
 import { fmtCurrency } from "@/lib/formatters";
 import { computeEstimatedGCI } from "@/lib/types/database";
-import { gstHstRate, gstHstLabel, marginalRate } from "@/lib/engines/canadian-tax-engine";
-import { computeHSTCollected } from "@/lib/engines/hst-engine";
+import { dealCloseTaxPortion, type DealTaxPortion, type YearTaxEstimateInputs } from "@agent-runway/core/engines/deal-tax-portion";
+import { dealCloseBreakdown, type DealCloseBreakdownRowKey } from "@/lib/deal-close-breakdown";
 import { useConfetti } from "@/hooks/use-confetti";
 import { CountUp } from "@/components/count-up";
 import { toast } from "sonner";
@@ -27,6 +27,8 @@ interface Props {
   dealsClosingToday: PipelineDeal[];
   settings?: UserSettings | null;
   ytdTransactions?: { sale_price: number; commission_pct: number; date: string }[];
+  /** The rows the dashboard's tax estimate is worked out from; null without settings. */
+  taxEstimateInputs?: YearTaxEstimateInputs | null;
 }
 
 type Mode = "main" | "confirm" | "delayed" | "celebrate";
@@ -69,7 +71,7 @@ const _MILESTONES = [25_000, 50_000, 100_000, 150_000, 200_000, 250_000, 300_000
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export function ClosingDayPrompt({ dealsClosingToday, settings, ytdTransactions = [] }: Props) {
+export function ClosingDayPrompt({ dealsClosingToday, settings, ytdTransactions = [], taxEstimateInputs = null }: Props) {
   const router = useRouter();
   const { fire: fireConfetti } = useConfetti();
 
@@ -92,7 +94,7 @@ export function ClosingDayPrompt({ dealsClosingToday, settings, ytdTransactions 
   // Celebration data computed after close
   const [celebData, setCelebData] = useState<{
     gci: number; ytdGCIBefore: number; goalGCI: number; province: string;
-    estimatedMarginalRate: number; dealsThisMonth: number; totalDealsThisYear: number;
+    taxPortion: DealTaxPortion | null; dealsThisMonth: number; totalDealsThisYear: number;
     isGstHstRegistered: boolean; brokerageWithholdsHst: boolean;
   } | null>(null);
 
@@ -169,11 +171,16 @@ export function ClosingDayPrompt({ dealsClosingToday, settings, ytdTransactions 
     const ytdBefore  = ytdTransactions.filter(t => t.date?.startsWith(thisYear)).reduce((s, t) => s + t.sale_price * t.commission_pct, 0);
     const dealsMonth = ytdTransactions.filter(t => t.date?.startsWith(thisMonth)).length + 1;
     const dealsYear  = ytdTransactions.filter(t => t.date?.startsWith(thisYear)).length + 1;
-    const estRate    = marginalRate(Math.max(ytdBefore + gci, goalGCI), province);
+    // The tax portion of this commission, with the deal counted as closed
+    // (core/engines/deal-tax-portion): the year's estimate the dashboard
+    // shows after it reloads, by this commission's share of projected GCI.
+    const taxPortion = taxEstimateInputs
+      ? dealCloseTaxPortion({ ...taxEstimateInputs, commissionGCI: gci, closingPipelineDealId: current.id })
+      : null;
 
     setCelebData({
       gci, ytdGCIBefore: ytdBefore, goalGCI, province,
-      estimatedMarginalRate: estRate, dealsThisMonth: dealsMonth, totalDealsThisYear: dealsYear,
+      taxPortion, dealsThisMonth: dealsMonth, totalDealsThisYear: dealsYear,
       isGstHstRegistered: settings?.gst_hst_registered ?? false,
       brokerageWithholdsHst: settings?.brokerage_withholds_hst ?? false,
     });
@@ -367,27 +374,13 @@ export function ClosingDayPrompt({ dealsClosingToday, settings, ytdTransactions 
 
 function CelebrationContent({ address, clientName: _clientName, celebData, quote, copied, onCopy, onClose }: {
   address: string; clientName: string;
-  celebData: { gci: number; ytdGCIBefore: number; goalGCI: number; province: string; estimatedMarginalRate: number; dealsThisMonth: number; totalDealsThisYear: number; isGstHstRegistered: boolean; brokerageWithholdsHst: boolean };
+  celebData: { gci: number; ytdGCIBefore: number; goalGCI: number; province: string; taxPortion: DealTaxPortion | null; dealsThisMonth: number; totalDealsThisYear: number; isGstHstRegistered: boolean; brokerageWithholdsHst: boolean };
   quote: string; copied: boolean; onCopy: () => void; onClose: () => void;
 }) {
-  const { gci, ytdGCIBefore, goalGCI, province, estimatedMarginalRate, dealsThisMonth, totalDealsThisYear, isGstHstRegistered, brokerageWithholdsHst } = celebData;
+  const { gci, ytdGCIBefore, goalGCI, province, taxPortion, dealsThisMonth, totalDealsThisYear, isGstHstRegistered, brokerageWithholdsHst } = celebData;
 
-  // D-4 fix (Audit 1 2026-04-22): canonical HST helper. Returns 0 when the
-  // agent isn't registered OR the brokerage handles HST remittance — so the
-  // "reserve for sales tax" line correctly drops off in those cases.
-  const salesTaxRate   = gstHstRate(province || "ontario");
-  const salesTaxLabel  = gstHstLabel(province || "ontario");
-  const salesTaxAmt    = Math.round(
-    computeHSTCollected({
-      ytdGCI: gci,
-      hstRate: salesTaxRate,
-      isRegistered: isGstHstRegistered,
-      brokerageWithholdsHst,
-    }),
-  );
-  const taxReserve     = Math.round(gci * estimatedMarginalRate);
-  const funMoney       = Math.round(gci * 0.10);
-  const keepInvest     = Math.max(0, gci - taxReserve - funMoney);
+  // Same rows, figures and words as the Transactions celebration.
+  const breakdown      = dealCloseBreakdown({ gci, province, isGstHstRegistered, brokerageWithholdsHst, taxPortion });
   const ytdAfter       = ytdGCIBefore + gci;
   const goalPct        = goalGCI > 0 ? Math.min(100, Math.round((ytdAfter / goalGCI) * 100)) : 0;
 
@@ -420,15 +413,15 @@ function CelebrationContent({ address, clientName: _clientName, celebData, quote
         </div>
       )}
 
-      {/* Allocation breakdown */}
+      {/* Commission breakdown */}
       <div>
-        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">How to allocate your commission</p>
+        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">{breakdown.heading}</p>
         <div className="space-y-1.5">
-          <AllocRow icon={<Landmark className="h-3.5 w-3.5" />} color="yellow" label={`${salesTaxLabel} to remit`} amount={salesTaxAmt} rate={salesTaxRate} note="Remit to CRA on your next filing" />
-          <AllocRow icon={<Percent className="h-3.5 w-3.5" />} color="red" label="Income tax reserve" amount={taxReserve} rate={estimatedMarginalRate} note={`~${Math.round(estimatedMarginalRate*100)}% marginal rate · portion owed to CRA`} />
-          <AllocRow icon={<Sparkles className="h-3.5 w-3.5" />} color="purple" label="Fun money (10%)" amount={funMoney} note="You earned it. Seriously." />
-          <AllocRow icon={<PiggyBank className="h-3.5 w-3.5" />} color="blue" label="Keep / invest" amount={keepInvest} note="Savings, RRSP, next month's leads" />
+          {breakdown.rows.map((row) => (
+            <AllocRow key={row.key} icon={ROW_ICON[row.key]} color={ROW_COLOR[row.key]} label={row.label} amount={row.amount} rate={row.rate} note={row.note} />
+          ))}
         </div>
+        <p className="mt-2 text-[10px] leading-relaxed text-muted-foreground">{breakdown.disclaimer}</p>
       </div>
 
       {/* Quote */}
@@ -469,6 +462,19 @@ function DetailRow({ icon, label, value }: { icon: React.ReactNode; label: strin
     </div>
   );
 }
+
+const ROW_ICON: Record<DealCloseBreakdownRowKey, React.ReactNode> = {
+  salesTax: <Landmark className="h-3.5 w-3.5" />,
+  incomeTax: <Percent className="h-3.5 w-3.5" />,
+  funMoney: <Sparkles className="h-3.5 w-3.5" />,
+  rest: <PiggyBank className="h-3.5 w-3.5" />,
+};
+const ROW_COLOR: Record<DealCloseBreakdownRowKey, "yellow"|"red"|"purple"|"blue"> = {
+  salesTax: "yellow",
+  incomeTax: "red",
+  funMoney: "purple",
+  rest: "blue",
+};
 
 function AllocRow({ icon, color, label, amount, rate, note }: { icon: React.ReactNode; color: "yellow"|"red"|"purple"|"blue"; label: string; amount: number; rate?: number; note: string }) {
   const c = { yellow: "bg-yellow-50 border-yellow-200 text-yellow-800", red: "bg-red-50 border-red-200 text-red-800", purple: "bg-purple-50 border-purple-200 text-purple-800", blue: "bg-blue-50 border-blue-200 text-blue-800" };

@@ -93,6 +93,7 @@ import { buildPromptParts, injectCanary, validateNavigatorOutput } from "@/lib/a
 import { fetchMemories, addMemory } from "@/lib/ai/memory";
 import { createPersonaAgentTools, NEEDS_APPROVAL_TOOLS, APPROVAL_DESCRIPTIONS } from "@/lib/ai/tools";
 import { seasonalCommissionPatternLine } from "@/lib/ai/seasonal-tax-intel";
+import { paychequeAllocationLines } from "@/lib/ai/paycheque-allocation-intel";
 import type { Province, Transaction as CoreTransaction, ContactActivity } from "@agent-runway/core/types/database";
 
 /** Returns a safe user-facing message for AI stream errors without leaking internal details. */
@@ -609,7 +610,7 @@ export async function POST(req: NextRequest) {
 
         // 2. Canadian Tax Engine — projected net income after expenses.
         // Moved above survival because cashPosition below needs ytdTaxSetAside.
-        // agentPct is still used downstream (HST withholding example strings).
+        // agentPct is still used downstream (paycheque allocation example strings).
         // Plan-aware: under 'real' the pXX_YY regex matches nothing — use the
         // pre-cap split as the illustrative agent share for HST example strings.
         const splitMatch2 = settings.split_preset?.match(/p(\d+)_(\d+)/);
@@ -915,7 +916,7 @@ export async function POST(req: NextRequest) {
             taxIntelLines.push(
               `[INSTALMENT PLANNING] Quarterly instalment estimate: ${fmtCurrency(quarterlyInstalment)}. ` +
               `Next CRA instalment date: ${nextInstalmentLabel}. ` +
-              `Per-deal equivalent at current pace: ${fmtCurrency(perDealSetAside)}. ` +
+              `Per-deal tax portion: ${fmtCurrency(perDealSetAside)}. ` +
               `${CANONICAL_TAX_DISCLAIMER}`,
             );
           }
@@ -1028,7 +1029,7 @@ export async function POST(req: NextRequest) {
             seasonalWeights: engineSeasonalWeights,
             ytdTx,
             projectedGCI: projGCI,
-            effectiveRate: taxResult.effectiveRate,
+            annualTaxEstimate: taxResult.totalBurden,
             perDealSetAside: taxResult.perDealSetAside,
           }),
         );
@@ -1066,78 +1067,19 @@ export async function POST(req: NextRequest) {
         engineLines.push(...taxIntelLines);
 
         // ── Per-Paycheque Allocation Guidance ──────────────────────────────
-        // Tells the AI how to advise the agent on splitting each commission cheque
-        {
-          const hstRate = gstHstRate((settings.province ?? "ontario") as Parameters<typeof gstHstRate>[0]);
-          const hstLabel = gstHstLabel((settings.province ?? "ontario") as Parameters<typeof gstHstLabel>[0]);
-          const brokerageWithholdsHst = settings.brokerage_withholds_hst === true;
-          const marginalRate = projectedNetIncome > 0
-            ? Math.min(0.53, (taxResult?.totalTax ?? 0) / projectedNetIncome)
-            : 0.30; // default 30% if no data yet
-
-          const allocLines: string[] = [];
-          allocLines.push("── PAYCHEQUE ALLOCATION GUIDANCE ──");
-          allocLines.push(
-            `[SETUP] Province: ${settings.province}. ${hstLabel} rate: ${(hstRate * 100).toFixed(1)}%. ` +
-            `Brokerage withholds HST: ${brokerageWithholdsHst ? "YES — agent receives net-of-HST cheques" : "NO — agent receives full amount including HST"}. ` +
-            `Estimated marginal tax rate: ${(marginalRate * 100).toFixed(0)}%.`
-          );
-
-          // D-4 fix (Audit 1 2026-04-22): example math used `(10000 * agentPct) * hstRate`
-          // in the non-withholding case — same base class of bug as the
-          // earlier self-contradiction. HST is charged on the full commission
-          // invoiced to the client, not on the agent's split portion. Examples
-          // now compute HST on the $10,000 invoiced commission. Also softened
-          // "recommend" and money-handling wording per
-          // memory/feedback_tax_information_not_advice.md — forbidden verbs.
-          // Math below uses a canonical perDealGCI = $10,000 illustrative.
-          const exampleGCI = 10_000;
-          const exampleHST = computeHSTCollected({
-            ytdGCI: exampleGCI,
-            hstRate,
-            // Force registered=true for illustrative math regardless of
-            // current user state — this is a worked example, not a
-            // statement about the agent.
-            isRegistered: true,
-            brokerageWithholdsHst,
-          });
-          const exampleAgentGross = exampleGCI * agentPct;
-          const exampleTaxReserve = exampleAgentGross * marginalRate;
-          const exampleTakeHomeWithholding = Math.max(0, exampleAgentGross - exampleTaxReserve);
-          const exampleTakeHomeAgentHandled = Math.max(
-            0,
-            exampleAgentGross - exampleTaxReserve,
-          );
-          if (brokerageWithholdsHst) {
-            allocLines.push(
-              `[ALLOCATION MODEL — HST WITHHELD BY BROKERAGE] The brokerage collects ${hstLabel} on the invoiced commission and remits to CRA. ` +
-              `The agent receives their split of the pre-${hstLabel} commission. ` +
-              `Of the commission the agent receives, ~${(marginalRate * 100).toFixed(0)}% typically covers federal + provincial income tax at their projected marginal rate. ` +
-              `Illustrative example: $${exampleGCI.toLocaleString()} gross commission at ${(agentPct * 100).toFixed(0)}% split — agent receives $${exampleAgentGross.toFixed(0)} (${hstLabel} of ~$${exampleHST === 0 ? (exampleGCI * hstRate).toFixed(0) : exampleHST.toFixed(0)} handled by the brokerage). ` +
-              `At ~${(marginalRate * 100).toFixed(0)}% marginal rate, income tax portion ~$${exampleTaxReserve.toFixed(0)}; remainder ~$${exampleTakeHomeWithholding.toFixed(0)}. ` +
-              `${CANONICAL_TAX_DISCLAIMER}`
-            );
-          } else {
-            allocLines.push(
-              `[ALLOCATION MODEL — AGENT HANDLES HST] The agent receives the full commission including ${hstLabel} on their split portion (the ${hstLabel} portion is collected for CRA — it does not belong to the agent). ` +
-              `At the agent's projected marginal rate of ~${(marginalRate * 100).toFixed(0)}%, income tax on the pre-${hstLabel} commission is approximately that percentage of the agent's split. ` +
-              `Illustrative example: $${exampleGCI.toLocaleString()} gross commission at ${(agentPct * 100).toFixed(0)}% split — ${hstLabel} on the full invoiced commission is ~$${exampleHST.toFixed(0)} (collected for CRA), agent's split portion is $${exampleAgentGross.toFixed(0)}. ` +
-              `At ~${(marginalRate * 100).toFixed(0)}% marginal rate, income tax portion of the agent's split ~$${exampleTaxReserve.toFixed(0)}; remainder after income tax ~$${exampleTakeHomeAgentHandled.toFixed(0)}. ` +
-              `Note: ${hstLabel} is calculated on the invoiced commission, not on the agent's split — the agent/brokerage split affects who keeps what, not the ${hstLabel} base. ` +
-              `The ${hstLabel} portion represents trust funds collected on CRA's behalf; under the Excise Tax Act s.222, amounts collected are deemed held in trust for the Crown. ` +
-              `CRA charges interest at the prescribed rate on unremitted amounts from the day after the remittance due date.`
-            );
-          }
-
-          allocLines.push(
-            `[GUIDANCE TONE] When discussing paycheque allocation, state specific dollar amounts from the agent's actual commission amount, split, and province. ` +
-            `Distinguish between the portion that belongs to the agent post-tax and the estimated income tax and HST collected for CRA. ` +
-            `For basic allocation math the engine covers, state the math directly. ` +
-            `End tax-emitting responses with the canonical tax disclaimer: ${CANONICAL_TAX_DISCLAIMER}`
-          );
-          allocLines.push("── END PAYCHEQUE ALLOCATION GUIDANCE ──");
-          engineLines.push(...allocLines);
-        }
+        // Who handles the GST/HST, and the engine's tax portion of a
+        // commission: the year's estimate × the commission ÷ projected GCI,
+        // the figure the deal-close screens print (paycheque-allocation-intel).
+        engineLines.push(
+          ...paychequeAllocationLines({
+            province: settings.province ?? "ontario",
+            brokerageWithholdsHst: settings.brokerage_withholds_hst === true,
+            agentPct,
+            projectedGCI: projGCI,
+            annualTaxEstimate: taxResult.totalBurden,
+            perDealTaxPortion: taxResult.perDealSetAside,
+          }),
+        );
 
         engineLines.push("── END COMPUTED ENGINE OUTPUTS ──");
 

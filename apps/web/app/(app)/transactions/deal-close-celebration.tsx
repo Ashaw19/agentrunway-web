@@ -8,8 +8,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { CountUp } from "@/components/count-up";
 import { fmtCurrency } from "@/lib/formatters";
-import { gstHstRate, gstHstLabel } from "@/lib/engines/canadian-tax-engine";
-import { computeHSTCollected } from "@/lib/engines/hst-engine";
+import type { DealTaxPortion } from "@agent-runway/core/engines/deal-tax-portion";
+import { dealCloseBreakdown, type DealCloseBreakdownRowKey } from "@/lib/deal-close-breakdown";
 import { cn } from "@/lib/utils";
 import {
   PartyPopper,
@@ -35,7 +35,8 @@ export interface CelebrationData {
   province: string;
   dealsThisMonth: number; // including this deal
   totalDealsThisYear: number; // including this deal
-  estimatedMarginalRate: number; // 0–1 decimal
+  /** `dealCloseTaxPortion(...)`; null when there are no settings to estimate from. */
+  taxPortion: DealTaxPortion | null;
   /** Optional — when omitted, defaults to `true` for backward-compat (legacy behavior was to always show HST). */
   isGstHstRegistered?: boolean;
   /** Optional — when omitted, defaults to `false` for backward-compat. */
@@ -90,7 +91,7 @@ export function DealCloseCelebration({ open, onClose, data }: Props) {
     province,
     dealsThisMonth,
     totalDealsThisYear,
-    estimatedMarginalRate,
+    taxPortion,
     isGstHstRegistered = true,
     brokerageWithholdsHst = false,
   } = data;
@@ -98,22 +99,8 @@ export function DealCloseCelebration({ open, onClose, data }: Props) {
   const [quote] = useState(randomQuote);
   const [copied, setCopied] = useState(false);
 
-  // Financial allocations
-  // D-4 fix (Audit 1 2026-04-22): canonical HST helper. Returns 0 when the
-  // agent isn't registered OR the brokerage handles HST remittance.
-  const salesTaxRate = gstHstRate(province || "ontario");
-  const salesTaxLabel = gstHstLabel(province || "ontario");
-  const salesTaxAmount  = Math.round(
-    computeHSTCollected({
-      ytdGCI: gci,
-      hstRate: salesTaxRate,
-      isRegistered: isGstHstRegistered,
-      brokerageWithholdsHst,
-    }),
-  );
-  const taxReserve      = Math.round(gci * estimatedMarginalRate);
-  const funMoney        = Math.round(gci * 0.10);
-  const keepAndInvest   = Math.max(0, gci - taxReserve - funMoney);
+  // Same rows, figures and words as the dashboard's Closing Day prompt.
+  const breakdown = dealCloseBreakdown({ gci, province, isGstHstRegistered, brokerageWithholdsHst, taxPortion });
 
   // Goal progress
   const ytdGCIAfter = ytdGCIBefore + gci;
@@ -222,57 +209,27 @@ export function DealCloseCelebration({ open, onClose, data }: Props) {
             </div>
           )}
 
-          {/* Allocation breakdown */}
+          {/* Commission breakdown */}
           <div>
             <p className="mb-2.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
               <DollarSign className="h-3.5 w-3.5" />
-              How to allocate your commission
+              {breakdown.heading}
             </p>
             <div className="space-y-2">
-
-              {/* GST/HST */}
-              <AllocationRow
-                icon={<Landmark className="h-4 w-4" />}
-                colorClass="bg-yellow-50 border-yellow-200 text-yellow-800"
-                iconClass="bg-yellow-100 text-yellow-700"
-                label={`${salesTaxLabel} to remit`}
-                amount={salesTaxAmount}
-                rate={salesTaxRate}
-                note="Collected from your client — remit to CRA on next filing"
-              />
-
-              {/* Income tax reserve */}
-              <AllocationRow
-                icon={<Percent className="h-4 w-4" />}
-                colorClass="bg-red-50 border-red-200 text-red-800"
-                iconClass="bg-red-100 text-red-700"
-                label="Income tax reserve"
-                amount={taxReserve}
-                rate={estimatedMarginalRate}
-                note={`Estimated at your ~${Math.round(estimatedMarginalRate * 100)}% marginal rate — the tax portion before the rest is yours`}
-              />
-
-              {/* Fun money */}
-              <AllocationRow
-                icon={<Sparkles className="h-4 w-4" />}
-                colorClass="bg-purple-50 border-purple-200 text-purple-800"
-                iconClass="bg-purple-100 text-purple-700"
-                label="Fun money (10%)"
-                amount={funMoney}
-                note="You earned it. Seriously. Go do something nice."
-              />
-
-              {/* Keep + invest */}
-              <AllocationRow
-                icon={<PiggyBank className="h-4 w-4" />}
-                colorClass="bg-blue-50 border-blue-200 text-blue-800"
-                iconClass="bg-blue-100 text-blue-700"
-                label="Keep / invest"
-                amount={keepAndInvest}
-                note="Savings, RRSP, next month's lead gen — your call"
-              />
-
+              {breakdown.rows.map((row) => (
+                <AllocationRow
+                  key={row.key}
+                  icon={ROW_ICON[row.key]}
+                  colorClass={ROW_CLASSES[row.key].color}
+                  iconClass={ROW_CLASSES[row.key].icon}
+                  label={row.label}
+                  amount={row.amount}
+                  rate={row.rate}
+                  note={row.note}
+                />
+              ))}
             </div>
+            <p className="mt-2.5 text-[10px] leading-relaxed text-muted-foreground">{breakdown.disclaimer}</p>
           </div>
 
           {/* Quote */}
@@ -310,6 +267,19 @@ export function DealCloseCelebration({ open, onClose, data }: Props) {
 }
 
 // ── AllocationRow ─────────────────────────────────────────────────────────────
+
+const ROW_ICON: Record<DealCloseBreakdownRowKey, React.ReactNode> = {
+  salesTax: <Landmark className="h-4 w-4" />,
+  incomeTax: <Percent className="h-4 w-4" />,
+  funMoney: <Sparkles className="h-4 w-4" />,
+  rest: <PiggyBank className="h-4 w-4" />,
+};
+const ROW_CLASSES: Record<DealCloseBreakdownRowKey, { color: string; icon: string }> = {
+  salesTax: { color: "bg-yellow-50 border-yellow-200 text-yellow-800", icon: "bg-yellow-100 text-yellow-700" },
+  incomeTax: { color: "bg-red-50 border-red-200 text-red-800", icon: "bg-red-100 text-red-700" },
+  funMoney: { color: "bg-purple-50 border-purple-200 text-purple-800", icon: "bg-purple-100 text-purple-700" },
+  rest: { color: "bg-blue-50 border-blue-200 text-blue-800", icon: "bg-blue-100 text-blue-700" },
+};
 
 function AllocationRow({
   icon,
