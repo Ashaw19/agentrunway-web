@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { CLIENT_PAGE, DELETE_CHUNK, deleteClients, fetchAllClients } from "../delete-clients";
+import { DELETE_CHUNK, deleteClients, fetchAllClients } from "../delete-clients";
+import { PAGE_SIZE as CLIENT_PAGE } from "@/lib/supabase/fetch-all";
 
 /**
  * Bulk delete in the web CRM (Andrew, 2026-10-14) goes through

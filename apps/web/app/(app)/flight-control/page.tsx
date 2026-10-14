@@ -1,4 +1,5 @@
 import { createClient }   from "@/lib/supabase/server";
+import { fetchAllIn, fetchAllRows } from "@/lib/supabase/fetch-all";
 import { redirect }        from "next/navigation";
 import { FlightControlContent } from "./flight-control-content";
 import type { OutreachQueueItem, NewsletterQueue } from "@/lib/types/database";
@@ -55,24 +56,33 @@ export default async function FlightControlPage() {
     // couple's deal) whose CASL implied consent from a purchase has lapsed.
     // All deals, not just those of non-archived holders: a co-buyer's shared
     // deal still counts when the spouse holding it is archived.
-    supabase
-      .from("client_records")
-      .select("id, client_id, close_date, condition_status")
-      .eq("user_id", user.id)
-      .not("close_date", "is", null)
-      .not("client_id", "is", null),
-    supabase
-      .from("client_record_co_parties")
-      .select("client_record_id, co_client_id")
-      .eq("user_id", user.id),
+    // In pages: one request stops at 1,000 rows.
+    fetchAllRows<{ id: string; client_id: string | null; close_date: string | null; condition_status: string | null }>((from, to) =>
+      supabase
+        .from("client_records")
+        .select("id, client_id, close_date, condition_status")
+        .eq("user_id", user.id)
+        .not("close_date", "is", null)
+        .not("client_id", "is", null)
+        .order("id")
+        .range(from, to)),
+    fetchAllRows<{ client_record_id: string; co_client_id: string }>((from, to) =>
+      supabase
+        .from("client_record_co_parties")
+        .select("id, client_record_id, co_client_id")
+        .eq("user_id", user.id)
+        .order("id")
+        .range(from, to)),
     // Clients already on the Checklist: their cards read "On checklist".
-    supabase
-      .from("contact_tasks")
-      .select("client_id")
-      .eq("user_id", user.id)
-      .is("completed_at", null)
-      .not("client_id", "is", null)
-      .limit(1000),
+    fetchAllRows<{ client_id: string | null }>((from, to) =>
+      supabase
+        .from("contact_tasks")
+        .select("id, client_id")
+        .eq("user_id", user.id)
+        .is("completed_at", null)
+        .not("client_id", "is", null)
+        .order("id")
+        .range(from, to)),
   ]);
   if (checklistRes.error) {
     console.error("[flight-control] checklist fetch failed:", checklistRes.error.message);
@@ -88,12 +98,15 @@ export default async function FlightControlPage() {
 
   // Names for the note, archived clients excluded (they get no newsletter).
   const { data: lapsedClients, error: lapsedClientsError } = lapsedIds.length > 0
-    ? await supabase
-        .from("clients")
-        .select("id, name")
-        .eq("user_id", user.id)
-        .in("id", lapsedIds)
-        .is("archived_at", null)
+    ? await fetchAllIn<string, { id: string; name: string }>(lapsedIds, (chunk, from, to) =>
+        supabase
+          .from("clients")
+          .select("id, name")
+          .eq("user_id", user.id)
+          .in("id", chunk)
+          .is("archived_at", null)
+          .order("id")
+          .range(from, to))
     : { data: [], error: null };
   if (lapsedClientsError) {
     console.error("[flight-control] lapsed-client names fetch failed:", lapsedClientsError.message);
@@ -103,13 +116,15 @@ export default async function FlightControlPage() {
     .sort((a, b) => a.localeCompare(b));
 
   // Unsubscribed from all email (00173): flagged in the newsletter Recipients note.
-  const { data: optedOutClients, error: optedOutError } = await supabase
-    .from("clients")
-    .select("name")
-    .eq("user_id", user.id)
-    .is("archived_at", null)
-    .not("email_opt_out_at", "is", null)
-    .limit(1000);
+  const { data: optedOutClients, error: optedOutError } = await fetchAllRows<{ name: string | null }>((from, to) =>
+    supabase
+      .from("clients")
+      .select("id, name")
+      .eq("user_id", user.id)
+      .is("archived_at", null)
+      .not("email_opt_out_at", "is", null)
+      .order("id")
+      .range(from, to));
   if (optedOutError) console.error("[flight-control] opted-out names fetch failed:", optedOutError.message);
   const optedOutClientNames = (optedOutClients ?? [])
     .map((c) => (c.name as string | null)?.trim() || "Unnamed client")

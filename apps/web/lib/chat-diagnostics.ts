@@ -9,6 +9,7 @@
  * Each diagnostic function returns a plain string (or null if not applicable).
  */
 
+import { fetchAllRows } from "@/lib/supabase/fetch-all";
 import { createClient } from "@/lib/supabase/server";
 import { computeGCI, computeWeightedGCI, activePipelineDeals } from "@/lib/types/database";
 import { fmtCurrency } from "@/lib/formatters";
@@ -222,11 +223,15 @@ export async function buildDiagnostics(
       .from("expense_categories")
       .select("key, title, expense_items(key, monthly_recurring)")
       .eq("user_id", userId),
-    supabase
-      .from("clients")
-      .select("id, status, last_contact_at, created_at")
-      .eq("user_id", userId)
-      .is("archived_at", null),
+    // In pages: one request stops at 1,000 rows ("Total Active Clients" capped).
+    fetchAllRows((from, to) =>
+      supabase
+        .from("clients")
+        .select("id, status, last_contact_at, created_at")
+        .eq("user_id", userId)
+        .is("archived_at", null)
+        .order("id")
+        .range(from, to)),
     supabase
       .from("history_items")
       .select("year, annual_tx, annual_gci, quarter_gci")

@@ -21,6 +21,7 @@
  * on close.
  */
 
+import { fetchAllRows } from "@/lib/supabase/fetch-all";
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient }          from "@/lib/supabase/admin";
 import { detectAndDraftForUser }      from "@/app/api/ai/detect-opportunities/route";
@@ -39,10 +40,15 @@ export async function GET(req: NextRequest) {
   const supabaseAdmin = createAdminClient();
 
   // ── Outreach detection for all users ───────────────────────────────────────
-  const { data: rows, error } = await supabaseAdmin
-    .from("clients")
-    .select("user_id")
-    .order("user_id");
+  // Every agent with clients. In pages: one request stops at 1,000 rows, so
+  // agents whose clients sorted past the first 1,000 were never scanned.
+  const { data: rows, error } = await fetchAllRows<{ user_id: string }>((from, to) =>
+    supabaseAdmin
+      .from("clients")
+      .select("user_id")
+      .order("user_id")
+      .order("id")
+      .range(from, to));
 
   if (error) {
     console.error("[cron/outreach-detector] Failed to fetch user list:", error);

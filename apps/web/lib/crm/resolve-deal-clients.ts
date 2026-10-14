@@ -44,6 +44,7 @@
 // surface as read-only "Household Activity" (client_record_co_parties) rather
 // than as rows of their own.
 
+import { fetchAllIn } from "@/lib/supabase/fetch-all";
 import { splitJointName } from "./joint-names";
 import { toNameSearch } from "./client-identity";
 import type { createClient } from "@/lib/supabase/client";
@@ -232,11 +233,15 @@ export async function resolveDealClientIds(
   );
 
   const keys = plan.allParties.map((n) => toNameSearch(n));
-  const { data: clientRows } = await supabase
-    .from("clients")
-    .select("id, name_search")
-    .eq("user_id", userId)
-    .in("name_search", keys);
+  // Long party lists in chunks: the request stays short and each is read in full.
+  const { data: clientRows } = await fetchAllIn<string, { id: string; name_search: string }>(keys, (chunk, from, to) =>
+    supabase
+      .from("clients")
+      .select("id, name_search")
+      .eq("user_id", userId)
+      .in("name_search", chunk)
+      .order("id")
+      .range(from, to));
 
   const idByKey = new Map(
     ((clientRows ?? []) as { id: string; name_search: string }[]).map((c) => [c.name_search, c.id]),

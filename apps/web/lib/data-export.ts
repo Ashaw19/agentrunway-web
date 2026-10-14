@@ -14,6 +14,7 @@
 // a partial export than to fail the whole download.
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { fetchAllRows } from "@/lib/supabase/fetch-all";
 import JSZip from "jszip";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { log } from "@/lib/logger";
@@ -172,6 +173,9 @@ export interface BuildExportResult {
 /**
  * Build a ZIP export of every user-owned row, ready to stream back to the user.
  */
+/** Export tables keyed by user_id with no id column (one row per user, or a view). */
+const ONE_ROW_TABLES = new Set(["user_settings", "notification_preferences", "org_agent_performance"]);
+
 export async function buildUserExport(
   userId: string,
   userEmail: string | null,
@@ -195,10 +199,12 @@ export async function buildUserExport(
 
   for (const spec of EXPORT_TABLES) {
     try {
-      const { data, error } = await admin
-        .from(spec.table)
-        .select("*")
-        .eq("user_id", userId);
+      // Every row, in pages: one request stops at 1,000 rows, which cut the
+      // export short. One-row-per-user tables (no id) are read whole.
+      const { data, error } = ONE_ROW_TABLES.has(spec.table)
+        ? await admin.from(spec.table).select("*").eq("user_id", userId)
+        : await fetchAllRows((from, to) =>
+            admin.from(spec.table).select("*").eq("user_id", userId).order("id").range(from, to));
 
       if (error) {
         manifest.errors.push({ table: spec.table, message: error.message });

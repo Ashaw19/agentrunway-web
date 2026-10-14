@@ -11,6 +11,7 @@
  * Protected by CRON_SECRET Bearer token.
  */
 
+import { fetchAllRows } from "@/lib/supabase/fetch-all";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { generateMorningBriefing } from "@/lib/ai/precompute";
@@ -174,17 +175,22 @@ async function updateEngagementScores(
   ).toISOString();
 
   const [clientsResult, activitiesResult] = await Promise.all([
-    supabase
-      .from("clients")
-      .select("id, engagement_score")
-      .eq("user_id", userId)
-      .limit(10000),
-    supabase
-      .from("contact_activities")
-      .select("client_id, type, activity_date")
-      .eq("user_id", userId)
-      .gte("activity_date", lookbackIso)
-      .limit(10000),
+    // In pages: one request stops at 1,000 rows, which wrote wrong scores.
+    fetchAllRows((from, to) =>
+      supabase
+        .from("clients")
+        .select("id, engagement_score")
+        .eq("user_id", userId)
+        .order("id")
+        .range(from, to)),
+    fetchAllRows((from, to) =>
+      supabase
+        .from("contact_activities")
+        .select("id, client_id, type, activity_date")
+        .eq("user_id", userId)
+        .gte("activity_date", lookbackIso)
+        .order("id")
+        .range(from, to)),
   ]);
 
   // Fail this user's pass loudly rather than writing zeros over real scores.

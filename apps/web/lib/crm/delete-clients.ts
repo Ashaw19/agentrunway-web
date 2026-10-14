@@ -9,6 +9,7 @@
  * without changing anything, for the confirm dialog.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { fetchAllRows } from "@/lib/supabase/fetch-all";
 
 export interface DeleteClientsResult {
   /** Clients deleted (or that would be, on a dry run). */
@@ -43,9 +44,6 @@ export async function deleteClients(
   return { data: out, error: null };
 }
 
-/** Rows per request: the API returns at most 1,000 (supabase/config.toml max_rows). */
-export const CLIENT_PAGE = 1000;
-
 /**
  * Every client the agent has, archived included, ordered by name. A single
  * select returns at most 1,000 rows however high its .limit(), so an agent
@@ -55,19 +53,14 @@ export async function fetchAllClients<T = Record<string, unknown>>(
   supabase: SupabaseClient,
   userId: string,
 ): Promise<{ data: T[] | null; error: string | null }> {
-  const rows: T[] = [];
-  for (let from = 0; ; from += CLIENT_PAGE) {
-    const { data, error } = await supabase
+  const { data, error } = await fetchAllRows<T>((from, to) =>
+    supabase
       .from("clients")
       .select("*")
       .eq("user_id", userId)
       .order("name")
       .order("id") // stable across pages when names repeat
-      .range(from, from + CLIENT_PAGE - 1);
-    if (error) return { data: null, error: error.message };
-    const page = (data ?? []) as T[];
-    rows.push(...page);
-    if (page.length < CLIENT_PAGE) break;
-  }
-  return { data: rows, error: null };
+      .range(from, to) as unknown as PromiseLike<{ data: T[] | null; error: { message: string } | null }>,
+  );
+  return error ? { data: null, error: error.message } : { data, error: null };
 }

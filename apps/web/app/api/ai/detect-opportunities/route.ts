@@ -16,6 +16,7 @@
  * single-item /api/ai/draft-outreach endpoint).
  */
 
+import { fetchAllRows } from "@/lib/supabase/fetch-all";
 import { generateText } from "ai";
 import { models, heliconeHeaders } from "@/lib/ai/provider";
 import { NextRequest, NextResponse } from "next/server";
@@ -873,25 +874,35 @@ export async function detectAndDraftForUser(
       .select("display_name, email_signature, ai_voice_guide")
       .eq("user_id", userId)
       .single(),
-    supabase
-      .from("clients")
-      .select("id, name, city, province_region, birthdate, communication_tone, first_contacted_at, last_contact_at, tags, notes, status, scheduled_for, scheduled_phrase, email_opt_out_at")
-      .eq("user_id", userId)
-      .is("archived_at", null),
-    supabase
-      .from("client_records")
-      // condition_status: excludeCollapsedDeals below and the CASL gate both
-      // read it. Without it in the select both are no-ops here.
-      .select("id, client_id, address, close_date, gci, side, property_use, condition_status")
-      .eq("user_id", userId)
-      .not("close_date", "is", null)
-      .not("client_id", "is", null),
+    // Per-user lists below are read in pages: one request stops at 1,000 rows.
+    fetchAllRows((from, to) =>
+      supabase
+        .from("clients")
+        .select("id, name, city, province_region, birthdate, communication_tone, first_contacted_at, last_contact_at, tags, notes, status, scheduled_for, scheduled_phrase, email_opt_out_at")
+        .eq("user_id", userId)
+        .is("archived_at", null)
+        .order("id")
+        .range(from, to)),
+    fetchAllRows((from, to) =>
+      supabase
+        .from("client_records")
+        // condition_status: excludeCollapsedDeals below and the CASL gate both
+        // read it. Without it in the select both are no-ops here.
+        .select("id, client_id, address, close_date, gci, side, property_use, condition_status")
+        .eq("user_id", userId)
+        .not("close_date", "is", null)
+        .not("client_id", "is", null)
+        .order("id")
+        .range(from, to)),
     // Batch-fetch all memory profiles for this user (optional — failures are non-fatal)
-    supabase
-      .from("client_memory_profiles")
-      .select("client_id, memory_summary, structured_facts, stale")
-      .eq("user_id", userId)
-      .eq("stale", false),
+    fetchAllRows((from, to) =>
+      supabase
+        .from("client_memory_profiles")
+        .select("id, client_id, memory_summary, structured_facts, stale")
+        .eq("user_id", userId)
+        .eq("stale", false)
+        .order("id")
+        .range(from, to)),
     // Flight Control sends inside the suppression window — see lib/crm/recently-contacted.ts
     supabase
       .from("outreach_queue")
@@ -901,15 +912,21 @@ export async function detectAndDraftForUser(
       .gte("sent_at", outreachSuppressionCutoff().toISOString()),
     // Co-buyers on a couple's deal (#257): the CASL gate credits them the
     // deal the other spouse holds. See withCoBuyerDeals.
-    supabase
-      .from("client_record_co_parties")
-      .select("client_record_id, co_client_id")
-      .eq("user_id", userId),
+    fetchAllRows((from, to) =>
+      supabase
+        .from("client_record_co_parties")
+        .select("id, client_record_id, co_client_id")
+        .eq("user_id", userId)
+        .order("id")
+        .range(from, to)),
     // Occurrences the agent dismissed in Flight Control — lib/crm/dismissed-opportunities.ts
-    supabase
-      .from("flight_control_dismissals")
-      .select("client_id, opportunity_type, trigger_date")
-      .eq("user_id", userId),
+    fetchAllRows((from, to) =>
+      supabase
+        .from("flight_control_dismissals")
+        .select("id, client_id, opportunity_type, trigger_date")
+        .eq("user_id", userId)
+        .order("id")
+        .range(from, to)),
     firstContactOccurrences(supabase, userId),
   ]);
 
@@ -2217,21 +2234,31 @@ export async function getTopOpportunities(
 ): Promise<TopOpportunity[]> {
   // ── Fetch data (same as detectAndDraftForUser) ─────────────────────────────
   const [clientsRes, recordsRes, memoryRes, sentRes, coPartiesRes, dismissedRes, firstContactRes] = await Promise.all([
-    supabase
-      .from("clients")
-      .select("id, name, city, province_region, birthdate, communication_tone, first_contacted_at, last_contact_at, created_at, tags, notes, status, scheduled_for, scheduled_phrase, email_opt_out_at")
-      .eq("user_id", userId)
-      .is("archived_at", null),
-    supabase
-      .from("client_records")
-      .select("id, client_id, address, close_date, gci, side, property_use, condition_date, condition_status")
-      .eq("user_id", userId)
-      .not("client_id", "is", null),
-    supabase
-      .from("client_memory_profiles")
-      .select("client_id, memory_summary, structured_facts, stale")
-      .eq("user_id", userId)
-      .eq("stale", false),
+    // Per-user lists below are read in pages: one request stops at 1,000 rows.
+    fetchAllRows((from, to) =>
+      supabase
+        .from("clients")
+        .select("id, name, city, province_region, birthdate, communication_tone, first_contacted_at, last_contact_at, created_at, tags, notes, status, scheduled_for, scheduled_phrase, email_opt_out_at")
+        .eq("user_id", userId)
+        .is("archived_at", null)
+        .order("id")
+        .range(from, to)),
+    fetchAllRows((from, to) =>
+      supabase
+        .from("client_records")
+        .select("id, client_id, address, close_date, gci, side, property_use, condition_date, condition_status")
+        .eq("user_id", userId)
+        .not("client_id", "is", null)
+        .order("id")
+        .range(from, to)),
+    fetchAllRows((from, to) =>
+      supabase
+        .from("client_memory_profiles")
+        .select("id, client_id, memory_summary, structured_facts, stale")
+        .eq("user_id", userId)
+        .eq("stale", false)
+        .order("id")
+        .range(from, to)),
     supabase
       .from("outreach_queue")
       .select("client_id, sent_at")
@@ -2240,15 +2267,21 @@ export async function getTopOpportunities(
       .gte("sent_at", outreachSuppressionCutoff().toISOString()),
     // Co-buyers on a couple's deal (#257): the CASL gate credits them the
     // deal the other spouse holds. See withCoBuyerDeals.
-    supabase
-      .from("client_record_co_parties")
-      .select("client_record_id, co_client_id")
-      .eq("user_id", userId),
+    fetchAllRows((from, to) =>
+      supabase
+        .from("client_record_co_parties")
+        .select("id, client_record_id, co_client_id")
+        .eq("user_id", userId)
+        .order("id")
+        .range(from, to)),
     // Occurrences the agent dismissed in Flight Control — lib/crm/dismissed-opportunities.ts
-    supabase
-      .from("flight_control_dismissals")
-      .select("client_id, opportunity_type, trigger_date")
-      .eq("user_id", userId),
+    fetchAllRows((from, to) =>
+      supabase
+        .from("flight_control_dismissals")
+        .select("id, client_id, opportunity_type, trigger_date")
+        .eq("user_id", userId)
+        .order("id")
+        .range(from, to)),
     firstContactOccurrences(supabase, userId),
   ]);
 

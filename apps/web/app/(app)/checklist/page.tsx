@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { fetchAllRows } from "@/lib/supabase/fetch-all";
 import { redirect } from "next/navigation";
 import type { ContactTask } from "@/lib/types/database";
 import { ChecklistContent, type ChecklistClient } from "./checklist-content";
@@ -14,13 +15,16 @@ export default async function ChecklistPage() {
   const since = new Date(Date.now() - 8 * 86_400_000).toISOString();
 
   const [openRes, doneRes, clientsRes] = await Promise.all([
-    supabase
-      .from("contact_tasks")
-      .select("*")
-      .eq("user_id", user.id)
-      .is("completed_at", null)
-      .order("due_date", { ascending: true })
-      .limit(500),
+    // Every open item and every client, in pages: one request stops at 1,000 rows.
+    fetchAllRows((from, to) =>
+      supabase
+        .from("contact_tasks")
+        .select("*")
+        .eq("user_id", user.id)
+        .is("completed_at", null)
+        .order("due_date", { ascending: true })
+        .order("id")
+        .range(from, to)),
     supabase
       .from("contact_tasks")
       .select("*")
@@ -29,12 +33,14 @@ export default async function ChecklistPage() {
       .gte("completed_at", since)
       .order("completed_at", { ascending: false })
       .limit(200),
-    supabase
-      .from("clients")
-      .select("id, name, archived_at")
-      .eq("user_id", user.id)
-      .order("name", { ascending: true })
-      .limit(5000),
+    fetchAllRows((from, to) =>
+      supabase
+        .from("clients")
+        .select("id, name, archived_at")
+        .eq("user_id", user.id)
+        .order("name", { ascending: true })
+        .order("id")
+        .range(from, to)),
   ]);
 
   for (const [label, res] of [["open", openRes], ["done", doneRes], ["clients", clientsRes]] as const) {

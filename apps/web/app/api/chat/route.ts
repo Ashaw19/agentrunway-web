@@ -1,4 +1,5 @@
 import { streamText, stepCountIs } from "ai";
+import { fetchAllRows } from "@/lib/supabase/fetch-all";
 import { NextRequest } from "next/server";
 
 export const maxDuration = 120;
@@ -489,10 +490,15 @@ export async function POST(req: NextRequest) {
       try {
         // Fetch additional data needed by some engines (activities + history)
         const [{ data: activities }, { data: historyItems }] = await Promise.all([
-          supabase
-            .from("contact_activities")
-            .select("id, user_id, client_id, type, description, activity_date, created_at")
-            .eq("user_id", user.id),
+          // Every activity, in pages: one request stops at 1,000 rows, which
+          // capped the touchpoint counts the engines compute from them.
+          fetchAllRows((from, to) =>
+            supabase
+              .from("contact_activities")
+              .select("id, user_id, client_id, type, description, activity_date, created_at")
+              .eq("user_id", user.id)
+              .order("id")
+              .range(from, to)),
           supabase
             .from("history_items")
             .select("year, annual_tx, annual_gci, annual_expenses, quarter_gci")

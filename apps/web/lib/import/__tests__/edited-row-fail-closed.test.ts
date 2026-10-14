@@ -29,8 +29,11 @@ const IMPORTERS = [
   "app/(app)/transactions/transactions-history-tab.tsx",
 ] as const;
 
-// The edited-row lookup is uniquely identified by this select list.
-const LOOKUP_SELECT = `.select("import_external_id, edited_at")`;
+// The edited-row lookup is uniquely identified by this select list. Since
+// 2026-10-14 it runs through fetchAllIn (chunked, each chunk read in full:
+// one request stops at 1,000 rows), which returns any error with the rows,
+// so the same guards below still stop the import.
+const LOOKUP_SELECT = `.select("id, import_external_id, edited_at")`;
 
 describe("REGRESSION — importer edited-row lookups fail closed", () => {
   for (const rel of IMPORTERS) {
