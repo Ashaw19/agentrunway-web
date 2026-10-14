@@ -9,6 +9,7 @@ import { buildScenarioSeed } from "@/lib/scenario-seed";
 import { computeIsPro } from "@/lib/compute-is-pro";
 import { atlanticNoon } from "@agent-runway/core/lib/local-date";
 import { loadCapYearCarryOver } from "@/lib/cap-year-carry-over";
+import { loadTaxYearCarryIn } from "@/lib/tax-year-carry-in";
 
 
 export default async function OverheadPage() {
@@ -31,6 +32,9 @@ export default async function OverheadPage() {
   // contains it: the plan waterfall's cap carries across January 1 (the
   // dashboard's carry-over, cap-year-carry-over.ts). Never rejects.
   const carryOverPromise = loadCapYearCarryOver(supabase, user.id, rawSettings, currentYear);
+  // A cash-method agent's earlier closings paid this year: the tax figures'
+  // carry-in (tax-year-carry-in.ts). Empty for accrual.
+  const taxYearCarryInPromise = loadTaxYearCarryIn(supabase, user.id, rawSettings, currentYear);
 
   // ── Live Supabase queries ──
   const [
@@ -110,6 +114,7 @@ export default async function OverheadPage() {
 
   const transactions = (txResult.data ?? []) as Transaction[];
   const carryOverTx = await carryOverPromise;
+  const taxYearCarryIn = await taxYearCarryInPromise;
   const expenseItems = expItemResult.data ?? [];
   const pipelineDeals = (pipelineResult.data ?? []) as PipelineDeal[];
 
@@ -147,6 +152,7 @@ export default async function OverheadPage() {
     settings: rawSettings ?? null,
     transactions,
     carryOverTx,
+    taxYearCarryIn,
     pipelineDeals,
     listings: (listingResult.data ?? []) as ListingAppointment[],
     historyItems: (historyResult.data ?? []) as HistoryItem[],
@@ -157,6 +163,7 @@ export default async function OverheadPage() {
     <OverheadContent
       transactions={transactions}
       carryOverTx={carryOverTx}
+      taxYearCarryIn={taxYearCarryIn}
       settings={rawSettings}
       expensesYTD={expensesYTD}
       deductionTracking={deductionTracking}

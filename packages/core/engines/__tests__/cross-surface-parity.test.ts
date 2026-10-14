@@ -524,6 +524,7 @@ describe("the tax portion of a commission is one figure on every surface", () =>
       historyItems: [],
       expensesYTD: EXPENSES_YTD,
       expensesRemaining: EXPENSES_REMAINING,
+      taxYearGCIAdjustment: 0,
       commissionGCI: COMMISSION,
       closingPipelineDealId: CLOSING_ID,
       now: NOW,
@@ -576,6 +577,7 @@ describe("the tax portion of a commission is one figure on every surface", () =>
       historyItems: [],
       expensesYTD: EXPENSES_YTD,
       expensesRemaining: EXPENSES_REMAINING,
+      taxYearGCIAdjustment: 0,
       now: NOW,
     });
     expect(year.projectedGCI).toBe(projGCI);

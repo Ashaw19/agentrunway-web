@@ -11,6 +11,7 @@ import { computeIsPro } from "@/lib/compute-is-pro";
 import type { IncomeGoalRow } from "@/lib/income-goals";
 import { addDaysISO, atlanticISODate, atlanticNoon } from "@agent-runway/core/lib/local-date";
 import { loadCapYearCarryOver } from "@/lib/cap-year-carry-over";
+import { loadTaxYearCarryIn } from "@/lib/tax-year-carry-in";
 
 
 export default async function DashboardPage({
@@ -39,6 +40,9 @@ export default async function DashboardPage({
   // prices this year's deals from there (cap-year-carry-over.ts). They move
   // the cap only; `transactions` below stays this year's. Never rejects.
   const carryOverPromise = loadCapYearCarryOver(supabase, user.id, settingsRow, dashYear);
+  // A cash-method agent's commissions paid this year on deals closed before
+  // January 1 (tax-year-carry-in.ts). Tax figures only; empty for accrual.
+  const taxYearCarryInPromise = loadTaxYearCarryIn(supabase, user.id, settingsRow, dashYear);
 
   // ── Live Supabase queries ──────────────────────────────────────────────
   // Use Promise.allSettled so one failed query doesn't crash the entire dashboard
@@ -170,6 +174,7 @@ export default async function DashboardPage({
   ];
 
   const carryOverTx = await carryOverPromise;
+  const taxYearCarryIn = await taxYearCarryInPromise;
 
   // null when the lookup failed: the prompt then asks about nothing this load
   // rather than risk recording a deal a second time.
@@ -299,6 +304,7 @@ export default async function DashboardPage({
     <DashboardContent
       transactions={txResult.data ?? []}
       carryOverTx={carryOverTx}
+      taxYearCarryIn={taxYearCarryIn}
       pipelineDeals={pipelineResult.data ?? []}
       recordedPipelineDealIds={recordedPipelineDealIds}
       settings={settingsRow}

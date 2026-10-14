@@ -166,6 +166,7 @@ const YEAR = yearTaxEstimate({
   historyItems: [],
   expensesYTD: 12_000,
   expensesRemaining: 6_000,
+  taxYearGCIAdjustment: 0,
   now: NOW,
 });
 

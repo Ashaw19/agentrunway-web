@@ -230,6 +230,7 @@ export function createTestSettings(
     filing_frequency: "annual",
     fiscal_year_end_month: 12,
     brokerage_withholds_hst: false,
+    income_reporting_method: "accrual",
 
     // Timestamps
     created_at: "2026-01-01T00:00:00Z",

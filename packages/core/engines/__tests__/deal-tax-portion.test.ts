@@ -23,6 +23,7 @@ import {
 import { calculate } from "../canadian-tax-engine";
 import { computeProjectedNetForTax } from "../effective-cash";
 import { projectedYearEndGCI, projectedYearEndTransactions, seasonalFractionElapsed } from "../projection-engine";
+import { taxYearGCIAdjustment } from "../tax-year";
 import { computeWeightedGCI } from "../../types/database";
 import { createTestSettings } from "./test-data";
 
@@ -53,6 +54,7 @@ const YEAR: YearTaxEstimateInputs = {
   historyItems: [],
   expensesYTD: 9_000,
   expensesRemaining: 6_000,
+  taxYearGCIAdjustment: 0,
   now: NOW,
 };
 
@@ -221,5 +223,60 @@ describe("dealCloseTaxPortion: the year is estimated with the deal already close
     const portion = dealCloseTaxPortion({ ...YEAR, commissionGCI: -100 });
     expect(portion.taxPortion).toBe(0);
     expect(portion.commissionGCI).toBe(0);
+  });
+});
+
+describe("yearTaxEstimate on tax-year income (cash method, 2026-10-14)", () => {
+  // This year's closings (the YEAR fixture's $60,000 over 5 deals is the
+  // production view) plus a December 17, 2025 listing paid in January.
+  const ROWS = [
+    { date: "2025-12-17", commission_paid_date: "2026-01-09", sale_price: 0, commission_pct: 0, team_split_pct: null, gci_override: 15_000 },
+    { date: "2026-03-02", commission_paid_date: "2026-03-09", sale_price: 0, commission_pct: 0, team_split_pct: null, gci_override: 60_000 },
+  ];
+
+  it("an accrual agent's estimate is the closing-date estimate: adjustment 0", () => {
+    const adjustment = taxYearGCIAdjustment(ROWS, "accrual", 2026);
+    expect(adjustment).toBe(0);
+    const year = yearTaxEstimate({ ...YEAR, taxYearGCIAdjustment: adjustment });
+    expect(year.taxYearProjectedGCI).toBe(year.projectedGCI);
+    expect(year).toEqual(yearTaxEstimate(YEAR));
+  });
+
+  it("a cash-method agent's estimate carries the January-paid listing; the production projection does not move", () => {
+    const adjustment = taxYearGCIAdjustment(ROWS, "cash", 2026);
+    expect(adjustment).toBe(15_000);
+    const accrual = yearTaxEstimate(YEAR);
+    const cash = yearTaxEstimate({ ...YEAR, taxYearGCIAdjustment: adjustment });
+
+    expect(cash.projectedGCI).toBe(accrual.projectedGCI);
+    expect(cash.projectedDealCount).toBe(accrual.projectedDealCount);
+    expect(cash.fraction).toBe(accrual.fraction);
+    expect(cash.taxYearProjectedGCI).toBe(accrual.projectedGCI + 15_000);
+    expect(cash.netForTax).toBe(computeProjectedNetForTax({
+      projectedGCI: accrual.projectedGCI + 15_000,
+      expensesYTD: 9_000,
+      expensesRemaining: 6_000,
+      settings: SETTINGS,
+      projectedDealCount: accrual.projectedDealCount,
+      now: NOW,
+    }));
+    expect(cash.tax.totalBurden).toBeGreaterThan(accrual.tax.totalBurden);
+  });
+
+  it("the year the listing closed loses it for a cash-method agent", () => {
+    expect(taxYearGCIAdjustment(ROWS, "cash", 2025)).toBe(-15_000);
+  });
+
+  it("a deal-close portion is a share of tax-year projected GCI", () => {
+    const portion = dealCloseTaxPortion({ ...YEAR, taxYearGCIAdjustment: 15_000, commissionGCI: 10_000, closingPipelineDealId: "p1" });
+    const afterClose = yearTaxEstimate({
+      ...YEAR,
+      taxYearGCIAdjustment: 15_000,
+      ytdGCI: 70_000,
+      ytdDealCount: 6,
+      pipelineDeals: PIPELINE.filter((d) => d.id !== "p1"),
+    });
+    expect(portion.projectedGCI).toBe(afterClose.taxYearProjectedGCI);
+    expect(portion.taxPortion).toBe(taxPortionOfCommission(10_000, afterClose.taxYearProjectedGCI, afterClose.tax.totalBurden));
   });
 });

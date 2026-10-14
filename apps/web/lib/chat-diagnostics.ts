@@ -39,6 +39,8 @@ import {
   pipelineIncomeMonthsLeft,
 } from "@agent-runway/core/engines/effective-cash";
 import { capYearCarryOver, toPlanDeals } from "@agent-runway/core/engines/real-compensation-engine";
+import { incomeReportingMethod, taxYearGCIAdjustment, taxYearProjectedGCI } from "@agent-runway/core/engines/tax-year";
+import { INCOME_REPORTING_METHOD_SETTING } from "@agent-runway/core/tax-copy";
 import { expenseTaxContext } from "@agent-runway/core/engines/expense-totals-engine";
 import { ytdExpenseTotals, ytdExpensesGstHstIncluded } from "@agent-runway/core/engines/t2125-expenses-engine";
 import { expenseCategoryBreakdown, expenseItemsOf, type ExpenseCategoryYtd } from "@/lib/ai/expense-tax-intel";
@@ -69,6 +71,8 @@ interface UserSettings {
   /** REAL anniversary anchor: the cap year's carry-over starts from it. */
   real_join_date?: string | null;
   real_pre_cap_agent_pct?: number | null;
+  /** 'accrual' | 'cash' (migration 00178); read with incomeReportingMethod(). */
+  income_reporting_method?: string | null;
   monthly_brokerage_fee: number;
   tx_fee_rate_pct: number;
   tx_fee_annual_cap: number;
@@ -137,6 +141,12 @@ interface DiagContext {
   closedTx: Transaction[];
   /** A REAL agent's closed deals before January 1 in the cap year (capYearCarryOver); the plan waterfall's only. */
   carryOverTx: Transaction[];
+  /**
+   * `taxYearGCIAdjustment` on every closed row (core/engines/tax-year.ts):
+   * moves projected GCI to tax-year income for a cash-method agent. 0 for
+   * accrual. The tax diagnostic only.
+   */
+  taxGCIAdjustment: number;
   pipelineDeals: PipelineDeal[];
   clients: { id: string; status: string; last_contact_at: string | null; created_at: string }[];
   referrals: ReferralRow[];
@@ -202,7 +212,7 @@ export async function buildDiagnostics(
     supabase.from("user_settings").select("*").eq("user_id", userId).single(),
     supabase
       .from("transactions")
-      .select("id, date, sale_price, commission_pct, team_split_pct, gci_override, status")
+      .select("id, date, commission_paid_date, sale_price, commission_pct, team_split_pct, gci_override, status")
       .eq("user_id", userId),
     supabase
       .from("pipeline_deals")
@@ -328,6 +338,11 @@ export async function buildDiagnostics(
     settings: s,
     closedTx,
     carryOverTx,
+    taxGCIAdjustment: taxYearGCIAdjustment(
+      (allTransactions ?? []).filter((tx) => tx.status === "closed") as Transaction[],
+      incomeReportingMethod(s),
+      currentYear,
+    ),
     pipelineDeals,
     clients: clients ?? [],
     referrals: (referralRows ?? []) as ReferralRow[],
@@ -523,9 +538,11 @@ function diagTax(ctx: DiagContext): string {
   // season scaling. `projectedAgentNet` is retained below as a display-
   // only intermediate for the diagnostic line — the *engine input* is
   // now the canonical netSEIncome.
-  const projectedAgentNet = projGCI * agentPct;
+  // Tax-year income (core/engines/tax-year.ts): projGCI for an accrual agent.
+  const taxProjGCI = taxYearProjectedGCI(projGCI, ctx.taxGCIAdjustment);
+  const projectedAgentNet = taxProjGCI * agentPct;
   const netSEIncome = computeProjectedNetForTax({
-    projectedGCI: projGCI,
+    projectedGCI: taxProjGCI,
     expensesYTD,
     expensesRemaining: ctx.expensesRemaining,
     settings: s as unknown as CanonicalUserSettings,
@@ -548,6 +565,8 @@ Province: ${s.province}
 Business Structure: ${s.business_structure ?? "sole_prop"}
 GST/HST Registered: ${(s.gst_hst_registered ?? false) ? "Yes" : "No"}
 Projected Annual GCI: ${fmtCurrency(projGCI)}
+Income Reporting Method: ${INCOME_REPORTING_METHOD_SETTING.options[incomeReportingMethod(s)]}${ctx.taxGCIAdjustment !== 0 ? `
+Projected GCI as Tax-Year Income: ${fmtCurrency(taxProjGCI)} (commissions paid in a different year from closing: ${ctx.taxGCIAdjustment > 0 ? "+" : "-"}${fmtCurrency(Math.abs(ctx.taxGCIAdjustment))})` : ""}
 Agent Split: ${(agentPct * 100).toFixed(0)}% → Projected Agent Net (split only): ${fmtCurrency(projectedAgentNet)}
 Net Self-Employment Income (after tx fees, brokerage fees, and expenses): ${fmtCurrency(netSEIncome)}
 CPP1: ${fmtCurrency(taxResult.cpp1Contribution)}

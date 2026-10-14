@@ -335,6 +335,7 @@ describe("a REAL agent whose cap year spans January 1, on 2027-02-01", () => {
       settings: s(),
       transactions: asTx(SPAN_YTD),
       carryOverTx,
+      taxYearCarryIn: [],
       pipelineDeals: [],
       listings: [],
       historyItems: [],
@@ -374,12 +375,21 @@ const ENGINE_CALLERS = [
   "apps/web/lib/scenario-seed.ts",
 ];
 
-/** Every file that prices closed deals with computePlanGross's `deals` (the YTD take-home and cash position). */
+/** Every file that prices closed deals with computePlanGross's `deals` (the cash position, Reports' P&L). */
 const PLAN_GROSS_DEAL_CALLERS = [
   "apps/web/app/(app)/dashboard/dashboard-content.tsx",
-  "apps/web/app/(app)/overhead/overhead-content.tsx",
   "apps/web/app/(app)/reports/reports-content.tsx",
   "apps/web/app/api/chat/route.ts",
+];
+
+/**
+ * Every file whose YTD take-home prices the deals with taxYearPlanGross
+ * (core/engines/tax-year.ts, 2026-10-14): the same waterfall, its cap run on
+ * closing dates from the cap year's carry-over, summed over the tax year.
+ */
+const TAX_YEAR_PLAN_GROSS_CALLERS = [
+  "apps/web/app/(app)/dashboard/dashboard-content.tsx",
+  "apps/web/app/(app)/overhead/overhead-content.tsx",
 ];
 
 /** Loaders whose rows reach back past January 1 and that cut the carry-over from them with capYearCarryOver. */
@@ -546,6 +556,16 @@ describe("every surface prices the year's deals the way the dashboard does", () 
     }
   });
 
+  it.each(TAX_YEAR_PLAN_GROSS_CALLERS)("%s: taxYearPlanGross gets the carry-over, the year's rows and the carry-in", (file) => {
+    const src = withoutComments(readFileSync(path.join(REPO_ROOT, file), "utf8"));
+    const m = /\btaxYearPlanGross\(settings, \[\.\.\.carryOverTx, \.\.\.taxYearRows\], incomeMethod, (\w+), localISODate\(now\)\)/.exec(src);
+    expect(m, `${file}: taxYearPlanGross(settings, [...carryOverTx, ...taxYearRows], incomeMethod, <year>, localISODate(now))`).not.toBeNull();
+    // taxYearRows is this year's rows (the ones ytdGCI sums) plus the carry-in.
+    expect(src).toMatch(/\bconst taxYearRows = \[\.\.\.transactions, \.\.\.taxYearCarryIn\];/);
+    expect(src).toMatch(/\bconst ytdGCI = transactions\.reduce\(/);
+    expect(src).toMatch(/\btaxYearCarryIn: Transaction\[\];/);
+  });
+
   it("every carryOverTx comes from the one helper, or is a required prop a page fills from it", () => {
     const files: { file: string; src: string }[] = [];
     for (const root of ROOTS) {
@@ -554,7 +574,7 @@ describe("every surface prices the year's deals the way the dashboard does", () 
         if (/\bcarryOverTx\b/.test(src)) files.push({ file: path.relative(REPO_ROOT, full), src });
       }
     }
-    const users = [...new Set([...engine, ...planGross].map((c) => c.file))];
+    const users = [...new Set([...engine.map((c) => c.file), ...planGross.map((c) => c.file), ...TAX_YEAR_PLAN_GROSS_CALLERS])];
     for (const u of users) expect(files.map((f) => f.file), u).toContain(u);
 
     for (const { file, src } of files) {

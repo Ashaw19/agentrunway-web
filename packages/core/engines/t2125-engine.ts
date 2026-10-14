@@ -22,6 +22,7 @@
 import type { UserSettings, Transaction, CcaAsset } from "../types/database";
 import { computeGCI } from "../types/database";
 import { gstHstRate, gstHstLabel, calculate as calculateTax } from "./canadian-tax-engine";
+import { closingYearGCI, dealsInTaxYear, incomeReportingMethod, type IncomeReportingMethod } from "./tax-year";
 
 // ── Expense key → T2125 line mapping ─────────────────────────────────────────
 // Maps each expense_item key to the correct T2125 line number and whether
@@ -305,7 +306,9 @@ export interface HomeOfficeResult {
 export interface GstHstResult {
   label: string;              // "HST" | "GST + QST" | "GST"
   rate: number;               // e.g. 0.13 for Ontario
-  collectedOnGCI: number;     // GCI × rate
+  collectedOnGCI: number;     // gciBase × rate
+  /** The GCI the collected figure is on: the deals that closed in taxYear, under either income reporting method. */
+  gciBase: number;
   remittedTotal: number;      // q1+q2+q3+q4
   paidOnExpenses: number;     // ITCs (user-entered)
   netPayable: number;         // collected − paid (positive = owe CRA)
@@ -337,7 +340,11 @@ export interface T2125Result {
   industryCode: string;        // Always "531210" for RE agents
 
   // ── Part 2: Income (T2125 Part 3A)
-  grossCommissionIncome: number;     // Sum of all closed transaction GCI
+  grossCommissionIncome: number;     // GCI of the deals that are income of taxYear (tax-year.ts)
+  /** Deals behind grossCommissionIncome. */
+  incomeDealCount: number;
+  /** `user_settings.income_reporting_method`, as read (tax-year.ts). */
+  incomeReportingMethod: IncomeReportingMethod;
   otherIncome: number;               // Placeholder — user can add other sources
   totalGrossIncome: number;          // line 8200
 
@@ -387,7 +394,13 @@ export interface T2125Result {
 
 export interface T2125Input {
   settings: UserSettings;
-  transactions: Transaction[];         // closed deals, current year
+  /**
+   * Closed deals. Only those that are income of `taxYear` count
+   * (`dealsInTaxYear`, tax-year.ts): the year's closings, or for a
+   * cash-method agent the deals paid in it, so pass the earlier closings
+   * paid this year too. Rows of other years are left out here.
+   */
+  transactions: Transaction[];
   /**
    * Expenses incurred to date: `buildT2125Expenses(...).entries`
    * (t2125-expenses-engine), which covers receipts, the legacy per-item
@@ -415,9 +428,12 @@ export function computeT2125(input: T2125Input): T2125Result {
   const otherIncome = input.otherIncome ?? 0;
 
   // ── 1. Gross commission income ─────────────────────────────────────────────
-  const grossCommissionIncome = transactions
-    .filter((tx) => tx.status === "closed")
-    .reduce((sum, tx) => sum + computeGCI(tx), 0);
+  // The commissions that are income of taxYear: by closing date (accrual), or
+  // by commission paid date for a cash-method agent (T4002 ch. 1).
+  const method = incomeReportingMethod(settings);
+  const closed = transactions.filter((tx) => tx.status === "closed");
+  const incomeDeals = dealsInTaxYear(closed, method, taxYear);
+  const grossCommissionIncome = incomeDeals.reduce((sum, tx) => sum + computeGCI(tx), 0);
 
   const totalGrossIncome = grossCommissionIncome + otherIncome;
 
@@ -548,7 +564,7 @@ export function computeT2125(input: T2125Input): T2125Result {
   );
 
   // ── 6. Tax engine (on net income after T2125 deductions) ──────────────────
-  const dealCount = transactions.filter((tx) => tx.status === "closed").length;
+  const dealCount = incomeDeals.length;
   const taxResult = calculateTax(line8270_netBusinessIncome, settings.province, Math.max(dealCount, 1));
 
   const cppContribution = taxResult.cpp1Contribution + taxResult.cpp2Contribution;
@@ -557,7 +573,10 @@ export function computeT2125(input: T2125Input): T2125Result {
   // ── 7. GST/HST ────────────────────────────────────────────────────────────
   const gstRate = gstHstRate(settings.province);
   const gstLabel = gstHstLabel(settings.province);
-  const collectedOnGCI = grossCommissionIncome * gstRate;
+  // GST/HST follows the closing year under either method: the income
+  // reporting method is an income tax rule (closingYearGCI, tax-year.ts).
+  const gstGciBase = closingYearGCI(closed, taxYear);
+  const collectedOnGCI = gstGciBase * gstRate;
   const remittedTotal =
     (settings.gst_hst_remitted_q1 ?? 0) +
     (settings.gst_hst_remitted_q2 ?? 0) +
@@ -570,6 +589,7 @@ export function computeT2125(input: T2125Input): T2125Result {
     label: gstLabel,
     rate: gstRate,
     collectedOnGCI,
+    gciBase: gstGciBase,
     remittedTotal,
     paidOnExpenses,
     netPayable,
@@ -606,6 +626,8 @@ export function computeT2125(input: T2125Input): T2125Result {
     industryCode: "531210",
 
     grossCommissionIncome,
+    incomeDealCount: dealCount,
+    incomeReportingMethod: method,
     otherIncome,
     totalGrossIncome,
 

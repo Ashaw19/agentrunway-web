@@ -22,7 +22,16 @@ import {
 } from "@/components/ui/select";
 import { Check, Sparkles, ExternalLink, Loader2, Car, Landmark, RefreshCw, Trash2, Clock, Info, AlertCircle, XCircle, Building2, User, TrendingDown, Home, Mail, Receipt } from "lucide-react";
 import { TaxDisclaimer } from "@/components/tax-disclaimer";
-import { BROKERAGE_HST_WITHHOLDING, brokerageHstWithholdingHint } from "@agent-runway/core/tax-copy";
+import {
+  BROKERAGE_HST_WITHHOLDING,
+  brokerageHstWithholdingHint,
+  CRA_REPORTING_METHOD_SOURCES,
+  INCOME_REPORTING_METHOD_RULE_LIST,
+  INCOME_REPORTING_METHOD_RULES,
+  INCOME_REPORTING_METHOD_SETTING,
+  incomeReportingMethodHint,
+} from "@agent-runway/core/tax-copy";
+import { incomeReportingMethod, type IncomeReportingMethod } from "@agent-runway/core/engines/tax-year";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -584,6 +593,11 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
   );
   const [businessNumber, setBusinessNumber] = useState(settings.business_number ?? "");
   const [fiscalYearEnd, setFiscalYearEnd] = useState(String(settings.fiscal_year_end_month ?? 12));
+  // Cash or accrual (migration 00178): the year each commission counts in for
+  // income tax (engines/tax-year.ts). The method as saved, for CRA's rule on
+  // the change the agent is about to make.
+  const savedIncomeMethod = incomeReportingMethod(settings);
+  const [incomeMethod, setIncomeMethod] = useState<IncomeReportingMethod>(savedIncomeMethod);
   const [savingFiling, setSavingFiling] = useState(false);
   const filingSaved = useSaved();
 
@@ -596,6 +610,7 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
         filing_frequency: filingFrequency,
         business_number: trimmedBN,
         fiscal_year_end_month: parseInt(fiscalYearEnd) || 12,
+        income_reporting_method: incomeMethod,
         // Entering a CRA BN is conclusive proof of GST/HST registration.
         // Only flip to true — never flip back to false from here.
         ...(trimmedBN ? { gst_hst_registered: true } : {}),
@@ -605,6 +620,9 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
     if (error) { toast.error("Failed to save tax filing settings — please try again."); return; }
     filingSaved.flash();
     toast.success("Tax filing settings saved ✓");
+    // The saved method comes from the page's settings row: reload it so the
+    // change note under the control clears.
+    if (incomeMethod !== savedIncomeMethod) router.refresh();
   }
 
   // ── Section 8: Bank Connections ──────────────────────────────────────────
@@ -2061,8 +2079,9 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
             <CardTitle>Tax Filing</CardTitle>
           </div>
           <CardDescription>
-            GST/HST filing frequency, business number, and fiscal year-end.
-            These settings drive your filing period filters and deadline alerts.
+            GST/HST filing frequency, business number, fiscal year-end, and how
+            your commission income is reported for income tax.
+            These settings drive your filing period filters, deadline alerts and tax estimates.
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-5">
@@ -2126,6 +2145,54 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
                 Only change if your accountant confirms otherwise.
               </p>
             </div>
+          </div>
+
+          {/* Income reporting method (cash | accrual) */}
+          <div className="grid gap-1.5">
+            <Label htmlFor="income-reporting-method">{INCOME_REPORTING_METHOD_SETTING.label}</Label>
+            <Select
+              value={incomeMethod}
+              onValueChange={(v) => setIncomeMethod(v === "cash" ? "cash" : "accrual")}
+            >
+              <SelectTrigger id="income-reporting-method" className="sm:max-w-md">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="accrual">{INCOME_REPORTING_METHOD_SETTING.options.accrual}</SelectItem>
+                <SelectItem value="cash">{INCOME_REPORTING_METHOD_SETTING.options.cash}</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">{incomeReportingMethodHint(incomeMethod)}</p>
+            {incomeMethod !== savedIncomeMethod && (
+              <p className="flex items-start gap-1.5 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+                <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                <span>
+                  {incomeMethod === "accrual"
+                    ? INCOME_REPORTING_METHOD_RULES.cashToAccrual
+                    : INCOME_REPORTING_METHOD_RULES.accrualToCash}
+                </span>
+              </p>
+            )}
+            <details className="text-xs text-muted-foreground">
+              <summary className="cursor-pointer select-none font-medium text-foreground/80">
+                CRA&apos;s rules on the two methods
+              </summary>
+              <ul className="mt-1.5 list-disc space-y-1 pl-4">
+                {INCOME_REPORTING_METHOD_RULE_LIST.map((rule) => (
+                  <li key={rule}>{rule}</li>
+                ))}
+              </ul>
+              <p className="mt-1.5">
+                Sources:{" "}
+                <a href={CRA_REPORTING_METHOD_SOURCES.guide.url} target="_blank" rel="noopener noreferrer" className="underline">
+                  {CRA_REPORTING_METHOD_SOURCES.guide.label}
+                </a>
+                {"; "}
+                <a href={CRA_REPORTING_METHOD_SOURCES.accountingMethods.url} target="_blank" rel="noopener noreferrer" className="underline">
+                  {CRA_REPORTING_METHOD_SOURCES.accountingMethods.label}
+                </a>
+              </p>
+            </details>
           </div>
 
           <TaxDisclaimer />

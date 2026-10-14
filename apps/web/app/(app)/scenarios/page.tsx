@@ -7,6 +7,7 @@ import { ytdExpenseTotals } from "@agent-runway/core/engines/t2125-expenses-engi
 import { buildScenarioSeed } from "@/lib/scenario-seed";
 import { atlanticNoon } from "@agent-runway/core/lib/local-date";
 import { loadCapYearCarryOver } from "@/lib/cap-year-carry-over";
+import { loadTaxYearCarryIn } from "@/lib/tax-year-carry-in";
 
 export type { ScenarioSeedData } from "@/lib/scenario-seed";
 
@@ -31,6 +32,9 @@ export default async function ScenariosPage() {
   // The dashboard's carry-over: a REAL agent's closed deals before January 1
   // in the anniversary year that contains it (cap-year-carry-over.ts).
   const carryOverPromise = loadCapYearCarryOver(supabase, user.id, settingsRow, currentYear);
+  // The dashboard's carry-in: a cash-method agent's earlier closings paid
+  // this year, for the tax (tax-year-carry-in.ts). Empty for accrual.
+  const taxYearCarryInPromise = loadTaxYearCarryIn(supabase, user.id, settingsRow, currentYear);
 
   // ── Live Supabase queries ──────────────────────────────────────────
   // The dashboard page's queries: the seed is the dashboard's projection.
@@ -95,6 +99,7 @@ export default async function ScenariosPage() {
   });
 
   const carryOverTx = await carryOverPromise;
+  const taxYearCarryIn = await taxYearCarryInPromise;
 
   // The dashboard's projection, seasonal weights, deal count, cash and
   // benchmark (lib/scenario-seed.ts).
@@ -102,6 +107,7 @@ export default async function ScenariosPage() {
     settings: settingsRow ?? null,
     transactions: (txResult.data ?? []) as Transaction[],
     carryOverTx,
+    taxYearCarryIn,
     pipelineDeals: (pipelineResult.data ?? []) as PipelineDeal[],
     listings: (listingResult.data ?? []) as ListingAppointment[],
     historyItems: (historyResult.data ?? []) as HistoryItem[],

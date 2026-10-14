@@ -379,6 +379,32 @@ describe("get_tax_estimate — projected net income uses the dashboard's expense
     const out = await callTool(await analytics(fakeSupabase(fixtures().tables)), "get_tax_estimate", { override_income: 90000 });
     expect(out.projected_net_income).toBe(90000);
   });
+
+  it("a cash-method agent's estimate counts last year's closing paid this year (core/engines/tax-year.ts)", async () => {
+    // The fixture's November 20, 2025 closing ($22,500 GCI), paid January 9, 2026.
+    const withPaidDate = (method: "accrual" | "cash") => {
+      const fx = fixtures();
+      return {
+        ...fx.tables,
+        user_settings: fx.tables.user_settings.map((r) => ({ ...r, income_reporting_method: method })),
+        transactions: fx.tables.transactions.map((t) =>
+          t.date === "2025-11-20" ? { ...t, commission_paid_date: "2026-01-09" } : { ...t, commission_paid_date: null },
+        ),
+      };
+    };
+    const cash = await callTool(await analytics(fakeSupabase(withPaidDate("cash"))), "get_tax_estimate");
+    const accrual = await callTool(await analytics(fakeSupabase(withPaidDate("accrual"))), "get_tax_estimate");
+
+    expect(cash.income_reporting_method).toBe("cash");
+    expect(cash.tax_year_gci_adjustment).toBe(22_500);
+    expect(accrual.income_reporting_method).toBe("accrual");
+    expect(accrual.tax_year_gci_adjustment).toBe(0);
+    // 100% split, no fees: the projected net moves by the commission itself.
+    expect(cash.projected_net_income).toBe((accrual.projected_net_income as number) + 22_500);
+    expect(cash.total_burden as number).toBeGreaterThan(accrual.total_burden as number);
+    // Production stays on the closing date: the deal count the estimate divides by.
+    expect(cash.projected_deal_count).toBe(accrual.projected_deal_count);
+  });
 });
 
 // ── get_hst_status ─────────────────────────────────────────────────────────

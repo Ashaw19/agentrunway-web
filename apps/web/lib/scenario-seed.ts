@@ -14,7 +14,10 @@
 //     year's closed deals for the plan's per-deal waterfall, like the dashboard;
 //   - the runway: cash ÷ (burn − the pipeline income estimate,
 //     `computePipelineMonthlyIncome`);
-//   - the Runway Score's benchmark: `compare(projected GCI, experience)`.
+//   - the Runway Score's benchmark: `compare(projected GCI, experience)`;
+//   - the tax: the dashboard's, on the projection as tax-year income
+//     (core/engines/tax-year.ts): a cash-method agent's commissions count in
+//     the year paid.
 //
 // Until 2026-10-14 the two pages built the seed themselves from
 // `national_quarter_pcts` alone and the pipeline alone, counted deals to date
@@ -23,6 +26,7 @@
 // differ from the dashboard. scenario-seed.test.ts holds the two together.
 
 import { yearProjection } from "@agent-runway/core/engines/deal-tax-portion";
+import { incomeReportingMethod, taxYearGCIAdjustment, taxYearProjectedGCI } from "@agent-runway/core/engines/tax-year";
 import { atlanticNoon } from "@agent-runway/core/lib/local-date";
 import { computeEffectiveCashForSurvival, computePipelineMonthlyIncome } from "@/lib/engines/effective-cash";
 import { computePlanGross, toPlanDeals, type CompSettingsSlice } from "@/lib/engines/real-compensation-engine";
@@ -61,6 +65,13 @@ export interface ScenarioSeedData {
   projectedAnnualGCI: number;
   /** Projected year-end deal count: the dashboard's (yearProjection). The tax engine's per-deal divisor */
   projectedDealCount: number;
+  /**
+   * `taxYearGCIAdjustment` (core/engines/tax-year.ts): what moves a GCI
+   * projection to tax-year income for a cash-method agent (commissions paid
+   * in a year other than the closing year). 0 for accrual. The tax in both
+   * columns is on the column's GCI plus this; the benchmark is not.
+   */
+  taxYearGCIAdjustment: number;
   /** Weighted GCI of the active pipeline (no listings): the Runway Score's pipeline input and the runway's income estimate */
   pipelineWeightedGCI: number;
   /** Expected each month: ytdExpenseTotals(...).monthlyRecurring (matches dashboard) */
@@ -112,6 +123,11 @@ export interface ScenarioSeedInputs {
    * waterfall's cap carries across January 1; nothing else reads them.
    */
   carryOverTx: Transaction[];
+  /**
+   * A cash-method agent's closed deals before January 1 paid this year
+   * (loadTaxYearCarryIn, the dashboard's carry-in). Only the tax reads them.
+   */
+  taxYearCarryIn: Transaction[];
   /** Every `pipeline_deals` row; terminal stages are dropped in the projection. */
   pipelineDeals: PipelineDeal[];
   /** `listing_appointments` rows with status scheduled or active (the dashboard's query). */
@@ -126,7 +142,7 @@ export interface ScenarioSeedInputs {
 
 /** The Scenario Engine's seed, through the dashboard's chain. */
 export function buildScenarioSeed(inputs: ScenarioSeedInputs): ScenarioSeedData {
-  const { settings, transactions, carryOverTx, expenses, now = new Date() } = inputs;
+  const { settings, transactions, carryOverTx, taxYearCarryIn, expenses, now = new Date() } = inputs;
   const { expensesYTD, monthlyRecurring, expensesRemaining } = expenses;
 
   const ytdGCI = transactions.reduce((sum, tx) => sum + computeGCI(tx), 0);
@@ -168,6 +184,11 @@ export function buildScenarioSeed(inputs: ScenarioSeedInputs): ScenarioSeedData 
     ytdGCI,
     projectedAnnualGCI: projection.projectedGCI,
     projectedDealCount: projection.projectedDealCount,
+    taxYearGCIAdjustment: taxYearGCIAdjustment(
+      [...transactions, ...taxYearCarryIn],
+      incomeReportingMethod(settings),
+      atlanticNoon(now).getFullYear(),
+    ),
     pipelineWeightedGCI: projection.pipelineWeightedGCI,
     monthlyRecurring,
     expensesYTD,
@@ -253,14 +274,16 @@ export function computeScenarioResult(
 
   // ── Match dashboard: deduct split, fees, brokerage, expenses before tax ──
   // Plan-aware (REAL analytic waterfall or legacy split) — mirrors
-  // effective-cash.ts:projectedAgentNet on hypothetical annual figures.
+  // effective-cash.ts:projectedAgentNet on hypothetical annual figures, on
+  // the column's GCI as tax-year income (annualGCI for an accrual agent).
+  const taxGCI = taxYearProjectedGCI(annualGCI, seed.taxYearGCIAdjustment);
   const planScenario = seed.comp
-    ? computePlanGross(seed.comp, annualGCI, { dealCount })
+    ? computePlanGross(seed.comp, taxGCI, { dealCount })
     : null;
   const agentGross = planScenario
     ? planScenario.shareBeforePlanFees
-    : computeAgentGross(annualGCI, seed.splitPreset, seed.postCapThreshold, seed.postCapAgentPct, seed.postCapBrokeragePct).agentGross;
-  const txFees = planScenario ? planScenario.planFees : computeTxFees(annualGCI, seed.txFeeRate, seed.txFeeCap);
+    : computeAgentGross(taxGCI, seed.splitPreset, seed.postCapThreshold, seed.postCapAgentPct, seed.postCapBrokeragePct).agentGross;
+  const txFees = planScenario ? planScenario.planFees : computeTxFees(taxGCI, seed.txFeeRate, seed.txFeeCap);
   const brokerageFeeAnnual = seed.monthlyBrokerageFee * 12;
 
   // Dashboard projects annual expenses: expensesYTD + what is still to come

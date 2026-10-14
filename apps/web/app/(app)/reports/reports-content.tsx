@@ -90,7 +90,8 @@ import {
   gstHstLabel,
 } from "@/lib/engines/canadian-tax-engine";
 import { computeHSTCollected } from "@/lib/engines/hst-engine";
-import { gstHstReportNote } from "@agent-runway/core/tax-copy";
+import { gstHstReportNote, INCOME_REPORTING_METHOD_SETTING } from "@agent-runway/core/tax-copy";
+import { incomeReportingMethod, taxYearGCIAdjustment, taxYearProjectedGCI } from "@agent-runway/core/engines/tax-year";
 import type { BusinessReportPDFProps } from "@/components/pdf/business-report-pdf";
 import { compare, COHORT_LABELS } from "@/lib/engines/benchmark-engine";
 import { calculateCorporateTax } from "@/lib/engines/corporate-tax-engine";
@@ -370,7 +371,15 @@ export function ReportsContent({
   // ── Tax ───────────────────────────────────────────────────────────────────────
   // The year's expenses: to date + what is still to come (matches the dashboard).
   const annualExpenses = expensesYTD + expensesRemaining;
-  const projectedNet = computeProjectedNet(projectedGCI, settings, projectedDeals);
+  // On the projection as tax-year income (core/engines/tax-year.ts): a
+  // cash-method agent's commissions count in the year paid. `transactions`
+  // holds every closed row. projectedGCI for an accrual agent.
+  const incomeMethod = incomeReportingMethod(settings);
+  const taxProjectedGCI = taxYearProjectedGCI(
+    projectedGCI,
+    taxYearGCIAdjustment(transactions, incomeMethod, currentYear),
+  );
+  const projectedNet = computeProjectedNet(taxProjectedGCI, settings, projectedDeals);
   const netForTax = Math.max(0, projectedNet - annualExpenses);
   const personalTaxResult = calculateTax(netForTax, settings.province, Math.max(projectedDeals, 1));
   const corpTaxResult = settings.is_incorporated
@@ -751,7 +760,10 @@ export function ReportsContent({
       {tab === "t2125" && settings && (
         <ReportsT2125Tab
           settings={settings}
-          transactions={transactions.filter((tx) => tx.date.startsWith(String(taxYear ?? new Date().getFullYear())))}
+          // Every closed row: computeT2125 keeps the deals that are income of
+          // the tax year (core/engines/tax-year.ts), so a cash-method agent's
+          // earlier closings paid this year count.
+          transactions={transactions}
           expenses={t2125Expenses}
           homeOfficeCosts={homeOfficeCosts}
           deductionTracking={deductionTracking}
@@ -1144,6 +1156,7 @@ export function ReportsContent({
               </CardTitle>
               <CardDescription>
                 {taxResult.taxYear} estimate &middot; {PROVINCE_LABELS[settings.province]}
+                {incomeMethod === "cash" && <> &middot; {INCOME_REPORTING_METHOD_SETTING.options.cash}</>}
               </CardDescription>
             </div>
             <Badge variant="outline" className="border-amber-300 bg-amber-100 text-amber-800">

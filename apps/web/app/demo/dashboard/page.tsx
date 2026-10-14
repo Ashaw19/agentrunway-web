@@ -330,6 +330,7 @@ const DEMO_SETTINGS: UserSettings = {
   filing_frequency: "quarterly",
   fiscal_year_end_month: 12,
   brokerage_withholds_hst: false,
+  income_reporting_method: "accrual",
   created_at: "2025-01-10T09:00:00Z",
   updated_at: "2026-03-07T09:00:00Z",
 };
@@ -569,6 +570,7 @@ export default function DemoDashboardPage() {
             <DashboardContent
               transactions={DEMO_TRANSACTIONS}
               carryOverTx={[]}
+              taxYearCarryIn={[]}
               pipelineDeals={DEMO_PIPELINE}
               recordedPipelineDealIds={DEMO_TRANSACTIONS.flatMap((t) => (t.pipeline_deal_id ? [t.pipeline_deal_id] : []))}
               settings={DEMO_SETTINGS}

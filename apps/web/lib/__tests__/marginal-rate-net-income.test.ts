@@ -217,7 +217,10 @@ describe("Overhead's net income for tax is the dashboard's", () => {
   });
 
   it("the projected net and the tax estimate are the dashboard's chain", () => {
-    expect(overhead).toContain("const { grossAfterPlan } = computePlanGross(settings, projectedGCI, {");
+    // On the projection as tax-year income (core/engines/tax-year.ts):
+    // projectedGCI for an accrual agent.
+    expect(overhead).toContain("const taxProjectedGCI = taxYearProjectedGCI(projectedGCI, taxGCIAdjustment);");
+    expect(overhead).toContain("const { grossAfterPlan } = computePlanGross(settings, taxProjectedGCI, {");
     expect(overhead).toContain("return grossAfterPlan - brokerageFeeAnnual;");
     expect(overhead).toContain(NET_FOR_TAX);
     expect(overhead).toContain("calculateTax(netForTax, settings.province, Math.max(projectedDealCount, 1))");
@@ -254,6 +257,7 @@ const AGENT: YearTaxEstimateInputs = {
   historyItems: [],
   expensesYTD: 18_000,
   expensesRemaining: 12_000,
+  taxYearGCIAdjustment: 0,
   now: NOW,
 };
 const YEAR = yearTaxEstimate(AGENT);

@@ -37,7 +37,14 @@ import { fmtCurrency, fmtCompact, fmtPct } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { CANONICAL_TAX_DISCLAIMER_SHORT } from "@/lib/flight-crew/constants";
-import { alreadyCapturingNote } from "@agent-runway/core/tax-copy";
+import { alreadyCapturingNote, INCOME_REPORTING_METHOD_SETTING } from "@agent-runway/core/tax-copy";
+import {
+  dealsInTaxYear,
+  incomeReportingMethod,
+  taxYearGCIAdjustment,
+  taxYearPlanGross,
+  taxYearProjectedGCI,
+} from "@agent-runway/core/engines/tax-year";
 import {
   computeGCI,
   computeWeightedGCI,
@@ -50,7 +57,7 @@ import {
   type HistoryItem,
   type ListingAppointment,
 } from "@/lib/types/database";
-import { computePlanGross, toPlanDeals } from "@/lib/engines/real-compensation-engine";
+import { computePlanGross } from "@/lib/engines/real-compensation-engine";
 import {
   seasonalFractionElapsed,
   projectedYearEndGCI,
@@ -509,6 +516,8 @@ interface Props {
   transactions: Transaction[];
   /** A REAL agent's closed deals before January 1 in the cap year (loadCapYearCarryOver); the plan waterfall's only. */
   carryOverTx: Transaction[];
+  /** A cash-method agent's closed deals before January 1 paid this year (loadTaxYearCarryIn); the tax figures' only. */
+  taxYearCarryIn: Transaction[];
   settings: UserSettings | null;
   /** Year-to-date expenses: ytdExpenseTotals(...).expensesYTD (t2125-expenses-engine), the Expenses page's total. */
   expensesYTD?: number;
@@ -581,6 +590,7 @@ function OverheadBanner() {
 export function OverheadContent({
   transactions,
   carryOverTx,
+  taxYearCarryIn,
   settings,
   expensesYTD = 0,
   deductionTracking,
@@ -649,15 +659,20 @@ export function OverheadContent({
   // The year's expenses: to date + what is still to come (matches the dashboard).
   const annualExpenses = expensesYTD + expensesRemaining;
 
+  // ── Tax-year income (core/engines/tax-year.ts) ─────────────────────────
+  // The dashboard's: a cash-method agent's tax figures count each deal in the
+  // year its commission was paid. 0 and the same deals for accrual.
+  const incomeMethod = incomeReportingMethod(settings);
+  const taxYearRows = [...transactions, ...taxYearCarryIn];
+  const taxGCIAdjustment = taxYearGCIAdjustment(taxYearRows, incomeMethod, _currentYear);
+  const taxYearDealCount = dealsInTaxYear(taxYearRows, incomeMethod, _currentYear).length;
+  const taxProjectedGCI = taxYearProjectedGCI(projectedGCI, taxGCIAdjustment);
+
   // ── Agent net (after split/fees) — plan-aware (REAL waterfall or legacy) ──
-  // The dashboard's planDeals: the cap year's carry-over + the deals ytdGCI sums.
+  // The dashboard's: the plan waterfall on tax-year income, the cap year's
+  // carry-over moving the cap (taxYearPlanGross).
   const ytdPlan = settings
-    ? computePlanGross(settings, ytdGCI, {
-        deals: toPlanDeals(carryOverTx, transactions),
-        windowStart: `${now.getFullYear()}-01-01`,
-        windowEnd: `${now.getFullYear() + 1}-01-01`,
-        asOf: localISODate(now),
-      })
+    ? taxYearPlanGross(settings, [...carryOverTx, ...taxYearRows], incomeMethod, _currentYear, localISODate(now))
     : null;
   const ytdAgentGross = ytdPlan?.shareBeforePlanFees ?? ytdGCI;
   const ytdTxFees = ytdPlan?.planFees ?? 0;
@@ -666,8 +681,8 @@ export function OverheadContent({
 
   // ── Tax estimate — plan-aware projection (mirrors effective-cash) ───────
   const projectedNet = (() => {
-    if (!settings) return projectedGCI;
-    const { grossAfterPlan } = computePlanGross(settings, projectedGCI, {
+    if (!settings) return taxProjectedGCI;
+    const { grossAfterPlan } = computePlanGross(settings, taxProjectedGCI, {
       dealCount: projectedDealCount,
       asOf: localISODate(now),
     });
@@ -690,8 +705,8 @@ export function OverheadContent({
     : 0;
 
   const afterTaxPerDeal =
-    projectedGCI > 0 && taxResult && projectedDealCount > 0
-      ? (projectedGCI - taxResult.totalBurden) / projectedDealCount
+    taxProjectedGCI > 0 && taxResult && projectedDealCount > 0
+      ? (taxProjectedGCI - taxResult.totalBurden) / projectedDealCount
       : 0;
 
   const breakEvenGCI = (() => {
@@ -755,7 +770,7 @@ export function OverheadContent({
   const taxOptResult = settings
     ? generateTaxOptimizations({
         netIncome: netForTax,
-        projectedGCI,
+        projectedGCI: taxProjectedGCI,
         annualExpenses,
         dealCount: Math.max(projectedDealCount, 1),
         province: settings.province,
@@ -894,6 +909,7 @@ export function OverheadContent({
                     </div>
                     <CardDescription>
                       {taxResult.taxYear} · {PROVINCE_LABELS[settings.province]} · {fmtPct(taxResult.effectiveRate)} effective rate
+                    {incomeMethod === "cash" && <> · {INCOME_REPORTING_METHOD_SETTING.options.cash}</>}
                     </CardDescription>
                   </div>
                   <span className={cn(
@@ -957,7 +973,7 @@ export function OverheadContent({
           )}
 
           {/* Net Take-Home */}
-          {ytdGCI > 0 && settings && (
+          {(ytdGCI > 0 || taxYearDealCount > 0) && settings && (
             <Card className="rounded-xl border-emerald-200 bg-white shadow-sm">
               <CardHeader className="pb-2">
                 <div className="flex items-center justify-between flex-wrap gap-2">
@@ -990,10 +1006,10 @@ export function OverheadContent({
                       <p className="font-bold text-amber-700 mt-0.5">{fmtCurrency(ytdTaxSetAside)}</p>
                       <p className="text-[10px] text-slate-400">based on YTD net</p>
                     </div>
-                    {ytdDealCount > 0 && (
+                    {taxYearDealCount > 0 && (
                       <div>
                         <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Per Deal</p>
-                        <p className="font-bold text-emerald-700 mt-0.5">{fmtCurrency(ytdEstimatedTakeHome / ytdDealCount)}</p>
+                        <p className="font-bold text-emerald-700 mt-0.5">{fmtCurrency(ytdEstimatedTakeHome / taxYearDealCount)}</p>
                         <p className="text-[10px] text-slate-400">actual take-home</p>
                       </div>
                     )}
@@ -1003,6 +1019,7 @@ export function OverheadContent({
                   <span>Split: {settings.split_preset ?? "custom"}</span>
                   {settings.monthly_brokerage_fee > 0 && <span>Monthly fee: {fmtCurrency(settings.monthly_brokerage_fee)}/mo × {monthsElapsed}mo</span>}
                   {ytdTxFees > 0 && <span>Tx fees: {fmtCurrency(ytdTxFees)}</span>}
+                  {incomeMethod === "cash" && <span>{INCOME_REPORTING_METHOD_SETTING.options.cash}</span>}
                   <span className="italic">{CANONICAL_TAX_DISCLAIMER_SHORT}</span>
                 </div>
               </CardContent>

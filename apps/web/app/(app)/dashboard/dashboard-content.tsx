@@ -107,6 +107,14 @@ import { CANONICAL_TAX_DISCLAIMER, CANONICAL_TAX_DISCLAIMER_SHORT } from "@/lib/
 import type { MonthlyDataPoint } from "@/components/monthly-chart";
 import { computePlanGross, toPlanDeals } from "@/lib/engines/real-compensation-engine";
 import {
+  dealsInTaxYear,
+  incomeReportingMethod,
+  taxYearGCIAdjustment,
+  taxYearPlanGross,
+  taxYearProjectedGCI,
+} from "@agent-runway/core/engines/tax-year";
+import { INCOME_REPORTING_METHOD_SETTING } from "@agent-runway/core/tax-copy";
+import {
   computeGCI,
   computeWeightedGCI,
   activePipelineDeals,
@@ -226,6 +234,12 @@ interface Props {
    * plan waterfall reads them; empty on a simple split.
    */
   carryOverTx: Transaction[];
+  /**
+   * A cash-method agent's closed deals from before January 1 whose
+   * commission was paid this year (loadTaxYearCarryIn). Only the tax figures
+   * read them; empty for accrual.
+   */
+  taxYearCarryIn: Transaction[];
   pipelineDeals: PipelineDeal[];
   /** Pipeline ids some transaction carries in pipeline_deal_id (any year); null if the lookup failed. */
   recordedPipelineDealIds: string[] | null;
@@ -353,6 +367,7 @@ const INSIGHT_ICONS: Record<string, React.ElementType> = {
 export function DashboardContent({
   transactions,
   carryOverTx,
+  taxYearCarryIn,
   pipelineDeals,
   recordedPipelineDealIds,
   settings,
@@ -602,6 +617,19 @@ export function DashboardContent({
   // the cap on January 1.
   const planDeals = toPlanDeals(carryOverTx, transactions);
 
+  // ── Tax-year income (core/engines/tax-year.ts) ────────────────────────
+  // CRA lets a commission agent report income in the year it is received
+  // (the cash method, T4002 ch. 1). For a cash-method agent the tax figures
+  // below count each deal in the year of its commission paid date: this
+  // year's closings paid next year come out, earlier closings paid this year
+  // (taxYearCarryIn) go in. 0 and the same deals for an accrual agent. The
+  // production figures (YTD GCI, deals, pace, the Runway Score, the cash
+  // runway) stay on closing dates.
+  const incomeMethod = incomeReportingMethod(settings);
+  const taxYearRows = [...transactions, ...taxYearCarryIn];
+  const taxGCIAdjustment = taxYearGCIAdjustment(taxYearRows, incomeMethod, currentYear);
+  const taxYearDealCount = dealsInTaxYear(taxYearRows, incomeMethod, currentYear).length;
+
   // ── Zero-data gate ────────────────────────────────────────────────────
   // The Runway Score, pace percentile, and behind-goal % are only meaningful
   // once there's business activity to score. On a brand-new account all five
@@ -712,12 +740,22 @@ export function DashboardContent({
   // Per-deal tax portion is more useful against projected deal count, not just YTD.
   // Declared BEFORE projectedNet: the plan-aware chain needs it for REAL per-deal fees.
   const projectedDealCount = projectedYearEndTransactions(ytdDealCount, pipelineCount, fraction);
-  const projectedNet = computeProjectedNet(projectedGCI, settings, projectedDealCount);
+  // The projection as tax-year income: projectedGCI for an accrual agent.
+  const taxProjectedGCI = taxYearProjectedGCI(projectedGCI, taxGCIAdjustment);
+  const projectedNet = computeProjectedNet(taxProjectedGCI, settings, projectedDealCount);
   // Net self-employment income = gross-of-brokerage minus all business expenses
   const netForTax = Math.max(0, projectedNet - annualExpenses);
   const taxResult = settings
     ? calculateTax(netForTax, settings.province, Math.max(projectedDealCount, 1))
     : null;
+  // The cash position below feeds the cash runway and the Runway Score, which
+  // stay on closing dates, in lockstep with computeEffectiveCashForSurvival
+  // (effective-cash.ts): its tax to date is the estimate on the closing-date
+  // projection. Equal to taxResult's for an accrual agent.
+  const closingYearNetForTax = Math.max(0, computeProjectedNet(projectedGCI, settings, projectedDealCount) - annualExpenses);
+  const closingYearTaxBurden = settings
+    ? calculateTax(closingYearNetForTax, settings.province, Math.max(projectedDealCount, 1)).totalBurden
+    : 0;
 
   // ── Cash Position (implied from YTD data) ─────────────────────────────
   // Computes what *should* be in the agent's business account based on
@@ -754,7 +792,7 @@ export function DashboardContent({
       return Math.max(0, grossAfterPlan - brokerageFees);
     })(),
     ytdExpenses: expensesYTD,
-    ytdTaxSetAside: taxResult ? taxResult.totalBurden * Math.min(fraction, 1) : 0,
+    ytdTaxSetAside: closingYearTaxBurden * Math.min(fraction, 1),
     ytdHstCollected,
     ytdHstOnExpenses,
     brokerageWithholdsHst: settings?.brokerage_withholds_hst ?? false,
@@ -917,8 +955,8 @@ export function DashboardContent({
 
   // After-tax take-home per projected deal
   const afterTaxPerDeal =
-    rawProjectedGCI > 0 && taxResult && projectedDealCount > 0
-      ? (rawProjectedGCI - taxResult.totalBurden) / projectedDealCount
+    taxProjectedGCI > 0 && taxResult && projectedDealCount > 0
+      ? (taxProjectedGCI - taxResult.totalBurden) / projectedDealCount
       : 0;
 
   // Break-even GCI: the gross income needed to cover all expenses + taxes, netting $0.
@@ -951,7 +989,7 @@ export function DashboardContent({
   const taxOptResult = settings
     ? generateTaxOptimizations({
         netIncome: netForTax,
-        projectedGCI,
+        projectedGCI: taxProjectedGCI,
         annualExpenses,
         dealCount: Math.max(projectedDealCount, 1),
         province: settings.province,
@@ -1220,13 +1258,11 @@ export function DashboardContent({
   // Plan-aware (REAL waterfall or legacy split). shareBeforePlanFees maps to
   // the card's "agent gross" line; planFees to its fees line (tx fees under
   // simple_split; post-cap + CBR + BEOP + sign-up under REAL).
+  // On tax-year income (taxYearPlanGross): the same as the plan waterfall on
+  // planDeals for an accrual agent; a cash-method agent's commissions paid
+  // this year. The REAL cap still runs on closing dates.
   const ytdPlanGross = settings
-    ? computePlanGross(settings, ytdGCI, {
-        deals: planDeals,
-        windowStart: `${now.getFullYear()}-01-01`,
-        windowEnd: `${now.getFullYear() + 1}-01-01`,
-        asOf: localISODate(now),
-      })
+    ? taxYearPlanGross(settings, [...carryOverTx, ...taxYearRows], incomeMethod, currentYear, localISODate(now))
     : null;
   const ytdAgentGross = ytdPlanGross?.shareBeforePlanFees ?? ytdGCI;
   const ytdTxFees = ytdPlanGross?.planFees ?? 0;
@@ -1774,7 +1810,7 @@ export function DashboardContent({
     </div>
   );
 
-  cardRenders["net_takehome"] = (ytdGCI > 0 && settings) ? (
+  cardRenders["net_takehome"] = ((ytdGCI > 0 || taxYearDealCount > 0) && settings) ? (
     <Card className="rounded-xl border-emerald-200 bg-white shadow-sm">
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between flex-wrap gap-2">
@@ -1807,10 +1843,10 @@ export function DashboardContent({
               <p className="font-bold text-amber-700 mt-0.5">{fmtCurrency(ytdTaxSetAside)}</p>
               <p className="text-[10px] text-slate-400">based on YTD net</p>
             </div>
-            {ytdDealCount > 0 && (
+            {taxYearDealCount > 0 && (
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Per Deal</p>
-                <p className="font-bold text-emerald-700 mt-0.5">{fmtCurrency(ytdEstimatedTakeHome / ytdDealCount)}</p>
+                <p className="font-bold text-emerald-700 mt-0.5">{fmtCurrency(ytdEstimatedTakeHome / taxYearDealCount)}</p>
                 <p className="text-[10px] text-slate-400">actual take-home</p>
               </div>
             )}
@@ -1820,6 +1856,7 @@ export function DashboardContent({
           <span>Split: {settings.comp_plan === "real" ? "REAL plan" : (settings.split_preset ?? "custom")}</span>
           {settings.monthly_brokerage_fee > 0 && <span>Monthly fee: {fmtCurrency(settings.monthly_brokerage_fee)}/mo × {monthsElapsed}mo</span>}
           {ytdTxFees > 0 && <span>Tx fees: {fmtCurrency(ytdTxFees)}</span>}
+          {incomeMethod === "cash" && <span>{INCOME_REPORTING_METHOD_SETTING.options.cash}</span>}
           <span className="italic">{CANONICAL_TAX_DISCLAIMER_SHORT}</span>
         </div>
       </CardContent>
@@ -2220,6 +2257,7 @@ export function DashboardContent({
                   </div>
                   <CardDescription>
                     {taxResult.taxYear} · {PROVINCE_LABELS[settings!.province]} · {fmtPct(taxResult.effectiveRate)} effective rate
+                    {incomeMethod === "cash" && <> · {INCOME_REPORTING_METHOD_SETTING.options.cash}</>}
                   </CardDescription>
                 </div>
                 <span className={cn(
@@ -3110,6 +3148,7 @@ export function DashboardContent({
           historyItems,
           expensesYTD,
           expensesRemaining,
+          taxYearGCIAdjustment: taxGCIAdjustment,
         } : null}
       />
 

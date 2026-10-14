@@ -7,9 +7,11 @@
 // Every string built here goes through asTaxCopy(), so a forbidden verb is a
 // failing test (__tests__/cra-rules.test.ts), not a shipped sentence.
 //
-// Not mirrored into the MCP edge function: no MCP tool prints these rules.
+// MCP tools that need one import it from the `_shared/core` copy of this
+// file (scripts/build-mcp-shared.js), never a retyped sentence.
 
 import { gstHstLabel, gstHstRate } from "../engines/canadian-tax-engine";
+import type { IncomeReportingMethod } from "../engines/tax-year";
 import { fmtCurrency } from "../formatters";
 import { PROVINCE_ISO_CODES, PROVINCE_LABELS, type Province } from "../types/database";
 import { asTaxCopy, type TaxCopy } from "./validate";
@@ -569,3 +571,124 @@ export const CRA_INSTALMENT_SOURCES = {
     url: "https://www.canada.ca/en/revenue-agency/services/payments/payments-cra/individual-payments/income-tax-instalments/interest-penalty-charges.html",
   },
 } as const;
+
+// ─────────────────────────────────────────────────────────────────────────
+// Reporting commission income: the cash method or the accrual method
+// ─────────────────────────────────────────────────────────────────────────
+
+/**
+ * Who can use which method, what each means, and how to change.
+ *
+ * Sources:
+ *   Guide T4002, "Self-employed Business, Professional, Commission, Farming,
+ *   and Fishing Income", T4002(E) Rev. 25, Chapter 1, "Reporting methods"
+ *   and "Changing your method of reporting income"
+ *     canada.ca/en/revenue-agency/services/forms-publications/publications/t4002/t4002-3.html
+ *     (page dated 2026-04-16, read 2026-10-14)
+ *   canada.ca, "Accounting methods" (sole proprietorships and partnerships)
+ *     canada.ca/en/revenue-agency/services/tax/businesses/topics/sole-proprietorships-partnerships/accounting-methods.html
+ *     (page dated 2026-08-31, read 2026-10-14). The same rules.
+ *
+ * CRA: "Farmers, fishers, and self-employed commission agents can use the
+ * cash method or the accrual method to report income. All other
+ * self-employment income must be reported using the accrual method."
+ * Cash method: "report income in the fiscal period you receive it" and
+ * "deduct expenses in the fiscal period you pay them". Accrual method:
+ * "report income in the fiscal period you earn it, no matter when you
+ * receive it" and "deduct expenses in the fiscal period you incur them,
+ * whether or not you pay them in that period".
+ *
+ * Changing: from accrual to cash, "use the cash method when you file your
+ * next income tax return. Make sure you include a statement that shows each
+ * adjustment made to your income and expenses because of the difference in
+ * methods." From cash to accrual: "get permission from your tax services
+ * office", "ask for this change in writing before the date you have to file
+ * your income tax return", "explain why you want to change methods in your
+ * letter", and the first return on the accrual method includes a statement
+ * showing each adjustment.
+ *
+ * CRA's sentences say "must" and "make sure"; the copy states the same rules
+ * without them (the info-not-advice lint). It names no method as better.
+ */
+export const INCOME_REPORTING_METHOD_RULES = {
+  whoCanUse: asTaxCopy(
+    "Per CRA, self-employed commission agents can use the cash method or the accrual method to report income. Other self-employment income, apart from farming and fishing, is reported using the accrual method.",
+  ),
+  cash: asTaxCopy(
+    "Per CRA, under the cash method income is reported in the fiscal period it is received and expenses are deducted in the fiscal period they are paid.",
+  ),
+  accrual: asTaxCopy(
+    "Per CRA, under the accrual method income is reported in the fiscal period it is earned, no matter when it is received, and expenses are deducted in the fiscal period they are incurred, whether or not they are paid in that period.",
+  ),
+  accrualToCash: asTaxCopy(
+    "Per CRA, a change from the accrual method to the cash method starts with the next income tax return filed, which includes a statement showing each adjustment made to income and expenses because of the difference in methods.",
+  ),
+  cashToAccrual: asTaxCopy(
+    "Per CRA, a change from the cash method to the accrual method takes permission from the tax services office, asked for in writing, with the reason for the change, before the date the income tax return is due. The first return filed on the accrual method includes a statement showing each adjustment made to income and expenses.",
+  ),
+} as const;
+
+/** The rules above, in the order a reader meets them. */
+export const INCOME_REPORTING_METHOD_RULE_LIST = [
+  INCOME_REPORTING_METHOD_RULES.whoCanUse,
+  INCOME_REPORTING_METHOD_RULES.cash,
+  INCOME_REPORTING_METHOD_RULES.accrual,
+  INCOME_REPORTING_METHOD_RULES.accrualToCash,
+  INCOME_REPORTING_METHOD_RULES.cashToAccrual,
+] as const;
+
+/** The CRA pages the rules above come from, for a citation or a link. */
+export const CRA_REPORTING_METHOD_SOURCES = {
+  guide: {
+    label: "CRA Guide T4002, Chapter 1: Reporting methods",
+    url: "https://www.canada.ca/en/revenue-agency/services/forms-publications/publications/t4002/t4002-3.html",
+  },
+  accountingMethods: {
+    label: "CRA: Accounting methods",
+    url: "https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/sole-proprietorships-partnerships/accounting-methods.html",
+  },
+} as const;
+
+/**
+ * The Settings control and what the app does with each answer. The labels
+ * are CRA's names for the methods; the hints describe Agent Runway, not CRA,
+ * and are the only place that says which figures move.
+ *
+ * What moves: the year a deal's commission counts in for income tax (the tax
+ * estimate, take-home, the per-deal tax portion, instalments, the T2125 view,
+ * Flight Crew and the Claude connector's tax figures), read through
+ * engines/tax-year.ts. What does not: deal counts, GCI by closing year, the
+ * History tab, the Runway Score, pace and goals, GST/HST, and expenses
+ * (already counted by the date on the receipt or the charge).
+ */
+export const INCOME_REPORTING_METHOD_SETTING = {
+  label: "Income reporting method",
+  options: {
+    accrual: "Accrual method (the year the deal closes)",
+    cash: "Cash method (the year the commission is paid)",
+  } satisfies Record<IncomeReportingMethod, string>,
+} as const;
+
+/** The line under the Settings control, for the method chosen. */
+export function incomeReportingMethodHint(method: IncomeReportingMethod): TaxCopy {
+  if (method === "cash") {
+    return asTaxCopy(
+      "Agent Runway counts each deal's commission in the tax year of its Commission paid date, or of its closing date when that date is blank, for the income tax estimates, instalments and the T2125 view. Deal counts, GCI by year, History, the Runway Score and GST/HST stay on the closing date.",
+    );
+  }
+  return asTaxCopy(
+    "Agent Runway counts each deal's commission in the tax year it closes. Deal counts, GCI by year, History, the Runway Score and GST/HST use the closing date under either method.",
+  );
+}
+
+/** The line under the transaction form's "Commission paid" date. */
+export function commissionPaidDateHint(method: IncomeReportingMethod): TaxCopy {
+  if (method === "cash") {
+    return asTaxCopy(
+      "Optional. Your Settings show the cash method, so the income tax estimates count this commission in the year it was paid. Left blank, it counts in the year the deal closed.",
+    );
+  }
+  return asTaxCopy(
+    "Optional. Your Settings show the accrual method, so the income tax estimates count this commission in the year the deal closed. The paid date is used only under the cash method (Settings, Tax Filing).",
+  );
+}
