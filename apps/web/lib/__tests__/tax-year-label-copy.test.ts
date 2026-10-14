@@ -409,7 +409,11 @@ describe("the tax estimator: the article sections and the calculator", () => {
     expect(estimator.text).not.toMatch(/two consecutive years/i);
     expect(estimator.text).not.toMatch(/cannot be deducted/i);
     expect(estimator.text).not.toMatch(/triggers compounding interest/i);
-    expect(estimator.text).not.toMatch(/\bremind/i);
+  });
+
+  it("the only reminders on the page are the notices CRA sends, in CRA's words", () => {
+    expect(estimator.text).toContain("the instalment reminders it sends");
+    expect(estimator.text.replace(/instalment reminders/g, "")).not.toMatch(/\bremind/i);
   });
 
   // Read here, not inside the test: under sibling load a file read ran past the test timeout.
@@ -605,8 +609,11 @@ function filesUnder(dir: string): string[] {
   });
 }
 
-/** A typed year. A full date ("2026-10-13") is when something happened, not a label. */
-const TYPED_YEAR = String.raw`\b20\d\d\b(?!-\d\d)`;
+/**
+ * A typed year. A full date ("2026-10-13", "April 1, 2025") is when something
+ * happened, not a label.
+ */
+const TYPED_YEAR = String.raw`(?<!\b[A-Z][a-z]{2,8}\.? \d{1,2}, )\b20\d\d\b(?!-\d\d)`;
 
 const YEAR_BESIDE_THE_ENGINE: ReadonlyArray<{ name: string; re: RegExp }> = [
   {
@@ -695,6 +702,7 @@ describe("no source file that reaches a reader types a year beside the estimator
       "Canadian Realtor Tax Estimator — ${TAX_YEAR} Self-Employed Calculator",
       "The estimator runs the engine for the {TAX_YEAR} tax year",
       'the tax estimator page was reworded on 2026-10-13',
+      "the tax engine's (gstHstRate), not typed: a typed cell missed the April 1, 2025 change",
       "Estimate your federal tax, provincial tax and CPP in under a minute",
       "RRSP contributions for the 2025 tax year are due by March 2, 2026",
     ];
