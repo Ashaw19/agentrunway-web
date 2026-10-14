@@ -18,40 +18,21 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { activityRow, clientRow, pipelineDealRow, transactionRow } from "../../../mobile/lib/write-rows";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, "../../../.."); // agentrunway-web/
 const read = (rel: string) => readFileSync(path.join(REPO, rel), "utf8");
 
-describe("the phone's rows satisfy the NOT NULL columns", () => {
-  it("a transaction insert carries '' for a blank address, client or notes", () => {
-    const row = transactionRow({ address: null, client_name: null, notes: null, sale_price: 1 }, { insert: true });
-    expect(row).toMatchObject({ address: "", client_name: "", notes: "", sale_price: 1 });
-    // An insert that left a column out still sends it.
-    expect(transactionRow({ sale_price: 1 }, { insert: true })).toMatchObject({ address: "", client_name: "", notes: "" });
-  });
-
-  it("an update only blanks the columns it sends", () => {
-    expect(transactionRow({ notes: null })).toEqual({ notes: "" });
-    expect(pipelineDealRow({ address: null, stage: "offer" })).toEqual({ address: "", stage: "offer" });
-    expect(pipelineDealRow({ stage: "offer" })).toEqual({ stage: "offer" });
-  });
-
-  it("an activity without a description sends ''", () => {
-    expect(activityRow({ client_id: "c", type: "call", description: null })).toMatchObject({ description: "" });
-    expect(activityRow({ client_id: "c", type: "call" })).toMatchObject({ description: "" });
-    expect(activityRow({ client_id: "c", type: "note", description: "Hi" })).toMatchObject({ description: "Hi" });
-  });
-
-  it("a client carries name_search from its name, as web's add and rename", () => {
-    expect(clientRow({ name: "  Émile  OʼBrien " })).toMatchObject({ name_search: "emile o'brien" });
-    expect(clientRow({ phone: "506" })).toEqual({ phone: "506" });
-  });
-
+// The row rules themselves are unit-tested in core
+// (packages/core/lib/__tests__/write-rows.test.ts). This file must not import
+// phone code: the web build typechecks tests, and Vercel installs only the
+// web app's dependencies (PR #344's first preview failed on exactly that).
+describe("the phone's writes go through core write-rows", () => {
   it("the store and the offline replay both write through these rows", () => {
     const store = read("apps/mobile/stores/data-store.ts");
     const queue = read("apps/mobile/stores/offline-queue.ts");
+    expect(store).toContain('from "@agent-runway/core/lib/write-rows"');
+    expect(queue).toContain('from "@agent-runway/core/lib/write-rows"');
     expect(store).toMatch(/\.insert\(\{ \.\.\.row, user_id: user\.id \}\)/); // row = transactionRow(...)
     expect(store).toContain("transactionRow({ ...tx }, { insert: true })");
     expect(store).toContain("clientRow({ ...merged, user_id: user.id })");
