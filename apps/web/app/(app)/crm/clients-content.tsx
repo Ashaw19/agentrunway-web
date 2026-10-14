@@ -102,12 +102,14 @@ import {
   MessageSquare,
   Home,
   StickyNote,
+  Trash2,
 } from "lucide-react";
 import { ShowingsSection } from "./showings-section";
 import { fmtCurrency, fmtCompact } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 import { toNameSearch } from "@/lib/crm/client-identity";
 import { clusterDuplicateClients } from "@/lib/crm/duplicate-detection";
+import { deleteClients, fetchAllClients, type DeleteClientsResult } from "@/lib/crm/delete-clients";
 import {
   achievementBadgeIds,
   buildAllGroups,
@@ -1064,15 +1066,11 @@ export function ClientsContent({
     if (initialClients.length > 0 || !userId) return;
     let cancelled = false;
     (async () => {
-      const { data, error } = await supabase
-        .from("clients")
-        .select("*")
-        .eq("user_id", userId)
-        .order("name")
-        .limit(10000);
+      // In pages: one request returns at most 1,000 rows (config.toml max_rows).
+      const { data, error } = await fetchAllClients<Client>(supabase, userId);
       if (!cancelled) {
-        if (data) setLocalClients(data as Client[]);
-        if (error) console.error("[CRM] Client-side fetch failed:", error.message);
+        if (data) setLocalClients(data);
+        if (error) console.error("[CRM] Client-side fetch failed:", error);
         setClientsLoading(false);
       }
     })();
@@ -1109,6 +1107,7 @@ export function ClientsContent({
     return (localStorage.getItem("crm_reward_generosity") as RewardGenerosity | null) ?? "thoughtful";
   });
   const [showArchived, setShowArchived] = useState(false);
+  const [filterTag, setFilterTag] = useState<string>("all");
   const [sortCol, setSortCol] = useState<SortCol>("gci");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [tab, setTab] = useState<TabId>("clients");
@@ -1153,6 +1152,16 @@ export function ClientsContent({
   const [archiveReason, setArchiveReason] = useState<ArchiveReason>("deceased");
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  // What "Delete Forever…" will do (a dry run): delete, or archive instead
+  // because the client has a deal, an unsubscribe or consent records.
+  const [deletePreview, setDeletePreview] = useState<DeleteClientsResult | null>(null);
+
+  // Bulk selection on the client list (bulk Delete)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkPreview, setBulkPreview] = useState<DeleteClientsResult | null>(null);
+  const [bulkLoading, setBulkLoading] = useState(false);
+  const [bulkConfirmText, setBulkConfirmText] = useState("");
 
   // Voice-to-client state
   const [voiceDraft,  setVoiceDraft]  = useState<VoiceDraft | null>(null);
@@ -1381,6 +1390,12 @@ export function ClientsContent({
     [localRecords],
   );
 
+  // Every tag on a client, for the tag filter (e.g. an "iPhone import").
+  const allTags = useMemo(
+    () => [...new Set(localClients.flatMap((c) => c.tags ?? []))].sort((a, b) => a.localeCompare(b)),
+    [localClients],
+  );
+
   // Sets of archived client IDs for fast lookup
   const archivedClientIds = useMemo(
     () => new Set(localClients.filter((c) => !!c.archived_at).map((c) => c.id)),
@@ -1416,12 +1431,9 @@ export function ClientsContent({
     // touches enrichment fields on the primary and archives the duplicates,
     // and this keeps every downstream view (grouped list, KPIs) consistent
     // without re-deriving the merge's exact field-fill logic client-side.
-    const { data: refreshed, error: refreshError } = await supabase
-      .from("clients")
-      .select("*")
-      .eq("user_id", userId!);
+    const { data: refreshed, error: refreshError } = await fetchAllClients<Client>(supabase, userId!);
     if (!refreshError && refreshed) {
-      setLocalClients(refreshed as Client[]);
+      setLocalClients(refreshed);
     }
     const movedCount = (data as { records_moved?: number } | null)?.records_moved ?? 0;
     toast.success(
@@ -1462,6 +1474,10 @@ export function ClientsContent({
         !g.deals.some((d) => d.source === filterSource)
       )
         return false;
+      if (filterTag !== "all") {
+        const client = g.clientId ? clientById.get(g.clientId) : null;
+        if (!client?.tags?.includes(filterTag)) return false;
+      }
       // Flight Status filter — match client status via O(1) map lookup
       if (filterStatus !== "all" && g.clientId) {
         const client = clientById.get(g.clientId);
@@ -1481,10 +1497,77 @@ export function ClientsContent({
       return true;
     });
     return sortTableGroups(f, sortCol, sortDir);
-  }, [grouped, search, filterSide, filterSource, filterStatus, activityFilter, sortCol, sortDir, clientById, showArchived, archivedClientIds]);
+  }, [grouped, search, filterSide, filterSource, filterStatus, filterTag, activityFilter, sortCol, sortDir, clientById, showArchived, archivedClientIds]);
 
   // Reset to first page when filters change
-  useEffect(() => { setClientsPage(0); }, [search, filterSide, filterSource, filterStatus, activityFilter, sortCol, sortDir, showArchived]);
+  useEffect(() => { setClientsPage(0); }, [search, filterSide, filterSource, filterStatus, filterTag, activityFilter, sortCol, sortDir, showArchived]);
+
+  // A selection belongs to the view it was made in: changing what's shown clears it.
+  useEffect(() => { setSelectedIds(new Set()); }, [search, filterSide, filterSource, filterStatus, filterTag, activityFilter, showArchived]);
+
+  // After clients are deleted or archived (single or bulk): drop deleted ones
+  // and their checklist items and activities from the page, mark archived ones.
+  const applyDeleteResult = useCallback((r: DeleteClientsResult) => {
+    const gone = new Set(r.deleted);
+    const archivedAt = new Date().toISOString();
+    const kept = new Set(r.archived);
+    setLocalClients((prev) =>
+      prev
+        .filter((c) => !gone.has(c.id))
+        .map((c) => (kept.has(c.id) && !c.archived_at
+          ? { ...c, archived_at: archivedAt, archive_reason: c.archive_reason ?? (c.email_opt_out_at ? "do_not_contact" : "other") }
+          : c)),
+    );
+    setLocalTasks((prev) => prev.filter((t) => !t.client_id || !gone.has(t.client_id)));
+    setLocalActivities((prev) => prev.filter((a) => !gone.has(a.client_id)));
+  }, []);
+
+  // Rows that can be selected: real clients in the current view (all pages).
+  // Name-only rows (deals with no client) can't be deleted.
+  const selectableIds = useMemo(
+    () => filtered.flatMap((g) => (g.clientId ? [g.clientId] : [])),
+    [filtered],
+  );
+  const allSelected = selectableIds.length > 0 && selectableIds.every((id) => selectedIds.has(id));
+  const someSelected = selectedIds.size > 0 && !allSelected;
+  const toggleSelected = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  // Bulk delete: dry run when the dialog opens, then the real thing on confirm.
+  const BULK_TYPE_TO_CONFIRM = 10;
+  const openBulkDelete = useCallback(async () => {
+    setBulkPreview(null);
+    setBulkConfirmText("");
+    setBulkDeleteOpen(true);
+    const { data, error } = await deleteClients(supabase, [...selectedIds], { dryRun: true });
+    if (error) toast.error("Couldn't check the selected clients. Please try again.");
+    setBulkPreview(data);
+  }, [selectedIds]);
+  const runBulkDelete = useCallback(async () => {
+    setBulkLoading(true);
+    const { data, error } = await deleteClients(supabase, [...selectedIds]);
+    setBulkLoading(false);
+    if (data) applyDeleteResult(data);
+    if (error) {
+      toast.error(data ? "Some clients couldn't be deleted. Please try again." : "Failed to delete clients.");
+      return;
+    }
+    if (data) {
+      const parts = [
+        data.deleted.length ? `Deleted ${data.deleted.length} client${data.deleted.length === 1 ? "" : "s"}` : null,
+        data.archived.length ? `moved ${data.archived.length} to the Hangar` : null,
+      ].filter(Boolean);
+      toast.success(parts.join(", ") + ".");
+    }
+    setSelectedIds(new Set());
+    setBulkDeleteOpen(false);
+  }, [selectedIds, applyDeleteResult]);
 
   // Paginate the filtered list
   const totalPages = Math.ceil(filtered.length / CLIENTS_PAGE_SIZE);
@@ -2134,19 +2217,31 @@ export function ClientsContent({
     setDetailPanelOpen(false);
   }, []);
 
-  // Permanently delete a client
+  // Permanently delete a client (or archive, when deleting would erase a
+  // deal link or an unsubscribe): fn_delete_clients, as bulk Delete does.
   const handleDeleteClient = useCallback(async (clientId: string) => {
     setDeleteLoading(true);
-    const { error } = await supabase.from("clients").delete().eq("id", clientId).eq("user_id", userId!);
+    const { data, error } = await deleteClients(supabase, [clientId]);
     setDeleteLoading(false);
-    if (error) {
+    if (error || !data) {
       toast.error("Failed to delete client");
       return;
     }
-    setLocalClients((prev) => prev.filter((c) => c.id !== clientId));
+    applyDeleteResult(data);
+    if (data.archived.length) toast.success("Moved to the Hangar instead: this client has a deal or unsubscribed.");
     setDeleteDialogOpen(false);
     setDetailPanelOpen(false);
-  }, []);
+  }, [applyDeleteResult]);
+
+  // Dry run when the single-delete dialog opens, so it says what will happen.
+  useEffect(() => {
+    if (!deleteDialogOpen || !selectedClientId) { setDeletePreview(null); return; }
+    let cancelled = false;
+    void deleteClients(supabase, [selectedClientId], { dryRun: true }).then(({ data }) => {
+      if (!cancelled) setDeletePreview(data);
+    });
+    return () => { cancelled = true; };
+  }, [deleteDialogOpen, selectedClientId]);
 
   // Add a new client manually
   const handleAddClient = useCallback(async () => {
@@ -3666,6 +3761,22 @@ export function ClientsContent({
                 ))}
               </select>
 
+              {allTags.length > 0 && (
+                <select
+                  value={filterTag}
+                  onChange={(e) => setFilterTag(e.target.value)}
+                  className={FILTER_CONTROL_CLS}
+                  aria-label="Filter by tag"
+                >
+                  <option value="all">All Tags</option>
+                  {allTags.map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </select>
+              )}
+
               <select
                 value={activityFilter}
                 onChange={(e) => setActivityFilter(e.target.value as "all" | "1y" | "3y" | "5y")}
@@ -3721,11 +3832,50 @@ export function ClientsContent({
               </p>
             </div>
           ) : (
+              <>
+              {selectedIds.size > 0 && (
+                <div
+                  role="region"
+                  aria-label="Selected clients"
+                  className="flex flex-wrap items-center gap-2 rounded-xl border border-primary/30 bg-primary/5 px-4 py-2 text-sm"
+                >
+                  <span className="font-semibold">{selectedIds.size} selected</span>
+                  {!allSelected && selectableIds.length > selectedIds.size && (
+                    <button
+                      type="button"
+                      className="text-primary hover:underline"
+                      onClick={() => setSelectedIds(new Set(selectableIds))}
+                    >
+                      Select all {selectableIds.length} in this view
+                    </button>
+                  )}
+                  <div className="ml-auto flex items-center gap-2">
+                    <Button size="sm" variant="ghost" onClick={() => setSelectedIds(new Set())}>
+                      Clear
+                    </Button>
+                    <Button size="sm" variant="destructive" onClick={() => void openBulkDelete()}>
+                      <Trash2 className="h-3.5 w-3.5 mr-1" />
+                      Delete…
+                    </Button>
+                  </div>
+                </div>
+              )}
               <Card className="rounded-2xl shadow-sm overflow-hidden">
                 <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow className="border-b border-border/60 hover:bg-transparent">
+                        <TableHead className="w-8 pl-3 pr-0">
+                          <input
+                            type="checkbox"
+                            aria-label={allSelected ? "Clear selection" : `Select all ${selectableIds.length} clients in this view`}
+                            className="h-4 w-4 accent-primary cursor-pointer align-middle"
+                            checked={allSelected}
+                            ref={(el) => { if (el) el.indeterminate = someSelected; }}
+                            disabled={selectableIds.length === 0}
+                            onChange={() => setSelectedIds(allSelected ? new Set() : new Set(selectableIds))}
+                          />
+                        </TableHead>
                         <TableHead className="p-0 w-1" />
                         <SortableHead col="name" label="Client" active={sortCol} dir={sortDir} onSort={handleSort} className="pl-3" />
                         <SortableHead col="gci" label="Lifetime GCI" active={sortCol} dir={sortDir} onSort={handleSort} className="text-right" />
@@ -3742,6 +3892,7 @@ export function ClientsContent({
                       {clientsLoading ? (
                         Array.from({ length: 8 }).map((_, i) => (
                           <TableRow key={i} className="border-b border-border/20">
+                            <TableCell className="w-8 pl-3 pr-0" />
                             <TableCell className="p-0"><div className="w-1 min-h-[46px] bg-border/30" /></TableCell>
                             <TableCell className="pl-3 pr-2 py-2.5">
                               <div className="flex items-center gap-1.5">
@@ -3759,7 +3910,7 @@ export function ClientsContent({
                         ))
                       ) : filtered.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={8} className="py-12 text-center text-muted-foreground">
+                          <TableCell colSpan={9} className="py-12 text-center text-muted-foreground">
                             No clients match your search.
                           </TableCell>
                         </TableRow>
@@ -3794,6 +3945,18 @@ export function ClientsContent({
                               )}
                               onClick={() => { if (hasClientId) openDetailPanel(group.clientId!); }}
                             >
+                              {/* Bulk selection */}
+                              <TableCell className="w-8 pl-3 pr-0" onClick={(e) => e.stopPropagation()}>
+                                {hasClientId && (
+                                  <input
+                                    type="checkbox"
+                                    aria-label={`Select ${group.name}`}
+                                    className="h-4 w-4 accent-primary cursor-pointer align-middle"
+                                    checked={selectedIds.has(group.clientId!)}
+                                    onChange={() => toggleSelected(group.clientId!)}
+                                  />
+                                )}
+                              </TableCell>
                               {/* Recency accent strip */}
                               <TableCell className="p-0">
                                 <div className={cn("w-1 min-h-[46px]", recencyAccent(group.lastDeal))} />
@@ -4028,6 +4191,7 @@ export function ClientsContent({
                   </div>
                 )}
               </Card>
+              </>
           )}
         </>
       )}
@@ -7305,21 +7469,100 @@ export function ClientsContent({
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <DialogContent className="sm:max-w-sm w-[95vw]">
           <DialogHeader>
-            <DialogTitle>Permanently delete {selectedClient?.name}?</DialogTitle>
+            <DialogTitle>
+              {deletePreview?.archived.length ? `Move ${selectedClient?.name} to the Hangar?` : `Permanently delete ${selectedClient?.name}?`}
+            </DialogTitle>
             <DialogDescription>
-              All activities and tasks for this client will be deleted. Deal history records are preserved — they remain in your History with no client link.
+              {deletePreview?.archived.length
+                ? "This client has a deal on record or has unsubscribed. Deleting them would erase their opt-out and leave their deals with no client, so they'll be moved to the Hangar instead. You can restore them any time."
+                : "Their notes, activity history and checklist items are deleted with them. This can't be undone."}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
             <Button
               variant="destructive"
-              disabled={deleteLoading}
+              disabled={deleteLoading || !deletePreview}
               onClick={() => {
                 if (selectedClient) handleDeleteClient(selectedClient.id);
               }}
             >
-              {deleteLoading ? "Deleting…" : "Delete Forever"}
+              {deleteLoading
+                ? "Working…"
+                : !deletePreview
+                  ? "Checking…"
+                  : deletePreview.archived.length
+                    ? "Move to Hangar"
+                    : "Delete Forever"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ══ Bulk Delete Dialog ══ */}
+      <Dialog open={bulkDeleteOpen} onOpenChange={(o) => { if (!bulkLoading) setBulkDeleteOpen(o); }}>
+        <DialogContent className="sm:max-w-md w-[95vw]">
+          <DialogHeader>
+            <DialogTitle>
+              Delete {selectedIds.size} client{selectedIds.size === 1 ? "" : "s"}?
+            </DialogTitle>
+            <DialogDescription asChild>
+              <div className="space-y-2 text-sm text-muted-foreground">
+                {!bulkPreview ? (
+                  <p className="flex items-center gap-2"><Loader2 className="h-3.5 w-3.5 animate-spin" />Checking the selected clients…</p>
+                ) : (
+                  <>
+                    {bulkPreview.deleted.length > 0 && (
+                      <p>
+                        <strong className="text-foreground">{bulkPreview.deleted.length} will be permanently deleted</strong>, with their
+                        notes, activity history and checklist items. This can&apos;t be undone.
+                      </p>
+                    )}
+                    {bulkPreview.archived.length > 0 && (
+                      <p>
+                        <strong className="text-foreground">{bulkPreview.archived.length} will be moved to the Hangar instead</strong>: they
+                        have a deal on record or unsubscribed, and deleting them would erase their opt-out or leave their deals with no
+                        client. You can restore them any time.
+                      </p>
+                    )}
+                    {bulkPreview.deleted.length + bulkPreview.archived.length === 0 && (
+                      <p>None of the selected clients could be found. Refresh the page and try again.</p>
+                    )}
+                  </>
+                )}
+              </div>
+            </DialogDescription>
+          </DialogHeader>
+          {bulkPreview && bulkPreview.deleted.length >= BULK_TYPE_TO_CONFIRM && (
+            <div className="space-y-1.5">
+              <label htmlFor="bulk-delete-confirm" className="text-xs text-muted-foreground">
+                Type <strong className="text-foreground">DELETE</strong> to confirm
+              </label>
+              <Input
+                id="bulk-delete-confirm"
+                value={bulkConfirmText}
+                onChange={(e) => setBulkConfirmText(e.target.value)}
+                autoComplete="off"
+              />
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="ghost" disabled={bulkLoading} onClick={() => setBulkDeleteOpen(false)}>Cancel</Button>
+            <Button
+              variant="destructive"
+              disabled={
+                bulkLoading ||
+                !bulkPreview ||
+                bulkPreview.deleted.length + bulkPreview.archived.length === 0 ||
+                (bulkPreview.deleted.length >= BULK_TYPE_TO_CONFIRM && bulkConfirmText.trim().toUpperCase() !== "DELETE")
+              }
+              onClick={() => void runBulkDelete()}
+            >
+              {bulkLoading
+                ? "Working…"
+                : bulkPreview && bulkPreview.deleted.length === 0
+                  ? `Move ${bulkPreview.archived.length} to Hangar`
+                  : `Delete ${bulkPreview?.deleted.length ?? ""}`.trim()}
             </Button>
           </DialogFooter>
         </DialogContent>
