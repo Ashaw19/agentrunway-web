@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { OverheadContent } from "./overhead-content";
-import type { HistoryItem, Transaction, PipelineDeal, SplitPreset, RecurringExpense } from "@/lib/types/database";
+import type { HistoryItem, Transaction, PipelineDeal, SplitPreset, RecurringExpense, ListingAppointment } from "@/lib/types/database";
 import { expenseTaxContext } from "@agent-runway/core/engines/expense-totals-engine";
 import { ytdExpenseTotals } from "@agent-runway/core/engines/t2125-expenses-engine";
 import { deductionTrackingFlags } from "@agent-runway/core/engines/tax-optimization-engine";
@@ -40,6 +40,7 @@ export default async function OverheadPage() {
     historyResult,
     pipelineResult,
     recurringExpResult,
+    listingResult,
   ] = await Promise.all([
     supabase
       .from("transactions")
@@ -93,6 +94,14 @@ export default async function OverheadPage() {
       .select("*")
       .eq("user_id", user.id)
       .eq("is_active", true)
+      .limit(10000),
+    // The dashboard's listing query: its projected GCI, and so its tax
+    // estimate, counts scheduled and active listing appointments.
+    supabase
+      .from("listing_appointments")
+      .select("*")
+      .eq("user_id", user.id)
+      .in("status", ["scheduled", "active"])
       .limit(10000),
   ]);
 
@@ -195,6 +204,7 @@ export default async function OverheadPage() {
       ccaAssetCount={ccaAssetCount}
       historyItems={(historyResult.data ?? []) as HistoryItem[]}
       pipelineDeals={pipelineDeals}
+      activeListings={(listingResult.data ?? []) as ListingAppointment[]}
       isPro={await computeIsPro(supabase, user.id, rawSettings)}
       scenarioSeed={scenarioSeed}
       expensesRemaining={expensesRemaining}
