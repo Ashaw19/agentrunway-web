@@ -19,6 +19,7 @@ import {
   StyleSheet,
   Link,
 } from "@react-pdf/renderer";
+import { GST_RATE_GROUP, HST_RATE_GROUPS } from "@agent-runway/core/tax-copy";
 
 const BRAND = {
   navy:   "#0D1221",
@@ -373,9 +374,10 @@ export function CheatSheetPDF() {
               </View>
               {[
                 ["Small-supplier threshold (4 quarters)", "$30,000"],
-                ["GST (AB, BC, MB, NT, NU, SK, YT)", "5%"],
-                ["HST — Ontario", "13%"],
-                ["HST — NB, NL, NS, PEI", "15%"],
+                [`GST (${GST_RATE_GROUP.codes})`, GST_RATE_GROUP.percent],
+                // One row per HST rate, from the tax engine. The typed rows
+                // missed the April 1, 2025 change to one province's rate.
+                ...HST_RATE_GROUPS.map((group) => [`HST — ${group.codes}`, group.percent]),
               ].map((r, i) => (
                 <Row
                   key={r[0]}
@@ -388,8 +390,8 @@ export function CheatSheetPDF() {
               ))}
             </View>
             <Text style={S.cite}>
-              Source: CRA — When to register for and start charging the GST/HST.
-              Real estate commissions are taxable supplies.
+              Sources: CRA — When to register for and start charging the GST/HST;
+              GST/HST calculator (and rates). Real estate commissions are taxable supplies.
             </Text>
           </View>
         </View>

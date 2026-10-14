@@ -6,6 +6,12 @@ import { MarketingFooter } from "@/components/marketing-footer";
 import { ScrollRevealSection } from "@/components/scroll-reveal-section";
 import { CommissionCalculator } from "./commission-calculator";
 import { EmailCapture } from "@/components/email-capture";
+import {
+  CRA_GST_HST_SOURCES,
+  GST_HST_RATE_RULE,
+  SMALL_SUPPLIER_RULE,
+  gstHstRatePercent,
+} from "@agent-runway/core/tax-copy";
 
 export const metadata: Metadata = {
   title: "Real Estate Commission Calculator Canada — What You Actually Keep",
@@ -23,6 +29,13 @@ export const metadata: Metadata = {
   },
 };
 
+// ── Answer printed twice: in the FAQ schema and on the page ──────────────────
+//
+// CRA's registration rule and the rate by province, in the shared wording.
+// The rates used to be typed here, and one province's was wrong.
+
+const HST_GST_ANSWER = `${SMALL_SUPPLIER_RULE} ${GST_HST_RATE_RULE}`;
+
 // ── JSON-LD structured data ──────────────────────────────────────────────────
 
 const JSON_LD_ARTICLE = {
@@ -34,7 +47,7 @@ const JSON_LD_ARTICLE = {
   author: { "@type": "Person", name: "Andrew Shaw" },
   publisher: { "@type": "Organization", name: "Agent Runway", url: "https://agentrunway.ca" },
   datePublished: "2025-04-01",
-  dateModified: "2026-05-10",
+  dateModified: "2026-10-13",
   url: "https://agentrunway.ca/real-estate-commission-calculator-canada",
   mainEntityOfPage: {
     "@type": "WebPage",
@@ -59,7 +72,7 @@ const JSON_LD_FAQ = {
       name: "Do I have to pay HST on my commission?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Per the CRA, once gross revenue exceeds $30,000 over four consecutive calendar quarters, GST/HST registration and collection applies. The rate charged depends on the province where the supply is made: 13% in Ontario, 15% in New Brunswick, Nova Scotia, PEI, and Newfoundland & Labrador, and 5% GST in provinces without HST such as Alberta, BC, Saskatchewan, and Manitoba.",
+        text: HST_GST_ANSWER,
       },
     },
     {
@@ -88,6 +101,7 @@ const JSON_LD_FAQ = {
 // citations are rendered via <CRACite id={n} />. URLs were hand-verified live
 // on 2026-05-10. Source 4 is not CRA: it is the Financial Consumer Agency of
 // Canada's page, the source for the commission range (verified 2026-10-13).
+// Source 5 is CRA's rate table, read 2026-10-13.
 
 const CRA_SOURCES = [
   {
@@ -110,6 +124,7 @@ const CRA_SOURCES = [
     label: "Financial Consumer Agency of Canada — Selling a home (realtor commissions)",
     url: "https://www.canada.ca/en/financial-consumer-agency/services/selling-home.html",
   },
+  { id: 5, ...CRA_GST_HST_SOURCES.rates },
 ] as const;
 
 function CRACite({ id }: { id: number }) {
@@ -206,7 +221,8 @@ export default function CommissionCalculatorPage() {
                 <p>
                   As an illustration: a $500,000 sale at 2.5% commission
                   produces $12,500 gross. After an 80/20 brokerage split, a
-                  $500 transaction fee, 13% HST collected and remitted, and a
+                  $500 transaction fee, Ontario&apos;s {gstHstRatePercent("ontario")} HST
+                  collected and remitted, and a
                   30% blended income-tax estimate, the calculator below
                   estimates{" "}
                   <strong className="text-slate-900">
@@ -248,10 +264,10 @@ export default function CommissionCalculatorPage() {
                 </li>
                 <li>
                   <strong className="text-slate-900">4. HST/GST</strong>{" "}
-                  — The CRA requires HST/GST collection and remittance once your
-                  gross revenue exceeds $30,000 over four consecutive calendar
-                  quarters<CRACite id={1} />. In Ontario that&apos;s 13%; in the
-                  Maritimes, 15%; in Alberta, 5%<CRACite id={2} />. Returns are
+                  — {SMALL_SUPPLIER_RULE}
+                  <CRACite id={1} /> {GST_HST_RATE_RULE}
+                  <CRACite id={2} />
+                  <CRACite id={5} /> Returns are
                   filed with CRA on a monthly, quarterly, or annual basis
                   depending on revenue<CRACite id={3} />.
                 </li>
@@ -295,14 +311,10 @@ export default function CommissionCalculatorPage() {
                     Do I have to pay HST on my commission?
                   </h3>
                   <p className="mt-2 text-base leading-relaxed text-slate-600">
-                    Per the CRA, once gross revenue exceeds $30,000 over four
-                    consecutive calendar quarters, GST/HST registration and
-                    collection applies<CRACite id={1} />. The rate charged
-                    depends on the province where the supply is made: 13% in
-                    Ontario, 15% in New Brunswick, Nova Scotia, PEI, and
-                    Newfoundland &amp; Labrador, and 5% GST in provinces
-                    without HST such as Alberta, BC, Saskatchewan, and
-                    Manitoba<CRACite id={2} />.
+                    {SMALL_SUPPLIER_RULE}
+                    <CRACite id={1} /> {GST_HST_RATE_RULE}
+                    <CRACite id={2} />
+                    <CRACite id={5} />
                   </p>
                 </div>
                 <div>

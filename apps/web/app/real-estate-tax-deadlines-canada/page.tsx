@@ -14,6 +14,7 @@ import { MarketingNav } from "@/components/marketing-nav";
 import { MarketingFooter } from "@/components/marketing-footer";
 import { CharterScarcityStrip } from "@/components/charter-scarcity-strip";
 import { articleSchema, breadcrumbSchema, faqSchema } from "@/lib/schema";
+import { INSTALMENT_OPTIONS_RULE } from "@agent-runway/core/tax-copy";
 
 const URL = "https://agentrunway.ca/real-estate-tax-deadlines-canada";
 
@@ -219,7 +220,7 @@ const DEADLINES: Deadline[] = [
     formattedDate: "June 15, 2026",
     title: "Q2 2026 tax instalment",
     description:
-      "Second quarterly instalment for the 2026 tax year. Based on the CRA's reminder notice or the prior-year / current-year / no-calculation method — whichever minimizes your amount.",
+      `Second quarterly instalment for the 2026 tax year. ${INSTALMENT_OPTIONS_RULE}`,
     appliesTo: "Self-employed agents required to pay instalments",
     status: "upcoming",
   },

@@ -5,6 +5,7 @@ import { MarketingNav } from "@/components/marketing-nav";
 import { MarketingFooter } from "@/components/marketing-footer";
 import { EmailCapture } from "@/components/email-capture";
 import { articleSchema } from "@/lib/schema";
+import { CRA_GST_HST_SOURCES, GST_RATE_GROUP, gstHstRatePercent } from "@agent-runway/core/tax-copy";
 
 export const metadata: Metadata = {
   title:
@@ -44,7 +45,7 @@ const JSON_LD_ARTICLE = articleSchema({
     "The $30,000 small-supplier threshold, mandatory vs voluntary registration, Input Tax Credits, provincial HST rates, taxable vs exempt commissions, and filing frequency — a CRA-cited guide for self-employed Canadian real estate agents.",
   url: "/real-estate-agent-hst-registration-canada",
   datePublished: "2026-05-06",
-  dateModified: "2026-05-06",
+  dateModified: "2026-10-13",
 });
 
 // ─── CRA primary sources (audit registry) ─────────────────────────────────────
@@ -93,6 +94,7 @@ const CRA_SOURCES = [
       "CRA — Make changes to your GST/HST account (reporting period thresholds)",
     url: "https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/gst-hst-businesses/gst-hst-account/change-account.html",
   },
+  { id: 8, ...CRA_GST_HST_SOURCES.rates },
 ] as const;
 
 function CRACite({ id }: { id: number }) {
@@ -444,11 +446,11 @@ export default function RealEstateAgentHstRegistrationCanadaPage() {
                 rules — for a real estate agent, generally the province where
                 the real property is located<CRACite id={3} />. Five
                 provinces use a harmonized rate (HST) that combines the
-                federal and provincial portions into a single tax. Five
-                provinces and three territories use only the federal 5% GST,
+                federal and provincial portions into a single tax. Four
+                provinces and three territories use only the federal {GST_RATE_GROUP.percent} GST,
                 with provincial sales tax (PST or RST) administered
                 separately where applicable<CRACite id={3} />. Quebec uses
-                the 5% federal GST plus the QST, administered by Revenu
+                the {GST_RATE_GROUP.percent} federal GST plus the QST, administered by Revenu
                 Québec<CRACite id={3} />.
               </p>
 
@@ -462,23 +464,25 @@ export default function RealEstateAgentHstRegistrationCanadaPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200 text-slate-600">
-                    <tr><td className="px-4 py-2">Alberta</td><td className="px-4 py-2">5%</td><td className="px-4 py-2">GST</td></tr>
-                    <tr><td className="px-4 py-2">British Columbia</td><td className="px-4 py-2">5%</td><td className="px-4 py-2">GST (PST administered separately)</td></tr>
-                    <tr><td className="px-4 py-2">Manitoba</td><td className="px-4 py-2">5%</td><td className="px-4 py-2">GST (RST administered separately)</td></tr>
-                    <tr><td className="px-4 py-2">New Brunswick</td><td className="px-4 py-2">15%</td><td className="px-4 py-2">HST</td></tr>
-                    <tr><td className="px-4 py-2">Newfoundland and Labrador</td><td className="px-4 py-2">15%</td><td className="px-4 py-2">HST</td></tr>
-                    <tr><td className="px-4 py-2">Nova Scotia</td><td className="px-4 py-2">15%</td><td className="px-4 py-2">HST</td></tr>
-                    <tr><td className="px-4 py-2">Ontario</td><td className="px-4 py-2">13%</td><td className="px-4 py-2">HST</td></tr>
-                    <tr><td className="px-4 py-2">Prince Edward Island</td><td className="px-4 py-2">15%</td><td className="px-4 py-2">HST</td></tr>
-                    <tr><td className="px-4 py-2">Quebec</td><td className="px-4 py-2">5% + QST</td><td className="px-4 py-2">GST + QST (Revenu Québec)</td></tr>
-                    <tr><td className="px-4 py-2">Saskatchewan</td><td className="px-4 py-2">5%</td><td className="px-4 py-2">GST (PST administered separately)</td></tr>
-                    <tr><td className="px-4 py-2">Northwest Territories, Nunavut, Yukon</td><td className="px-4 py-2">5%</td><td className="px-4 py-2">GST</td></tr>
+                    {/* Every rate is the tax engine's (gstHstRate), not typed: a typed cell missed the April 1, 2025 change. */}
+                    <tr><td className="px-4 py-2">Alberta</td><td className="px-4 py-2">{gstHstRatePercent("alberta")}</td><td className="px-4 py-2">GST</td></tr>
+                    <tr><td className="px-4 py-2">British Columbia</td><td className="px-4 py-2">{gstHstRatePercent("britishColumbia")}</td><td className="px-4 py-2">GST (PST administered separately)</td></tr>
+                    <tr><td className="px-4 py-2">Manitoba</td><td className="px-4 py-2">{gstHstRatePercent("manitoba")}</td><td className="px-4 py-2">GST (RST administered separately)</td></tr>
+                    <tr><td className="px-4 py-2">New Brunswick</td><td className="px-4 py-2">{gstHstRatePercent("newBrunswick")}</td><td className="px-4 py-2">HST</td></tr>
+                    <tr><td className="px-4 py-2">Newfoundland and Labrador</td><td className="px-4 py-2">{gstHstRatePercent("newfoundland")}</td><td className="px-4 py-2">HST</td></tr>
+                    <tr><td className="px-4 py-2">Nova Scotia</td><td className="px-4 py-2">{gstHstRatePercent("novaScotia")}</td><td className="px-4 py-2">HST (15% before April 1, 2025)</td></tr>
+                    <tr><td className="px-4 py-2">Ontario</td><td className="px-4 py-2">{gstHstRatePercent("ontario")}</td><td className="px-4 py-2">HST</td></tr>
+                    <tr><td className="px-4 py-2">Prince Edward Island</td><td className="px-4 py-2">{gstHstRatePercent("princeEdwardIsland")}</td><td className="px-4 py-2">HST</td></tr>
+                    <tr><td className="px-4 py-2">Quebec</td><td className="px-4 py-2">{GST_RATE_GROUP.percent} + QST</td><td className="px-4 py-2">GST + QST (Revenu Québec)</td></tr>
+                    <tr><td className="px-4 py-2">Saskatchewan</td><td className="px-4 py-2">{gstHstRatePercent("saskatchewan")}</td><td className="px-4 py-2">GST (PST administered separately)</td></tr>
+                    <tr><td className="px-4 py-2">Northwest Territories, Nunavut, Yukon</td><td className="px-4 py-2">{gstHstRatePercent("yukon")}</td><td className="px-4 py-2">GST</td></tr>
                   </tbody>
                 </table>
               </div>
 
               <p className="text-xs text-slate-500">
-                Rates published by CRA, current as of the article date.
+                Rates published by CRA
+                <CRACite id={8} />, read October 13, 2026.
                 Provincial sales taxes (PST in BC and SK, RST in MB) and the
                 QST in Quebec are administered separately by the relevant
                 provincial revenue agencies and are outside the GST/HST

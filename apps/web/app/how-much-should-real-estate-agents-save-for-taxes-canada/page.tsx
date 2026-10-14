@@ -10,10 +10,14 @@ import { articleSchema } from "@/lib/schema";
 import { TAX_YEAR } from "@/lib/engines/canadian-tax-engine";
 import { SELF_EMPLOYED_CPP, TAX_ENGINE_TABLES } from "@agent-runway/core/tax-copy/engine-tables";
 import {
+  CRA_GST_HST_SOURCES,
   CRA_INSTALMENT_SOURCES,
+  GST_HST_RATE_RULE,
   INSTALMENT_DUE_DATES_RULE,
   INSTALMENT_INTEREST_RULE,
   INSTALMENT_REQUIREMENT_RULE,
+  INSTALMENT_WITHHOLDING_RULE,
+  SMALL_SUPPLIER_RULE,
   TAX_ENGINE_ESTIMATE,
   taxEstimateSpreadSentence,
 } from "@agent-runway/core/tax-copy";
@@ -68,6 +72,7 @@ const CRA_SOURCES = [
     url: "https://www.canada.ca/en/revenue-agency/services/payments/payments-cra/individual-payments/income-tax-instalments/due-dates.html",
   },
   { id: 7, ...CRA_INSTALMENT_SOURCES.interest },
+  { id: 8, ...CRA_GST_HST_SOURCES.rates },
   {
     id: 9,
     label: "CRA: Second additional CPP contribution (CPP2) rates and maximums",
@@ -103,6 +108,10 @@ const CPP_ANSWER = `Yes. ${SELF_EMPLOYED_CPP.rates}`;
 const HOW_MUCH_ANSWER = `The CRA sets no percentage of a commission to save. ${TAX_ENGINE_ESTIMATE.what} ${taxEstimateSpreadSentence(100_000)} ${TAX_ENGINE_ESTIMATE.varies} HST/GST collected on commissions is separate from this estimate.`;
 
 const HST_FILING_FREQUENCY = "HST/GST is typically filed annually or quarterly depending on revenue.";
+
+// Registration and the rate by province, in the shared wording. The rates
+// used to be typed here, by region, and one province's was wrong.
+const HST_GST_ANSWER = `${SMALL_SUPPLIER_RULE} ${GST_HST_RATE_RULE}`;
 
 const HOW_OFTEN_ANSWER = `${INSTALMENT_REQUIREMENT_RULE} ${INSTALMENT_DUE_DATES_RULE} ${INSTALMENT_INTEREST_RULE} ${HST_FILING_FREQUENCY}`;
 
@@ -142,7 +151,7 @@ const JSON_LD_FAQ = {
       name: "Do real estate agents charge HST or GST in Canada?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Once a real estate agent earns more than $30,000 in gross revenue over four consecutive calendar quarters, the agent is required to register for and collect HST/GST per CRA rules. In HST provinces like Ontario (13%) or the Maritimes (15%), this is a significant additional obligation.",
+        text: HST_GST_ANSWER,
       },
     },
     {
@@ -276,12 +285,10 @@ export default function TaxSavingsGuidePage() {
                     <CRACite id={9} />
                   </li>
                   <li>
-                    <strong>HST/GST</strong> — Once gross revenue exceeds
-                    $30,000 over four consecutive calendar quarters, CRA
-                    requires registration and collection of HST/GST
-                    <CRACite id={3} />. In Ontario the rate is 13%; in the
-                    Maritimes, 15%
+                    <strong>HST/GST</strong> — {SMALL_SUPPLIER_RULE}
+                    <CRACite id={3} /> {GST_HST_RATE_RULE}
                     <CRACite id={4} />
+                    <CRACite id={8} />
                   </li>
                 </ul>
               </div>
@@ -300,16 +307,11 @@ export default function TaxSavingsGuidePage() {
               </h2>
               <div className="mt-6 space-y-5 text-base leading-relaxed text-slate-600">
                 <p>
-                  Salaried employees have taxes deducted at source. Real estate
-                  agents don&apos;t. Every commission cheque arrives as gross
-                  income with no deductions — and the CRA expects you to manage
-                  your own instalments, track your own expenses, and calculate
-                  your own obligations.
-                </p>
-                <p>
-                  This creates a common pattern: agents spend commission income
-                  as it arrives, underestimate their tax liability, and face a
-                  painful bill at filing time.
+                  A salaried employee has income tax deducted from each pay. A
+                  self-employed agent&apos;s commission arrives with none
+                  deducted, so the tax on it is worked out and paid later.{" "}
+                  {INSTALMENT_WITHHOLDING_RULE}
+                  <CRACite id={5} />
                 </p>
                 <p>
                   {INSTALMENT_REQUIREMENT_RULE}
@@ -384,12 +386,10 @@ export default function TaxSavingsGuidePage() {
                     Do real estate agents charge HST or GST in Canada?
                   </h3>
                   <p className="mt-2 text-base leading-relaxed text-slate-600">
-                    Once a real estate agent earns more than $30,000 in gross
-                    revenue over four consecutive calendar quarters, CRA
-                    requires the agent to register for and collect HST/GST
-                    <CRACite id={3} />. In HST provinces like Ontario (13%) or
-                    the Maritimes (15%)<CRACite id={4} />, this is a
-                    significant additional obligation.
+                    {SMALL_SUPPLIER_RULE}
+                    <CRACite id={3} /> {GST_HST_RATE_RULE}
+                    <CRACite id={4} />
+                    <CRACite id={8} />
                   </p>
                 </div>
                 <div>
@@ -507,7 +507,7 @@ export default function TaxSavingsGuidePage() {
             <p className="mt-5 text-lg text-slate-400">
               Agent Runway estimates the tax portion of every deal
               automatically — federal, provincial, CPP, and HST/GST. No
-              spreadsheets. No surprises at tax time.
+              spreadsheets.
             </p>
             <div className="mt-8">
               <Link
