@@ -70,7 +70,7 @@ const CRA_SOURCES = [
   { id: 7, ...CRA_INSTALMENT_SOURCES.interest },
   {
     id: 9,
-    label: "CRA — Second additional CPP contribution (CPP2) rates and maximums",
+    label: "CRA: Second additional CPP contribution (CPP2) rates and maximums",
     url: "https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/payroll/calculating-deductions/making-deductions/second-additional-cpp-contribution-rates-maximums.html",
   },
 ] as const;
