@@ -818,7 +818,7 @@ export default function OnboardingPage() {
             <StepFrame
               icon={<Clock className="h-5 w-5" />}
               title="How long have you been in the game?"
-              subtitle="Almost done — we promise. This calibrates your benchmarks so we compare you to agents at your level, not the entire industry."
+              subtitle="Almost done — we promise. This picks which of Agent Runway's reference figures your Benchmark score is measured against."
             >
               <div className="grid grid-cols-2 gap-3">
                 {EXPERIENCE_OPTIONS.map((opt) => (

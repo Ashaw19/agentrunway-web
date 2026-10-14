@@ -35,7 +35,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { fmtCurrency, fmtCompact } from "@/lib/formatters";
-import { cohortFromYears, COHORT_LABELS } from "@/lib/engines/benchmark-engine";
+import { cohortFromYears, cohortLabelWithYears, COHORTS, COHORT_LABELS } from "@/lib/engines/benchmark-engine";
 import dynamic from "next/dynamic";
 import type { MonthlyDataPoint } from "@/components/monthly-chart";
 
@@ -331,15 +331,14 @@ export function OrgLeaderboard({
             setPage(0);
           }}
         >
-          <SelectTrigger className="w-[150px] h-9 text-xs">
-            <SelectValue placeholder="Cohort" />
+          <SelectTrigger className="w-[200px] h-9 text-xs">
+            <SelectValue placeholder="Experience level" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All Cohorts</SelectItem>
-            <SelectItem value="rookie">Rookie (0\u20132 yr)</SelectItem>
-            <SelectItem value="growth">Growth (2\u20135 yr)</SelectItem>
-            <SelectItem value="established">Established (5\u201310 yr)</SelectItem>
-            <SelectItem value="topProducer">Top Producer (10+)</SelectItem>
+            <SelectItem value="all">All levels</SelectItem>
+            {COHORTS.map((cohort) => (
+              <SelectItem key={cohort} value={cohort}>{cohortLabelWithYears(cohort)}</SelectItem>
+            ))}
           </SelectContent>
         </Select>
 

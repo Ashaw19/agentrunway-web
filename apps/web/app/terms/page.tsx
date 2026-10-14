@@ -12,7 +12,7 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-const LAST_UPDATED = "April 25, 2026";
+const LAST_UPDATED = "October 13, 2026";
 const EFFECTIVE_DATE = "April 25, 2026";
 
 /* ──────────────────────────────────────────────────────────────────────────── */
@@ -703,11 +703,14 @@ export default function TermsPage() {
                 be updated when applicable.
               </p>
               <p className="leading-relaxed text-slate-400">
-                The Runway Score benchmarking component uses an internal
-                industry-cohort estimate (aggregated from public industry sources)
-                to compare your performance against agents with similar
-                experience. This data is provided for general comparative purposes
-                only and does not constitute a professional performance
+                The Runway Score benchmarking component compares your projected
+                gross commission income with reference figures that Agent Runway
+                sets for each level of experience. These reference figures are
+                Agent Runway&apos;s own. They are not a published industry,
+                national or third-party statistic, and Agent Runway does not
+                represent that they reflect one. They do not measure or rank
+                other agents. They are provided for general comparative purposes
+                only and do not constitute a professional performance
                 assessment, employment evaluation, or industry ranking.
               </p>
             </section>

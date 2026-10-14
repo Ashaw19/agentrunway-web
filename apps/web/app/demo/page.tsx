@@ -11,6 +11,7 @@ import {
 import { MarketingNav } from "@/components/marketing-nav";
 import { MarketingFooter } from "@/components/marketing-footer";
 import { EXPENSE_RATIO_COPY } from "@agent-runway/core/engines/expense-ratio-bands";
+import { BENCHMARK_COPY } from "@agent-runway/core/engines/benchmark-engine";
 
 export const metadata: Metadata = {
   title: "Demo — Real Estate Business Analytics Platform",
@@ -198,7 +199,7 @@ const SECTIONS = [
       "YTD GCI and net income side by side",
       "Goal progress with seasonality-adjusted pace indicator",
       "Monthly bar chart showing income distribution",
-      "Benchmark score comparing your performance to peers",
+      BENCHMARK_COPY.featureShort,
     ],
     Mockup: DashboardMockup,
     bg: "bg-white",

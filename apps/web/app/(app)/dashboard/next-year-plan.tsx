@@ -28,6 +28,7 @@ import { CalendarRange, Target, Layers, Wallet, Loader2 } from "lucide-react";
 import { fmtCurrency } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 import { CANONICAL_TAX_DISCLAIMER_SHORT } from "@/lib/flight-crew/constants";
+import { ACCOUNT_SEASONALITY_COPY } from "@agent-runway/core/engines/projection-engine";
 import {
   pipelineLinedUpForYear,
   averageDealGCI,
@@ -41,7 +42,7 @@ const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "
 
 const SEASONAL_SOURCE_LABEL: Record<"agent" | "national" | "default", string> = {
   agent:    "your own seasonality from past years",
-  national: "national seasonality",
+  national: ACCOUNT_SEASONALITY_COPY.label,
   default:  "an even spread across the year",
 };
 

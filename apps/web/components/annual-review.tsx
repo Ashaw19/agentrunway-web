@@ -5,6 +5,7 @@ import { X, DollarSign, Briefcase, Target, Award } from "lucide-react";
 import { useConfetti } from "@/hooks/use-confetti";
 import { fmtCurrency } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
+import { BENCHMARK_COPY, benchmarkVsReference, formatBenchmarkScore } from "@/lib/engines/benchmark-engine";
 
 interface AnnualReviewProps {
   year: number;
@@ -240,7 +241,7 @@ export function AnnualReview({
                 <Award className="h-8 w-8 text-amber-400" />
               </div>
               <p className="text-sm font-semibold uppercase tracking-widest text-amber-400">
-                Industry Cohort Rank
+                {BENCHMARK_COPY.scoreLabel}
               </p>
               <p
                 className="mt-4 text-5xl font-black"
@@ -250,15 +251,16 @@ export function AnnualReview({
                   WebkitTextFillColor: "transparent",
                 }}
               >
-                P{benchmarkPercentile}
+                {formatBenchmarkScore(benchmarkPercentile)}
               </p>
               <p className="mt-3 text-base text-white/70">
                 {benchmarkPercentile >= 75
-                  ? "You outperformed most agents in your cohort."
+                  ? "Your projected GCI is in the top quarter of Agent Runway's reference scale for your experience level."
                   : benchmarkPercentile >= 50
-                  ? "Above the median. Room to grow."
+                  ? `Your projected GCI is ${benchmarkVsReference(benchmarkPercentile)}.`
                   : "Early stage. The trajectory is what matters."}
               </p>
+              <p className="mt-4 text-xs text-white/40">{BENCHMARK_COPY.provenanceShort}</p>
             </>
           )}
 

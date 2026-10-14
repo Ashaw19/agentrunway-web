@@ -1786,7 +1786,7 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
                 onChange={(e) => setExperienceYears(e.target.value)}
               />
               <p className="text-xs text-muted-foreground">
-                Years licensed as an agent — used for benchmark peer comparison.
+                Years licensed as an agent. Sets the experience level your Benchmark score uses.
               </p>
             </div>
             <div className="grid gap-1.5">
@@ -2823,7 +2823,7 @@ function PlanBillingCard({ settings, isPro = false }: { settings: UserSettings; 
         {!isPro && (
           <p className="text-xs leading-relaxed text-muted-foreground">
             Upgrade to Professional for runway scoring, probability-weighted forecasts,
-            PDF reports, AI insights, tax estimation tools, and industry benchmarking.
+            PDF reports, AI insights, tax estimation tools, and a Benchmark score.
             Starts with a 14-day free trial — no credit card required.
           </p>
         )}

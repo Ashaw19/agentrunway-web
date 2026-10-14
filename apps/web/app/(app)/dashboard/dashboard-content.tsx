@@ -123,6 +123,7 @@ import { getCurrentFilingPeriod, deadlineUrgency } from "@agent-runway/core/engi
 import { gstHstLabel, gstHstRate } from "@agent-runway/core/engines/canadian-tax-engine";
 import { computeHSTCollected } from "@agent-runway/core/engines/hst-engine";
 import {
+  ACCOUNT_SEASONALITY_COPY,
   seasonalFractionElapsed,
   projectedYearEndGCI,
   projectedYearEndTransactions,
@@ -132,7 +133,17 @@ import {
   trendDirection,
 } from "@/lib/engines/projection-engine";
 import { probabilityBands } from "@/lib/engines/probabilistic-forecast-engine";
-import { compare, COHORT_LABELS, cohortFromYears } from "@/lib/engines/benchmark-engine";
+import {
+  compare,
+  cohortFromYears,
+  BENCHMARK_COPY,
+  benchmarkCardSubtitle,
+  benchmarkGapLabel,
+  benchmarkSentence,
+  benchmarkVsReference,
+  formatBenchmarkScore,
+  type BenchmarkResult,
+} from "@/lib/engines/benchmark-engine";
 import { computeWhereYouStand, BAND_LABELS, type PerformanceBand } from "@/lib/engines/where-you-stand-engine";
 import type { BriefingItem } from "@/lib/engines/crm-analytics-engine";
 import { survivalResult, riskColorBand, type SurvivalResult, type RiskColorBand } from "@/lib/engines/survival-engine";
@@ -1687,7 +1698,7 @@ export function DashboardContent({
               <MetricInfo tip={seasonalSource === "agent"
                 ? `Based on your ${historyItems.filter((h) => (h.quarter_gci as number[]).some((v) => (v ?? 0) > 0)).length}-year seasonal pattern.`
                 : seasonalSource === "national"
-                  ? "Based on national seasonal averages."
+                  ? `Based on ${ACCOUNT_SEASONALITY_COPY.label} (${ACCOUNT_SEASONALITY_COPY.detail}).`
                   : "Using uniform seasonality — add history to improve."} />
             </span>
           </CardDescription>
@@ -2137,37 +2148,38 @@ export function DashboardContent({
         <CardHeader className="pb-2">
           <div className="flex items-center gap-1.5">
             <CardTitle className="text-base">Benchmark</CardTitle>
-            <GuideLink anchor="benchmark" label="Benchmark cohorts explained in Guide" />
+            <GuideLink anchor="benchmark" label="Benchmark levels explained in Guide" />
           </div>
           <CardDescription>
-            vs. {COHORT_LABELS[benchmark.cohort]} cohort · industry estimate
+            {benchmarkCardSubtitle(benchmark.cohort)}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
             <div>
               <div className="mb-1 flex justify-between text-sm">
-                <span>Cohort percentile</span>
-                <span className="font-medium">P{benchmark.percentile}</span>
+                <span>{BENCHMARK_COPY.scoreLabel}</span>
+                <span className="font-medium">{formatBenchmarkScore(benchmark.percentile)}</span>
               </div>
               <Progress value={benchmark.percentile} className="h-2" />
             </div>
             <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Cohort median GCI</span>
+              <span className="text-muted-foreground">{BENCHMARK_COPY.referenceGciLabel}</span>
               <span>{fmtCurrency(benchmark.cohortMedianGCI)}</span>
             </div>
             <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">vs Established Agents</span>
-              <span>P{benchmark.nationalPercentile}</span>
+              <span className="text-muted-foreground">{BENCHMARK_COPY.establishedScoreLabel}</span>
+              <span>{formatBenchmarkScore(benchmark.establishedPercentile)}</span>
             </div>
-            {benchmark.distanceToNextTier != null && benchmark.distanceToNextTier > 0 && (
+            {benchmark.distanceToNextTier != null && benchmark.nextTierLabel != null && benchmark.distanceToNextTier > 0 && (
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">
-                  Gap to {benchmark.nextTierLabel}
+                  {benchmarkGapLabel(benchmark.nextTierLabel)}
                 </span>
                 <span>{fmtCurrency(benchmark.distanceToNextTier)}</span>
               </div>
             )}
+            <p className="text-[11px] leading-snug text-muted-foreground">{BENCHMARK_COPY.provenanceShort}</p>
           </div>
         </CardContent>
       </Card>
@@ -2744,7 +2756,7 @@ export function DashboardContent({
               <div className="min-w-0">
                 <div className="flex items-center gap-1">
                   <p className="text-sm font-semibold text-slate-400">Runway Score</p>
-                  <MetricInfo tip="A composite score across 5 factors: pace vs goal (35%), pipeline health (30%), expense ratio (15%), cash survival (15%), and benchmark ranking (5%)." />
+                  <MetricInfo tip="A composite score across 5 factors: pace vs goal (35%), pipeline health (30%), expense ratio (15%), cash survival (15%), and benchmark score (5%)." />
                   <GuideLink anchor="runway-score" label="Runway Score explained in Guide" />
                   {isPro && hasData && <ExplainButton question="How is my Runway Score calculated and what can I do to improve it?" />}
                   <RunwayScoreInfoDialog
@@ -3372,8 +3384,7 @@ const SCORE_COMPONENT_DESCRIPTIONS: Record<string, string> = {
     `Your expense ratio (expenses ÷ GCI) against ${EXPENSE_RATIO_COPY.targetPhrase}. ${EXPENSE_RATIO_COPY.scoreSentence}`,
   Survival:
     "Months of cash runway based on your burn rate (brokerage fee + recurring expenses) and cash reserves. 6+ months is considered strong.",
-  Benchmark:
-    "Your projected annual GCI compared to agents with similar experience (industry-cohort estimate). Shows where you rank within your peer group.",
+  Benchmark: `${BENCHMARK_COPY.definition} ${BENCHMARK_COPY.scale}`,
 };
 
 const GRADE_RANGES = [
@@ -3482,12 +3493,12 @@ function RunwayScoreInfoDialog({
               <li>• Keep expenses at {expenseRatioBandRange(EXPENSE_RATIO_BANDS[0])} of GCI to maximise the Expenses component</li>
               <li>• Build 4–6 months of cash reserves for a strong Survival score</li>
               <li>• Complete all fields in Settings — each unlocks more accurate projections</li>
-              <li>• Grow GCI year-over-year to climb your experience-cohort Benchmark ranking</li>
+              <li>• Grow projected GCI to raise your Benchmark score</li>
             </ul>
           </div>
 
           <p className="text-xs text-muted-foreground border-t pt-3">
-            Benchmark data reflects industry-cohort estimates aggregated from public industry sources.
+            {BENCHMARK_COPY.provenanceShort}
             Score version: {scoreVersion}.
           </p>
         </div>
@@ -3586,7 +3597,7 @@ function captainReadSentence(label: string | null, pipelineEmpty: boolean): stri
     case "Expenses":
       return "Your expense ratio is the biggest drag on your score right now. Trimming overhead is the fastest lever.";
     case "Benchmark":
-      return "Your benchmark ranking is the biggest drag right now. Lifting projected GCI is what moves it.";
+      return "Your Benchmark score is the biggest drag right now. Lifting projected GCI is what moves it.";
     case "Survival":
       return "Cash runway is the biggest drag on your score right now. Extending coverage is the fastest lever.";
     default:
@@ -3693,7 +3704,9 @@ function buildScoreNarrative(
     Expenses: expenseRatioBand(expenseRatio)
       ? `your expense ratio is ${expenseRatioVsTarget(expenseRatio)}`
       : "no expenses are recorded yet, which holds this score down",
-    Benchmark: "your projected GCI is below your experience-group cohort median",
+    // The Benchmark component's score is the Benchmark score itself, and it
+    // can be the weakest component while sitting above the reference GCI.
+    Benchmark: `your projected GCI is ${benchmarkVsReference(weakest.score)}`,
     Survival:
       survival.monthlyBurn > 0
         ? `cash runway is ${formatSurvivalDisplay(survival)}`
@@ -3785,7 +3798,7 @@ function generateBusinessHealthNarrative({
   runwayScore: RunwayScoreResult;
   healthReport: BusinessHealthReport;
   expenseRatio: number;
-  benchmark: { percentile: number; cohortMedianGCI: number };
+  benchmark: BenchmarkResult;
 }): HealthNarrativeResult {
   const pctElapsed = Math.round(fraction * 100);
   const gciGap = Math.max(0, goalGCI - ytdGCI);
@@ -3865,7 +3878,7 @@ function generateBusinessHealthNarrative({
       expenseBand
         ? `Expense ratio is ${formatExpenseRatio(expenseRatio)} of YTD GCI (score: ${healthReport.expenseScore}/100), ${expenseRatioVsTarget(expenseRatio)}. Monthly burn of ${fmtCurrency(survival.monthlyBurn)} is compressing net take-home.`
         : `Expense tracking (score: ${healthReport.expenseScore}/100) — configure your costs in Settings to see expense ratio and burn analysis.`,
-    Benchmark: `Projected GCI of ${fmtCurrency(projectedGCI)} ranks at the ${benchmark.percentile}th percentile for your experience cohort, with a median of ${fmtCurrency(benchmark.cohortMedianGCI)} (industry-cohort estimate).`,
+    Benchmark: benchmarkSentence(projectedGCI, benchmark),
     Survival:
       survival.monthlyBurn > 0
         ? `Cash runway is ${formatSurvivalDisplay(survival)} against a ${fmtCurrency(survival.monthlyBurn)}/month burn rate. This is the highest-priority operational risk on the dashboard.`

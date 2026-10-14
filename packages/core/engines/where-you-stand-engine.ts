@@ -306,18 +306,18 @@ function generateDiagnosis(
 // ── Distance to Next Tier ──────────────────────────────────────────────────────
 
 /**
- * Compute the GCI threshold for entering a given band within a cohort.
- * Band boundaries correspond to percentile thresholds:
- *   Climbing = 10th, Competitive = 25th, Advancing = 50th, Leading = 75th
- * These map to the cohort's p25/median/p75 breakpoints.
+ * Compute the GCI threshold for entering a given band at an experience level.
+ * Band boundaries are Benchmark scores on Agent Runway's reference scale:
+ *   Climbing = 10, Competitive = 25, Advancing = 50, Leading = 75
+ * These map to the level's anchor points at 25, 50 and 75.
  */
 function bandThresholdGCI(targetBand: PerformanceBand, cohort: Cohort): number {
   const b = BENCHMARKS[cohort];
   switch (targetBand) {
-    case "climbing":    return Math.round(b.p25GCI * (10 / 25));   // 10th percentile
-    case "competitive": return b.p25GCI;                            // 25th percentile
-    case "advancing":   return b.medianGCI;                         // 50th percentile
-    case "leading":     return b.p75GCI;                            // 75th percentile
+    case "climbing":    return Math.round(b.p25GCI * (10 / 25));   // score 10
+    case "competitive": return b.p25GCI;                            // score 25
+    case "advancing":   return b.medianGCI;                         // score 50
+    case "leading":     return b.p75GCI;                            // score 75
     default:            return 0;
   }
 }
@@ -451,7 +451,7 @@ export function computeWhereYouStand(input: WhereYouStandInput): WhereYouStandRe
   // Too early guard: before ~March 1 (fraction < 0.16), projections are unreliable
   const tooEarlyToProject = fraction < 0.16 && ytdDealCount < 3;
 
-  // Band from benchmark percentile
+  // Band from the Benchmark score
   const band = tooEarlyToProject ? "competitive" : percentileToBand(benchmark.percentile);
   const bandIndex = bandToIndex(band);
 

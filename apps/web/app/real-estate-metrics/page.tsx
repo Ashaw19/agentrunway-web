@@ -186,7 +186,7 @@ export default function RealEstateMetricsPage() {
             </p>
             <p className="mx-auto mt-4 max-w-xl text-base leading-relaxed text-slate-600">
               Built for Canadian agents, with full provincial tax calculations,
-              national seasonality data, and{" "}
+              seasonality from your own history, and{" "}
               <Link
                 href="/real-estate-business-analytics"
                 className="text-blue-600 underline-offset-2 hover:underline"

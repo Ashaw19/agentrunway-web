@@ -53,7 +53,7 @@ import {
   validateTaxCopy,
 } from "@agent-runway/core/tax-copy";
 import { fmtCompact } from "@agent-runway/core/formatters";
-import { compare } from "@agent-runway/core/engines/benchmark-engine";
+import { BENCHMARK_COPY, compare } from "@agent-runway/core/engines/benchmark-engine";
 import {
   RISK_BAND_LADDER,
   RISK_BAND_RANGE,
@@ -405,6 +405,64 @@ describe("business report PDF: expense ratio wording", () => {
   });
 });
 
+describe("business report PDF: the Benchmark is worded as Agent Runway's own figures", () => {
+  // The sample: projected GCI of $160,000 at 6 years, the Established level.
+  // Between its 75 point ($155K) and 90 point ($240K): 75 + (5/85) × 15 = 75.9 → 76.
+  it("heads the card with the level, its years and whose figures they are", () => {
+    const blocks = blocksOf(BusinessReportPDF, reportProps());
+    expect(blocks).toContain("Benchmark Score");
+    expect(blocks).toContain("Established (6–10 yrs) · Agent Runway reference figures");
+    expect(blocks).toContain(BENCHMARK_COPY.provenanceShort);
+  });
+
+  it("prints the score out of 100 in the badge, with the projected GCI it is based on", () => {
+    const blocks = blocksOf(BusinessReportPDF, reportProps());
+    const badge = blocks.indexOf("of 100");
+    expect(blocks[badge - 1]).toBe("76");
+    expect(blocks).toContain("Benchmark score (based on projected GCI of $160,000)");
+  });
+
+  it("gives the level's reference GCI and the gap to the next level's", () => {
+    const at = (projectedGCI: number, years: number) =>
+      blocksOf(BusinessReportPDF, reportProps({ projectedGCI, benchmark: compare(projectedGCI, years) }));
+    expect(at(160_000, 6)).toContain("Reference GCI: $96,000 · At or above the Top Producer reference GCI");
+    expect(at(120_000, 6)).toContain("Reference GCI: $96,000 · $25,000 to the Top Producer reference GCI");
+    // The last level has no next one.
+    expect(at(160_000, 12)).toContain("Reference GCI: $145,000");
+  });
+
+  it("the assessment says where the projected GCI sits against the reference, not against other agents", () => {
+    const assessment = (projectedGCI: number) =>
+      blocksOf(BusinessReportPDF, reportProps({ projectedGCI, benchmark: compare(projectedGCI, 6) })).join("\n");
+    expect(assessment(160_000)).toContain("Your Benchmark score of 76/100 is in the top quarter of Agent Runway's reference scale for your experience level.");
+    expect(assessment(120_000)).toContain("Your projected GCI is above Agent Runway's reference GCI for your experience level.");
+    expect(assessment(96_000)).toContain("Your projected GCI is at Agent Runway's reference GCI for your experience level.");
+    expect(assessment(60_000)).toContain("Your projected GCI is below Agent Runway's reference GCI for your experience level.");
+  });
+
+  it("never calls the score a percentile or the figures a cohort, peer, industry or national statistic", () => {
+    const all = [
+      ...blocksOf(BusinessReportPDF, reportProps()),
+      ...blocksOf(BusinessReportPDF, reportProps({ projectedGCI: 60_000, benchmark: compare(60_000, 1) })),
+      // The top grade's paragraph used to place the agent among Canadian real estate professionals.
+      ...blocksOf(BusinessReportPDF, reportProps({ runwayScore: { ...reportProps().runwayScore, grade: "A+", score: 96 } })),
+    ]
+      .join("\n")
+      // The one sentence that names those words, to rule them out.
+      .replaceAll(BENCHMARK_COPY.provenanceShort, "");
+    expect(all).not.toMatch(/percentile|pctile|\bcohort\b|\bpeers?\b|\bindustry\b|\bnational\b|top tier of Canadian/i);
+  });
+
+  it("the Guide PDF explains the Benchmark in the engine's words", () => {
+    const all = blocksOf(GuidePdf, { province: "newBrunswick", businessStructure: "sole_prop", splitPreset: "p80_20" }).join("\n");
+    expect(all).toContain(BENCHMARK_COPY.definition);
+    expect(all).toContain(BENCHMARK_COPY.provenance);
+    expect(all).toContain("Experience levels: Rookie (0–2 yrs), Growth (3–5 yrs), Established (6–10 yrs), Top Producer (over 10 yrs).");
+    expect(all).toContain("Benchmark Score (5%): your projected GCI against Agent Runway's reference figures");
+    expect(all).not.toMatch(/industry-cohort|Benchmark Rank/i);
+  });
+});
+
 // A bar prints its label, then one figure to the right of it.
 function barOf(blocks: string[], labelStart: string) {
   const at = blocks.findIndex((block) => block.startsWith(labelStart));
@@ -634,7 +692,7 @@ describe("business report PDF: layout at LETTER width", () => {
   const PAGE_MARGIN = 40;
   const BAR_BLUE = "#1e72f2"; // C.blue in the report
   const GRADE_BADGE = 72;
-  const PERCENTILE_BADGE = 52;
+  const BENCHMARK_BADGE = 52;
 
   const sample = fullReportProps();
   const READERS_OF_THE_REPORT: [string, Record<string, unknown>][] = [
@@ -648,11 +706,11 @@ describe("business report PDF: layout at LETTER width", () => {
     ["long agent, business and brokerage names", { agentName: LONG_NAME, businessName: LONG_BUSINESS, brokerageName: LONG_BROKERAGE }],
     // The widest and the narrowest text the two round badges can hold.
     [
-      "grade A+ at 100/100 and the 100th percentile",
+      "grade A+ at 100/100 and a Benchmark score of 100",
       { runwayScore: { ...sample.runwayScore, grade: "A+", score: 100 }, benchmark: { ...sample.benchmark, percentile: 100 } },
     ],
     [
-      "grade F at 1/100 and the 1st percentile",
+      "grade F at 1/100 and a Benchmark score of 1",
       { runwayScore: { ...sample.runwayScore, grade: "F", score: 1 }, benchmark: { ...sample.benchmark, percentile: 1 } },
     ],
   ];
@@ -674,17 +732,20 @@ describe("business report PDF: layout at LETTER width", () => {
       return box!.page;
     };
 
-    /** The round badge of the given width that a run of text is printed in. */
-    const badgeAround = (box: TextBox, width: number) => {
+    /** The round badge of the given width that a run of text is printed in, if it is in one. */
+    const findBadge = (box: TextBox, width: number) => {
       const x = (box.left + box.right) / 2;
       const y = (box.bottom + box.top) / 2;
-      const badge = shapes.find(
+      return shapes.find(
         (shape) =>
           shape.page === box.page &&
           Math.abs(shape.right - shape.left - width) < 0.5 &&
           Math.abs(shape.top - shape.bottom - width) < 0.5 &&
           shape.left < x && x < shape.right && shape.bottom < y && y < shape.top,
       );
+    };
+    const badgeAround = (box: TextBox, width: number) => {
+      const badge = findBadge(box, width);
       expect(badge, box.text).toBeDefined();
       return badge!;
     };
@@ -742,12 +803,15 @@ describe("business report PDF: layout at LETTER width", () => {
       }
     });
 
-    it("the percentile and its caption are inside their circle", () => {
-      const page = pageOf("Peer Benchmark Positioning");
-      for (const shape of [/^\d+(st|nd|rd|th)$/, /^pctile$/]) {
-        const box = boxes.find((candidate) => candidate.page === page && shape.test(candidate.text));
-        expect(box, String(shape)).toBeDefined();
-        expect(pastTheCircle(badgeAround(box!, PERCENTILE_BADGE), box!), box!.text).toBeLessThanOrEqual(0);
+    it("the Benchmark score and its caption are inside their circle", () => {
+      const page = pageOf("Benchmark Score");
+      // The score is a bare number, and a page holds others: take the one printed in the badge.
+      for (const text of [String(props.benchmark.percentile), "of 100"]) {
+        const box = boxes.find(
+          (candidate) => candidate.page === page && candidate.text === text && findBadge(candidate, BENCHMARK_BADGE),
+        );
+        expect(box, text).toBeDefined();
+        expect(pastTheCircle(badgeAround(box!, BENCHMARK_BADGE), box!), text).toBeLessThanOrEqual(0);
       }
     });
 

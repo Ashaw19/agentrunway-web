@@ -75,6 +75,22 @@ export function todayDescription(date: Date = new Date()): string {
 // ── Seasonality-Weighted Projections ────────────────────────────────────────
 
 /**
+ * The quarter weights stored on the account (`national_quarter_pcts`, read
+ * when `use_national_seasonality` is on). The column names are historic: no
+ * national seasonal dataset was ever loaded, and the stored default is an
+ * even 25% a quarter. Until 2026-10-13 surfaces called these weights
+ * "national averages". Every surface prints this wording instead.
+ */
+export const ACCOUNT_SEASONALITY_COPY = {
+  /** Reads after "Based on" or "using". */
+  label: "your account's quarter weights",
+  /** What those weights are unless they were changed. */
+  detail: "25% a quarter by default",
+  /** The source as Flight Crew's context names it. */
+  source: "account quarter weights, 25% a quarter by default",
+} as const;
+
+/**
  * Coerce quarter weights into normalized fractions (sum ≈ 1).
  *
  * The DB column `settings.national_quarter_pcts` is stored as percentages

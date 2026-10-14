@@ -16,6 +16,7 @@ import {
 import { RISK_BAND_LADDER } from "@/lib/engines/survival-engine";
 import { PROVINCE_LABELS } from "@/lib/types/database";
 import { EXPENSE_RATIO_COPY } from "@agent-runway/core/engines/expense-ratio-bands";
+import { BENCHMARK_COPY, COHORTS, cohortLabelWithYears } from "@agent-runway/core/engines/benchmark-engine";
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -249,11 +250,11 @@ export function GuidePdf({ province, businessStructure, splitPreset }: Props) {
             Survival 15. Static here (PDF has no live score in scope) — if the
             engine weights change, update these in the same PR.
             See memory/spec_runway_score_canonical_bands.md §2 (Task 2). */}
-        <Text style={S.bullet}>{"\u2022"} Pace vs Goal (35%) — Are you on track for your annual GCI target?</Text>
-        <Text style={S.bullet}>{"\u2022"} Pipeline Health (30%) — Do you have enough deals in progress?</Text>
-        <Text style={S.bullet}>{"\u2022"} Expense Ratio (15%) — Are your expenses under control?</Text>
-        <Text style={S.bullet}>{"\u2022"} Survival Runway (15%) — How many months could you survive without income?</Text>
-        <Text style={S.bullet}>{"\u2022"} Benchmark Rank (5%) — How you compare to industry-cohort peers</Text>
+        <Text style={S.bullet}>{"\u2022"} Pace vs Goal (35%): are you on track for your annual GCI target?</Text>
+        <Text style={S.bullet}>{"\u2022"} Pipeline Health (30%): do you have enough deals in progress?</Text>
+        <Text style={S.bullet}>{"\u2022"} Expense Ratio (15%): are your expenses under control?</Text>
+        <Text style={S.bullet}>{"\u2022"} Survival Runway (15%): how many months could you survive without income?</Text>
+        <Text style={S.bullet}>{"\u2022"} Benchmark Score (5%): your projected GCI against Agent Runway&apos;s reference figures</Text>
 
         <Text style={S.body}>
           Grades: A+ (92+), A (85–91), B (75–84), C (62–74), D (50–61), F (0–49)
@@ -361,8 +362,8 @@ export function GuidePdf({ province, businessStructure, splitPreset }: Props) {
 
         <Text style={S.sectionSubtitle}>Reports</Text>
         <Text style={S.body}>
-          Three tabs: Overview (Runway Score, waterfall, monthly table), Benchmark (industry-cohort
-          cohort comparison), and Tax/T2125 (CRA expense summary with CCA assets).
+          Three tabs: Overview (Runway Score, waterfall, monthly table), Benchmark (your Benchmark
+          score against Agent Runway&apos;s reference figures), and Tax/T2125 (CRA expense summary with CCA assets).
         </Text>
 
         <Text style={S.sectionSubtitle}>Social Media</Text>
@@ -417,7 +418,7 @@ export function GuidePdf({ province, businessStructure, splitPreset }: Props) {
 
         <Text style={S.sectionSubtitle}>What is the benchmark comparison?</Text>
         <Text style={S.body}>
-          Your GCI compared against industry-cohort estimates for agents with similar experience. Cohorts: Rookie (0–2yr), Growth (3–5yr), Established (6–10yr), Top Producer (10+yr).
+          {BENCHMARK_COPY.definition} {BENCHMARK_COPY.scale} Experience levels: {COHORTS.map(cohortLabelWithYears).join(", ")}. {BENCHMARK_COPY.provenance}
         </Text>
 
         <View style={{ ...S.infoBox, marginTop: 16 }}>

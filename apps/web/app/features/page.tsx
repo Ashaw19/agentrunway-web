@@ -15,6 +15,7 @@ import { MarketingFooter } from "@/components/marketing-footer";
 import { CharterScarcityStrip } from "@/components/charter-scarcity-strip";
 import { softwareApplicationSchema, breadcrumbSchema } from "@/lib/schema";
 import { EXPENSE_RATIO_COPY } from "@agent-runway/core/engines/expense-ratio-bands";
+import { BENCHMARK_COPY } from "@agent-runway/core/engines/benchmark-engine";
 
 export const metadata: Metadata = {
   title: "Features — Real Estate Business Analytics",
@@ -135,7 +136,7 @@ const FEATURES = [
       "AI chat assistant that understands your GCI, pipeline, expenses, and runway",
       "Contextual insight cards ranked by potential business impact",
       "Tax estimates: quarterly instalment amounts and a per-deal tax portion",
-      "Benchmark comparison against industry national cohort data",
+      BENCHMARK_COPY.feature,
     ],
     bg: "bg-slate-50",
   },

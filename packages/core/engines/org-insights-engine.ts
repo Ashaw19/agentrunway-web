@@ -5,7 +5,7 @@
 
 import type { OrgAgentPerformance, OrgInsight, OrgInsightSeverity } from "../types/organizations";
 import { paceVsGoalPercent } from "./projection-engine";
-import { NATIONAL_MEDIAN_GCI, NATIONAL_MEDIAN_TRANSACTIONS } from "./benchmark-engine";
+import { GENERAL_REFERENCE_GCI_PER_DEAL } from "./benchmark-engine";
 
 // ── Input ───────────────────────────────────────────────────────────────────
 
@@ -184,11 +184,10 @@ export function generateOrgInsights(
     }
   }
 
-  // ── Rule 7: INFO — Avg Deal Size vs Benchmark ─────────────────────────
+  // ── Rule 7: INFO — Avg Deal Size vs Agent Runway's reference ──────────
   if (totalDeals > 0) {
     const orgAvgDealSize = totalGCI / totalDeals;
-    const benchmarkAvgDealSize =
-      NATIONAL_MEDIAN_GCI / Math.max(1, NATIONAL_MEDIAN_TRANSACTIONS);
+    const benchmarkAvgDealSize = GENERAL_REFERENCE_GCI_PER_DEAL;
 
     const diff = ((orgAvgDealSize - benchmarkAvgDealSize) / benchmarkAvgDealSize) * 100;
     const comparison = diff > 0 ? `${Math.round(diff)}% above` : `${Math.abs(Math.round(diff))}% below`;
@@ -198,7 +197,7 @@ export function generateOrgInsights(
         counter++,
         "info",
         "Average Deal Size",
-        `Org avg deal size is $${Math.round(orgAvgDealSize).toLocaleString()} (${comparison} industry benchmark of $${Math.round(benchmarkAvgDealSize).toLocaleString()}).`,
+        `Org avg deal size is $${Math.round(orgAvgDealSize).toLocaleString()} (${comparison} Agent Runway's reference figure of $${Math.round(benchmarkAvgDealSize).toLocaleString()}).`,
         45,
       ),
     );

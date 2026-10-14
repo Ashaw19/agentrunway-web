@@ -6,9 +6,23 @@
  */
 
 import { EXPENSE_RATIO_BANDS, EXPENSE_RATIO_COPY } from "@agent-runway/core/engines/expense-ratio-bands";
+import {
+  BENCHMARKS,
+  BENCHMARK_VOICE_RULE,
+  COHORTS,
+  COHORT_LABELS,
+  cohortYears,
+} from "@agent-runway/core/engines/benchmark-engine";
+import { fmtCompact } from "@agent-runway/core/formatters";
 
 const KB_MILEAGE_FIRST_5K = "$0.73/km";
 const KB_MILEAGE_AFTER_5K = "$0.67/km";
+
+/** The Benchmark reference table on one line, from the engine: "Rookie (0–2 yrs): $42K / 4 deals; …". */
+const KB_BENCHMARK_LEVELS = COHORTS.map(
+  (cohort) =>
+    `${COHORT_LABELS[cohort]} (${cohortYears(cohort)}): ${fmtCompact(BENCHMARKS[cohort].medianGCI)} / ${BENCHMARKS[cohort].medianTransactions} deals`,
+).join("; ");
 
 export const KNOWLEDGE_BASE = `
 ## AGENT RUNWAY — KNOWLEDGE BASE (COMPACT)
@@ -17,7 +31,7 @@ Platform for Canadian real estate agents: income, expenses, pipeline, clients, t
 
 ### PAGES
 
-**DASHBOARD** — Runway Score (0-100, A+ to F), KPI cards, monthly income chart, P10-P90 bands, industry-cohort benchmark, tax estimate, smart alerts, AI insights, survival runway. Views: Essentials/Standard/Full. Scenarios: Conservative(-15%)/Base/Optimistic(+15%). Smart alerts use IQR anomaly detection on personal baselines.
+**DASHBOARD** — Runway Score (0-100, A+ to F), KPI cards, monthly income chart, P10-P90 bands, Benchmark score (Agent Runway's reference figures), tax estimate, smart alerts, AI insights, survival runway. Views: Essentials/Standard/Full. Scenarios: Conservative(-15%)/Base/Optimistic(+15%). Smart alerts use IQR anomaly detection on personal baselines.
 
 **TRANSACTIONS** — Deals (closed: date, address, client, price, commission%, GCI, side, split), Pipeline (Lead 10%/Showing 25%/Offer 50%/Conditional 75%/Firm 90%, weighted GCI, convert-to-closed; closed/lost are terminal stages — rows survive but are excluded from all pipeline totals and counts), History (annual summaries, CSV/PDF import with duplicate detection). Import number parsing is locale-aware (en-CA "1,234.56", fr-CA "9 750,50 $", European "1.234,56"); a cell holding more than one number ("Unit 5 - $325,000", "$300,000-$350,000") is rejected as missing rather than guessed, and a multi-year workbook warns by name when a year's sheet fails to extract.
 
@@ -31,7 +45,7 @@ Platform for Canadian real estate agents: income, expenses, pipeline, clients, t
 
 **FORECAST** — Waterfall (GCI→split→fees→expenses→tax→take-home), tax card, P10-P90 bands, 5-year growth, goal gap analysis.
 
-**REPORTS** — Overview (score, benchmark, waterfall, tables), Benchmark (industry cohort), Tax/T2125 (CRA lines, CCA, home office, mileage).
+**REPORTS** — Overview (score, benchmark, waterfall, tables), Benchmark (score against Agent Runway's reference figures), Tax/T2125 (CRA lines, CCA, home office, mileage).
 
 **OVERHEAD** — Tax estimates (federal+provincial+CPP), per-deal tax portion, income tax instalments (Mar15/Jun15/Sep15/Dec15), GST/HST (collected vs ITCs vs net; quarterly filing deadlines: Q1 Apr30, Q2 Jul31, Q3 Oct31, Q4 Jan31-next-year, each one month after the quarter ends — separate from income tax instalment dates), deduction summary by T2125 line, CCA schedule, home office, paycheque allocation. Time Value card (effective hourly rate/hr, hours per deal, break-even deal count — requires Settings → Weekly Hours).
 
@@ -76,10 +90,10 @@ Platform for Canadian real estate agents: income, expenses, pipeline, clients, t
 **Recurring expenses: how they count** = An active entry in the Recurring Expenses list counts each charge on its date (recurring-expense-engine.ts): monthly on its charge day (1 to 28), quarterly every third month from its starting month, annual once. A charge counts on or after the entry's start date, and up to its end date when it has one. YTD Expenses, Est. Tax Deductible, the T2125 lines and the GST34 input tax credits all count the same charges, so an entry's expense and its GST/HST never differ by a charge. This month's charge is not in year to date until its day. Until then it is part of what is still to come this year, and the year's projected expenses (tax estimate, Forecast, Scenarios, Overhead) = charges so far + charges still to come, each counted once; an annual fee is in the year in full on whichever side its date falls. Changed 2026-10-13: a monthly entry used to count the current month from the 1st, so year to date could be one charge ahead of the GST34 summary, and year to date can read one charge lower than before until the charge day. An entry that really ended gets an end date: the End date field on the Expenses form, the "It ended" choice when removing it, or Flight Crew (Navigator, updateRecurringExpense endDate). It stays in the list marked "Ended <date>", its charges up to and including that date stay in every total, and none count after it. The monthly figure (Monthly Recurring, the "/mo" cells, survival burn) counts each entry that has not ended: an entry leaves it the day after its end date, and an entry whose start date is still ahead is already in it. Next year's plan on the dashboard (the "Business expenses" row of estimated take-home at goal) is not Monthly Recurring x 12: it counts each entry by the charge dates that fall in that year, so an entry that ends on December 31 adds nothing to it, one that ends or starts during that year counts only between those dates, and an annual fee counts once; the "/mo" figures on expense items have no dates and count for 12 months; receipts are not carried into next year. Changed 2026-10-13: that row used to be the monthly figure x 12, which counted an entry with an end date for the whole of next year. Under the Recurring Expenses list, "Monthly avg" is the monthly figure of the list's entries as entered, and the year total beside it (labelled with the year, for example "2026 total") is the charges dated in this calendar year as entered, each entry between its start date and its end date. It is not Monthly avg x 12, and both include GST/HST. Changed 2026-10-13: it used to read "Annual total", which was Monthly avg x 12. Deleting an entry (the "It was never a real expense" choice, or Flight Crew's deleteRecurringExpense) takes its whole year to date out, so it fits an entry made by mistake; a paused entry counts in no total until it is resumed. Added 2026-10-13: before that nothing in the app could set an end date.
 **Survival Runway** = Cash Reserve / Net Monthly Burn. <2mo critical, 2-4 warning, 4-6 healthy, 6+ strong. Cap 24mo. $0 reserve + $0 burn = "Not Configured" (sentinel -1). $0 reserve + positive burn = 0mo (critical).
 **Pace** = ((Actual YTD GCI - Expected) / Expected) x 100. Expected = Goal x Seasonal Fraction (Goal = this calendar year's goal).
-**Seasonal Fraction** = Accounts for uneven quarterly income. Default = uniform Q1:25% Q2:25% Q3:25% Q4:25% (DB stores [25,25,25,25], normalized to fractions). Cascade: agent-derived from history_items.quarter_gci (need 2+ years) → settings.national_quarter_pcts → uniform. Day-level interpolation within quarters.
+**Seasonal Fraction** = Accounts for uneven quarterly income. Default = uniform Q1:25% Q2:25% Q3:25% Q4:25% (DB stores [25,25,25,25], normalized to fractions). Cascade: agent-derived from history_items.quarter_gci (need 2+ years) → the account's stored quarter weights (settings.national_quarter_pcts, 25% a quarter by default) → uniform. The column name is historic: these are not national averages and no national seasonal data is loaded. Day-level interpolation within quarters.
 **Projected Year-End GCI** = (Closed YTD / Seasonal Fraction) + (Pipeline Weighted x 50%). Jan-Feb dampening blends toward goal.
 **Runway Score** (v1.2) = Pace(35%) + Pipeline(30%) + Expense(15%) + Survival(15%) + Benchmark(5%). Grades: A+(92+) A(85-91) B(75-84) C(62-74) D(50-61) F(0-49). Missing data penalizes (35 not 50).
-**Benchmark** = Industry cohort estimates: Rookie(0-2yr,$42K/4deals), Growth(3-5yr,$78K/7), Established(6-10yr,$96K/8), TopProducer(>10yr,$145K/12). National median $96K/8.
+**Benchmark** = Projected annual GCI placed on Agent Runway's reference scale for the agent's years of experience, scored 0-100 (50 = the level's reference GCI). Reference GCI / deals by level: ${KB_BENCHMARK_LEVELS}. Level names describe years licensed, not production. ${BENCHMARK_VOICE_RULE} Until 2026-10-13 screens called these industry-cohort estimates, a cohort percentile ("P62") and a national median. They were never industry or national figures. The numbers and every Runway Score are unchanged; only the wording changed.
 **Where You Stand** = Launching(0-10%ile)/Climbing(10-25)/Competitive(25-50)/Advancing(50-75)/Leading(75+). Momentum: gaining/holding/losing.
 **P-Bands** = P10/25/50/75/90 via CV. CV clamped 5-50%.
 **Client Tiers** = Platinum(top10%)/Gold(10-25%)/Silver(25-50%)/Bronze(50%+). Composite: LGV(40%)+Health(20%)+Impact(15%)+Velocity(15%)+Tax(10%).

@@ -13,6 +13,7 @@ import { createClient } from "@/lib/supabase/server";
 import { computeGCI, computeWeightedGCI, activePipelineDeals } from "@/lib/types/database";
 import { fmtCurrency } from "@/lib/formatters";
 import {
+  ACCOUNT_SEASONALITY_COPY,
   seasonalFractionElapsed,
   paceVsGoalPercent,
   projectedYearEndGCI,
@@ -37,7 +38,11 @@ import { expenseCategoryBreakdown, expenseItemsOf, type ExpenseCategoryYtd } fro
 import type { UserSettings as CanonicalUserSettings, RecurringExpense } from "@agent-runway/core/types/database";
 import {
   compare as benchmarkCompare,
-  COHORT_LABELS,
+  cohortLabelWithYears,
+  benchmarkGapLabel,
+  formatBenchmarkScore,
+  BENCHMARK_COPY,
+  BENCHMARK_VOICE_RULE,
 } from "@agent-runway/core/engines/benchmark-engine";
 import {
   calculate as calculateTax,
@@ -391,7 +396,7 @@ function diagRunwayScore(ctx: DiagContext): string {
     ytdGCI, pipelineWeighted + listingWeighted, engineFraction, s.goal_gci ?? 0,
   );
 
-  // 3. Benchmark (actual industry-cohort percentile, not hardcoded 50)
+  // 3. Benchmark (the engine's score, not hardcoded 50)
   const benchmark = benchmarkCompare(projGCI, s.experience_years ?? null);
 
   // 4. Survival — cash input MUST be cashPosition.effectiveCash (not raw
@@ -441,7 +446,7 @@ Pace detail: ${pacePercent >= 0 ? "+" : ""}${Math.round(pacePercent)}% vs goal, 
 Pipeline detail: ${fmtCurrency(pipelineWeighted)} weighted vs ${fmtCurrency(remainingGoal)} remaining goal
 Expense detail: ratio ${(expenseRatio * 100).toFixed(1)}% (${fmtCurrency(expensesYTD)} / ${fmtCurrency(ytdGCI)})
 Survival detail: ${survival.label} (risk: ${survival.riskLevel})${survival.monthlyBurn > 0 ? `, burn: ${fmtCurrency(survival.monthlyBurn)}/mo` : ""}
-Benchmark detail: ${benchmark.percentile}th percentile in ${COHORT_LABELS[benchmark.cohort]} cohort
+Benchmark detail: ${formatBenchmarkScore(benchmark.percentile)} on Agent Runway's reference scale for the ${cohortLabelWithYears(benchmark.cohort)} level
 Weakest: ${weakest.label} (${weakest.score}/100, contributing ${(weakest.score * weakest.weightValue).toFixed(1)} points)`;
 }
 
@@ -756,7 +761,7 @@ Experience Years: ${s.experience_years ?? "NOT SET"}
 GST/HST Registered: ${(s.gst_hst_registered ?? false) ? "Yes" : "No"}
 Home Office Method: ${s.home_office_method ?? "none"}
 Vehicle Business Use: ${s.vehicle_business_pct ?? 0}%
-Seasonal Weights: ${s.seasonal_weights ? `Custom [${s.seasonal_weights.join(", ")}]` : "National default"}`;
+Seasonal Weights: ${s.seasonal_weights ? `Custom [${s.seasonal_weights.join(", ")}]` : ACCOUNT_SEASONALITY_COPY.source}`;
 }
 
 /**
@@ -855,13 +860,14 @@ function diagBenchmark(ctx: DiagContext): string {
   const benchmark = benchmarkCompare(projGCI, s.experience_years ?? null);
 
   return `[BENCHMARK DIAGNOSTIC]
-Experience: ${s.experience_years ?? 0} years → Cohort: ${COHORT_LABELS[benchmark.cohort]}
-Cohort Median GCI: ${fmtCurrency(benchmark.cohortMedianGCI)}
+Experience: ${s.experience_years != null ? `${s.experience_years} years` : "not set (the Growth level is used)"} → Level: ${cohortLabelWithYears(benchmark.cohort)}
+${BENCHMARK_COPY.referenceGciLabel} for that level: ${fmtCurrency(benchmark.cohortMedianGCI)}
 Your Projected Annual GCI: ${fmtCurrency(projGCI)}
 Your YTD Deals: ${closedTx.length}
-Percentile in Cohort: ${benchmark.percentile}th
-National Percentile: ${benchmark.nationalPercentile}th
+${BENCHMARK_COPY.scoreLabel}: ${formatBenchmarkScore(benchmark.percentile)}
+${BENCHMARK_COPY.establishedScoreLabel}: ${formatBenchmarkScore(benchmark.establishedPercentile)}
 ${benchmark.distanceToNextTier != null && benchmark.nextTierLabel
-    ? `Distance to ${benchmark.nextTierLabel}: ${fmtCurrency(benchmark.distanceToNextTier)} more projected GCI`
-    : "Currently in highest tier"}`;
+    ? `${benchmarkGapLabel(benchmark.nextTierLabel)}: ${fmtCurrency(benchmark.distanceToNextTier)} more projected GCI`
+    : "At the last experience level"}
+${BENCHMARK_VOICE_RULE}`;
 }

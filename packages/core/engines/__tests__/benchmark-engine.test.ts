@@ -1,15 +1,17 @@
 /**
  * Layer 4: Benchmark Engine
  * ===========================
- * Tests for industry-cohort benchmarking and percentile ranking.
+ * Tests for the Benchmark score: projected GCI placed on Agent Runway's
+ * reference scale for an experience level.
  *
- * Cohort data (embedded constants):
- *   rookie (≤2yr):      median $42K, p25 $18K, p75 $72K, p90 $110K
- *   growth (3–5yr):     median $78K, p25 $45K, p75 $120K, p90 $185K
- *   established (6–10): median $96K, p25 $58K, p75 $155K, p90 $240K
- *   topProducer (>10):  median $145K, p25 $85K, p75 $260K, p90 $400K
+ * The reference figures are Agent Runway's own, with no published source
+ * (see the engine's header). Anchor points per level (embedded constants):
+ *   rookie (≤2yr):      50 at $42K, 25 at $18K, 75 at $72K, 90 at $110K
+ *   growth (3–5yr):     50 at $78K, 25 at $45K, 75 at $120K, 90 at $185K
+ *   established (6–10): 50 at $96K, 25 at $58K, 75 at $155K, 90 at $240K
+ *   topProducer (>10):  50 at $145K, 25 at $85K, 75 at $260K, 90 at $400K
  *
- * Percentile ranking: linear interpolation between
+ * Score: linear interpolation between
  *   [0,0], [p25,25], [median,50], [p75,75], [p90,90], [p90×1.5,99]
  */
 
@@ -18,8 +20,23 @@ import {
   cohortFromYears,
   percentileRank,
   compare,
-  NATIONAL_MEDIAN_GCI,
+  BENCHMARKS,
+  BENCHMARK_COPY,
+  BENCHMARK_VOICE_RULE,
+  COHORTS,
   COHORT_LABELS,
+  GENERAL_REFERENCE_COHORT,
+  GENERAL_REFERENCE_GCI,
+  GENERAL_REFERENCE_GCI_PER_DEAL,
+  GENERAL_REFERENCE_TRANSACTIONS,
+  benchmarkCardSubtitle,
+  benchmarkGapLabel,
+  benchmarkReferenceList,
+  benchmarkSentence,
+  benchmarkVsReference,
+  cohortLabelWithYears,
+  cohortYears,
+  formatBenchmarkScore,
 } from "../benchmark-engine";
 
 // ── cohortFromYears ──────────────────────────────────────────────────────────
@@ -122,13 +139,12 @@ describe("compare", () => {
     expect(result.nextTierLabel).toBeNull();
   });
 
-  it("computes national percentile (uses established cohort as proxy)", () => {
+  it("scores the same GCI on the Established level's scale", () => {
     const result = compare(66_375, 4);
-    // National percentile uses "established" cohort:
-    // Between p25 ($58K) and median ($96K)
+    // Between the Established 25 point ($58K) and 50 point ($96K)
     // t = (66375 - 58000) / (96000 - 58000) = 8375 / 38000 = 0.2204
-    // percentile = 25 + 0.2204 × 25 = 25 + 5.51 = 30.51 → rounds to 31
-    expect(result.nationalPercentile).toBe(31);
+    // score = 25 + 0.2204 × 25 = 25 + 5.51 = 30.51 → rounds to 31
+    expect(result.establishedPercentile).toBe(31);
   });
 
   it("defaults to growth cohort when experience is null", () => {
@@ -148,8 +164,23 @@ describe("compare", () => {
 // ── Constants ────────────────────────────────────────────────────────────────
 
 describe("Benchmark Constants", () => {
-  it("national median GCI is $96,000", () => {
-    expect(NATIONAL_MEDIAN_GCI).toBe(96_000);
+  it("the general reference is the Established row: $96,000 over 8 deals", () => {
+    expect(GENERAL_REFERENCE_COHORT).toBe("established");
+    expect(GENERAL_REFERENCE_GCI).toBe(96_000);
+    expect(GENERAL_REFERENCE_TRANSACTIONS).toBe(8);
+    expect(GENERAL_REFERENCE_GCI_PER_DEAL).toBe(12_000);
+  });
+
+  // 2026-10-13: the figures were relabelled as Agent Runway's own and not
+  // changed, so that no Runway Score moved. A change to any number here moves
+  // the Benchmark component of every user's score and needs Andrew's sign-off.
+  it("the reference table is the one the Runway Score has always used", () => {
+    expect(BENCHMARKS).toEqual({
+      rookie:      { medianGCI: 42_000,  p25GCI: 18_000, p75GCI: 72_000,  p90GCI: 110_000, medianTransactions: 4,  medianAvgPrice: 380_000 },
+      growth:      { medianGCI: 78_000,  p25GCI: 45_000, p75GCI: 120_000, p90GCI: 185_000, medianTransactions: 7,  medianAvgPrice: 400_000 },
+      established: { medianGCI: 96_000,  p25GCI: 58_000, p75GCI: 155_000, p90GCI: 240_000, medianTransactions: 8,  medianAvgPrice: 420_000 },
+      topProducer: { medianGCI: 145_000, p25GCI: 85_000, p75GCI: 260_000, p90GCI: 400_000, medianTransactions: 12, medianAvgPrice: 460_000 },
+    });
   });
 
   it("all cohort labels are defined", () => {
@@ -157,5 +188,100 @@ describe("Benchmark Constants", () => {
     expect(COHORT_LABELS.growth).toBe("Growth");
     expect(COHORT_LABELS.established).toBe("Established");
     expect(COHORT_LABELS.topProducer).toBe("Top Producer");
+  });
+});
+
+// ── Wording ──────────────────────────────────────────────────────────────────
+
+describe("experience level labels", () => {
+  it("the years printed are the edges cohortFromYears() uses", () => {
+    expect(COHORTS.map(cohortYears)).toEqual(["0–2 yrs", "3–5 yrs", "6–10 yrs", "over 10 yrs"]);
+    // Every whole year lands in the level whose label names it.
+    for (let years = 0; years <= 30; years++) {
+      const cohort = cohortFromYears(years);
+      const [low, high] = { rookie: [0, 2], growth: [3, 5], established: [6, 10], topProducer: [11, Infinity] }[cohort];
+      expect(years, `${years} years is ${cohort}`).toBeGreaterThanOrEqual(low);
+      expect(years, `${years} years is ${cohort}`).toBeLessThanOrEqual(high);
+    }
+  });
+
+  it("joins the name and the years", () => {
+    expect(cohortLabelWithYears("growth")).toBe("Growth (3–5 yrs)");
+    expect(cohortLabelWithYears("topProducer")).toBe("Top Producer (over 10 yrs)");
+  });
+});
+
+describe("Benchmark wording", () => {
+  it("prints the score out of 100, never as a percentile", () => {
+    expect(formatBenchmarkScore(62)).toBe("62/100");
+    expect(formatBenchmarkScore(0)).toBe("0/100");
+    expect(formatBenchmarkScore(NaN)).toBe("—");
+  });
+
+  it("says whose figures they are", () => {
+    expect(BENCHMARK_COPY.provenance).toContain("The reference figures are Agent Runway's own.");
+    expect(BENCHMARK_COPY.provenance).toContain("not a published industry or national statistic");
+    expect(BENCHMARK_COPY.provenance).toContain("not a rank among other agents");
+    expect(BENCHMARK_COPY.provenanceShort).toContain("Agent Runway's own, not a published industry or national statistic");
+    expect(BENCHMARK_COPY.sourceTag).toBe("Agent Runway reference figures");
+  });
+
+  it("no string calls the figures an industry, national or peer statistic, or the score a percentile", () => {
+    const claims = /industry[\s-](?:cohort|estimate|median|benchmark|average)|national (?:median|average|percentile)|\bpeers?\b|percentile|\bmedian\b|\bcohort\b/i;
+    // The provenance lines and the voice rule name those words to rule them out.
+    const denial = /\b(?:not|never)\b/i;
+    const strings = [
+      ...Object.values(BENCHMARK_COPY),
+      benchmarkCardSubtitle("growth"),
+      benchmarkGapLabel("Established"),
+      benchmarkVsReference(40),
+      benchmarkSentence(84_000, compare(84_000, 4)),
+      benchmarkReferenceList(),
+    ];
+    for (const text of strings) {
+      for (const sentence of text.split(/(?<=\.)\s+/)) {
+        if (denial.test(sentence)) continue;
+        expect(sentence, sentence).not.toMatch(claims);
+      }
+    }
+  });
+
+  it("the card subtitle names the level, its years and whose figures", () => {
+    expect(benchmarkCardSubtitle("growth")).toBe("vs. Growth (3–5 yrs) · Agent Runway reference figures");
+  });
+
+  it("the gap row names the next level's reference GCI", () => {
+    expect(benchmarkGapLabel("Established")).toBe("Gap to Established reference GCI");
+  });
+
+  it("50 is the reference GCI: above it, at it, below it", () => {
+    expect(benchmarkVsReference(51)).toBe("above Agent Runway's reference GCI for your experience level");
+    expect(benchmarkVsReference(50)).toBe("at Agent Runway's reference GCI for your experience level");
+    expect(benchmarkVsReference(49)).toBe("below Agent Runway's reference GCI for your experience level");
+    // The engine agrees: the reference GCI itself scores 50.
+    for (const cohort of COHORTS) expect(percentileRank(BENCHMARKS[cohort].medianGCI, cohort)).toBe(50);
+  });
+
+  it("states the comparison in one sentence", () => {
+    // $84,000 at 4 years: between the Growth 50 point ($78K) and 75 point ($120K)
+    // t = 6000 / 42000 = 0.1429 → 50 + 3.57 = 53.57 → rounds to 54
+    expect(benchmarkSentence(84_000, compare(84_000, 4))).toBe(
+      "Projected GCI of $84,000 scores 54/100 on Agent Runway's reference scale for the Growth (3–5 yrs) level, where the reference GCI is $78,000.",
+    );
+  });
+
+  it("lists the reference table for Flight Crew, one level per line, from the table", () => {
+    expect(benchmarkReferenceList().split("\n")).toEqual([
+      "- Rookie (0–2 yrs): reference GCI $42,000, 4 deals, average sale price $380,000",
+      "- Growth (3–5 yrs): reference GCI $78,000, 7 deals, average sale price $400,000",
+      "- Established (6–10 yrs): reference GCI $96,000, 8 deals, average sale price $420,000",
+      "- Top Producer (over 10 yrs): reference GCI $145,000, 12 deals, average sale price $460,000",
+    ]);
+  });
+
+  it("Flight Crew's rule names what the figures are and what never to call them", () => {
+    expect(BENCHMARK_VOICE_RULE).toContain("Agent Runway's own reference figures with no published source");
+    expect(BENCHMARK_VOICE_RULE).toContain("Never present them as an industry, national, board or peer statistic");
+    expect(BENCHMARK_VOICE_RULE).toContain("Never call the Benchmark score a percentile or a rank among agents");
   });
 });

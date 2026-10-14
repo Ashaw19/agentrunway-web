@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
+import { cohortLabelWithYears } from "@/lib/engines/benchmark-engine";
 
 interface CohortCounts {
   rookie: number;
@@ -50,10 +51,10 @@ export function OrgCohortChart({ cohortCounts }: Props) {
 
   const data = useMemo<DonutDatum[]>(
     () => [
-      { name: "Rookie (0\u20132 yr)", value: cohortCounts.rookie },
-      { name: "Growth (2\u20135 yr)", value: cohortCounts.growth },
-      { name: "Established (5\u201310 yr)", value: cohortCounts.established },
-      { name: "Top Producer (10+ yr)", value: cohortCounts.topProducer },
+      { name: cohortLabelWithYears("rookie"), value: cohortCounts.rookie },
+      { name: cohortLabelWithYears("growth"), value: cohortCounts.growth },
+      { name: cohortLabelWithYears("established"), value: cohortCounts.established },
+      { name: cohortLabelWithYears("topProducer"), value: cohortCounts.topProducer },
     ],
     [cohortCounts],
   );

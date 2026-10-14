@@ -51,9 +51,10 @@ import {
 } from "@/lib/engines/projection-engine";
 import {
   cohortFromYears,
-  COHORT_LABELS,
+  cohortLabelWithYears,
   BENCHMARKS,
-  type Cohort,
+  BENCHMARK_COPY,
+  COHORTS,
 } from "@/lib/engines/benchmark-engine";
 import { generateOrgInsights } from "@/lib/engines/org-insights-engine";
 
@@ -235,8 +236,7 @@ export function OrgDashboardContent({
   // ── Cohort comparison data ────────────────────────────────────────────────
 
   const cohortComparison = useMemo(() => {
-    const cohorts: Cohort[] = ["rookie", "growth", "established", "topProducer"];
-    return cohorts.map((c) => {
+    return COHORTS.map((c) => {
       const cohortAgents = performance.filter(
         (a) => cohortFromYears(a.experience_years ?? 5) === c,
       );
@@ -246,7 +246,7 @@ export function OrgDashboardContent({
           : 0;
       return {
         cohort: c,
-        label: COHORT_LABELS[c],
+        label: cohortLabelWithYears(c),
         count: cohortAgents.length,
         orgAvgGCI: avgGCI,
         benchmarkMedian: BENCHMARKS[c].medianGCI,
@@ -539,24 +539,25 @@ export function OrgDashboardContent({
             </div>
           )}
 
-          {/* Cohort Performance vs Benchmark */}
+          {/* Team average GCI by experience level beside Agent Runway's reference GCI */}
           <div className="rounded-xl border bg-card">
             <div className="px-5 py-4 border-b">
               <h3 className="text-sm font-semibold">
-                Cohort Performance vs Industry Benchmark
+                Team Average GCI vs Agent Runway Reference
               </h3>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Org average YTD GCI by experience level compared to the industry national median
+                Org average YTD GCI by experience level, beside Agent Runway&apos;s reference GCI for that level.{" "}
+                {BENCHMARK_COPY.provenanceShort}
               </p>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b bg-muted/30 text-xs text-muted-foreground">
-                    <th className="px-5 py-3 text-left font-medium">Cohort</th>
+                    <th className="px-5 py-3 text-left font-medium">Experience level</th>
                     <th className="px-5 py-3 text-right font-medium">Agents</th>
                     <th className="px-5 py-3 text-right font-medium">Org Avg GCI</th>
-                    <th className="px-5 py-3 text-right font-medium">Industry Median</th>
+                    <th className="px-5 py-3 text-right font-medium">{BENCHMARK_COPY.referenceGciLabel}</th>
                     <th className="px-5 py-3 text-right font-medium">Difference</th>
                   </tr>
                 </thead>

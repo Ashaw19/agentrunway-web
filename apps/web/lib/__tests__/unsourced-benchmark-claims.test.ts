@@ -214,25 +214,18 @@ function unexpected(hits: Hit[], allowed: Allowed): string[] {
 // ── Left in place, with the reason ──────────────────────────────────────────
 
 /**
- * The Benchmark feature. `benchmark-engine.ts` holds a table of GCI and deal
- * counts by years of experience and a "national median", described as
- * "industry-cohort estimates aggregated from public industry sources". No
- * source is named. The figures feed 5% of the Runway Score and appear on the
- * dashboard, Altimeter, Reports, the team dashboard, both PDFs, the Terms and
- * Flight Crew's knowledge. Renaming or removing them is a product decision
- * for Andrew, reported with this change and not made in it.
+ * One match is left. Until 2026-10-13 this list also held the Benchmark
+ * feature, in six files: `benchmark-engine.ts` holds a table of GCI by years
+ * of experience that the app called "industry-cohort estimates aggregated
+ * from public industry sources" and a "national median". No source exists.
+ * Andrew's decision was to keep the numbers and call them Agent Runway's own
+ * reference figures on every surface. benchmark-reference-canonical.test.ts
+ * holds that wording in place.
  */
-const BENCHMARK_FEATURE = "The Benchmark feature's cohort table: unsourced, awaiting Andrew's decision (source it, relabel it as Agent Runway's estimate, or remove it).";
-
 const ALLOWED_INDUSTRY: Allowed = {
-  "packages/core/engines/org-insights-engine.ts": { max: 1, why: BENCHMARK_FEATURE },
-  "packages/core/engines/advisor-engine.ts": { max: 1, why: BENCHMARK_FEATURE },
-  "apps/web/app/(app)/dashboard/dashboard-content.tsx": { max: 1, why: BENCHMARK_FEATURE },
-  "apps/web/components/pdf/guide-pdf.tsx": { max: 1, why: BENCHMARK_FEATURE },
-  "apps/web/lib/knowledge-base.ts": { max: 2, why: BENCHMARK_FEATURE },
   "apps/web/lib/troubleshooting-playbooks.ts": {
-    max: 5,
-    why: `Four are the Benchmark feature. ${BENCHMARK_FEATURE} The fifth is the "Changed 2026-10-13" note in the expenses playbook, which quotes the old "industry average" wording so Flight Crew can explain why a colour changed.`,
+    max: 1,
+    why: 'The "Changed 2026-10-13" note in the expenses playbook, which quotes the old "industry average" wording so Flight Crew can explain why a colour changed.',
   },
 };
 

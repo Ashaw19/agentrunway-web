@@ -284,7 +284,7 @@ export default function RealEstateBusinessAnalyticsPage() {
                 Agent Runway
               </Link>
               {" "}is built specifically for Canadian agents. Full provincial
-              tax calculations, national seasonality data, and AI-powered
+              tax calculations, seasonality from your own history, and AI-powered
               insights — all connected to your live business numbers.
             </p>
             <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">

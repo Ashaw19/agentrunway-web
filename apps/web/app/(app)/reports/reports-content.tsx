@@ -92,7 +92,14 @@ import {
 import { computeHSTCollected } from "@/lib/engines/hst-engine";
 import { gstHstReportNote } from "@agent-runway/core/tax-copy";
 import type { BusinessReportPDFProps } from "@/components/pdf/business-report-pdf";
-import { compare, COHORT_LABELS } from "@/lib/engines/benchmark-engine";
+import {
+  compare,
+  BENCHMARK_COPY,
+  benchmarkCardSubtitle,
+  benchmarkGapLabel,
+  benchmarkVsReference,
+  formatBenchmarkScore,
+} from "@/lib/engines/benchmark-engine";
 import { calculateCorporateTax } from "@/lib/engines/corporate-tax-engine";
 import { survivalResult, riskColorBand, RISK_LEVEL_LABEL, type RiskLevel, type RiskColorBand } from "@/lib/engines/survival-engine";
 import { computeEffectiveCashForSurvival, computePipelineMonthlyIncome } from "@/lib/engines/effective-cash";
@@ -836,7 +843,7 @@ export function ReportsContent({
                   {weakest.label === "Expenses" && (expenseBand
                     ? `Your expense ratio is ${formatExpenseRatio(expenseRatioFraction)}, ${expenseRatioVsTarget(expenseRatioFraction)}. ${EXPENSE_RATIO_COPY.scoreSentence}`
                     : "No expenses are recorded yet, which holds this score down. Log your expenses to get an accurate picture.")}
-                  {weakest.label === "Benchmark" && "You're below your experience cohort median. Focus on deal volume to move up."}
+                  {weakest.label === "Benchmark" && `Your projected GCI is ${benchmarkVsReference(weakest.score)}. Deal volume is what moves it.`}
                   {weakest.label === "Survival" && "Your cash runway is short. Building a reserve or reducing monthly burn would help."}
                 </p>
               </div>
@@ -1316,18 +1323,18 @@ export function ReportsContent({
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-1.5">
               Benchmark Standing
-              <GuideLink anchor="benchmark" label="Benchmark cohorts explained in Guide" />
-              {isPro && <ExplainButton question="How does my benchmark standing work and what does my percentile rank mean?" />}
+              <GuideLink anchor="benchmark" label="Benchmark levels explained in Guide" />
+              {isPro && <ExplainButton question="How does my Benchmark score work and what does the number mean?" />}
             </CardTitle>
-            <CardDescription>vs. {COHORT_LABELS[benchmark.cohort]} cohort · industry estimate</CardDescription>
+            <CardDescription>{benchmarkCardSubtitle(benchmark.cohort)}</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {/* Percentile magnitude track — slate→blue on-system ramp. */}
+              {/* Benchmark score track — slate→blue on-system ramp. */}
               <div>
                 <div className="flex justify-between text-sm mb-2">
-                  <span className="text-slate-600">Cohort percentile</span>
-                  <span className="font-bold text-slate-800 tabular-nums">P{benchmark.percentile}</span>
+                  <span className="text-slate-600">{BENCHMARK_COPY.scoreLabel}</span>
+                  <span className="font-bold text-slate-800 tabular-nums">{formatBenchmarkScore(benchmark.percentile)}</span>
                 </div>
                 <div className="relative h-4 rounded-full bg-gradient-to-r from-slate-200 via-blue-300 to-blue-500 overflow-visible">
                   <div
@@ -1336,27 +1343,28 @@ export function ReportsContent({
                   />
                 </div>
                 <div className="flex justify-between text-[10px] text-slate-400 mt-1">
-                  <span>P0</span>
-                  <span>P50</span>
-                  <span>P100</span>
+                  <span>0</span>
+                  <span>50</span>
+                  <span>100</span>
                 </div>
               </div>
               <div className="space-y-1.5 text-sm">
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Cohort median</span>
+                  <span className="text-muted-foreground">{BENCHMARK_COPY.referenceGciLabel}</span>
                   <span className="font-medium tabular-nums">{fmtCurrency(benchmark.cohortMedianGCI)}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">vs Established Agents</span>
-                  <span className="font-medium tabular-nums">P{benchmark.nationalPercentile}</span>
+                  <span className="text-muted-foreground">{BENCHMARK_COPY.establishedScoreLabel}</span>
+                  <span className="font-medium tabular-nums">{formatBenchmarkScore(benchmark.establishedPercentile)}</span>
                 </div>
-                {benchmark.distanceToNextTier != null && benchmark.distanceToNextTier > 0 && (
+                {benchmark.distanceToNextTier != null && benchmark.nextTierLabel != null && benchmark.distanceToNextTier > 0 && (
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">To {benchmark.nextTierLabel}</span>
+                    <span className="text-muted-foreground">{benchmarkGapLabel(benchmark.nextTierLabel)}</span>
                     <span className="font-medium text-blue-700 tabular-nums">{fmtCurrency(benchmark.distanceToNextTier)}</span>
                   </div>
                 )}
               </div>
+              <p className="text-[11px] leading-snug text-slate-400">{BENCHMARK_COPY.provenanceShort}</p>
             </div>
           </CardContent>
         </Card>

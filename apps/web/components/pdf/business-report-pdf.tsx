@@ -31,7 +31,13 @@ import {
   PROVINCE_LABELS,
   type Transaction,
 } from "@/lib/types/database";
-import type { BenchmarkResult } from "@/lib/engines/benchmark-engine";
+import {
+  BENCHMARK_COPY,
+  benchmarkVsReference,
+  cohortLabelWithYears,
+  formatBenchmarkScore,
+  type BenchmarkResult,
+} from "@/lib/engines/benchmark-engine";
 import {
   riskColorBand,
   RISK_BAND_LADDER,
@@ -113,12 +119,6 @@ function riskColor(level: RiskLevel): string {
   return RISK_BAND_HEX[riskColorBand(level)];
 }
 
-function ord(n: number): string {
-  if (n >= 11 && n <= 13) return `${n}th`;
-  const s = ["th", "st", "nd", "rd"];
-  return `${n}${s[n % 10] ?? "th"}`;
-}
-
 function generateAssessment(
   grade: string,
   runwayScore: RunwayScoreResult,
@@ -127,7 +127,7 @@ function generateAssessment(
   benchmark: BenchmarkResult,
 ): string {
   const gradeTexts: Record<string, string> = {
-    "A+": "Your business is firing on all cylinders. Every major indicator — goal pace, pipeline health, expense management, and strategic readiness — is at or above benchmark. You are operating in the top tier of Canadian real estate professionals.",
+    "A+": "Your business is firing on all cylinders. Every major indicator — goal pace, pipeline health, expense management, and strategic readiness — is at or above its target. This is the top grade on the Runway Score.",
     "A":  "Your business demonstrates excellent health across all measured dimensions. You're tracking ahead of schedule, maintaining strong pipeline coverage, and managing expenses effectively. Small refinements could push you to peak performance.",
     "B":  "Your business is performing well with solid fundamentals. You have meaningful pipeline coverage and a disciplined approach to expenses. With targeted focus on your weakest component, you can reach top-tier performance this year.",
     "C":  "Your business shows promising foundations but has clear opportunities for improvement. Several key indicators suggest you're leaving growth potential on the table. A focused strategy on the highlighted areas below can meaningfully shift your trajectory.",
@@ -142,12 +142,12 @@ function generateAssessment(
       ? ""
       : ` Your cash runway of ${survival.label} is in the ${RISK_LEVEL_LABEL[survival.riskLevel]} range (${RISK_BAND_RANGE[survival.riskLevel]}).`;
 
+  // Agent Runway's own reference figures, in the engine's words. Nothing here
+  // ranks the agent among other agents.
   const benchmarkNote =
     benchmark.percentile >= 75
-      ? ` Benchmark comparison places you in the top quartile of your experience cohort — a strong competitive position.`
-      : benchmark.percentile >= 50
-      ? ` You're tracking at or above your cohort median, keeping you competitive within your experience tier.`
-      : ` Your GCI trajectory currently ranks below the cohort median — closing this gap represents a significant opportunity.`;
+      ? ` Your Benchmark score of ${formatBenchmarkScore(benchmark.percentile)} is in the top quarter of Agent Runway's reference scale for your experience level.`
+      : ` Your projected GCI is ${benchmarkVsReference(benchmark.percentile)}.`;
 
   // Placed in the same band as the Expense Ratio bar on the Expenses page of
   // this report (EXPENSE_RATIO_BANDS, which takes a fraction), and printed to
@@ -782,6 +782,10 @@ const s = StyleSheet.create({
   benchmarkInfoValue: {
     fontSize: 8,
     color: C.ink,
+  },
+  benchmarkSource: {
+    fontSize: 7,
+    color: C.muted,
   },
 
   // ── Table
@@ -1662,25 +1666,20 @@ export function BusinessReportPDF({
         </View>
 
         {/* Benchmark */}
-        <Text style={s.sectionTitle}>Peer Benchmark Positioning</Text>
+        <Text style={s.sectionTitle}>Benchmark Score</Text>
 
         <View style={s.benchmarkCard}>
           <Text style={s.benchmarkTitle}>
-            How You Compare — {PROVINCE_LABELS[province as keyof typeof PROVINCE_LABELS] ?? province} · {
-              benchmark.cohort === "rookie" ? "Rookie (0–2 yrs)"
-              : benchmark.cohort === "growth" ? "Growth (2–5 yrs)"
-              : benchmark.cohort === "established" ? "Established (5–10 yrs)"
-              : "Top Producer (10+ yrs)"
-            } Cohort
+            {cohortLabelWithYears(benchmark.cohort)} · {BENCHMARK_COPY.sourceTag}
           </Text>
           <View style={s.benchmarkRow}>
             <View style={[s.benchmarkBadge, { backgroundColor: benchmark.percentile >= 75 ? C.emerald : benchmark.percentile >= 50 ? C.blue : C.amber }]}>
-              <Text style={s.benchmarkPctText}>{ord(benchmark.percentile)}</Text>
-              <Text style={s.benchmarkPctSub}>pctile</Text>
+              <Text style={s.benchmarkPctText}>{benchmark.percentile}</Text>
+              <Text style={s.benchmarkPctSub}>of 100</Text>
             </View>
             <View style={s.benchmarkInfo}>
               <Text style={s.benchmarkInfoLabel}>
-                Cohort percentile rank (based on projected GCI of {fmtCurrency(projectedGCI)})
+                {BENCHMARK_COPY.scoreLabel} (based on projected GCI of {fmtCurrency(projectedGCI)})
               </Text>
               <View style={s.benchmarkTrack}>
                 <View
@@ -1694,13 +1693,16 @@ export function BusinessReportPDF({
                 />
               </View>
               <Text style={s.benchmarkInfoValue}>
-                Cohort median: {fmtCurrency(benchmark.cohortMedianGCI)}
+                {BENCHMARK_COPY.referenceGciLabel}: {fmtCurrency(benchmark.cohortMedianGCI)}
                 {benchmark.distanceToNextTier != null && benchmark.nextTierLabel != null
-                  ? `  ·  ${fmtCurrency(benchmark.distanceToNextTier)} to ${benchmark.nextTierLabel} median`
-                  : "  ·  Top cohort achieved"}
+                  ? benchmark.distanceToNextTier > 0
+                    ? `  ·  ${fmtCurrency(benchmark.distanceToNextTier)} to the ${benchmark.nextTierLabel} reference GCI`
+                    : `  ·  At or above the ${benchmark.nextTierLabel} reference GCI`
+                  : ""}
               </Text>
             </View>
           </View>
+          <Text style={s.benchmarkSource}>{BENCHMARK_COPY.provenanceShort}</Text>
         </View>
 
       </View>

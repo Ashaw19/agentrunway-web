@@ -14,6 +14,7 @@ import {
 import { MarketingNav } from "@/components/marketing-nav";
 import { MarketingFooter } from "@/components/marketing-footer";
 import { articleSchema, breadcrumbSchema } from "@/lib/schema";
+import { BENCHMARK_COPY } from "@agent-runway/core/engines/benchmark-engine";
 
 export const metadata: Metadata = {
   title: "Real Estate Analytics Software vs. Spreadsheets",
@@ -89,10 +90,10 @@ const COMPARISON_ROWS: ComparisonRow[] = [
     agentRunwayNote: "6-component composite score (A+ to F)",
   },
   {
-    feature: "Industry benchmark comparison",
+    feature: "Benchmark score",
     spreadsheet: "no",
     agentRunway: "yes",
-    agentRunwayNote: "National cohort percentile ranking",
+    agentRunwayNote: "Scored against Agent Runway's reference figures by years of experience",
   },
   {
     feature: "AI business insights",
@@ -171,9 +172,8 @@ const PAIN_POINTS = [
     icon: BarChart3,
     iconClass: "text-blue-500",
     bgClass: "bg-blue-50 border-blue-100",
-    title: "No benchmarks",
-    body:
-      "A spreadsheet can only tell you your own numbers. It cannot tell you whether your GCI, expense ratio, or deal volume compares favourably or poorly against agents at a similar career stage in the Canadian market.",
+    title: "No reference point",
+    body: `A spreadsheet shows your own numbers with nothing to hold them against. Agent Runway places your projected GCI on its own reference scale for your years of experience. ${BENCHMARK_COPY.provenanceShort}`,
   },
 ];
 
@@ -497,7 +497,7 @@ export default function RealEstateAnalyticsVsSpreadsheets() {
                       "You want live net income, not just GCI",
                       "You need seasonality-aware forecasting",
                       "You want quarterly tax estimates built in",
-                      "You want to benchmark against peers",
+                      "You want a reference point for your GCI",
                     ].map((point) => (
                       <li key={point} className="flex items-start gap-2.5 text-sm text-slate-600">
                         <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-blue-500" />

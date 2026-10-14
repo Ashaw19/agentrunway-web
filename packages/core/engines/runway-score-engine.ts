@@ -180,13 +180,13 @@ export function bandColorHexForScore(score: number): string {
  * - Goal Pace:  35%
  * - Pipeline:   30%  (v1.2: +5% from Benchmark — pipeline is more actionable)
  * - Expenses:   15%
- * - Benchmark:   5%  (v1.2: reduced — national cohort buckets are too coarse)
+ * - Benchmark:   5%  (v1.2: reduced — the four experience levels are too coarse)
  * - Survival:   15%
  *
  * v1.2 changes:
  * - Benchmark weight reduced from 10% to 5%, redistributed to Pipeline.
- *   National industry cohorts (4 buckets) are too coarse for meaningful
- *   individual comparison. Pipeline health is forward-looking and actionable.
+ *   The four experience levels of Agent Runway's reference figures are too
+ *   coarse for meaningful individual comparison. Pipeline health is forward-looking and actionable.
  * - Incomplete data penalty: "not configured" survival and zero-expense
  *   scores now pull the composite down (35 instead of 50/80) to incentivize
  *   data completeness and prevent inflated scores from missing data.

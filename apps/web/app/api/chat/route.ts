@@ -26,6 +26,7 @@ import { describeIncomeGoals, incomeGoalCurrentYear, goalForYear, hasGoalRow } f
 import { pipelineLinedUpForYear } from "@agent-runway/core/engines/year-plan-engine";
 import { atlanticISODate, atlanticNoon } from "@agent-runway/core/lib/local-date";
 import {
+  ACCOUNT_SEASONALITY_COPY,
   seasonalFractionElapsed,
   paceVsGoalPercent,
   projectedYearEndGCI,
@@ -53,7 +54,13 @@ import {
 } from "@agent-runway/core/engines/expense-ratio-bands";
 import { calculate as calculateTax, type CanadianTaxResult, gstHstRate, gstHstLabel } from "@agent-runway/core/engines/canadian-tax-engine";
 import { computeHSTCollected } from "@agent-runway/core/engines/hst-engine";
-import { compare as benchmarkCompare, COHORT_LABELS, type BenchmarkResult } from "@agent-runway/core/engines/benchmark-engine";
+import {
+  compare as benchmarkCompare,
+  benchmarkGapLabel,
+  benchmarkSentence,
+  BENCHMARK_VOICE_RULE,
+  type BenchmarkResult,
+} from "@agent-runway/core/engines/benchmark-engine";
 import { probabilityBands, type ProbabilityBands } from "@agent-runway/core/engines/probabilistic-forecast-engine";
 import { computeWhereYouStand, type WhereYouStandResult } from "@agent-runway/core/engines/where-you-stand-engine";
 import {
@@ -562,7 +569,7 @@ export async function POST(req: NextRequest) {
         const engineSeasonalWeights = agentSeasonalWeights
           ?? (settings.use_national_seasonality ? nationalWeights : [0.25, 0.25, 0.25, 0.25]);
         const engineFraction = seasonalFractionElapsed(engineSeasonalWeights);
-        const seasonalSource = agentSeasonalWeights ? "agent (5-yr pattern)" : settings.use_national_seasonality ? "national" : "default";
+        const seasonalSource = agentSeasonalWeights ? "agent (5-yr pattern)" : settings.use_national_seasonality ? ACCOUNT_SEASONALITY_COPY.source : "default";
 
         // Cast transactions to the shape engines expect
         const txForEngines = (transactions ?? []).map((tx: Record<string, unknown>) => ({
@@ -845,10 +852,11 @@ export async function POST(req: NextRequest) {
           projDeals > 0 ? `  - Per-Deal Tax Portion (estimate): ${fmtCurrency(taxResult.perDealSetAside)}` : null,
           `  - Quarterly Instalment: ${fmtCurrency(taxResult.quarterlyEstimate)}`,
           "",
-          `Benchmark: ${benchmark.percentile}th percentile in ${COHORT_LABELS[benchmark.cohort]} cohort${settings.experience_years != null ? ` (${settings.experience_years} years experience)` : ""}`,
+          `Benchmark: ${benchmarkSentence(projGCI, benchmark)}${settings.experience_years != null ? ` (${settings.experience_years} years experience)` : ""}`,
           benchmark.distanceToNextTier != null && benchmark.nextTierLabel
-            ? `  Distance to ${benchmark.nextTierLabel}: ${fmtCurrency(benchmark.distanceToNextTier)} more projected GCI`
+            ? `  ${benchmarkGapLabel(benchmark.nextTierLabel)}: ${fmtCurrency(benchmark.distanceToNextTier)} more projected GCI`
             : null,
+          `  ${BENCHMARK_VOICE_RULE}`,
           "",
           "Probability Bands (year-end GCI):",
           `  - Pessimistic (P25): ${fmtCurrency(bands.p25)}`,

@@ -21,6 +21,7 @@ import { MarketingNav } from "@/components/marketing-nav";
 import { MarketingFooter } from "@/components/marketing-footer";
 import { CharterScarcityStrip } from "@/components/charter-scarcity-strip";
 import { softwareApplicationSchema } from "@/lib/schema";
+import { BENCHMARK_COPY } from "@agent-runway/core/engines/benchmark-engine";
 
 import { ScrollRevealSection } from "@/components/scroll-reveal-section";
 import { FlightCrewDemoLoop } from "@/components/flight-crew-demo-loop";
@@ -115,8 +116,8 @@ const WHY_CALLOUTS = [
   },
   {
     icon: Award,
-    title: "How You Compare",
-    description: "Benchmark your GCI, expenses, and conversion rate against real national agent data.",
+    title: "Benchmark Score",
+    description: BENCHMARK_COPY.definition,
     color: "emerald",
   },
   {

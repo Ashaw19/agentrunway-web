@@ -465,10 +465,12 @@ const TOPIC_RULES: TopicRule[] = [
   },
   {
     topic: "benchmark",
-    primary: ["benchmark", "cohort", "percentile", "national median"],
+    primary: ["benchmark", "cohort", "percentile", "national median", "reference gci"],
     secondary: ["rookie", "growth", "established", "top producer", "peer", "comparison"],
     phrases: [
       "benchmark comparison",
+      "benchmark score",
+      "reference figures",
       "industry cohort",
       "how do i compare",
       "percentile rank",

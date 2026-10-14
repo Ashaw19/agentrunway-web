@@ -14,6 +14,13 @@
  */
 
 import { EXPENSE_RATIO_COPY, expenseRatioBandsList } from "@agent-runway/core/engines/expense-ratio-bands";
+import {
+  BENCHMARK_COPY,
+  BENCHMARK_VOICE_RULE,
+  COHORT_LABELS,
+  GENERAL_REFERENCE_COHORT,
+  benchmarkReferenceList,
+} from "@agent-runway/core/engines/benchmark-engine";
 import type { TroubleshootingTopic } from "./troubleshooting-classifier";
 
 export function getPlaybook(topic: TroubleshootingTopic): string {
@@ -43,11 +50,11 @@ The Runway Score is a weighted composite of 5 sub-scores, each 0–100:
 | Pipeline Health | 30% | Pipeline weighted GCI vs remaining goal gap |
 | Expense Ratio | 15% | YTD expenses ÷ YTD GCI |
 | Survival Runway | 15% | Cash reserve ÷ net monthly burn |
-| Benchmark Rank | 5% | Industry-cohort percentile position |
+| Benchmark Score | 5% | Projected GCI on Agent Runway's reference scale for the agent's experience level |
 
 **Final Score** = (paceScore × 0.35) + (pipelineScore × 0.30) + (expenseScore × 0.15) + (survivalScore × 0.15) + (benchmarkScore × 0.05)
 
-*Note: v1.2 increased Pipeline weight from 25% to 30% and reduced Benchmark from 10% to 5% — pipeline is more actionable than national cohort comparison.*
+*Note: v1.2 increased Pipeline weight from 25% to 30% and reduced Benchmark from 10% to 5% — pipeline is more actionable than the Benchmark's four experience levels.*
 
 ### Sub-Score Calculations
 
@@ -81,8 +88,8 @@ The Runway Score is a weighted composite of 5 sub-scores, each 0–100:
 - Not configured (no cash reserve set) → 35 (incomplete data penalty — previously 50 in v1.1)
 
 **Benchmark Score** (5%):
-- Direct percentile from industry-cohort comparison
-- 50th percentile → 50, 90th → 90, etc.
+- The Benchmark score itself, 0–99, from benchmark-engine.ts
+- 50 is the reference GCI for the agent's experience level
 
 ### Runway Score Labels
 
@@ -120,7 +127,7 @@ Walk through each component:
 - Is expense ratio above Agent Runway's target of ${EXPENSE_RATIO_COPY.target}? (15%)
 - Is cash reserve not set? (survival score defaults to 35 → only 5.25 of 15 points)
 - Has GCI but no expenses logged? (expense score defaults to 35 → only 5.25 of 15 points)
-- Are they a newer agent with low benchmark percentile? (5%)
+- Is their Benchmark score low? (5%)
 
 **"How do I improve my score?"**
 Identify the weakest component and prioritize:
@@ -128,7 +135,7 @@ Identify the weakest component and prioritize:
 2. Pipeline (30%) — add more pipeline deals with higher estimated prices
 3. Expenses (15%) — reduce spending or increase GCI
 4. Survival (15%) — increase cash reserve setting in Settings
-5. Benchmark (5%) — close more/larger deals to improve percentile
+5. Benchmark (5%) — a higher projected GCI raises the Benchmark score
 
 **Edge Cases:**
 - January 1–15: Seasonal fraction is tiny → pace calculation swings wildly → tell user to wait 2–3 weeks
@@ -637,8 +644,9 @@ If a user asks "what are these tips?" or "why is Agent Runway showing me this?" 
 
 **Seasonal Fraction**: Accounts for uneven income distribution across the year.
 - Default: uniform Q1=25%, Q2=25%, Q3=25%, Q4=25% (DB column settings.national_quarter_pcts stored as [25,25,25,25], normalized to fractions in normalizeSeasonalWeights)
-- Cascade: agent-derived from history_items.quarter_gci (needs 2+ years) → settings.national_quarter_pcts → uniform
-- Custom: Users set their own quarterly weights in Settings
+- Cascade: agent-derived from history_items.quarter_gci (needs 2+ years) → the account's stored quarter weights (settings.national_quarter_pcts) → uniform
+- The column name is historic. The stored weights are 25% a quarter by default. They are not national averages and no national seasonal data is loaded. Screens call them "your account's quarter weights"
+- No screen edits the stored weights today. An agent's own pattern comes from past years entered on /history
 - Day-of-year precision: Interpolates within quarters for smooth progression (UTC-anchored)
 
 **Early-Year Dampening** (fraction < 10% of year, roughly Jan 1–Feb 7):
@@ -695,7 +703,7 @@ Daily Pace = Remaining ÷ Business Days Left in Year
 
 **"My projection seems way too high/low"**
 1. Early year (Jan–Feb): Seasonal dampening is active — projections stabilize by March
-2. Check seasonal weights — national defaults may not match their market
+2. Check seasonal weights — with fewer than 2 years of history the split is an even 25% a quarter, which may not match their market
 3. A single large deal can skew projections (one $30K GCI deal in January → $360K projection)
 4. Pipeline deals inflating it: 50% of weighted GCI is added
 5. Check if custom seasonal weights are set and realistic
@@ -1055,7 +1063,7 @@ Adding/changing a closed deal triggers recalculation of:
 4. Tax estimate (federal, provincial, CPP)
 5. Expense ratio (denominator changes)
 6. Runway Score (pace + expense components)
-7. Benchmark percentile
+7. Benchmark score
 8. Probability bands (CV recalculates)
 9. Survival runway (if income affects burn rate)
 10. Per-deal tax portion
@@ -1113,9 +1121,9 @@ Annual summaries by year. Import via CSV/PDF for prior years. Shows:
 | Commission Split | Agent net income, tax, waterfall (simple_split plan only) | Required |
 | Annual GCI Goal | Pace, runway score, goal gap | $0 (not set) |
 | Cash Reserve | Survival runway | $0 |
-| Experience Years | Benchmark cohort, deviation tone | 0 |
+| Experience Years | Benchmark experience level, deviation tone | 0 |
 | Business Structure | Tax calculation method (sole prop/PREC/corp) | Sole prop |
-| Seasonal Weights | Projection accuracy, pace calculation | National default |
+| Seasonal Weights | Projection accuracy, pace calculation | 25% a quarter |
 | Estimated Weekly Hours | Time Value card on Overhead page | Not set (card hidden) |
 | Vacation Weeks/Year | Reduces annual hours for Time Value calc | 0 |
 
@@ -1199,8 +1207,8 @@ All figures are a snapshot of the REAL income deck and are user-editable — if 
 
 ### Seasonal Weights
 - Default: uniform Q1=25%, Q2=25%, Q3=25%, Q4=25% (engine normalizes via normalizeSeasonalWeights)
-- Cascade: agent-derived (history_items.quarter_gci, 2+ years) → settings.national_quarter_pcts → uniform
-- Custom: User sets their own (must total 100%)
+- Cascade: agent-derived (history_items.quarter_gci, 2+ years) → the account's stored quarter weights (settings.national_quarter_pcts, 25% a quarter by default, not national averages) → uniform
+- No screen edits the stored weights today
 - Affects: Pace calculation, projected GCI, seasonal fraction
 - Winter markets (e.g., ski resorts) might be Q4-heavy
 - Resort/cottage markets might be Q2-heavy
@@ -1263,7 +1271,7 @@ All figures are a snapshot of the REAL income deck and are user-editable — if 
 3. Check post-cap rate — if same as regular rate, there's no visible change
 
 **"Seasonal weights seem wrong"**
-→ Custom weights must total 100%. If they don't, the system may normalize or fall back to national defaults.
+→ The split comes from the agent's own past years on /history (2+ years needed). Without that it is an even 25% a quarter. Stored weights that do not total 100% are normalized.
 
 **"How do I reset to defaults?"**
 → Most settings can be changed back individually. There's no "reset all" button. Onboarding values can be overwritten in Settings.
@@ -1355,37 +1363,44 @@ Each band runs from its lower figure up to, not including, the next one (exactly
   // ═══════════════════════════════════════════════════════════════════════════
   // BENCHMARK
   // ═══════════════════════════════════════════════════════════════════════════
-  benchmark: `## TROUBLESHOOTING: BENCHMARK & MARKET COMPARISON
+  benchmark: `## TROUBLESHOOTING: BENCHMARK
 
-### Industry Benchmark Data (from benchmark-engine.ts)
+### Whose figures these are
 
-Uses industry-cohort estimates aggregated from public industry sources. Cohorts based on experience years:
+${BENCHMARK_VOICE_RULE}
 
-| Cohort | Years | Median GCI | Median Deals | Avg Price |
-|--------|-------|-----------|-------------|-----------|
-| Rookie | 0–2 | $42,000 | 4 | $380,000 |
-| Growth | 3–5 | $78,000 | 7 | $400,000 |
-| Established | 6–10 | $96,000 | 8 | $420,000 |
-| Top Producer | >10 | $145,000 | 12 | $460,000 |
+Until 2026-10-13 screens called these industry-cohort estimates, a cohort percentile ("P62"), a cohort median and a national median. They were never industry or national figures. No number changed that day and no Runway Score moved. Only the wording changed.
 
-**National Median** (all agents): $96,000 GCI, 8 deals
+If a user asks where the figures come from: Agent Runway set them, and no published Canadian source reports agent GCI by years of experience. Say so plainly.
 
-### Percentile Calculation
-Linear interpolation between breakpoints: p25, median (p50), p75, p90
-- Below p25: Interpolate between 0 and p25
-- p25 to p50: Linear interpolation
-- p50 to p75: Linear interpolation
-- p75 to p90: Linear interpolation
-- Above p90: Capped at ~99th percentile
+### Reference figures (from benchmark-engine.ts)
+
+One row per experience level. Level names describe years licensed, not production.
+
+${benchmarkReferenceList()}
+
+The reference figures are the same in every province and market. They are not local market data.
+
+Cards that compare every agent to one figure (the advisor's deal size and benchmark gap cards, the team insight on deal size) use the ${COHORT_LABELS[GENERAL_REFERENCE_COHORT]} row.
+
+### Benchmark score
+${BENCHMARK_COPY.definition} ${BENCHMARK_COPY.scale}
+
+Each level has anchor points at 25, 50, 75 and 90 on its scale. The score is a straight line between them:
+- Below the 25 point: between 0 and 25
+- Between two anchor points: in proportion
+- Above the 90 point: rises to a cap of 99
+
+On screen the card shows "${BENCHMARK_COPY.scoreLabel}" (for example 62/100), "${BENCHMARK_COPY.referenceGciLabel}", "${BENCHMARK_COPY.establishedScoreLabel}" (the same projected GCI on the ${COHORT_LABELS[GENERAL_REFERENCE_COHORT]} level's scale) and "Gap to [next level] reference GCI".
 
 ### Where You Stand (from where-you-stand-engine.ts)
 
-**Performance Bands**:
-- Launching: 0–10th percentile
-- Climbing: 10–25th percentile
-- Competitive: 25–50th percentile
-- Advancing: 50–75th percentile
-- Leading: 75th+ percentile
+**Performance Bands** (by Benchmark score):
+- Launching: 0–9
+- Climbing: 10–24
+- Competitive: 25–49
+- Advancing: 50–74
+- Leading: 75 and up
 
 **Momentum**: gaining (improving vs last year), holding (flat), losing (declining), no_data
 
@@ -1401,19 +1416,23 @@ Linear interpolation between breakpoints: p25, median (p50), p75, p90
 ### Common Problems & Diagnostics
 
 **"My benchmark seems wrong"**
-1. Check experience years in Settings — determines which cohort you're compared to
+1. Check experience years in Settings — it sets which experience level's reference figures are used
 2. Benchmark uses projected annual GCI (not just YTD)
-3. Cohort estimates are based on aggregated industry data — they may not reflect the most recent market shifts
+3. The reference figures are Agent Runway's own and the same for every market. A local market can sit well above or below them
 
-**"Why am I compared to rookies?"**
+**"Where do the benchmark numbers come from?"**
+→ Agent Runway set them. No published source is behind them.
+
+**"Why am I on the Rookie level?"**
 → Experience years is set to 0–2 in Settings. Update to actual years of experience.
 
-**"I'm above median but score is low"**
+**"I'm above the reference GCI but my Runway Score is low"**
 → Benchmark is only 5% of Runway Score. Other components (pace 35%, pipeline 30%) have much more impact.
 
 **Edge Cases:**
 - No history data: Benchmark uses only current year
-- Experience = 0: Rookie cohort (lowest benchmarks)
+- Experience = 0: Rookie level (lowest reference figures)
+- Experience not set: the Growth level is used
 - Early year (<16% elapsed, <3 deals): "Too early" guard suppresses market positioning
 `,
 
@@ -1629,7 +1648,7 @@ If duplicates slip through, the match was below 70. Manually delete extras from 
 2. **About You**: Display name, brokerage affiliation
 3. **Business Structure**: Sole proprietor, PREC, or Corporation
 4. **Commission & Fees**: Split percentage, brokerage monthly fee, per-deal fee, annual cap
-5. **Experience Level**: Years in real estate (determines benchmark cohort)
+5. **Experience Level**: Years in real estate (determines the Benchmark experience level)
 6. **Color Theme**: Choose from 15 themes + dark mode
 7. **Annual Goal**: Set GCI goal for the current year
 8. **Confirmation**: Review and finish
@@ -1714,7 +1733,7 @@ Generates coaching insights from aggregate data:
 - Empty pipeline warnings
 - Goal pace deltas
 - Production concentration (Pareto check)
-- Deal size benchmarks
+- Deal size against Agent Runway's reference figure
 - Praise for high performers
 
 ### Common Issues
@@ -1973,10 +1992,10 @@ The Altimeter is your deep analytics dashboard — performance tracking, insight
    - Examples: "Your average deal size increased 12% vs last year" or "Your expense ratio is now within target"
    - Insights pull from transactions, pipeline, expenses, and CRM data
 
-4. **Industry Benchmarking**
-   - Compares your performance to industry-cohort estimates aggregated from public industry sources
-   - Shows your percentile rank among agents
-   - Cohort comparison (rookie, growth, established, top producer)
+4. **Benchmark**
+   - Places your projected GCI on Agent Runway's reference scale for your years of experience and shows a Benchmark score out of 100
+   - The reference figures are Agent Runway's own, not an industry or national statistic
+   - Four experience levels (rookie, growth, established, top producer)
 
 5. **Where You Stand**
    - Positioning on a Launching → Climbing → Competitive → Advancing → Leading scale (5 bands)
@@ -1995,7 +2014,7 @@ The Altimeter is your deep analytics dashboard — performance tracking, insight
 ### Common Issues
 - **"Personal records are wrong"**: Records only count closed transactions with confirmed GCI. Pending pipeline deals don't count.
 - **"Year-over-year is empty"**: You need at least 2 years of transaction data. Import historical transactions at /history.
-- **"Industry benchmark says I'm low but I'm doing well"**: Benchmarks use national-cohort estimates. Local markets vary significantly.
+- **"The Benchmark says I'm low but I'm doing well"**: The Benchmark uses Agent Runway's own reference figures, which are the same for every market. They are not local market data.
 - **"Runway Score dropped suddenly"**: Check which component changed — usually it's pipeline health (deals fell through) or pace (slow month).
 - **"No insights showing"**: The insights engine needs at least a few months of data to generate meaningful observations.
 `,

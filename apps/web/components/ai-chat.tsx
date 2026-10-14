@@ -671,7 +671,7 @@ const PAGE_SUGGESTIONS: Record<string, string[]> = {
     "What is the T2125 form?",
     "How does CCA depreciation work?",
     "How is the home office deduction calculated?",
-    "What does my benchmark percentile mean?",
+    "What does my Benchmark score mean?",
   ],
   "/guide": [
     "Give me a quick overview of Agent Runway",

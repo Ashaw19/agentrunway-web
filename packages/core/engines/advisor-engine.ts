@@ -16,7 +16,13 @@ import {
   daysRemaining,
   parseTxDate,
 } from "./projection-engine";
-import { NATIONAL_MEDIAN_GCI, NATIONAL_MEDIAN_TRANSACTIONS } from "./benchmark-engine";
+import {
+  COHORT_LABELS,
+  GENERAL_REFERENCE_COHORT,
+  GENERAL_REFERENCE_GCI,
+  GENERAL_REFERENCE_GCI_PER_DEAL,
+  formatBenchmarkScore,
+} from "./benchmark-engine";
 import {
   EXPENSE_RATIO_COPY,
   EXPENSE_RATIO_TARGET_MAX,
@@ -222,18 +228,17 @@ export function generateAdvisory(input: AdvisorInput, limit: number = 5): Adviso
     });
   }
 
-  // 7. Deal Size Analysis — only show when agent is below national median per-deal
+  // 7. Deal Size Analysis — only show when the agent is below Agent Runway's reference GCI per deal
   if (closedTx.length > 0) {
     const avgGCI = ytdGCI / closedTx.length;
-    const nationalAvgPerDeal = NATIONAL_MEDIAN_GCI / NATIONAL_MEDIAN_TRANSACTIONS;
-    if (avgGCI > 0 && avgGCI < nationalAvgPerDeal) {
+    if (avgGCI > 0 && avgGCI < GENERAL_REFERENCE_GCI_PER_DEAL) {
       const targetIncrease = avgGCI * 0.15;
       cards.push({
         id: nextId(), category: "dealSizeAnalysis", icon: "arrow-up-square",
         title: "Increase Average Deal Size",
         evidence: [
           `Current avg GCI: ${fmtCurrency(avgGCI)}/deal`,
-          `National median: ${fmtCurrency(nationalAvgPerDeal)}/deal`,
+          `Agent Runway's reference figure: ${fmtCurrency(GENERAL_REFERENCE_GCI_PER_DEAL)}/deal`,
         ],
         action: "Target properties 15–20% above your current average price point.",
         estimatedImpact: `+${fmtCurrency(targetIncrease)}/deal`,
@@ -270,17 +275,17 @@ export function generateAdvisory(input: AdvisorInput, limit: number = 5): Adviso
 
   // 9. Benchmark Gap
   if (input.benchmarkPercentile < 50 && ytdGCI > 0) {
-    const targetGCI = NATIONAL_MEDIAN_GCI;
+    const targetGCI = GENERAL_REFERENCE_GCI;
     const gap = Math.max(0, targetGCI - (input.goalGCI > 0 ? input.goalGCI : ytdGCI * 2));
     if (gap > 0) {
       cards.push({
         id: nextId(), category: "benchmarkGap", icon: "bar-chart-2",
         title: "Close the Benchmark Gap",
         evidence: [
-          `You're in the ${input.benchmarkPercentile}th percentile vs established agents`,
-          `Median agent GCI: ${fmtCurrency(targetGCI)}`,
+          `Benchmark score: ${formatBenchmarkScore(input.benchmarkPercentile)} for your experience level`,
+          `Agent Runway's ${COHORT_LABELS[GENERAL_REFERENCE_COHORT]} reference GCI: ${fmtCurrency(targetGCI)}`,
         ],
-        action: "Set a stretch goal above the established-agent median and review your prospecting strategy.",
+        action: `Set a stretch goal above the ${COHORT_LABELS[GENERAL_REFERENCE_COHORT]} reference GCI and review your prospecting strategy.`,
         estimatedImpact: `+${fmtCurrency(gap)}/yr`,
         impactValue: gap, priority: 65,
       });

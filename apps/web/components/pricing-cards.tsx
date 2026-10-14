@@ -6,6 +6,7 @@ import Link from "next/link";
 import { ArrowRight, CheckCircle2, Sparkles, Clock, Users } from "lucide-react";
 
 import type { PricingTier } from "@/lib/stripe";
+import { BENCHMARK_COPY } from "@agent-runway/core/engines/benchmark-engine";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -51,7 +52,7 @@ const PRO_FEATURES = [
   "Probabilistic forecasting (P10–P90)",
   "Business health score (A+ to F)",
   "Expense tracking and categorization",
-  "Industry benchmark comparison",
+  BENCHMARK_COPY.featureShort,
   "Business reports and PDF export",
   "Mileage tracking (CRA-format logs)",
   "Year-to-date dashboard and forecasting",

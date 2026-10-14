@@ -58,13 +58,20 @@ import {
   type HistoryItem,
 } from "@/lib/types/database";
 import {
+  ACCOUNT_SEASONALITY_COPY,
   seasonalFractionElapsed,
   projectedYearEndGCI,
   projectedYearEndTransactions,
   paceVsGoalPercent,
   daysRemaining,
 } from "@/lib/engines/projection-engine";
-import { compare, COHORT_LABELS } from "@/lib/engines/benchmark-engine";
+import {
+  compare,
+  BENCHMARK_COPY,
+  benchmarkCardSubtitle,
+  benchmarkGapLabel,
+  formatBenchmarkScore,
+} from "@/lib/engines/benchmark-engine";
 import { computeWhereYouStand, BAND_LABELS, type PerformanceBand } from "@/lib/engines/where-you-stand-engine";
 import { generateInsights, type Insight } from "@/lib/engines/insights-engine";
 import { compute as computeRunwayScore } from "@/lib/engines/runway-score-engine";
@@ -606,9 +613,9 @@ export function AltimeterContent({
                 <Rocket className="h-5 w-5" />
               </div>
               <div className="flex-1">
-                <h3 className="text-base font-semibold">Your performance benchmarks need data to compare.</h3>
+                <h3 className="text-base font-semibold">Your Benchmark needs a deal to score.</h3>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Add your first deal to see how you stack up against industry averages.
+                  Add your first deal to see your Benchmark score against Agent Runway&apos;s reference figures.
                 </p>
                 <div className="mt-4 flex flex-wrap gap-3">
                   <Link href="/transactions" className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors">
@@ -640,7 +647,7 @@ export function AltimeterContent({
             {seasonalSource === "agent"
               ? `Seasonality: your ${historyItems.filter((h) => (h.quarter_gci as number[]).some((v) => (v ?? 0) > 0)).length}-yr pattern`
               : seasonalSource === "national"
-                ? "Seasonality: national averages"
+                ? `Seasonality: ${ACCOUNT_SEASONALITY_COPY.label} (${ACCOUNT_SEASONALITY_COPY.detail})`
                 : "Seasonality: uniform (add history to improve)"}
           </p>
         </CardContent>
@@ -901,33 +908,33 @@ export function AltimeterContent({
         <CardHeader className="pb-2">
           <div className="flex items-center gap-1.5">
             <CardTitle className="text-base">Benchmark</CardTitle>
-            <GuideLink anchor="benchmark" label="Benchmark cohorts explained in Guide" />
+            <GuideLink anchor="benchmark" label="Benchmark levels explained in Guide" />
           </div>
           <CardDescription>
-            vs. {COHORT_LABELS[benchmark.cohort]} cohort · industry estimate
+            {benchmarkCardSubtitle(benchmark.cohort)}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
             <div>
               <div className="mb-1 flex justify-between text-sm">
-                <span>Cohort percentile</span>
-                <span className="font-medium">P{benchmark.percentile}</span>
+                <span>{BENCHMARK_COPY.scoreLabel}</span>
+                <span className="font-medium">{formatBenchmarkScore(benchmark.percentile)}</span>
               </div>
               <Progress value={benchmark.percentile} className="h-2" />
             </div>
             <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Cohort median GCI</span>
+              <span className="text-muted-foreground">{BENCHMARK_COPY.referenceGciLabel}</span>
               <span>{fmtCurrency(benchmark.cohortMedianGCI)}</span>
             </div>
             <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">vs Established Agents</span>
-              <span>P{benchmark.nationalPercentile}</span>
+              <span className="text-muted-foreground">{BENCHMARK_COPY.establishedScoreLabel}</span>
+              <span>{formatBenchmarkScore(benchmark.establishedPercentile)}</span>
             </div>
-            {benchmark.distanceToNextTier != null && benchmark.distanceToNextTier > 0 && (
+            {benchmark.distanceToNextTier != null && benchmark.nextTierLabel != null && benchmark.distanceToNextTier > 0 && (
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">
-                  Gap to {benchmark.nextTierLabel}
+                  {benchmarkGapLabel(benchmark.nextTierLabel)}
                 </span>
                 <span>{fmtCurrency(benchmark.distanceToNextTier)}</span>
               </div>
@@ -939,7 +946,7 @@ export function AltimeterContent({
       {/* Disclaimer */}
       <p className="text-center text-xs leading-relaxed text-muted-foreground/60 pb-2">
         All projections and benchmarks are approximations for planning purposes only — not financial or professional advice.
-        Benchmark data reflects industry-cohort estimates aggregated from public industry sources.
+        {BENCHMARK_COPY.provenanceShort}
       </p>
     </div>
   );

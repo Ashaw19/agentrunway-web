@@ -208,7 +208,7 @@ export function getAnalyticsTools(supabase: SupabaseClient, userId: string): Mcp
     {
       name: "get_runway_score",
       description:
-        "Returns the agent's Runway Score — a 0–100 composite business health grade (A+ to F) based on goal pace, pipeline health, expense control, market benchmark, and financial runway.",
+        "Returns the agent's Runway Score — a 0–100 composite business health grade (A+ to F) based on goal pace, pipeline health, expense control, Agent Runway's benchmark score, and financial runway.",
       inputSchema: { type: "object", properties: {}, additionalProperties: false },
       annotations: {
         title: "Runway Score",
