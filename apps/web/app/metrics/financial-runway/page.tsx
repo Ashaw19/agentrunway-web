@@ -4,6 +4,15 @@ import { ArrowRight, Shield, Monitor, Building2, ShieldCheck, Car, Receipt } fro
 import { MarketingNav } from "@/components/marketing-nav";
 import { MarketingFooter } from "@/components/marketing-footer";
 import { definedTermSchema, breadcrumbSchema } from "@/lib/schema";
+import {
+  RISK_BAND_FLOOR_MONTHS,
+  RISK_BAND_LEVELS,
+  RISK_BAND_RANGE,
+  RISK_LEVEL_LABEL,
+  riskColorBand,
+  type RiskBandLevel,
+  type RiskColorBand,
+} from "@agent-runway/core/engines/survival-engine";
 
 export const metadata: Metadata = {
   title: "Financial Runway for Real Estate Agents Explained",
@@ -31,6 +40,33 @@ const breadcrumb = breadcrumbSchema([
   { name: "Real Estate Metrics", url: "/real-estate-metrics" },
   { name: "Financial Runway", url: "/metrics/financial-runway" },
 ]);
+
+// The tiers are the survival engine's bands: the ranges, words and colours the
+// app classifies a cash runway with. Warning and Healthy share amber; the word
+// on the badge tells them apart. Only what each band means is written here.
+const TIER_STYLE: Record<RiskColorBand, { badgeColor: string; dot: string; rowColor: string }> = {
+  red: { badgeColor: "bg-red-100 text-red-800", dot: "bg-red-500", rowColor: "bg-red-50" },
+  amber: { badgeColor: "bg-amber-100 text-amber-800", dot: "bg-amber-500", rowColor: "bg-amber-50" },
+  emerald: { badgeColor: "bg-emerald-100 text-emerald-800", dot: "bg-emerald-500", rowColor: "bg-emerald-50" },
+  slate: { badgeColor: "bg-slate-100 text-slate-700", dot: "bg-slate-400", rowColor: "bg-slate-50" },
+};
+
+const TIER_DESCRIPTION: Record<RiskBandLevel, string> = {
+  critical: "Immediate exposure. A deal falling through or any delay creates a genuine financial crisis.",
+  warning: "Limited buffer. The business is vulnerable to normal seasonal slowdowns or unexpected costs.",
+  healthy: "Adequate buffer for most market cycles. Can weather a slow quarter without financial stress.",
+  strong: "Significant resilience. Can invest in growth, take risks, and ride out extended slow periods.",
+};
+
+const TIERS = RISK_BAND_LEVELS.map((level) => ({
+  level,
+  range: `${RISK_BAND_RANGE[level][0].toUpperCase()}${RISK_BAND_RANGE[level].slice(1)}`,
+  badge: RISK_LEVEL_LABEL[level],
+  desc: TIER_DESCRIPTION[level],
+  ...TIER_STYLE[riskColorBand(level)],
+}));
+
+const BAND_WORDS = RISK_BAND_LEVELS.map((level) => RISK_LEVEL_LABEL[level]);
 
 export default function FinancialRunwayMetricPage() {
   return (
@@ -70,8 +106,8 @@ export default function FinancialRunwayMetricPage() {
             {/* Key stat pills */}
             <div className="mt-10 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
               {[
-                { value: "6+ mo", label: "target for strong financial resilience" },
-                { value: "< 1 mo", label: "critical threshold — immediate risk" },
+                { value: `${RISK_BAND_FLOOR_MONTHS.strong}+ mo`, label: `where the ${RISK_LEVEL_LABEL.strong} band starts` },
+                { value: `Under ${RISK_BAND_FLOOR_MONTHS.warning} mo`, label: `the ${RISK_LEVEL_LABEL.critical} band` },
                 { value: "$0", label: "income needed to measure your exposure" },
               ].map((s) => (
                 <div
@@ -208,46 +244,15 @@ export default function FinancialRunwayMetricPage() {
             <div>
               <h2 className="text-2xl font-bold tracking-tight text-slate-900">Risk classification tiers</h2>
               <p className="mt-4 leading-relaxed text-slate-600">
-                A practical way to classify runway is by months of coverage:
+                Agent Runway classifies runway by months of coverage, in four bands. Each band
+                runs from its lower figure up to, but not including, the next one.
               </p>
 
               <div className="mt-5 overflow-hidden rounded-2xl border border-slate-200">
-                {[
-                  {
-                    range: "Less than 1 month",
-                    badge: "Critical",
-                    badgeColor: "bg-red-100 text-red-800",
-                    dot: "bg-red-500",
-                    rowColor: "bg-red-50",
-                    desc: "Immediate exposure. A deal falling through or any delay creates a genuine financial crisis.",
-                  },
-                  {
-                    range: "1–3 months",
-                    badge: "Warning",
-                    badgeColor: "bg-orange-100 text-orange-800",
-                    dot: "bg-orange-400",
-                    rowColor: "bg-orange-50",
-                    desc: "Limited buffer. The business is vulnerable to normal seasonal slowdowns or unexpected costs.",
-                  },
-                  {
-                    range: "3–6 months",
-                    badge: "Healthy",
-                    badgeColor: "bg-emerald-100 text-emerald-800",
-                    dot: "bg-emerald-500",
-                    rowColor: "bg-emerald-50",
-                    desc: "Adequate buffer for most market cycles. Can weather a slow quarter without financial stress.",
-                  },
-                  {
-                    range: "6+ months",
-                    badge: "Strong",
-                    badgeColor: "bg-blue-100 text-blue-800",
-                    dot: "bg-blue-500",
-                    rowColor: "bg-blue-50",
-                    desc: "Significant resilience. Can invest in growth, take risks, and ride out extended slow periods.",
-                  },
-                ].map((tier) => (
+                {TIERS.map((tier) => (
                   <div
-                    key={tier.range}
+                    key={tier.level}
+                    data-band={tier.level}
                     className={`flex items-start gap-4 border-t border-slate-100 first:border-t-0 px-5 py-4 ${tier.rowColor}`}
                   >
                     <div className={`mt-1 h-3 w-3 shrink-0 rounded-full ${tier.dot}`} />
@@ -364,12 +369,13 @@ export default function FinancialRunwayMetricPage() {
             </div>
             <div className="px-8 py-6 sm:px-10">
               <p className="text-sm leading-relaxed text-slate-600">
-                Agent Runway calculates your financial runway automatically from your declared
-                cash reserve and your tracked monthly fixed costs. Your position is classified as
-                Critical, Warning, Healthy, or Strong, and a composite runway score across six
-                financial dimensions generates an overall letter grade (A+ to F) summarising your
-                business&apos;s financial health. Both the runway month count and the composite
-                score update in real time as your reserve and expenses change.
+                Agent Runway divides your cash position by your net monthly burn: your brokerage
+                fee and recurring expenses, less the monthly income it estimates from your active
+                pipeline. With no pipeline, that is the formula above. Your position is classified
+                as {BAND_WORDS.slice(0, -1).join(", ")} or {BAND_WORDS[BAND_WORDS.length - 1]} on the
+                bands above, and cash runway is one of the five components of the Runway Score,
+                a 0 to 100 composite with a letter grade (A+ to F). Both the month count and the
+                score update as your reserve, expenses and pipeline change.
               </p>
             </div>
           </div>
