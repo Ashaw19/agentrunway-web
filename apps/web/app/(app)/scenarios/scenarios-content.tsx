@@ -7,7 +7,7 @@ import { computeAgentGross, computeTxFees } from "@/lib/types/database";
 import { computePlanGross } from "@/lib/engines/real-compensation-engine";
 import { calculate as calculateTax } from "@/lib/engines/canadian-tax-engine";
 import { calculateCorporateTax } from "@/lib/engines/corporate-tax-engine";
-import { survivalResult } from "@/lib/engines/survival-engine";
+import { survivalResult, riskLevelFromMonths, isFlaggedRiskLevel, riskBandPhrase } from "@/lib/engines/survival-engine";
 import { buildHealthReport } from "@/lib/engines/health-report";
 import { compute as computeRunwayScore } from "@/lib/engines/runway-score-engine";
 import { seasonalFractionElapsed } from "@/lib/engines/projection-engine";
@@ -327,10 +327,12 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
   const observation = useMemo(() => {
     // Pick the single most interesting observation from existing current values.
     // Priority: low survival → high tax rate → strong runway → low projected GCI
-    if (current.survivalMonths < 3 && current.survivalMonths > 0) {
+    // "Low" is a runway the survival engine flags (Critical or Warning).
+    const runwayLevel = current.survivalMonths > 0 ? riskLevelFromMonths(current.survivalMonths) : "notConfigured";
+    if (isFlaggedRiskLevel(runwayLevel)) {
       return {
         column: `Cash runway is ${current.survivalMonths.toFixed(1)} months at your current expense level`,
-        nudge: `Your cash runway is under 3 months — try adjusting your reserve to see the effect.`,
+        nudge: `Your cash runway is ${riskBandPhrase(runwayLevel)}. Try adjusting your reserve to see the effect.`,
       };
     }
     if (current.effectiveRate > 0.35) {

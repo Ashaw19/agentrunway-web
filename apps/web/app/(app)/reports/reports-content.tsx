@@ -94,7 +94,15 @@ import { gstHstReportNote } from "@agent-runway/core/tax-copy";
 import type { BusinessReportPDFProps } from "@/components/pdf/business-report-pdf";
 import { compare, COHORT_LABELS } from "@/lib/engines/benchmark-engine";
 import { calculateCorporateTax } from "@/lib/engines/corporate-tax-engine";
-import { survivalResult, riskColorBand, RISK_LEVEL_LABEL, type RiskLevel, type RiskColorBand } from "@/lib/engines/survival-engine";
+import {
+  survivalResult,
+  riskColorBand,
+  netMonthlyBurn,
+  RISK_BAND_LADDER,
+  RISK_LEVEL_LABEL,
+  type RiskLevel,
+  type RiskColorBand,
+} from "@/lib/engines/survival-engine";
 import { computeEffectiveCashForSurvival, computePipelineMonthlyIncome } from "@/lib/engines/effective-cash";
 import {
   compute as computeRunwayScore,
@@ -1371,7 +1379,7 @@ export function ReportsContent({
               </CardTitle>
               <Badge className={`${rs.badgeCls} border-0`}>{rs.label}</Badge>
             </div>
-            <CardDescription>Estimated months without commission income</CardDescription>
+            <CardDescription>Months your cash covers your net monthly burn</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="mb-4 flex items-center gap-3">
@@ -1395,12 +1403,24 @@ export function ReportsContent({
                 <span>Recurring expenses</span>
                 <span>{fmtCurrency(monthlyRecurring)}/mo</span>
               </div>
+              {/* The months are cash ÷ (burn − pipeline income): with pipeline,
+                  show the income and the net burn the figure is divided by. */}
+              {survival.monthlyIncome > 0 && (
+                <>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Pipeline income (estimate)</span>
+                    <span className="font-medium">−{fmtCurrency(survival.monthlyIncome)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Net monthly burn</span>
+                    <span className="font-medium">{fmtCurrency(netMonthlyBurn(survival))}</span>
+                  </div>
+                </>
+              )}
             </div>
-            {survival.months < 4 && (
-              <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 flex items-start gap-2">
-                <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-                <span>Consider building your reserve to at least 4 months of operating costs.</span>
-              </div>
+            {/* The engine's four bands, as the PDF of this page states them. */}
+            {survival.riskLevel !== "notConfigured" && (
+              <p className="mt-4 text-xs text-muted-foreground">{RISK_BAND_LADDER}</p>
             )}
           </CardContent>
         </Card>
