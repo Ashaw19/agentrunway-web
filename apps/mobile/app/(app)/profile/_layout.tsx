@@ -18,6 +18,7 @@ export default function ProfileLayout() {
       <Stack.Screen name="index" options={{ headerShown: false }} />
       <Stack.Screen name="outreach" options={{ title: "Flight Control" }} />
       <Stack.Screen name="contacts-fill" options={{ title: "Fill in from Contacts" }} />
+      <Stack.Screen name="contacts-import" options={{ title: "Import from Contacts" }} />
       <Stack.Screen name="forecast" options={{ title: "Income Forecast" }} />
       <Stack.Screen name="expenses" options={{ title: "Expenses" }} />
       <Stack.Screen name="settings" options={{ title: "Goals & Settings" }} />

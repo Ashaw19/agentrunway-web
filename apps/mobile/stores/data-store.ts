@@ -30,6 +30,11 @@ import type { ChecklistContactMethod } from "@agent-runway/core/lib/checklist";
 import { markMemoryStale } from "@agent-runway/core/lib/client-memory-stale";
 import type { OpportunityLossReason } from "@agent-runway/core/lib/opportunity-loss-reasons";
 import { activityRow, clientRow, pipelineDealRow, transactionRow } from "@agent-runway/core/lib/write-rows";
+import type { ImportCandidate } from "@agent-runway/core/lib/contact-match";
+
+/** How Import from Contacts files new clients (filterable, removable in one go). */
+export const IMPORT_TAG = "iPhone import";
+export const IMPORT_LEAD_SOURCE = "SOI";
 // Score is read directly from the web dashboard's snapshot in user_settings.
 // No local recomputation needed — guarantees exact parity.
 
@@ -457,6 +462,16 @@ interface DataStore {
     >,
   ) => Promise<boolean>;
   addClient: (client: NewClientInput) => Promise<boolean>;
+  /**
+   * Import from Contacts: adds new clients in batches, filed as Cruising with
+   * lead source "SOI" and the tag "iPhone import". A name already taken
+   * (clients are unique by user + name_search) is skipped, not an error, so
+   * running it again is safe. `onProgress` gets the number processed so far.
+   */
+  importClients: (
+    candidates: ImportCandidate[],
+    onProgress?: (done: number) => void,
+  ) => Promise<{ added: number; skipped: number; failed: number }>;
   addActivity: (activity: Omit<ContactActivity, "id" | "created_at">) => Promise<boolean>;
   /**
    * Updates any subset of the canonical Client fields. Web counterpart:
@@ -1448,6 +1463,59 @@ export const useDataStore = create<DataStore>((set, get) => {
 
       toast.show("Deal updated \u2713", "success");
       return true;
+    },
+
+    importClients: async (candidates, onProgress) => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return { added: 0, skipped: 0, failed: candidates.length };
+      const BATCH = 100;
+      let added = 0;
+      let skipped = 0;
+      let failed = 0;
+      for (let i = 0; i < candidates.length; i += BATCH) {
+        // Every row carries every column (NOT NULL ones included): a bulk
+        // insert sends null for a key one row lacks, which would override a
+        // column default.
+        const rows = candidates.slice(i, i + BATCH).map((c) =>
+          clientRow({
+            user_id: user.id,
+            name: c.name,
+            first_name: c.first_name,
+            last_name: c.last_name,
+            phone: c.phone,
+            phone_type: c.phone_type,
+            secondary_phone: c.secondary_phone,
+            secondary_phone_type: c.secondary_phone_type,
+            email: c.email,
+            secondary_email: c.secondary_email,
+            birthdate: c.birthdate,
+            status: "cruising",
+            lead_source: IMPORT_LEAD_SOURCE,
+            tags: [IMPORT_TAG],
+            preferred_contact: c.phone || !c.email ? "phone" : "email",
+            communication_tone: "friendly",
+            property_interest_type: "budget",
+            country: "Canada",
+          }),
+        );
+        const { data, error } = await supabase
+          .from("clients")
+          .upsert(rows, { onConflict: "user_id,name_search", ignoreDuplicates: true })
+          .select("id");
+        if (error) {
+          console.error("importClients error:", error.code ?? "", error.message);
+          failed += rows.length;
+        } else {
+          const n = data?.length ?? 0;
+          added += n;
+          skipped += rows.length - n;
+        }
+        onProgress?.(Math.min(i + BATCH, candidates.length));
+      }
+      await get().fetchClients();
+      return { added, skipped, failed };
     },
 
     addClient: (client) => withMutationGuard("addClient", async () => {
