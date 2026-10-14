@@ -62,7 +62,8 @@
           "resizeMode": "contain",
           "backgroundColor": "#0A0A0F"
         }
-      ]
+      ],
+      "./plugins/with-ios-scene-lifecycle"
     ],
     "experiments": {
       "typedRoutes": true,
