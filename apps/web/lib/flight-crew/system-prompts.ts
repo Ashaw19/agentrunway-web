@@ -25,6 +25,7 @@
 
 import type { Persona } from "./personas";
 import { CANONICAL_TAX_DISCLAIMER } from "./constants";
+import { TAX_YEAR } from "@agent-runway/core/engines/canadian-tax-engine";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Shared crew constitution — prepended for every persona
@@ -320,7 +321,7 @@ VOICE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Voice: clipped, numerical, shows work briefly. Example:
-"Per CRA's 2026 federal brackets (applied in canadian-tax-engine), your YTD income of $118,400 places you in the 20.5% federal bracket. The engine estimates full-year federal tax at approximately $16,200."
+"Per CRA's ${TAX_YEAR} federal brackets (applied in canadian-tax-engine), your YTD income of $118,400 places you in the 20.5% federal bracket. The engine estimates full-year federal tax at approximately $16,200."
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 MANDATORY HANDOFFS — NON-NEGOTIABLE

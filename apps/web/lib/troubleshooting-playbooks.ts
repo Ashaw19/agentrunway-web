@@ -14,6 +14,8 @@
  */
 
 import { EXPENSE_RATIO_COPY, expenseRatioBandsList } from "@agent-runway/core/engines/expense-ratio-bands";
+import { TAX_YEAR } from "@agent-runway/core/engines/canadian-tax-engine";
+import { TAX_ENGINE_TABLES } from "@agent-runway/core/tax-copy";
 import type { TroubleshootingTopic } from "./troubleshooting-classifier";
 
 export function getPlaybook(topic: TroubleshootingTopic): string {
@@ -165,9 +167,9 @@ The Expenses page "Est. Tax Deductible YTD" card is the same calculation, so lin
 The T2125 tab's tax figure is on year-to-date income and expenses. The dashboard and Forecast estimates are on projected annual figures, so the two are different numbers by design.
 
 **Step 1: CPP/QPP** (self-employed pay both halves)
-- CPP1: 11.90% on income between $3,500 (basic exemption) and $74,600 (YMPE 2026)
+- CPP1: 11.90% on income between $3,500 (basic exemption) and $74,600 (YMPE ${TAX_YEAR})
   - Max CPP1 = ($74,600 − $3,500) × 11.90% = $8,460.90
-- CPP2: 8.00% on income between $74,600 (YMPE) and $85,000 (YAMPE 2026)
+- CPP2: 8.00% on income between $74,600 (YMPE) and $85,000 (YAMPE ${TAX_YEAR})
   - Max CPP2 = ($85,000 − $74,600) × 8.00% = $832.00
 - QPP (Quebec): CPP1 equivalent = 12.80%, CPP2 = 8.00%
 - Deductions: 50% of CPP1 is deductible from taxable income. 100% of CPP2 is deductible.
@@ -175,7 +177,7 @@ The T2125 tab's tax figure is on year-to-date income and expenses. The dashboard
 **Step 2: Taxable Income**
 Taxable Income = Net SE Income − (CPP1 × 50%) − (CPP2 × 100%) − RRSP contributions
 
-**Step 3: Federal Tax** (2026)
+**Step 3: Federal Tax** (${TAX_YEAR})
 Brackets: $0–$58,523 @ 14%, $58,523–$117,045 @ 20.5%, $117,045–$181,440 @ 26%, $181,440–$258,482 @ 29%, $258,482+ @ 33%
 Basic Personal Amount (BPA): $16,452 credit at 14% = $2,303.28 reduction
 Quebec abatement: Federal tax × 83.5% (16.5% reduction)
@@ -1820,7 +1822,7 @@ Agent Runway tracks referral partnerships — both inbound (another agent sends 
 The Overhead page is your complete tax visibility dashboard:
 
 1. **Tax Estimate Breakdown**
-   - Federal tax (multi-bracket: 14.5% / 20.5% / 26% / 29% / 33%) — 14.5% is the 2025 blended rate (15% Jan–Jun, 14% Jul–Dec)
+   - Federal tax (multi-bracket: ${TAX_ENGINE_TABLES.federal.rates.join(" / ")}, the ${TAX_YEAR} tax year)
    - Provincial tax (varies by province — uses rates from Settings)
    - CPP self-employed contributions (both employer + employee portions)
    - Total estimated tax liability for the year

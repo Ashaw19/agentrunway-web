@@ -14,6 +14,18 @@ import {
   FEDERAL_BPA_RATE,
 } from "@/lib/engines/canadian-tax-engine";
 import { PROVINCE_LABELS, type Province } from "@agent-runway/core/types/database";
+import {
+  CANONICAL_TAX_DISCLAIMER,
+  CRA_INSTALMENT_SOURCES,
+  INCOME_TAX_INSTALMENT_DUE_DATES,
+  INSTALMENT_DUE_DATES_RULE,
+  INSTALMENT_INTEREST_RULE,
+  INSTALMENT_NET_TAX_OWING_LIMIT,
+  INSTALMENT_NET_TAX_OWING_LIMIT_QUEBEC,
+  INSTALMENT_REQUIREMENT_RULE,
+  SMALL_SUPPLIER_RULE_SHORT,
+  TAX_ENGINE_TABLES,
+} from "@agent-runway/core/tax-copy";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Formatters
@@ -35,6 +47,10 @@ const fmtPct = (n: number) => `${(n * 100).toFixed(1)}%`;
 const PROVINCE_OPTIONS = (Object.entries(PROVINCE_LABELS) as [Province, string][]).sort(
   ([, a], [, b]) => a.localeCompare(b),
 );
+
+// The engine's CPP ceilings and rates, and CRA's instalment dates. Printed, not retyped.
+const { cpp } = TAX_ENGINE_TABLES;
+const INSTALMENT_DUE_DATES = INCOME_TAX_INSTALMENT_DUE_DATES.map((d) => d.long).join(", ");
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Main component
@@ -91,9 +107,12 @@ export function TaxEstimator() {
   const itcEstimate = hstRegistered ? expenses * hstRate : 0;
   const hstNetOwed = Math.max(0, hstCollected - itcEstimate);
 
-  // Instalment threshold: $3,000 federal ($1,800 in Quebec)
-  const instalmentThreshold = isQuebec ? 1_800 : 3_000;
-  const instalmentsRequired = result.totalBurden > instalmentThreshold;
+  // CRA's net tax owing limit for instalments. This is the current-year half
+  // of CRA's test; the other half is one of the two years before.
+  const instalmentThreshold = isQuebec
+    ? INSTALMENT_NET_TAX_OWING_LIMIT_QUEBEC
+    : INSTALMENT_NET_TAX_OWING_LIMIT;
+  const overInstalmentLimit = result.totalBurden > instalmentThreshold;
 
   return (
     <div>
@@ -101,7 +120,7 @@ export function TaxEstimator() {
       <p className="mb-8 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-relaxed text-slate-600">
         As a self-employed Canadian real estate agent you are responsible for{" "}
         <strong className="text-slate-900">your own income tax, CPP/QPP contributions, and quarterly instalments</strong>.
-        Enter your numbers below for an estimate based on 2025 federal and provincial brackets.
+        Enter your numbers below for an estimate for the {result.taxYear} tax year.
       </p>
 
       {/* ── Header ── */}
@@ -111,7 +130,7 @@ export function TaxEstimator() {
         </div>
         <div>
           <h2 className="text-xl font-bold text-slate-900">Canadian Realtor Tax Estimator</h2>
-          <p className="text-sm text-slate-500">2025 federal + provincial · all 13 provinces and territories</p>
+          <p className="text-sm text-slate-500">{result.taxYear} tax year · all 13 provinces and territories</p>
         </div>
       </div>
 
@@ -210,10 +229,7 @@ export function TaxEstimator() {
         />
         <label htmlFor="hstRegistered" className="flex-1 text-sm text-slate-700">
           <span className="font-medium text-slate-900">I am registered for {hstTypeLabel}.</span>
-          <span className="ml-1 text-xs text-slate-500">
-            CRA requires registration once gross revenue from taxable supplies exceeds $30,000 in any
-            four consecutive calendar quarters (small-supplier threshold).
-          </span>
+          <span className="ml-1 text-xs text-slate-500">{SMALL_SUPPLIER_RULE_SHORT}</span>
         </label>
       </div>
 
@@ -255,9 +271,7 @@ export function TaxEstimator() {
               Quarterly instalment estimate: {fmt0(result.quarterlyEstimate)}
             </p>
             <p className="mt-1 text-xs leading-relaxed text-violet-700">
-              CRA requires quarterly instalments once you owe more than $3,000 in tax for two consecutive years.
-              Due dates: <strong>March 15, June 15, September 15, December 15</strong>.
-              Missing instalments triggers compounding interest.
+              {INSTALMENT_REQUIREMENT_RULE} {INSTALMENT_DUE_DATES_RULE} {INSTALMENT_INTEREST_RULE}
             </p>
           </div>
         </div>
@@ -449,7 +463,7 @@ export function TaxEstimator() {
                 </div>
                 <p className="mt-2 text-xs leading-relaxed text-slate-500">
                   After applying the {PROVINCE_LABELS[province]} Basic Personal Amount
-                  ({fmt0(provInfo.basicPersonalAmount)} × {fmtPct(provInfo.lowestRate)}), the {cppLabel}
+                  ({fmt0(provInfo.basicPersonalAmount)} × {fmtPct(provInfo.lowestRate)}), the {cppLabel}{" "}
                   employee-portion credit
                   {province === "ontario" ? ", and the Ontario surtax" : ""}, the provincial tax
                   estimate is <strong>{fmt0(result.provincialTax)}</strong>.
@@ -467,17 +481,17 @@ export function TaxEstimator() {
                 <p className="mt-1 text-xs leading-relaxed text-slate-500">
                   Self-employed individuals pay both the employee and employer halves of {cppLabel}.
                   Contributions apply on net self-employment income above the basic exemption
-                  ($3,500), up to the year&rsquo;s maximum pensionable earnings.
+                  ({cpp.basicExemption}), up to the year&rsquo;s maximum pensionable earnings.
                 </p>
                 <ul className="mt-2 space-y-1 text-xs text-slate-700">
                   <li>
-                    <strong>{cppLabel} Tier 1</strong> (on earnings $3,500 – $74,600 at{" "}
-                    {isQuebec ? "12.80%" : "11.90%"} self-employed rate):{" "}
+                    <strong>{cppLabel} Tier 1</strong> (on earnings {cpp.basicExemption} – {cpp.firstCeiling} at{" "}
+                    {isQuebec ? cpp.qppRate : cpp.rate} self-employed rate):{" "}
                     <strong>{fmt0(result.cpp1Contribution)}</strong>
                   </li>
                   <li>
-                    <strong>{cppLabel} Tier 2</strong> (on earnings $74,600 – $85,000 at{" "}
-                    {isQuebec ? "8.00%" : "8.00%"} self-employed rate):{" "}
+                    <strong>{cppLabel} Tier 2</strong> (on earnings {cpp.firstCeiling} – {cpp.secondCeiling} at{" "}
+                    {isQuebec ? cpp.qpp2Rate : cpp.cpp2Rate} self-employed rate):{" "}
                     <strong>{fmt0(result.cpp2Contribution)}</strong>
                   </li>
                   <li>
@@ -487,8 +501,8 @@ export function TaxEstimator() {
                 </ul>
                 {isQuebec && (
                   <p className="mt-2 text-xs leading-relaxed text-slate-500">
-                    Quebec residents contribute to QPP (Quebec Pension Plan) instead of CPP. The QPP
-                    base rate is higher than CPP (12.80% combined vs 11.90% combined for self-employed).
+                    Quebec residents contribute to QPP (Quebec Pension Plan) instead of CPP. The
+                    engine&rsquo;s self-employed QPP rate is {cpp.qppRate}, against {cpp.rate} for CPP.
                   </p>
                 )}
                 <p className="mt-2 text-[11px] italic text-slate-400">
@@ -505,7 +519,7 @@ export function TaxEstimator() {
                   </h4>
                   <p className="mt-1 text-xs leading-relaxed text-slate-500">
                     Registered agents collect {hstTypeLabel} on commission income and may claim Input
-                    Tax Credits ({hstTypeLabel === "GST + QST" ? "ITCs/ITRs" : "ITCs"}) on the
+                    Tax Credits ({hstTypeLabel === "GST + QST" ? "ITCs/ITRs" : "ITCs"}) on the{" "}
                     {hstTypeLabel} paid on eligible business expenses. {hstTypeLabel} is remitted
                     separately from income tax.
                   </p>
@@ -530,7 +544,7 @@ export function TaxEstimator() {
                   <p className="mt-2 text-xs leading-relaxed text-slate-500">
                     ITCs reduce {hstTypeLabel} owed. Common ITCs: office expenses, vehicle (business
                     portion), software subscriptions, marketing, professional fees. The estimated ITCs
-                    shown are illustrative — actual ITCs depend on which specific expenses were
+                    shown are illustrative — actual ITCs depend on which specific expenses were{" "}
                     {hstTypeLabel}-bearing and the business-use portion of each.
                   </p>
                   <p className="mt-2 text-[11px] italic text-slate-400">
@@ -545,10 +559,7 @@ export function TaxEstimator() {
                   4. Quarterly Instalment Base
                 </h4>
                 <p className="mt-1 text-xs leading-relaxed text-slate-500">
-                  CRA requires quarterly tax instalments when net tax owing exceeds{" "}
-                  {fmt0(instalmentThreshold)}
-                  {isQuebec ? " (Quebec residents — Revenu Québec threshold)" : ""} in the current
-                  year and either of the two preceding years.
+                  {INSTALMENT_REQUIREMENT_RULE}
                 </p>
                 <ul className="mt-2 space-y-1 text-xs text-slate-700">
                   <li>
@@ -556,23 +567,30 @@ export function TaxEstimator() {
                     <strong>{fmt0(result.totalBurden)}</strong>
                   </li>
                   <li>
-                    Threshold check: {fmt0(result.totalBurden)} {instalmentsRequired ? ">" : "≤"}{" "}
-                    {fmt0(instalmentThreshold)} —{" "}
-                    {instalmentsRequired
-                      ? "instalments may be required"
-                      : "instalments may not be required"}
+                    Limit check for {result.taxYear}: {fmt0(result.totalBurden)}{" "}
+                    {overInstalmentLimit ? ">" : "≤"} {fmt0(instalmentThreshold)}.{" "}
+                    {overInstalmentLimit
+                      ? "The estimate is over the limit for this year. CRA's test also looks at the two years before."
+                      : "The estimate is not over the limit for this year."}
                   </li>
                   <li>
                     Quarterly instalment estimate: {fmt0(result.totalBurden)} ÷ 4 ={" "}
                     <strong>{fmt0(result.quarterlyEstimate)}</strong>
                   </li>
                   <li>
-                    Due dates: <strong>March 15, June 15, September 15, December 15</strong>
+                    Due dates: <strong>{INSTALMENT_DUE_DATES}</strong>
                   </li>
                 </ul>
                 <p className="mt-2 text-[11px] italic text-slate-400">
-                  Source: CRA Guide P110 — Paying Your Income Tax by Instalments; CRA Income Tax
-                  Folio S1-F2-C1 (instalment requirements).
+                  Source:{" "}
+                  <a href={CRA_INSTALMENT_SOURCES.whoPays.url} target="_blank" rel="noopener noreferrer" className="underline">
+                    {CRA_INSTALMENT_SOURCES.whoPays.label}
+                  </a>
+                  ;{" "}
+                  <a href={CRA_INSTALMENT_SOURCES.dueDates.url} target="_blank" rel="noopener noreferrer" className="underline">
+                    {CRA_INSTALMENT_SOURCES.dueDates.label}
+                  </a>
+                  .
                 </p>
               </section>
             </div>
@@ -585,9 +603,9 @@ export function TaxEstimator() {
         <Info className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
         <p className="text-xs leading-relaxed text-amber-900">
           <strong>Estimate only — not tax advice.</strong>{" "}
-          This calculator uses 2025 federal and provincial brackets and assumes self-employment
+          This calculator estimates the {result.taxYear} tax year and assumes self-employment
           income only, no employment income, no RRSP deductions, no dependent credits, and no
-          PREC structure. For precise planning, consult a CPA. Agent Runway is not a CPA firm.
+          PREC structure. {CANONICAL_TAX_DISCLAIMER} Agent Runway is not a CPA firm.
         </p>
       </div>
 

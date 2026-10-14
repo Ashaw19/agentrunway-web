@@ -37,7 +37,12 @@ export interface CanadianTaxResult {
 
 // ── Constants ───────────────────────────────────────────────────────────────
 
-const TAX_YEAR = 2026;
+/**
+ * The tax year these tables are for. Every year label in copy prints this
+ * (or `calculate(...).taxYear`), so a label cannot name a year the engine is
+ * not on: apps/web/lib/__tests__/tax-year-label-copy.test.ts.
+ */
+export const TAX_YEAR = 2026;
 
 // Federal 2026 (CRA, verified 2026-06-26). First-bracket rate is a flat 14%
 // (the 2025 mid-year 15%→14% cut is fully in effect; no more blended 14.5%).
@@ -55,15 +60,18 @@ export const FEDERAL_BRACKETS: [number, number][] = [
 
 // CPP/QPP 2026 (CRA, verified 2026-06-26)
 // Source: canada.ca/en/revenue-agency/services/tax/businesses/topics/payroll/payroll-deductions-contributions/canada-pension-plan-cpp/cpp-contribution-rates-maximums-exemptions.html
-const CPP_BASIC_EXEMPTION = 3_500;
-const CPP_YMPE  = 74_600; // 2026 Year's Maximum Pensionable Earnings (first ceiling)
-const CPP_YAMPE = 85_000; // 2026 Year's Additional Maximum Pensionable Earnings (second ceiling)
+// CPP2: canada.ca/en/revenue-agency/services/tax/businesses/topics/payroll/calculating-deductions/making-deductions/second-additional-cpp-contribution-rates-maximums.html
+// Both pages re-read 2026-10-13: 2026 rows unchanged.
+// Exported so copy prints these figures instead of retyping them (tax-copy/engine-tables.ts).
+export const CPP_BASIC_EXEMPTION = 3_500;
+export const CPP_YMPE  = 74_600; // 2026 Year's Maximum Pensionable Earnings (first ceiling)
+export const CPP_YAMPE = 85_000; // 2026 Year's Additional Maximum Pensionable Earnings (second ceiling)
 
 // Self-employed rates (employee + employer combined)
-const CPP1_SELF_RATE = 0.0595 * 2; // 11.90%
-const CPP2_SELF_RATE = 0.04   * 2; //  8.00%
-const QPP1_SELF_RATE = 0.064  * 2; // 12.80%
-const QPP2_SELF_RATE = 0.04   * 2; //  8.00%
+export const CPP1_SELF_RATE = 0.0595 * 2; // 11.90%
+export const CPP2_SELF_RATE = 0.04   * 2; //  8.00%
+export const QPP1_SELF_RATE = 0.064  * 2; // 12.80%
+export const QPP2_SELF_RATE = 0.04   * 2; //  8.00%
 
 // ── Main calculation ────────────────────────────────────────────────────────
 

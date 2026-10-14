@@ -7,6 +7,8 @@ import { ScrollRevealSection } from "@/components/scroll-reveal-section";
 import { EmailCapture } from "@/components/email-capture";
 import { TaxEngineEstimateTable } from "@/components/tax-engine-estimate-table";
 import { articleSchema } from "@/lib/schema";
+import { TAX_YEAR } from "@/lib/engines/canadian-tax-engine";
+import { SELF_EMPLOYED_CPP, TAX_ENGINE_TABLES } from "@agent-runway/core/tax-copy/engine-tables";
 import {
   CRA_INSTALMENT_SOURCES,
   INSTALMENT_DUE_DATES_RULE,
@@ -66,6 +68,11 @@ const CRA_SOURCES = [
     url: "https://www.canada.ca/en/revenue-agency/services/payments/payments-cra/individual-payments/income-tax-instalments/due-dates.html",
   },
   { id: 7, ...CRA_INSTALMENT_SOURCES.interest },
+  {
+    id: 9,
+    label: "CRA — Second additional CPP contribution (CPP2) rates and maximums",
+    url: "https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/payroll/calculating-deductions/making-deductions/second-additional-cpp-contribution-rates-maximums.html",
+  },
 ] as const;
 
 function CRACite({ id }: { id: number }) {
@@ -89,6 +96,10 @@ function CRACite({ id }: { id: number }) {
 // The first used to be a typed range of percentages. It is now the tax
 // engine's own estimate, worked out when the page is built.
 
+// The CPP rates and ceilings are the engine's, for the year it is on. They
+// used to be typed here, and stayed on the 2025 ceilings under a 2026 table.
+const CPP_ANSWER = `Yes. ${SELF_EMPLOYED_CPP.rates}`;
+
 const HOW_MUCH_ANSWER = `The CRA sets no percentage of a commission to save. ${TAX_ENGINE_ESTIMATE.what} ${taxEstimateSpreadSentence(100_000)} ${TAX_ENGINE_ESTIMATE.varies} HST/GST collected on commissions is separate from this estimate.`;
 
 const HST_FILING_FREQUENCY = "HST/GST is typically filed annually or quarterly depending on revenue.";
@@ -103,7 +114,7 @@ const JSON_LD_ARTICLE = articleSchema({
     "The CRA rules behind the tax on commission income, what Agent Runway's tax engine estimates by province, and a free tax estimator tool.",
   url: "/how-much-should-real-estate-agents-save-for-taxes-canada",
   datePublished: "2025-03-01",
-  dateModified: "2026-05-10",
+  dateModified: "2026-10-13",
 });
 
 const JSON_LD_FAQ = {
@@ -123,7 +134,7 @@ const JSON_LD_FAQ = {
       name: "Do real estate agents in Canada pay CPP?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Yes. Self-employed real estate agents in Canada pay both the employee and employer portions of CPP — a combined rate of 11.90% on net self-employment income between $3,500 and $71,300 (2025 YMPE), plus CPP2 at 8.00% on earnings between $71,300 and $81,200 (2025 YAMPE).",
+        text: CPP_ANSWER,
       },
     },
     {
@@ -201,7 +212,7 @@ export default function TaxSavingsGuidePage() {
                   </div>
                   <div className="flex-1">
                     <p className="text-xs font-bold uppercase tracking-wider text-blue-700">
-                      Free tool · Updated for 2025
+                      Free tool · {TAX_YEAR} tax year
                     </p>
                     <h2 className="mt-1 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
                       Canadian Realtor Tax Estimator
@@ -210,7 +221,7 @@ export default function TaxSavingsGuidePage() {
                       Plug in your GCI, province, and deal count. Get federal tax,
                       provincial tax, CPP/QPP, and quarterly instalment amounts —
                       calculated with the same engine that powers the Agent Runway
-                      dashboard. All 13 provinces and territories, 2025 brackets.
+                      dashboard. All 13 provinces and territories, for the {TAX_YEAR} tax year.
                     </p>
                     <p className="mt-5 inline-flex items-center gap-1.5 text-sm font-semibold text-blue-700 transition group-hover:gap-2.5">
                       Open the free estimator
@@ -249,21 +260,20 @@ export default function TaxSavingsGuidePage() {
                 <ul className="ml-4 space-y-2 list-disc list-outside">
                   <li>
                     <strong>Federal income tax</strong> — Progressive brackets
-                    from 15% to 33% on net self-employment income
+                    from {TAX_ENGINE_TABLES.federal.lowestRate} to{" "}
+                    {TAX_ENGINE_TABLES.federal.highestRate} for {TAX_YEAR}
                     <CRACite id={2} />
                   </li>
                   <li>
-                    <strong>Provincial income tax</strong> — Varies by province,
-                    from ~4% (Nunavut) to ~21% (Nova Scotia) at the highest
-                    marginal rates
+                    <strong>Provincial income tax</strong> — Each province and
+                    territory sets its own brackets and rates
                     <CRACite id={2} />
                   </li>
                   <li>
-                    <strong>CPP contributions</strong> — Self-employed agents
-                    pay both employee and employer portions: 11.90% on income
-                    between $3,500 and $71,300 (2025 YMPE), plus CPP2 at 8.00%
-                    on earnings between $71,300 and $81,200 (2025 YAMPE)
+                    <strong>CPP contributions</strong> —{" "}
+                    {SELF_EMPLOYED_CPP.rates}
                     <CRACite id={1} />
+                    <CRACite id={9} />
                   </li>
                   <li>
                     <strong>HST/GST</strong> — Once gross revenue exceeds
@@ -364,11 +374,9 @@ export default function TaxSavingsGuidePage() {
                     Do real estate agents in Canada pay CPP?
                   </h3>
                   <p className="mt-2 text-base leading-relaxed text-slate-600">
-                    Yes. Self-employed real estate agents pay both the employee
-                    and employer portions of CPP — a combined rate of 11.90% on
-                    net self-employment income between $3,500 and $71,300 (2025
-                    YMPE), plus CPP2 at 8.00% on earnings between $71,300 and
-                    $81,200 (2025 YAMPE)<CRACite id={1} />.
+                    {CPP_ANSWER}
+                    <CRACite id={1} />
+                    <CRACite id={9} />
                   </p>
                 </div>
                 <div>

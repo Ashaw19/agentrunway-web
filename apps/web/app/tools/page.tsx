@@ -5,19 +5,23 @@ import { MarketingNav } from "@/components/marketing-nav";
 import { MarketingFooter } from "@/components/marketing-footer";
 import { CharterScarcityStrip } from "@/components/charter-scarcity-strip";
 import { breadcrumbSchema, faqSchema } from "@/lib/schema";
+import { TAX_YEAR } from "@/lib/engines/canadian-tax-engine";
+import {
+  CANONICAL_TAX_DISCLAIMER,
+  TAX_ENGINE_ESTIMATE,
+  TAX_ENGINE_TABLES_SUMMARY,
+} from "@agent-runway/core/tax-copy";
 
 const URL = "https://agentrunway.ca/tools";
 
 export const metadata: Metadata = {
   title: "Free Tools for Canadian Real Estate Agents",
-  description:
-    "Free calculators and tools for Canadian real estate agents — tax estimator, commission calculator, and more. Built for 2025 rates across all 13 provinces and territories.",
+  description: `Free calculators and tools for Canadian real estate agents — tax estimator, commission calculator, and more. Built for the ${TAX_YEAR} tax year across all 13 provinces and territories.`,
   openGraph: {
     type: "website",
     url: URL,
     title: "Free Tools for Canadian Real Estate Agents",
-    description:
-      "Free calculators for Canadian realtors — 2025 tax estimator and per-deal commission calculator.",
+    description: `Free calculators for Canadian realtors — ${TAX_YEAR} tax estimator and per-deal commission calculator.`,
     images: [{ url: "/og-image-v2.png", width: 1200, height: 630 }],
   },
   alternates: { canonical: URL },
@@ -31,10 +35,9 @@ const TOOLS = [
   {
     href: "/tools/realtor-tax-estimator",
     title: "Canadian Realtor Tax Estimator",
-    description:
-      "Estimate your 2025 federal tax, provincial tax, CPP/QPP, and quarterly instalments — covers all 13 provinces and territories.",
+    description: `Estimate your ${TAX_YEAR} federal tax, provincial tax, CPP/QPP, and quarterly instalments — covers all 13 provinces and territories.`,
     icon: Calculator,
-    badge: "Updated for 2025",
+    badge: `${TAX_YEAR} tax year`,
     accentColor: "blue",
   },
   {
@@ -78,8 +81,7 @@ const TOOLS_FAQS = [
   },
   {
     question: "How accurate are the tax estimates?",
-    answer:
-      "The 2025 Canadian Realtor Tax Estimator uses current federal brackets, provincial brackets for all 13 provinces and territories, CPP Tier 1 and Tier 2 rates, and QPP for Quebec residents. It's designed to get you within a few hundred dollars of your actual bill for planning purposes. It is not a substitute for a CRA-licensed accountant at filing time.",
+    answer: `The Canadian Realtor Tax Estimator runs the same tax engine as the Agent Runway dashboard. ${TAX_ENGINE_TABLES_SUMMARY} ${TAX_ENGINE_ESTIMATE.assumptions} ${CANONICAL_TAX_DISCLAIMER}`,
   },
   {
     question: "Do these tools work for every province?",
@@ -131,7 +133,8 @@ export default function ToolsIndexPage() {
             </h1>
             <p className="mt-5 text-lg leading-relaxed text-slate-300 sm:text-xl">
               Calculators we built for ourselves at Agent Runway, now free for every Canadian
-              realtor. 2025 federal and provincial rates, all 13 provinces and territories.
+              realtor. The tax estimator covers the {TAX_YEAR} tax year in all 13 provinces and
+              territories.
             </p>
           </div>
         </section>

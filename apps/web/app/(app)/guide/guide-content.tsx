@@ -32,7 +32,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { KNOWLEDGE_BASE } from "@/lib/knowledge-base";
+import { KNOWLEDGE_BASE, TAX_REFERENCE_HEADING } from "@/lib/knowledge-base";
 import { useAiChat } from "@/lib/ai-chat-context";
 import type { LucideIcon } from "lucide-react";
 
@@ -45,6 +45,14 @@ interface Section {
   icon: LucideIcon;
   description: string;
   color: string; // tailwind gradient classes
+}
+
+/** A section's id, made from its ### heading. */
+function sectionId(title: string): string {
+  return title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
 }
 
 const SECTION_META: Record<string, { icon: LucideIcon; description: string; color: string }> = {
@@ -73,7 +81,7 @@ const SECTION_META: Record<string, { icon: LucideIcon; description: string; colo
     description: "Deal stages, probability weights, and weighted GCI calculations",
     color: "from-amber-500/15 to-amber-600/5 border-amber-500/20",
   },
-  "TAX REFERENCE — 2025 CRA RATES": {
+  [TAX_REFERENCE_HEADING]: {
     icon: Calculator,
     description: "Federal brackets, CPP, provincial rates, GST/HST, home office, mileage",
     color: "from-red-500/15 to-red-600/5 border-red-500/20",
@@ -131,7 +139,7 @@ const ANCHOR_MAP: Record<string, string> = {
   "probability-bands":     "key-metrics-computations",
   "benchmark":             "key-metrics-computations",
   "expense-ratio":         "key-metrics-computations",
-  "tax-estimate":          "tax-reference-2025-cra-rates",
+  "tax-estimate":          sectionId(TAX_REFERENCE_HEADING),
   "financial-waterfall":   "pages-features",
   "flight-control":        "flight-control-ai-outreach-automation-system",
   "flight-status":         "client-status-flight-metaphor",
@@ -230,10 +238,7 @@ function parseSections(kb: string): Section[] {
 
     if (title.startsWith("##") || !content) continue;
 
-    const id = title
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-|-$/g, "");
+    const id = sectionId(title);
 
     const meta = SECTION_META[title] ?? DEFAULT_META;
 

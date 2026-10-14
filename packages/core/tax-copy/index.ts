@@ -34,6 +34,14 @@ export {
 } from "./validate";
 
 export {
+  TAX_ENGINE_TABLES,
+  TAX_ENGINE_TABLES_SUMMARY,
+  SELF_EMPLOYED_CPP,
+  fmtBracketRate,
+  fmtContributionRate,
+} from "./engine-tables";
+
+export {
   SMALL_SUPPLIER_LIMIT,
   SMALL_SUPPLIER_RULE,
   SMALL_SUPPLIER_RULE_SHORT,

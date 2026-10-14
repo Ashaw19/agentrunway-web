@@ -16,6 +16,11 @@ import {
 import { RISK_BAND_LADDER } from "@/lib/engines/survival-engine";
 import { PROVINCE_LABELS } from "@/lib/types/database";
 import { EXPENSE_RATIO_COPY } from "@agent-runway/core/engines/expense-ratio-bands";
+import { TAX_YEAR } from "@agent-runway/core/engines/canadian-tax-engine";
+import { CANONICAL_TAX_DISCLAIMER, TAX_ENGINE_TABLES } from "@agent-runway/core/tax-copy";
+
+// The engine's federal and CPP figures for its tax year. Printed, not retyped.
+const { federal, cpp } = TAX_ENGINE_TABLES;
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -214,7 +219,7 @@ export function GuidePdf({ province, businessStructure, splitPreset }: Props) {
           {"\u2022"} Expense management with receipt OCR, mileage logging, and bank imports
         </Text>
         <Text style={S.bullet}>
-          {"\u2022"} Tax estimation engine with 2025 CRA federal + provincial brackets
+          {"\u2022"} Tax estimation engine for the {TAX_YEAR} tax year, federal + provincial
         </Text>
         <Text style={S.bullet}>
           {"\u2022"} CRM with client statuses, activity logging, and follow-up tasks
@@ -322,15 +327,15 @@ export function GuidePdf({ province, businessStructure, splitPreset }: Props) {
       <Page size="LETTER" style={S.page}>
         <Text style={S.sectionTitle}>Tax & Forecast ({provinceName})</Text>
         <Text style={S.body}>
-          Agent Runway estimates your tax obligations using 2025 CRA rates for your province
-          ({provinceName}). These are estimates only — always consult a qualified Canadian accountant.
+          Agent Runway estimates your tax for the {TAX_YEAR} tax year, for your province
+          ({provinceName}). {CANONICAL_TAX_DISCLAIMER}
         </Text>
 
         <Text style={S.sectionSubtitle}>Tax Components</Text>
-        <Text style={S.bullet}>{"\u2022"} Federal income tax (graduated brackets from 14% to 33%)</Text>
+        <Text style={S.bullet}>{"\u2022"} Federal income tax (graduated brackets from {federal.lowestRate} to {federal.highestRate})</Text>
         <Text style={S.bullet}>{"\u2022"} Provincial income tax ({provinceName} brackets)</Text>
-        <Text style={S.bullet}>{"\u2022"} CPP/QPP self-employment (both halves: 11.90% on $3,500–$74,600)</Text>
-        <Text style={S.bullet}>{"\u2022"} CPP2 (8.00% on $74,600–$85,000, 100% deductible)</Text>
+        <Text style={S.bullet}>{"\u2022"} CPP/QPP self-employment (both halves: {cpp.rate} on {cpp.basicExemption}–{cpp.firstCeiling})</Text>
+        <Text style={S.bullet}>{"\u2022"} CPP2 ({cpp.cpp2Rate} on {cpp.firstCeiling}–{cpp.secondCeiling}, 100% deductible)</Text>
 
         <Text style={S.sectionSubtitle}>Tax Estimates</Text>
         <Text style={S.body}>
