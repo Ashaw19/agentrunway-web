@@ -1398,6 +1398,7 @@ All figures are a snapshot of the REAL income deck and are user-editable — if 
 **Effective Cash** (from cash-position-engine.ts):
 - If agent has closed deals this year: max(0, Implied Cash + Manual Cash Reserve)
   - Implied Cash = YTD Agent Net − YTD Expenses − YTD Estimated Tax − YTD HST Owing
+  - YTD Agent Net = this year's GCI after the split and plan fees, less the monthly brokerage fee for the months so far. On the REAL plan it is the plan's waterfall run deal by deal over this year's closed deals (REAL's 15% until the cap, post-cap and Elite fees, CBR, BEOP, the year-1 sign-up fee), on every screen and in the diagnostic data (effective-cash.ts with the year's deals; the dashboard's planDeals)
   - YTD Expenses are net of ITCs for a registrant, so the ITCs are already counted there
   - HST Owing = $0 if brokerage withholds HST; otherwise HST collected on commissions (no second ITC offset: that would count the same GST/HST twice)
   - This is what should be in the account if the agent has been disciplined
@@ -1444,6 +1445,9 @@ Changed 2026-10-13: until then these screens used cut-offs of their own, so they
 
 **"Survival shows 24 months — is that right?"**
 → The runway reads 24+ months when the cash covers 24 months or more of net burn, or when the Income Offset is at or above the monthly burn (net burn $0; the diagnostic says so when that is the case). The Income Offset is an estimate from deals that have not closed, weighted by stage: it is not money received, so 24+ months on this basis does not mean the account holds that much cash.
+
+**"My cash runway (or Runway Score) on Forecast, Reports, Altimeter or Expenses differs from the dashboard" (REAL plan)**
+→ Changed 2026-10-14: for an agent on the REAL plan, those screens, the weekly digest email and the diagnostic data worked YTD Agent Net out from a simulation of the plan on the year's total GCI, while the dashboard ran the plan deal by deal over this year's closed deals. The two differ most when a deal closed before the agent's REAL anniversary date (the cap and the sign-up fee belong to the anniversary year, not the calendar year) or a deal crossed the cap. Since that date every screen runs the dashboard's per-deal waterfall, so the cash, cash runway and Survival sub-score match it. Nothing in the agent's data changed. A digest sent before that date can show a different figure. If a screen still differs today, reload both (a deal or expense added in between changes both). On a simple split the change made no difference.
 
 **"Survival seems too low"**
 1. Check cash reserve amount in Settings — is it current?

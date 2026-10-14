@@ -83,6 +83,7 @@ interface UserSettings {
 }
 
 interface Transaction {
+  id: string;
   date: string;
   sale_price: number;
   commission_pct: number;
@@ -196,7 +197,7 @@ export async function buildDiagnostics(
     supabase.from("user_settings").select("*").eq("user_id", userId).single(),
     supabase
       .from("transactions")
-      .select("date, sale_price, commission_pct, team_split_pct, gci_override, status")
+      .select("id, date, sale_price, commission_pct, team_split_pct, gci_override, status")
       .eq("user_id", userId),
     supabase
       .from("pipeline_deals")
@@ -404,6 +405,10 @@ function diagCashRunway(ctx: DiagContext): { survival: SurvivalResult; effective
   const { cashPosition } = computeEffectiveCashForSurvival({
     settings: s as unknown as CanonicalUserSettings,
     ytdGCI,
+    // The deals ytdGCI sums, for the plan's per-deal waterfall (the dashboard's
+    // planDeals). Until 2026-10-14 they were left out, so a REAL agent's
+    // diagnostic cash was the analytic simulation's, not the dashboard's.
+    transactions: closedTx.map((tx) => ({ id: tx.id, date: tx.date, gci: computeGCI(tx as Parameters<typeof computeGCI>[0]) })),
     expensesYTD,
     expensesRemaining: ctx.expensesRemaining,
     projectedGCI: projGCI,

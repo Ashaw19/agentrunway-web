@@ -283,6 +283,8 @@ function seedBefore(f: Fixture) {
   const cashReserve = computeEffectiveCashForSurvival({
     settings: f.settings,
     ytdGCI,
+    // The pages left the deals out: an empty list is that (the analytic simulation).
+    transactions: [],
     expensesYTD: EXPENSES.expensesYTD,
     expensesRemaining: EXPENSES.expensesRemaining,
     projectedGCI: projectedAnnualGCI,

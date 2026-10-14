@@ -148,6 +148,7 @@ function deriveInputs() {
   const { cashPosition } = computeEffectiveCashForSurvival({
     settings: SETTINGS,
     ytdGCI,
+    transactions: CLOSED_TX.map((tx) => ({ id: tx.id, date: tx.date, gci: computeGCI(tx) })),
     expensesYTD: EXPENSES_YTD,
     expensesRemaining: EXPENSES_REMAINING,
     projectedGCI: projGCI,

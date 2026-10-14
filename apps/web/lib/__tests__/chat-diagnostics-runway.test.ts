@@ -170,6 +170,7 @@ function dashboard(a: Account) {
   const { cashPosition } = computeEffectiveCashForSurvival({
     settings: s,
     ytdGCI,
+    transactions: transactions.map((tx) => ({ id: tx.id, date: tx.date, gci: computeGCI(tx) })),
     expensesYTD: 0,
     expensesRemaining: 0,
     projectedGCI,

@@ -401,6 +401,8 @@ export function ReportsContent({
   const { cashPosition: reportsCashPosition } = computeEffectiveCashForSurvival({
     settings,
     ytdGCI,
+    // The deals ytdGCI sums, for the plan's per-deal waterfall (the dashboard's planDeals).
+    transactions: ytdTx.map((tx) => ({ id: tx.id, date: tx.date, gci: computeGCI(tx) })),
     expensesYTD,
     expensesRemaining,
     projectedGCI,

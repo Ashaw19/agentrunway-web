@@ -167,15 +167,15 @@ export async function GET(req: NextRequest) {
       // Only send if user has explicitly opted in (row exists AND enabled)
       if (!prefs || prefs.weekly_digest_enabled !== true) continue;
 
-      // Fetch closed transactions for this year
+      // Fetch closed transactions for this year (the dashboard's rows)
       const { data: txRows } = await admin
         .from("transactions")
-        .select("date, sale_price, commission_pct, team_split_pct, gci_override, status")
+        .select("id, date, sale_price, commission_pct, team_split_pct, gci_override, status")
         .eq("user_id", user.user_id)
         .eq("status", "closed")
         .gte("date", `${year}-01-01`)
         .order("date", { ascending: false })
-        .limit(1000);
+        .limit(10000);
 
       const transactions = (txRows ?? []) as Transaction[];
 
@@ -343,6 +343,8 @@ export async function GET(req: NextRequest) {
       const { cashPosition: digestCashPosition } = computeEffectiveCashForSurvival({
         settings: user as UserSettings,
         ytdGCI,
+        // The deals ytdGCI sums, for the plan's per-deal waterfall (the dashboard's planDeals).
+        transactions: transactions.map((tx) => ({ id: tx.id, date: tx.date, gci: computeGCI(tx) })),
         expensesYTD,
         expensesRemaining,
         projectedGCI,
