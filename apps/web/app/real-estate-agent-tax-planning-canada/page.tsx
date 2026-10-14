@@ -6,7 +6,23 @@ import { MarketingFooter } from "@/components/marketing-footer";
 import { EmailCapture } from "@/components/email-capture";
 import { TaxEngineEstimateTable } from "@/components/tax-engine-estimate-table";
 import { articleSchema } from "@/lib/schema";
-import { TAX_ENGINE_ESTIMATE } from "@agent-runway/core/tax-copy";
+import {
+  BUSINESS_EXPENSE_RULE,
+  CAPITAL_COST_ALLOWANCE_RULE,
+  CRA_INSTALMENT_SOURCES,
+  INCOME_TAX_INSTALMENT_DUE_DATES,
+  INSTALMENT_ENGINE_ESTIMATE,
+  INSTALMENT_INTEREST_RULE,
+  INSTALMENT_OPTION_INTEREST_RULE,
+  INSTALMENT_OPTION_LIST,
+  INSTALMENT_OPTIONS_RULE,
+  INSTALMENT_PENALTY_RULE,
+  INSTALMENT_REQUIREMENT_RULE,
+  INSTALMENT_WITHHOLDING_RULE,
+  MEALS_ENTERTAINMENT_RULE,
+  PERSONAL_EXPENSE_RULE,
+  TAX_ENGINE_ESTIMATE,
+} from "@agent-runway/core/tax-copy";
 
 export const metadata: Metadata = {
   title: "Real Estate Agent Tax Planning in Canada",
@@ -29,7 +45,7 @@ const JSON_LD_ARTICLE = articleSchema({
     "A practical guide to tax planning for Canadian real estate agents — quarterly instalments, deductible expenses, CPP contributions, and HST/GST registration.",
   url: "/real-estate-agent-tax-planning-canada",
   datePublished: "2025-03-15",
-  dateModified: "2026-05-10",
+  dateModified: "2026-10-13",
 });
 
 // ── CRA primary sources (audit registry) ─────────────────────────────────────
@@ -104,6 +120,7 @@ const CRA_SOURCES = [
     label: "CRA — Self-employed: Chapter 3 — Expenses (T4002, includes meals 50% rule)",
     url: "https://www.canada.ca/en/revenue-agency/services/forms-publications/publications/t4002/t4002-5.html",
   },
+  { id: 14, ...CRA_INSTALMENT_SOURCES.interest },
 ] as const;
 
 function CRACite({ id }: { id: number }) {
@@ -215,9 +232,10 @@ export default function RealEstateAgentTaxPlanningCanadaPage() {
 
               <p>
                 Most real estate agents in Canada operate as self-employed independent
-                contractors rather than salaried employees. This distinction has far-reaching
-                tax implications that many agents only fully appreciate when they file their
-                first return — or receive their first unexpected CRA bill.
+                contractors rather than salaried employees. Three things follow from
+                that for tax: nothing is withheld from a commission at source, both
+                halves of CPP are payable by the agent, and income tax may be payable
+                by instalments during the year.
               </p>
 
               <h3>No employer withholding</h3>
@@ -225,18 +243,16 @@ export default function RealEstateAgentTaxPlanningCanadaPage() {
               <p>
                 A salaried employee has income tax, CPP contributions, and EI premiums
                 deducted directly from each paycheque before it arrives. A self-employed
-                agent receives commission payments with no deductions applied at source.
-                The full gross amount lands in your account, and the calculation of what
-                is owed and held tax-side falls on the agent. Every commission cheque
-                that comes in contains a portion estimated for the CRA — whether or not
-                that portion is mentally accounted for at the time.
+                agent receives commission payments with no deductions applied at source.{" "}
+                {INSTALMENT_WITHHOLDING_RULE}
+                <CRACite id={4} />
               </p>
 
               <h3>The double CPP burden</h3>
 
               <p>
-                Canada Pension Plan contributions represent one of the largest and most
-                frequently overlooked tax costs for self-employed agents. A salaried
+                Canada Pension Plan contributions are payable on net self-employment
+                earnings. A salaried
                 employee contributes the employee share of CPP — 5.95% on pensionable
                 earnings up to the Year&apos;s Maximum Pensionable Earnings (YMPE)
                 <CRACite id={1} />, with the employer matching that amount. A
@@ -252,10 +268,7 @@ export default function RealEstateAgentTaxPlanningCanadaPage() {
                 Additional Maximum Pensionable Earnings (YAMPE — $81,200 in 2025) at a
                 self-employed rate of 8.00%, capped at $792.00 for the year
                 <CRACite id={2} />. Combined, the 2025 maximum self-employed CPP
-                contribution is $8,860.20<CRACite id={1} /><CRACite id={2} />. An
-                agent with $80,000 or more in net business income can expect CPP
-                contributions alone to account for a meaningful share of the overall
-                tax figure before federal or provincial income tax is considered. The
+                contribution is $8,860.20<CRACite id={1} /><CRACite id={2} />. The
                 full 2025 CPP1 and CPP2 numbers, worked examples at $80K, $120K, and
                 $200K, and the deduction-and-credit mechanic that offsets a portion of
                 the gross figure are all covered in the dedicated{" "}
@@ -275,11 +288,8 @@ export default function RealEstateAgentTaxPlanningCanadaPage() {
                 that reach 33% on taxable income above $253,414 for 2025
                 <CRACite id={7} />. The basic personal amount, which reduces federal
                 taxable income at the lowest-bracket rate, is $16,129 for 2025
-                <CRACite id={8} />. Provincial income tax is assessed on top at rates
-                that vary significantly by province — Ontario, British Columbia, and
-                Alberta have meaningfully different rate structures, and the total
-                combined marginal rate for a mid-career agent earning $120,000 in net
-                income may land in the 40–45% range depending on province. The
+                <CRACite id={8} />. Provincial income tax is assessed on top, at rates
+                that vary by province. The
                 verified 2025 brackets and combined marginal rates for the three
                 Maritime provinces are published in the{" "}
                 <Link
@@ -292,10 +302,10 @@ export default function RealEstateAgentTaxPlanningCanadaPage() {
               </p>
 
               <p>
-                Because real estate income is variable and lumpy — a strong spring can
-                generate more taxable income than anticipated — agents who do not proactively
-                track their projected annual income through the year are routinely caught
-                off guard by the size of their April obligation.
+                Commission income arrives unevenly through the year, and income tax is
+                worked out on net business income for the whole year. The tax for a
+                year therefore depends on deals that have not closed yet, which is why
+                the figure shown before year end is an estimate.
               </p>
 
               {/* ── Section 2: Quarterly Instalments ── */}
@@ -304,12 +314,9 @@ export default function RealEstateAgentTaxPlanningCanadaPage() {
               </h2>
 
               <p>
-                The Canada Revenue Agency does not wait until April to collect tax from
-                self-employed Canadians. If net tax owing exceeds $3,000 for the current
-                year — and exceeded $3,000 in either of the two preceding years
-                ($1,800 for Quebec residents) — quarterly instalments apply
-                <CRACite id={4} />. For the majority of active real estate agents, this
-                threshold is met.
+                {INSTALMENT_REQUIREMENT_RULE}
+                <CRACite id={3} />
+                <CRACite id={4} />
               </p>
 
               <h3>Instalment due dates</h3>
@@ -320,10 +327,9 @@ export default function RealEstateAgentTaxPlanningCanadaPage() {
               </p>
 
               <ul>
-                <li><strong>March 15</strong></li>
-                <li><strong>June 15</strong></li>
-                <li><strong>September 15</strong></li>
-                <li><strong>December 15</strong></li>
+                {INCOME_TAX_INSTALMENT_DUE_DATES.map((due) => (
+                  <li key={due.quarter}><strong>{due.long}</strong></li>
+                ))}
               </ul>
 
               <p>
@@ -350,49 +356,36 @@ export default function RealEstateAgentTaxPlanningCanadaPage() {
               </p>
 
               <p>
-                Missing an instalment date does not result in an immediate penalty, but
-                the CRA charges instalment interest at the prescribed rate
-                <CRACite id={3} /> on any amounts that were due but not paid. Where the
-                underpayment is significant, an additional penalty may apply on top of
-                the interest<CRACite id={3} />. The practical effect is that compressing
-                a full year of tax obligation into a single February-to-April payment
-                may create cash-flow strain that quarterly instalments are designed to
-                avoid.
+                {INSTALMENT_INTEREST_RULE}
+                <CRACite id={14} /> {INSTALMENT_PENALTY_RULE}
+                <CRACite id={14} />
               </p>
 
               <h3>How to calculate your instalment amounts</h3>
 
               <p>
-                The CRA offers three options for calculating instalment payments
-                <CRACite id={6} />:
+                {INSTALMENT_OPTIONS_RULE}
+                <CRACite id={6} /> CRA describes each one the same way: how the
+                amounts are worked out, and the situation it is best for.
               </p>
 
               <ul>
-                <li>
-                  <strong>No-calculation option</strong> — pay the amounts shown on the
-                  CRA&apos;s instalment reminders, which are based on a two-year look-back.
-                  This is the default if the agent prefers the CRA-calculated figure.
-                </li>
-                <li>
-                  <strong>Prior-year option</strong> — pay one quarter of last year&apos;s
-                  net tax owing each quarter. Following this option exactly eliminates
-                  instalment-interest risk even if income grows.
-                </li>
-                <li>
-                  <strong>Current-year option</strong> — estimate the current year&apos;s
-                  tax liability and pay one quarter of that estimate each period. This
-                  approach requires forecasting and may reduce overpayment if income
-                  drops, but underestimating exposes the agent to instalment interest.
-                </li>
+                {INSTALMENT_OPTION_LIST.map((option) => (
+                  <li key={option.name}>
+                    <strong>{option.name}.</strong> {option.how} {option.bestIf}
+                    <CRACite id={6} />
+                  </li>
+                ))}
               </ul>
 
               <p>
-                The most effective planning approach for agents with variable income is
-                the current-year method, updated as actual income accumulates through
-                the year. This requires maintaining a running projection of your annual
-                net business income — which is exactly what a tool like Agent Runway
-                calculates automatically. Full CRA mechanics for each method, the
-                interest rules, and the four payment channels are detailed in the{" "}
+                {INSTALMENT_OPTION_INTEREST_RULE}
+                <CRACite id={6} />
+              </p>
+
+              <p>
+                {INSTALMENT_ENGINE_ESTIMATE} CRA&apos;s wording for each option,
+                the interest rules, and the payment channels are covered in the{" "}
                 <Link
                   href="/real-estate-agent-tax-instalments-canada"
                   className="font-semibold text-blue-600 underline underline-offset-2"
@@ -426,11 +419,10 @@ export default function RealEstateAgentTaxPlanningCanadaPage() {
               </h2>
 
               <p>
-                One of the genuine advantages of self-employment is the ability to deduct
-                legitimate business expenses against income. For real estate agents, a
-                well-managed expense strategy can meaningfully reduce net business income
-                and therefore reduce tax owed. The key is tracking expenses consistently
-                throughout the year and understanding which categories the CRA recognises.
+                {BUSINESS_EXPENSE_RULE}
+                <CRACite id={9} /> A deductible expense lowers net business income,
+                which is the figure income tax and CPP are worked out on. The
+                categories below are ones real estate agents commonly claim.
               </p>
 
               <h3>Common deductible expenses for real estate agents</h3>
@@ -510,16 +502,13 @@ export default function RealEstateAgentTaxPlanningCanadaPage() {
                 {" "}walks you through every section.
               </p>
 
-              <h3>What is not deductible</h3>
+              <h3>Limits on what is deductible</h3>
 
               <p>
-                Personal expenses, even those loosely related to work, are not
-                deductible. Meals and entertainment have a 50% deductibility cap and
-                are required by the CRA to be directly connected to business activity
-                <CRACite id={13} />. Capital expenditures — equipment, laptops, vehicles
-                purchased outright — are typically handled through Capital Cost Allowance
-                (CCA) depreciation schedules rather than immediate deduction
-                <CRACite id={12} />.
+                {PERSONAL_EXPENSE_RULE}
+                <CRACite id={9} /> {MEALS_ENTERTAINMENT_RULE}
+                <CRACite id={13} /> {CAPITAL_COST_ALLOWANCE_RULE}
+                <CRACite id={12} />
               </p>
 
               <p>
@@ -574,30 +563,25 @@ export default function RealEstateAgentTaxPlanningCanadaPage() {
               </h2>
 
               <p>
-                Tax planning is not a once-a-year event for serious real estate agents.
-                Every deal you close, every expense you incur, and every month that
-                passes changes your tax position for the year. Understanding how each
-                of those factors flows through to actual take-home pay is covered in
-                detail in the guide to{" "}
+                Every deal closed, every expense logged, and every month that
+                passes changes the tax estimate for the year. How each
+                of those flows through to take-home pay is covered in
+                the guide to{" "}
                 <Link href="/how-real-estate-agents-calculate-net-income">
                   how real estate agents calculate net income
                 </Link>
                 . <Link href="/">Agent Runway</Link>{" "}
-                is built to make that continuous awareness automatic, rather than
-                something you reconstruct at the end of February.
+                keeps that estimate current as deals and expenses are entered.
               </p>
 
               <h3>Expense tracking by category</h3>
 
               <p>
-                Agent Runway includes pre-built expense categories tailored to real
-                estate agents — the same categories that the CRA recognises as
-                legitimate deductions for self-employed professionals. Every expense
-                you log reduces your running net business income estimate, which in
-                turn reduces the projected tax figure displayed on your dashboard.
-                Tracking expenses throughout the year means your tax estimates stay
-                accurate, and you arrive at filing time with complete records rather
-                than a pile of unorganised receipts.
+                Agent Runway&apos;s expense categories are set up for real estate
+                agents. Every expense logged lowers the running net business income
+                estimate, and the projected tax figure on the dashboard is worked
+                out from that estimate. Whether a given expense is deductible is
+                decided by CRA&apos;s rules, not by the category it is logged under.
               </p>
 
               <h3>Quarterly instalment estimates based on projected income</h3>
@@ -605,11 +589,10 @@ export default function RealEstateAgentTaxPlanningCanadaPage() {
               <p>
                 Because Agent Runway tracks your GCI, applies your brokerage split and
                 expenses, and projects your year-end income using seasonality-aware
-                forecasting, it always has a current estimate of your annual net business
-                income. From that estimate, the platform calculates an estimated
-                quarterly instalment amount — updated automatically as new deals close
-                and new expenses are logged. The figure stays visible on your dashboard
-                rather than being reconstructed manually each quarter.
+                forecasting, it has a current estimate of your annual net business
+                income. The tax engine works out the year&apos;s tax from that
+                estimate, and the quarterly figure on the dashboard is one quarter
+                of it. The figure updates as deals close and expenses are logged.
               </p>
 
               <h3>Per-deal tax portion (estimate)</h3>
