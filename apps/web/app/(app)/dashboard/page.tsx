@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { fetchAllRows } from "@/lib/supabase/fetch-all";
 import { redirect } from "next/navigation";
 import { DashboardContent } from "./dashboard-content";
 import type { HistoryItem, ContactTask, Client, ContactActivity, ClientRecord, ListingAppointment, RunwayScoreHistory, RunwayScoreHistoryComponent } from "@/lib/types/database";
@@ -109,24 +110,26 @@ export default async function DashboardPage({
         // clients inflated this "active clients" count. Matches layout.tsx.
         .is("archived_at", null)
         .in("status", ["boarding", "in_flight"]),
-      supabase
-        .from("contact_activities")
-        .select("client_id")
-        .eq("user_id", user.id)
-        // An instant: a bare date here is read as that day's UTC midnight.
-        .gte("activity_date", new Date(Date.now() - 14 * 86_400_000).toISOString()),
-      supabase.from("clients").select("*").eq("user_id", user.id).limit(10000),
+      // Every row in pages below: one request stops at 1,000 rows.
+      fetchAllRows((from, to) =>
+        supabase
+          .from("contact_activities")
+          .select("id, client_id")
+          .eq("user_id", user.id)
+          // An instant: a bare date here is read as that day's UTC midnight.
+          .gte("activity_date", new Date(Date.now() - 14 * 86_400_000).toISOString())
+          .order("id")
+          .range(from, to)),
+      fetchAllRows((from, to) =>
+        supabase.from("clients").select("*").eq("user_id", user.id).order("id").range(from, to)),
       supabase
         .from("contact_activities")
         .select("*")
         .eq("user_id", user.id)
         .order("activity_date", { ascending: false })
         .limit(500),
-      supabase
-        .from("client_records")
-        .select("*")
-        .eq("user_id", user.id)
-        .limit(10000),
+      fetchAllRows((from, to) =>
+        supabase.from("client_records").select("*").eq("user_id", user.id).order("id").range(from, to)),
       supabase
         .from("listing_appointments")
         .select("*")

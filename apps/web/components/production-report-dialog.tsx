@@ -1,5 +1,6 @@
 "use client";
 
+import { fetchAllRows } from "@/lib/supabase/fetch-all";
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { generateProductionExcel } from "@/lib/reports/production-report-excel";
@@ -38,17 +39,15 @@ export function ProductionReportDialog({ open, onClose, historyItems, settings }
     try {
       // Fetch client records for deal-level detail
       const supabase = createClient();
-      let query = supabase
-        .from("client_records")
-        .select("*")
-        .eq("user_id", settings.user_id)
-        .order("close_date", { ascending: true });
-
-      if (yearFilter !== "all") {
-        query = query.eq("year", parseInt(yearFilter));
-      }
-
-      const { data: clientRecords } = await query;
+      // In pages: one request stops at 1,000 rows, and "All years" can pass it.
+      const { data: clientRecords } = await fetchAllRows((from, to) => {
+        let query = supabase
+          .from("client_records")
+          .select("*")
+          .eq("user_id", settings.user_id);
+        if (yearFilter !== "all") query = query.eq("year", parseInt(yearFilter));
+        return query.order("close_date", { ascending: true }).order("id").range(from, to);
+      });
       const records = clientRecords ?? [];
 
       const reportData = {

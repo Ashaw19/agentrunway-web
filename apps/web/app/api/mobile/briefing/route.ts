@@ -23,6 +23,7 @@
  * RLS-scoped admin pattern as the log-activity route.
  */
 
+import { fetchAllRows } from "@/lib/supabase/fetch-all";
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
@@ -77,22 +78,17 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     // and web see identical briefings for the same user.
     const [clientsResult, activitiesResult, recordsResult, listingsResult] =
       await Promise.all([
-        admin
-          .from("clients")
-          .select("*")
-          .eq("user_id", user.id)
-          .limit(10000),
+        // Clients and deal records in pages: one request stops at 1,000 rows.
+        fetchAllRows((from, to) =>
+          admin.from("clients").select("*").eq("user_id", user.id).order("id").range(from, to)),
         admin
           .from("contact_activities")
           .select("*")
           .eq("user_id", user.id)
           .order("activity_date", { ascending: false })
           .limit(500),
-        admin
-          .from("client_records")
-          .select("*")
-          .eq("user_id", user.id)
-          .limit(10000),
+        fetchAllRows((from, to) =>
+          admin.from("client_records").select("*").eq("user_id", user.id).order("id").range(from, to)),
         admin
           .from("listing_appointments")
           .select("*")

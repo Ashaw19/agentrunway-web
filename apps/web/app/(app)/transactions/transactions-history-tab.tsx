@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useState, useRef, useMemo, useEffect } from "react";
+import { fetchAllIn, fetchAllRows } from "@/lib/supabase/fetch-all";
+import { deleteOrphanedImportedClients } from "@/lib/crm/orphan-clients";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { FIELD_LIMITS } from "@agent-runway/core/validation/input-guards";
@@ -350,69 +352,40 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
       toast.error(`${item.year} history removed, but some imported deals couldn't be deleted. Please refresh.`);
     }
 
-    // 3. Cascade: delete client_records for this year.
-    const { data: deletedRecords, error: crError } = await supabase
-      .from("client_records")
-      .delete()
-      .eq("user_id", user.id)
-      .eq("year", item.year)
-      .select("client_id");
+    // 3. Cascade: delete client_records for this year. Their clients are read
+    //    first, in full (one request stops at 1,000 rows), for the cleanup.
+    const yearRecords = await fetchAllRows<{ client_id: string | null }>((from, to) =>
+      supabase
+        .from("client_records")
+        .select("id, client_id")
+        .eq("user_id", user.id)
+        .eq("year", item.year)
+        .order("id")
+        .range(from, to),
+    );
+    const { error: crError } = yearRecords.error
+      ? { error: yearRecords.error }
+      : await supabase
+          .from("client_records")
+          .delete()
+          .eq("user_id", user.id)
+          .eq("year", item.year);
 
     if (crError) {
       toast.error(`${item.year} history removed, but some client records couldn't be deleted. Please refresh.`);
       return;
     }
 
-    // 4. Orphan cleanup: if any client_records were deleted, check for clients
-    //    that now have zero remaining records AND no other CRM data, then remove.
-    //    Only delete import-created clients (imported_at IS NOT NULL) to avoid
-    //    destroying manually-created clients with active activities/tasks/deals.
-    if (deletedRecords && deletedRecords.length > 0) {
-      const { data: remainingRecords } = await supabase
-        .from("client_records")
-        .select("client_id")
-        .eq("user_id", user.id);
-
-      const stillReferencedIds = new Set(
-        (remainingRecords ?? []).map((r) => r.client_id).filter(Boolean)
-      );
-
-      const candidateIds = [
-        ...new Set(deletedRecords.map((r) => r.client_id).filter(Boolean)),
-      ];
-
-      const orphanedIds = candidateIds.filter((id) => !stillReferencedIds.has(id));
-
-      if (orphanedIds.length > 0) {
-        // Double-check: only delete clients that were auto-created by import
-        // (imported_at is set) AND have no pipeline deals referencing them.
-        // This prevents cascade-deleting active CRM data.
-        const { data: safeToDelete } = await supabase
-          .from("clients")
-          .select("id")
-          .eq("user_id", user.id)
-          .in("id", orphanedIds)
-          .not("imported_at", "is", null);
-
-        const safeIds = (safeToDelete ?? []).map((c) => c.id);
-        if (safeIds.length > 0) {
-          const { data: linkedDeals } = await supabase
-            .from("pipeline_deals")
-            .select("client_id")
-            .eq("user_id", user.id)
-            .in("client_id", safeIds);
-          const dealLinkedIds = new Set((linkedDeals ?? []).map((d) => d.client_id).filter(Boolean));
-          const finalIds = safeIds.filter((id) => !dealLinkedIds.has(id));
-
-          if (finalIds.length > 0) {
-            await supabase
-              .from("clients")
-              .delete()
-              .eq("user_id", user.id)
-              .in("id", finalIds);
-          }
-        }
-      }
+    // 4. Orphan cleanup: remove clients this year's import created that
+    //    nothing else uses (lib/crm/orphan-clients.ts has the rules). A failed
+    //    check deletes nothing.
+    const cleanup = await deleteOrphanedImportedClients(
+      supabase,
+      user.id,
+      yearRecords.data.map((r) => r.client_id).filter((id): id is string => !!id),
+    );
+    if (cleanup.error) {
+      console.error("[history] orphan cleanup stopped:", cleanup.error);
     }
 
     toast.success(`${item.year} removed from history.`);
@@ -867,10 +840,14 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
 
       if (clientInserts.length > 0) {
         const crExtIds = clientInserts.map((r) => r.import_external_id);
-        const { data: crExisting, error: crExistingErr } = await supabase.from("client_records")
-          .select("import_external_id, edited_at")
-          .eq("user_id", user.id)
-          .in("import_external_id", crExtIds);
+        const { data: crExisting, error: crExistingErr } = await fetchAllIn<string | null, { import_external_id: string | null; edited_at: string | null }>(crExtIds, (chunk, from, to) =>
+          supabase
+            .from("client_records")
+            .select("id, import_external_id, edited_at")
+            .eq("user_id", user.id)
+            .in("import_external_id", chunk) // in chunks, each read in full
+            .order("id")
+            .range(from, to));
         if (crExistingErr) {
           // Fail CLOSED: if we can't see which rows were hand-edited, upserting
           // anyway would overwrite the user's corrections — the exact loss the
@@ -951,10 +928,14 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
 
         if (txInserts.length > 0) {
           const txExtIds = txInserts.map((t) => t.import_external_id);
-          const { data: txExisting, error: txExistingErr } = await supabase.from("transactions")
-            .select("import_external_id, edited_at")
-            .eq("user_id", user.id)
-            .in("import_external_id", txExtIds);
+          const { data: txExisting, error: txExistingErr } = await fetchAllIn<string | null, { import_external_id: string | null; edited_at: string | null }>(txExtIds, (chunk, from, to) =>
+            supabase
+              .from("transactions")
+              .select("id, import_external_id, edited_at")
+              .eq("user_id", user.id)
+              .in("import_external_id", chunk) // in chunks, each read in full
+              .order("id")
+              .range(from, to));
           if (txExistingErr) {
             // Fail CLOSED — see the client_records lookup above.
             console.error("[import] edited-row lookup (transactions) failed:", txExistingErr);
@@ -1108,10 +1089,14 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
 
       if (clientInserts.length > 0) {
         const crExtIds = clientInserts.map((r) => r.import_external_id);
-        const { data: crExisting, error: crExistingErr } = await supabase.from("client_records")
-          .select("import_external_id, edited_at")
-          .eq("user_id", user.id)
-          .in("import_external_id", crExtIds);
+        const { data: crExisting, error: crExistingErr } = await fetchAllIn<string | null, { import_external_id: string | null; edited_at: string | null }>(crExtIds, (chunk, from, to) =>
+          supabase
+            .from("client_records")
+            .select("id, import_external_id, edited_at")
+            .eq("user_id", user.id)
+            .in("import_external_id", chunk) // in chunks, each read in full
+            .order("id")
+            .range(from, to));
         // Fail CLOSED: an empty edited-row set from a failed lookup would let the
         // upsert below overwrite the user's manual corrections.
         if (crExistingErr) throw crExistingErr;
@@ -1180,10 +1165,14 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
 
         if (txInserts.length > 0) {
           const txExtIds = txInserts.map((t) => t.import_external_id);
-          const { data: txExisting, error: txExistingErr } = await supabase.from("transactions")
-            .select("import_external_id, edited_at")
-            .eq("user_id", user.id)
-            .in("import_external_id", txExtIds);
+          const { data: txExisting, error: txExistingErr } = await fetchAllIn<string | null, { import_external_id: string | null; edited_at: string | null }>(txExtIds, (chunk, from, to) =>
+            supabase
+              .from("transactions")
+              .select("id, import_external_id, edited_at")
+              .eq("user_id", user.id)
+              .in("import_external_id", chunk) // in chunks, each read in full
+              .order("id")
+              .range(from, to));
           // Fail CLOSED — see the client_records lookup above.
           if (txExistingErr) throw txExistingErr;
           const editedTxIds = new Set(

@@ -99,6 +99,8 @@ export function fakeSupabase(tables: Record<string, Row[]>, options: FakeSupabas
         return builder;
       },
       limit(n: number) { rows = rows.slice(0, n); return builder; },
+      // Paged reads (lib/supabase/fetch-all.ts): rows from..to inclusive.
+      range(from: number, to: number) { rows = rows.slice(from, to + 1); return builder; },
       is(k: string, v: unknown) { rows = rows.filter((r) => (r[k] ?? null) === v); return builder; },
       not(k: string, _op: string, v: unknown) { rows = rows.filter((r) => (r[k] ?? null) !== v); return builder; },
       order(k: string, opts?: { ascending?: boolean }) {
@@ -119,7 +121,7 @@ export function fakeSupabase(tables: Record<string, Row[]>, options: FakeSupabas
   }
 
   // A test double for the external client, not fixture data: the service only
-  // touches from/select/eq/in/gte/lt/lte/ilike/contains/or/is/not/order/limit/
+  // touches from/select/eq/in/gte/lt/lte/ilike/contains/or/is/not/order/limit/range/
   // insert/upsert/update/delete/single/maybeSingle.
   const client = { from } as unknown as SupabaseClient;
   return { client, writes };

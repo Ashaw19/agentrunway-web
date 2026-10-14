@@ -53,6 +53,7 @@
  *                         deleteContactActivity, deleteContactTask
  */
 
+import { fetchAllRows } from "@/lib/supabase/fetch-all";
 import { tool, type ToolSet } from "ai";
 import { z } from "zod";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -2573,12 +2574,16 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
               .eq("user_id", userId)
               .gte("expense_date", start)
               .lte("expense_date", end),
-            supabase
-              .from("contact_activities")
-              .select("type")
-              .eq("user_id", userId)
-              .gte("activity_date", days.from)
-              .lt("activity_date", days.to),
+            // Every activity in the period, in pages: one request stops at 1,000.
+            fetchAllRows<{ type: string }>((from, to) =>
+              supabase
+                .from("contact_activities")
+                .select("id, type")
+                .eq("user_id", userId)
+                .gte("activity_date", days.from)
+                .lt("activity_date", days.to)
+                .order("id")
+                .range(from, to)),
             supabase
               .from("mileage_logs")
               .select("km, deduction")
@@ -2720,12 +2725,13 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
             const [txResult, expResult, actResult] = await Promise.allSettled([
               supabase.from("transactions").select("sale_price, commission_pct, gci_override, team_split_pct").eq("user_id", userId).gte("date", start).lte("date", end),
               supabase.from("receipt_expenses").select("category_key, total_amount, tax_amount").eq("user_id", userId).gte("expense_date", start).lte("expense_date", end),
-              supabase.from("contact_activities").select("id").eq("user_id", userId).gte("activity_date", days.from).lt("activity_date", days.to),
+              // A count, not rows: a row read stops at 1,000.
+              supabase.from("contact_activities").select("id", { count: "exact", head: true }).eq("user_id", userId).gte("activity_date", days.from).lt("activity_date", days.to),
             ]);
 
             const txData = txResult.status === "fulfilled" ? txResult.value.data ?? [] : [];
             const expData = expResult.status === "fulfilled" ? expResult.value.data ?? [] : [];
-            const actData = actResult.status === "fulfilled" ? actResult.value.data ?? [] : [];
+            const actCount = actResult.status === "fulfilled" ? actResult.value.count ?? 0 : 0;
 
             return {
               deals: txData.length,
@@ -2735,7 +2741,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
                 return s + (t.team_split_pct != null && Number(t.team_split_pct) > 0 ? raw * Number(t.team_split_pct) : raw);
               }, 0),
               expenses: aggregateReceiptTotals(expData, taxCtx).total,
-              activities: actData.length,
+              activities: actCount,
             };
           }
 

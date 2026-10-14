@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { fetchAllRows } from "@/lib/supabase/fetch-all";
 import { atlanticYear } from "@agent-runway/core/lib/local-date";
 import { redirect } from "next/navigation";
 import { PipelineContent } from "./pipeline-content";
@@ -60,15 +61,18 @@ export default async function PipelinePage() {
         .select("*")
         .eq("user_id", user.id)
         .limit(10000),
-      supabase
-        .from("clients")
-        .select("*")
-        .eq("user_id", user.id)
-        // Include "scheduled" buyers (future-intent stage from the 4-stage
-        // redesign) — they're forecasted at a low probability so the
-        // pipeline reflects pre-transactional capture too.
-        .in("status", ["boarding", "scheduled", "in_flight"])
-        .limit(10000),
+      // In pages: one request stops at 1,000 rows.
+      fetchAllRows((from, to) =>
+        supabase
+          .from("clients")
+          .select("*")
+          .eq("user_id", user.id)
+          // Include "scheduled" buyers (future-intent stage from the 4-stage
+          // redesign) — they're forecasted at a low probability so the
+          // pipeline reflects pre-transactional capture too.
+          .in("status", ["boarding", "scheduled", "in_flight"])
+          .order("id")
+          .range(from, to)),
       supabase
         .from("transactions")
         .select("id, sale_price, pipeline_deal_id")

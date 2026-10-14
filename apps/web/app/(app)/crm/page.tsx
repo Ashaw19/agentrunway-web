@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { fetchAllRows } from "@/lib/supabase/fetch-all";
 import { redirect } from "next/navigation";
 import { ClientsContent } from "./clients-content";
 import { computeGCI, type Client, type ClientRecord, type ContactActivity, type ContactTask, type UserSettings, type ClientRelationship, type ClientRecordCoParty, type FlightPlan, type FlightPlanStep, type PropertyShowing, type ListingAppointment, type RecurringExpense, type Transaction } from "@/lib/types/database";
@@ -53,19 +54,24 @@ export default async function ClientsPage({
     // Only fetch clients server-side if below threshold
     useClientSideFetch
       ? Promise.resolve({ data: [], error: null })
-      : supabase
-          .from("clients")
-          .select("*")
-          .eq("user_id", user.id)
-          .order("name")
-          .limit(10000),
-    supabase
-      .from("client_records")
-      .select("*")
-      .eq("user_id", user.id)
-      .order("year", { ascending: false })
-      .order("name")
-      .limit(10000),
+      : fetchAllRows((from, to) =>
+          supabase
+            .from("clients")
+            .select("*")
+            .eq("user_id", user.id)
+            .order("name")
+            .order("id")
+            .range(from, to)),
+    // Every deal record, in pages: one request stops at 1,000 rows.
+    fetchAllRows((from, to) =>
+      supabase
+        .from("client_records")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("year", { ascending: false })
+        .order("name")
+        .order("id")
+        .range(from, to)),
     // Last 500 activities across all clients (for analytics + activity feed)
     supabase
       .from("contact_activities")
@@ -74,13 +80,15 @@ export default async function ClientsPage({
       .order("activity_date", { ascending: false })
       .limit(500),
     // All open tasks (not completed) for task panel + dashboard
-    supabase
-      .from("contact_tasks")
-      .select("*")
-      .eq("user_id", user.id)
-      .is("completed_at", null)
-      .order("due_date", { ascending: true })
-      .limit(10000),
+    fetchAllRows((from, to) =>
+      supabase
+        .from("contact_tasks")
+        .select("*")
+        .eq("user_id", user.id)
+        .is("completed_at", null)
+        .order("due_date", { ascending: true })
+        .order("id")
+        .range(from, to)),
     supabase
       .from("expense_items")
       .select("*")
