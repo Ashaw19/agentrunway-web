@@ -17,6 +17,7 @@
  */
 
 import { generateText } from "ai";
+import { formatBirthdate } from "@agent-runway/core/lib/contact-match";
 import { models, heliconeHeaders } from "@/lib/ai/provider";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { atlanticISODate } from "@agent-runway/core/lib/local-date";
@@ -214,7 +215,7 @@ CRM pipeline status definitions (4-stage model):
 - Legacy Notes: ${c.notes ?? "none"}
 - Timeframe: ${c.timeframe ?? "unknown"}
 - Property Interest: ${c.property_interest ? `$${c.property_interest.toLocaleString()} (${c.property_interest_type})` : "unknown"}
-- Birthday: ${c.birthdate ?? "unknown"}
+- Birthday: ${c.birthdate ? formatBirthdate(c.birthdate) : "unknown"}
 - Last Contact: ${c.last_contact_at ? atlanticDay(c.last_contact_at) : "never"}
 `;
 

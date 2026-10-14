@@ -278,14 +278,31 @@ export interface OutreachItem {
   id: string;
   client_id: string;
   opportunity_type: string;
+  /** "sms": a drafted text the agent sends from Messages (00179). */
+  channel: "email" | "sms";
   status: "draft" | "ready" | "sent" | "skipped";
   ai_subject: string | null;
   ai_body: string | null;
   final_subject: string | null;
   final_body: string | null;
   trigger_date: string;
-  clients: { name: string; email: string | null } | null;
+  /** For a text: { purpose, note, phone } — the number it was drafted for. */
+  context: Record<string, unknown> | null;
+  clients: { name: string; email: string | null; phone: string | null } | null;
 }
+
+/** What the server did for one client when asked to draft texts. */
+export interface DraftTextResult {
+  status: "created" | "existing" | "call_only" | "skipped";
+  clientId: string;
+  clientName: string;
+  queueItemId?: string;
+  body?: string;
+  phone?: string;
+  reason?: string;
+}
+
+export type TextPurpose = "check_in" | "market_update" | "custom";
 
 // ── Briefing Types ───────────────────────────────────────────────────────────
 //
@@ -440,6 +457,18 @@ interface DataStore {
   ) => Promise<boolean>;
   updateOutreachDraft: (id: string, subject: string, body: string) => Promise<boolean>;
   skipOutreach: (id: string) => Promise<boolean>;
+  /**
+   * Text queue: Flight Crew drafts one short text per client (1–10) on the
+   * server, then the queue is refetched. Returns each client's outcome, or
+   * an error message the screen can show.
+   */
+  draftTexts: (
+    clientIds: string[],
+    purpose: TextPurpose,
+    note?: string | null,
+  ) => Promise<{ results: DraftTextResult[] } | { error: string }>;
+  /** The agent tapped Send in Messages: mark it sent and log a Text activity. */
+  markTexted: (id: string, body: string) => Promise<boolean>;
 
   // Client detail methods
   fetchClientActivities: (clientId: string) => Promise<void>;
@@ -1014,7 +1043,7 @@ export const useDataStore = create<DataStore>((set, get) => {
 
       const { data } = await supabase
         .from("outreach_queue")
-        .select("*, clients(name, email)")
+        .select("*, clients(name, email, phone)")
         .eq("user_id", user.id)
         .in("status", ["draft", "ready"])
         .order("trigger_date", { ascending: true });
@@ -1612,6 +1641,50 @@ export const useDataStore = create<DataStore>((set, get) => {
         ),
       });
       return true;
+    },
+
+    draftTexts: async (clientIds, purpose, note) => {
+      const session = (await supabase.auth.getSession()).data.session;
+      if (!session) return { error: "Please sign in again." };
+      const API_URL = process.env.EXPO_PUBLIC_API_URL ?? "https://agentrunway.ca";
+      try {
+        const res = await fetch(`${API_URL}/api/mobile/outreach/draft-texts`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+          body: JSON.stringify({ client_ids: clientIds, purpose, note: note ?? undefined }),
+        });
+        const json = (await res.json().catch(() => ({}))) as { results?: DraftTextResult[]; error?: string };
+        if (!res.ok || !json.results) {
+          return { error: json.error ?? "Couldn't draft the texts. Please try again." };
+        }
+        await get().fetchOutreach();
+        return { results: json.results };
+      } catch {
+        return { error: "Couldn't reach Agent Runway. Check your connection and try again." };
+      }
+    },
+
+    markTexted: async (id, body) => {
+      const session = (await supabase.auth.getSession()).data.session;
+      if (!session) return false;
+      const API_URL = process.env.EXPO_PUBLIC_API_URL ?? "https://agentrunway.ca";
+      try {
+        const res = await fetch(`${API_URL}/api/mobile/outreach/texted`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+          body: JSON.stringify({ outreach_id: id, body }),
+        });
+        const json = (await res.json().catch(() => ({}))) as { ok?: boolean };
+        if (!json.ok) return false;
+        const queue = get().outreachQueue.filter((item) => item.id !== id);
+        set({
+          outreachQueue: queue,
+          outreachReadyCount: queue.filter((i) => i.status === "ready").length,
+        });
+        return true;
+      } catch {
+        return false;
+      }
     },
 
     skipOutreach: async (id) => {

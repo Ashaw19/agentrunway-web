@@ -26,7 +26,9 @@
     "scanReceipt": "Scan Receipt",
     "scanReceiptDesc": "Capture and log business expenses",
     "checklist": "Checklist",
-    "checklistDesc": "Your to-dos. Tick them off as you go."
+    "checklistDesc": "Your to-dos. Tick them off as you go.",
+    "fillFromContacts": "Fill in from Contacts",
+    "fillFromContactsDesc": "Add missing numbers, emails and birthdays"
   },
   "account": {
     "title": "Account",

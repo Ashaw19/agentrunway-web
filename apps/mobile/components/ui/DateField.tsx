@@ -8,6 +8,7 @@
  */
 
 import { useMemo, useState } from "react";
+import { isYearlessBirthdate } from "@agent-runway/core/lib/contact-match";
 import { Pressable, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { addDaysISO, localISODate } from "@agent-runway/core/lib/local-date";
@@ -35,6 +36,10 @@ function noon(iso: string): Date {
 
 export function formatDateLabel(iso: string): string {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return iso;
+  // A birthday from Contacts with no year is stored as 1604-MM-DD: show the day only.
+  if (isYearlessBirthdate(iso)) {
+    return noon(iso).toLocaleDateString("en-CA", { month: "short", day: "numeric" });
+  }
   return noon(iso).toLocaleDateString("en-CA", {
     weekday: "short",
     month: "short",
@@ -55,7 +60,10 @@ export function DateField({
   const today = localISODate();
   const [open, setOpen] = useState(false);
   // First day of the month on show.
-  const [month, setMonth] = useState(() => (value || today).slice(0, 7) + "-01");
+  // A yearless birthday opens on this year's month, not 1604's.
+  const startMonth = (v: string) =>
+    (v && isYearlessBirthdate(v) ? `${today.slice(0, 4)}${v.slice(4, 7)}` : (v || today).slice(0, 7)) + "-01";
+  const [month, setMonth] = useState(() => startMonth(value));
 
   const weeks = useMemo(() => {
     const first = noon(month);
@@ -80,7 +88,7 @@ export function DateField({
   };
 
   const toggle = () => {
-    if (!open) setMonth((value || today).slice(0, 7) + "-01");
+    if (!open) setMonth(startMonth(value));
     setOpen((o) => !o);
   };
 

@@ -13,6 +13,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useLocalSearchParams } from "expo-router";
 import {
   Send,
   Pencil,
@@ -22,8 +23,10 @@ import {
   Mail,
   User,
   Calendar,
+  MessageSquare,
 } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
+import * as SMS from "expo-sms";
 import { useDataStore, type OutreachItem } from "@/stores/data-store";
 import { supabase } from "@/lib/supabase";
 import {
@@ -54,7 +57,14 @@ const OPPORTUNITY_LABELS: Record<string, string> = {
 };
 
 function opportunityLabel(type: string): string {
+  if (type === "text_message") return "Text";
   return OPPORTUNITY_LABELS[type] ?? type.replace(/_/g, " ");
+}
+
+/** The number a queued text goes to: the one it was drafted for, else the client's. */
+function textPhone(item: OutreachItem): string | null {
+  const drafted = item.context?.phone;
+  return (typeof drafted === "string" && drafted.trim()) || item.clients?.phone?.trim() || null;
 }
 
 function fmtDate(d: string): string {
@@ -77,7 +87,18 @@ export default function OutreachScreen() {
     fetchOutreach,
     updateOutreachDraft,
     skipOutreach,
+    markTexted,
   } = useDataStore();
+
+  // Emails and texts (00179) share the queue; each tab shows one channel.
+  const params = useLocalSearchParams<{ tab?: string }>();
+  const [tab, setTab] = useState<"emails" | "texts">(params.tab === "texts" ? "texts" : "emails");
+  useEffect(() => {
+    if (params.tab === "texts" || params.tab === "emails") setTab(params.tab);
+  }, [params.tab]);
+  const emails = outreachQueue.filter((i) => i.channel !== "sms");
+  const texts = outreachQueue.filter((i) => i.channel === "sms");
+  const shown = tab === "texts" ? texts : emails;
 
   const [refreshing, setRefreshing] = useState(false);
   const [sendingId, setSendingId] = useState<string | null>(null);
@@ -172,13 +193,57 @@ export default function OutreachScreen() {
     );
   }, []);
 
+  // ── Send a text: iOS Messages opens prefilled; the agent taps Send ────────
+
+  const handleSendText = useCallback(async (item: OutreachItem, bodyOverride?: string) => {
+    const phone = textPhone(item);
+    const name = item.clients?.name ?? "this client";
+    if (!phone) {
+      Alert.alert("No Phone Number", `${name} doesn't have a phone number on file. Add one in Clients first.`);
+      return;
+    }
+    const body = bodyOverride ?? (item.final_body || item.ai_body || "");
+    if (!(await SMS.isAvailableAsync())) {
+      Alert.alert("Texting Unavailable", "This device can't send text messages.");
+      return;
+    }
+    setSendingId(item.id);
+    try {
+      const { result } = await SMS.sendSMSAsync([phone], body);
+      const record = async () => {
+        const ok = await markTexted(item.id, body);
+        if (ok) {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        } else {
+          Alert.alert("Not Logged", `The text went out, but Agent Runway couldn't log it on ${name}'s history. Pull down to refresh and try again.`);
+        }
+      };
+      if (result === "sent") {
+        await record();
+      } else if (result === "unknown") {
+        Alert.alert("Did You Send It?", `Agent Runway couldn't tell whether the text to ${name} was sent.`, [
+          { text: "Not Sent", style: "cancel" },
+          { text: "Yes, Sent", onPress: () => void record() },
+        ]);
+      }
+      // "cancelled": the agent closed Messages without sending; the text stays queued.
+    } catch (err) {
+      console.error("Text send failed:", err);
+      Alert.alert("Couldn't Open Messages", "Please try again.");
+    } finally {
+      setSendingId(null);
+    }
+  }, [markTexted]);
+
   // ── Skip ─────────────────────────────────────────────────────────────────
 
   const handleSkip = useCallback(
     (item: OutreachItem) => {
       Alert.alert(
         "Skip This?",
-        `Skip the ${opportunityLabel(item.opportunity_type).toLowerCase()} email to ${item.clients?.name ?? "this client"}?`,
+        item.channel === "sms"
+          ? `Skip the text to ${item.clients?.name ?? "this client"}?`
+          : `Skip the ${opportunityLabel(item.opportunity_type).toLowerCase()} email to ${item.clients?.name ?? "this client"}?`,
         [
           { text: "Cancel", style: "cancel" },
           {
@@ -227,8 +292,50 @@ export default function OutreachScreen() {
           />
         }
       >
+        {/* Emails | Texts */}
+        <View
+          style={{
+            flexDirection: "row",
+            padding: 3,
+            borderRadius: Radius.lg,
+            backgroundColor: c.card,
+            borderWidth: 1,
+            borderColor: c.cardBorder,
+          }}
+        >
+          {([
+            { key: "emails", label: `Emails${emails.length ? ` (${emails.length})` : ""}`, Icon: Mail },
+            { key: "texts", label: `Texts${texts.length ? ` (${texts.length})` : ""}`, Icon: MessageSquare },
+          ] as const).map(({ key, label, Icon }) => {
+            const active = tab === key;
+            return (
+              <Pressable
+                key={key}
+                onPress={() => setTab(key)}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: active }}
+                style={{
+                  flex: 1,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 6,
+                  paddingVertical: Space.sm + 2,
+                  borderRadius: Radius.md,
+                  backgroundColor: active ? c.primary : "transparent",
+                }}
+              >
+                <Icon size={14} color={active ? "#FFF" : c.textMuted} />
+                <Text style={{ fontSize: 13, fontWeight: "700", color: active ? "#FFF" : c.textMuted }}>
+                  {label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
         {/* Queue */}
-        {outreachQueue.length === 0 ? (
+        {shown.length === 0 ? (
           <View
             style={[{
               padding: Space.xxxl,
@@ -249,23 +356,30 @@ export default function OutreachScreen() {
                 lineHeight: 22,
               }}
             >
-              No outreach items right now.{"\n"}Flight Control scans your CRM
-              and drafts emails when it finds opportunities.
+              {tab === "texts"
+                ? "No texts waiting.\nPick clients in Clients → Select → Text, or ask Flight Crew to draft texts."
+                : "No outreach items right now.\nFlight Control scans your CRM and drafts emails when it finds opportunities."}
             </Text>
           </View>
         ) : (
           <View style={{ gap: Space.md }}>
             <Text style={{ ...Type.label, color: c.textMuted }}>
-              {outreachQueue.length} ITEM
-              {outreachQueue.length !== 1 ? "S" : ""} IN QUEUE
+              {tab === "texts"
+                ? `${shown.length} TEXT${shown.length !== 1 ? "S" : ""} TO SEND`
+                : `${shown.length} ITEM${shown.length !== 1 ? "S" : ""} IN QUEUE`}
             </Text>
+            {tab === "texts" && (
+              <Text style={{ ...Type.caption, color: c.textDim, lineHeight: 18 }}>
+                Tap Text to open Messages with the message filled in. Nothing goes out until you tap Send there.
+              </Text>
+            )}
 
-            {outreachQueue.map((item) => (
+            {shown.map((item) => (
               <OutreachCard
                 key={item.id}
                 item={item}
                 sending={sendingId === item.id}
-                onSend={() => handleSend(item)}
+                onSend={() => (item.channel === "sms" ? handleSendText(item) : handleSend(item))}
                 onEdit={() => openEdit(item)}
                 onSkip={() => handleSkip(item)}
                 c={c}
@@ -301,7 +415,7 @@ export default function OutreachScreen() {
                 }}
               >
                 <Text style={{ ...Type.h2, color: c.text }}>
-                  Edit Email
+                  {editItem?.channel === "sms" ? "Edit Text" : "Edit Email"}
                 </Text>
                 <Pressable onPress={() => setEditItem(null)}>
                   <X size={24} color={c.textMuted} />
@@ -338,7 +452,8 @@ export default function OutreachScreen() {
                 </View>
               )}
 
-              {/* Subject */}
+              {/* Subject (emails only) */}
+              {editItem?.channel !== "sms" && (
               <View>
                 <Text style={{ ...Type.label, color: c.textMuted, marginBottom: Space.sm }}>
                   SUBJECT
@@ -359,6 +474,7 @@ export default function OutreachScreen() {
                   }}
                 />
               </View>
+              )}
 
               {/* Body */}
               <View>
@@ -420,11 +536,15 @@ export default function OutreachScreen() {
                       editBody
                     );
                     setEditItem(null);
-                    handleSend({
-                      ...editItem,
-                      final_subject: editSubject,
-                      final_body: editBody,
-                    });
+                    if (editItem.channel === "sms") {
+                      void handleSendText({ ...editItem, final_body: editBody }, editBody);
+                    } else {
+                      handleSend({
+                        ...editItem,
+                        final_subject: editSubject,
+                        final_body: editBody,
+                      });
+                    }
                   }}
                   style={({ pressed }) => [
                     {
@@ -473,9 +593,10 @@ function OutreachCard({
   c: ReturnType<typeof useColors>;
   sh: ReturnType<typeof shadows>;
 }) {
-  const subject = item.final_subject || item.ai_subject || "No subject";
+  const isText = item.channel === "sms";
+  const subject = isText ? (textPhone(item) ?? "No phone number") : item.final_subject || item.ai_subject || "No subject";
   const body = item.final_body || item.ai_body || "";
-  const preview = body.length > 100 ? body.slice(0, 100) + "..." : body;
+  const preview = isText ? body : body.length > 100 ? body.slice(0, 100) + "..." : body;
 
   return (
     <View
@@ -523,7 +644,7 @@ function OutreachCard({
 
       {/* Subject line */}
       <View style={{ flexDirection: "row", alignItems: "center", gap: Space.sm }}>
-        <Mail size={14} color={c.textDim} />
+        {isText ? <MessageSquare size={14} color={c.textDim} /> : <Mail size={14} color={c.textDim} />}
         <Text
           style={{ ...Type.bodyBold, color: c.textSecondary, flex: 1 }}
           numberOfLines={1}
@@ -536,7 +657,7 @@ function OutreachCard({
       {preview && (
         <Text
           style={{ ...Type.caption, color: c.textDim, lineHeight: 18 }}
-          numberOfLines={2}
+          numberOfLines={isText ? 8 : 2}
         >
           {preview}
         </Text>
@@ -621,9 +742,9 @@ function OutreachCard({
             <ActivityIndicator size="small" color="#FFF" />
           ) : (
             <>
-              <Send size={14} color="#FFF" />
+              {isText ? <MessageSquare size={14} color="#FFF" /> : <Send size={14} color="#FFF" />}
               <Text style={{ color: "#FFF", fontSize: 13, fontWeight: "700" }}>
-                Send
+                {isText ? "Text" : "Send"}
               </Text>
             </>
           )}
