@@ -18,6 +18,7 @@ import {
   Linking,
   Alert,
   AppState,
+  Keyboard,
   StyleSheet,
   Animated,
   ActivityIndicator,
@@ -403,7 +404,19 @@ export default function ClientsScreen() {
           )}
           <View style={{ flexDirection: "row", gap: Space.sm }}>
             {selecting ? (
-              <Button label="Cancel" variant="ghost" onPress={exitSelecting} />
+              <>
+                {selectedIds.length > 0 && (
+                  <Button
+                    label={`Text ${selectedIds.length}`}
+                    variant="primary"
+                    onPress={() => {
+                      Keyboard.dismiss();
+                      setShowTextSheet(true);
+                    }}
+                  />
+                )}
+                <Button label="Cancel" variant="ghost" onPress={exitSelecting} />
+              </>
             ) : (
               <>
                 <Button label="Select" variant="ghost" onPress={() => setSelecting(true)} />
@@ -605,6 +618,8 @@ export default function ClientsScreen() {
         }}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
+        // Scrolling the list puts the search keyboard away.
+        keyboardDismissMode="on-drag"
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -642,24 +657,6 @@ export default function ClientsScreen() {
           ))
         )}
       </ScrollView>
-
-      {/* ── Text selected clients ── */}
-      {selecting && selectedIds.length > 0 && (
-        <View
-          style={{
-            position: "absolute",
-            left: Space.xl,
-            right: Space.xl,
-            bottom: Space.xl + 70,
-          }}
-        >
-          <Button
-            label={`Text ${selectedIds.length} client${selectedIds.length === 1 ? "" : "s"}`}
-            variant="primary"
-            onPress={() => setShowTextSheet(true)}
-          />
-        </View>
-      )}
 
       <Sheet visible={showTextSheet} onClose={() => !drafting && setShowTextSheet(false)} title="What's the text about?">
         <View style={{ gap: Space.sm }}>
