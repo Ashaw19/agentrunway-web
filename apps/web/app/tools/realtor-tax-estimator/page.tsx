@@ -4,6 +4,7 @@ import { ArrowRight, AlertTriangle, Calculator, Clock, MapPin, Sparkles } from "
 import { MarketingNav } from "@/components/marketing-nav";
 import { MarketingFooter } from "@/components/marketing-footer";
 import { ScrollRevealSection } from "@/components/scroll-reveal-section";
+import { CRA_INSTALMENT_SOURCES, INSTALMENT_OPTION_LIST, INSTALMENT_OPTIONS_RULE } from "@agent-runway/core/tax-copy/cra-rules";
 import { TaxEstimator } from "./tax-estimator";
 import { CharterScarcityStrip } from "@/components/charter-scarcity-strip";
 import { articleSchema, faqSchema, breadcrumbSchema, howToSchema } from "@/lib/schema";
@@ -251,11 +252,17 @@ export default function RealtorTaxEstimatorPage() {
                 cannot be deducted on your return.
               </p>
               <p className="mt-4">
-                CRA offers three instalment methods: the <em>no-calculation option</em> (pay the
-                amounts CRA bills you), the <em>prior-year option</em> (one-quarter of last
-                year&rsquo;s tax per instalment), and the <em>current-year option</em> (estimate
-                this year&rsquo;s tax and pay one-quarter each instalment). Most agents use the
-                no-calculation option unless income swings dramatically year-to-year.
+                {INSTALMENT_OPTIONS_RULE}{" "}
+                {INSTALMENT_OPTION_LIST.map((option) => option.how).join(" ")} Source:{" "}
+                <a
+                  href={CRA_INSTALMENT_SOURCES.options.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-600 underline"
+                >
+                  {CRA_INSTALMENT_SOURCES.options.label}
+                </a>
+                .
               </p>
             </ScrollRevealSection>
 

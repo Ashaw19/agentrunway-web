@@ -5,6 +5,7 @@ import { MarketingNav } from "@/components/marketing-nav";
 import { MarketingFooter } from "@/components/marketing-footer";
 import { EmailCapture } from "@/components/email-capture";
 import { articleSchema } from "@/lib/schema";
+import { GST_RATE_GROUP, HST_RATE_GROUPS } from "@agent-runway/core/tax-copy";
 
 export const metadata: Metadata = {
   title:
@@ -45,7 +46,7 @@ const JSON_LD_ARTICLE = articleSchema({
     "How home-office expenses work for self-employed Canadian real estate agents — the T2125 Line 9945 mechanic (not employee-side T2200), the two qualifying tests (principal place of business OR exclusive use to meet clients on a regular and continuous basis), the floor-area calculation, the eligible expense list, the loss-limit carryforward rule, and the principal-residence-exemption trap if CCA is claimed on the home.",
   url: "/business-use-of-home-real-estate-agents-canada",
   datePublished: "2026-05-09",
-  dateModified: "2026-05-09",
+  dateModified: "2026-10-13",
 });
 
 // ─── CRA primary sources (audit registry) ─────────────────────────────────────
@@ -825,14 +826,14 @@ export default function BusinessUseOfHomeRealEstateAgentsCanadaPage() {
               </p>
 
               <p>
-                For agents in HST provinces (15%: New Brunswick, Nova Scotia,
-                Prince Edward Island, Newfoundland and Labrador; 13%:
-                Ontario), eligible home expenses subject to HST produce
-                ITCs at the provincial HST rate when the agent is
-                registered. For agents in GST-only provinces (5%: British
-                Columbia, Alberta, Saskatchewan, Manitoba, Yukon, Northwest
-                Territories, Nunavut), the ITC is calculated on the 5% GST
-                portion only; provincial sales tax (PST in BC, Saskatchewan,
+                For agents in HST provinces (
+                {HST_RATE_GROUPS.map((group) => `${group.percent}: ${group.names}`).join("; ")}
+                ), eligible home expenses subject to HST produce
+                ITCs at the province&apos;s HST rate when the agent is
+                registered. For agents in GST-only provinces and territories (
+                {GST_RATE_GROUP.percent}: {GST_RATE_GROUP.names}), the ITC is
+                calculated on the {GST_RATE_GROUP.percent} GST only;
+                provincial sales tax (PST in BC, Saskatchewan,
                 Manitoba) is not recoverable through GST ITCs.
               </p>
 
