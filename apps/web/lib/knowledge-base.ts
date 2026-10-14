@@ -8,6 +8,7 @@
 import { EXPENSE_RATIO_BANDS, EXPENSE_RATIO_COPY } from "@agent-runway/core/engines/expense-ratio-bands";
 import { SCORE_VERSION, SURVIVAL_SCORE_STEPS, stateLabel } from "@agent-runway/core/engines/runway-score-engine";
 import { RISK_BAND_LADDER, RISK_BAND_LEVELS, RISK_LEVEL_LABEL } from "@agent-runway/core/engines/survival-engine";
+import { REPEAT_RATE_COPY } from "@agent-runway/core/engines/repeat-rate-bands";
 
 // "Critical 10–20 (At Risk), Warning 41–42 (Building), ...": each cash runway
 // band's Survival sub-scores and the Runway Score band they sit in.
@@ -93,6 +94,7 @@ Platform for Canadian real estate agents: income, expenses, pipeline, clients, t
 **Where You Stand** = Launching(0-10%ile)/Climbing(10-25)/Competitive(25-50)/Advancing(50-75)/Leading(75+). Momentum: gaining/holding/losing.
 **P-Bands** = P10/25/50/75/90 via CV. CV clamped 5-50%.
 **Client Tiers** = Platinum(top10%)/Gold(10-25%)/Silver(25-50%)/Bronze(50%+). Composite: LGV(40%)+Health(20%)+Impact(15%)+Velocity(15%)+Tax(10%).
+**Repeat Client Rate** = Clients with two or more counted deals / clients with at least one, on the Clients page (KPI strip and Insights tab). Contacts with no deal are not in it. Collapsed deals don't count; undated ones do. ${REPEAT_RATE_COPY.referenceSentence} ${REPEAT_RATE_COPY.provenance} Never present them as an industry figure, and never call a rate good, strong or excellent: say where it sits. Bands, the same on every screen: ${REPEAT_RATE_COPY.bandsSentence} ${REPEAT_RATE_COPY.minClientsSentence} Flight Crew has no tool that returns the rate: the figure is on the Clients page.
 **Speed to Lead** = Hours from client creation to first contact activity.
 **Stale Lead** = Active client (Boarding/In-Flight), no contact 14+ days (dashboard) or 30+ days (CRM). Scheduled/Cruising exempt.
 **Deviation Detection** = >=20% from 12-month baseline, requires 3+ months data.

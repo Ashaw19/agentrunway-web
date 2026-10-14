@@ -119,6 +119,7 @@ import {
   type AchievementBadgeId,
   type ClientGroup,
 } from "@/lib/crm/client-groups";
+import { repeatRateGaugePct } from "@agent-runway/core/engines/repeat-rate-bands";
 import { CLIENT_PANEL_DRAFT_TYPES } from "@/lib/crm/outreach-draft-actions";
 import { hasClosedDeal } from "@/lib/crm/contactable-records";
 import { DuplicateReviewDialog } from "./duplicate-review-dialog";
@@ -1304,7 +1305,7 @@ export function ClientsContent({
   );
   // Repeat rate, Lifetime GCI and Total Deals all count the same deals:
   // everything except collapsed ones (see lib/crm/client-groups.ts).
-  const { repeatCount, repeatRate } = repeatClientStats(grouped);
+  const { transactionalClients, repeatCount, repeatRate } = repeatClientStats(grouped);
   const totalDeals = grouped.reduce((s, g) => s + g.dealCount, 0);
 
   const sourceStats = useMemo(() => computeSourceStats(localRecords), [localRecords]);
@@ -3544,7 +3545,9 @@ export function ClientsContent({
       {/* KPI cockpit strip — clean headline readouts. (Sparklines removed: the
           four series are cumulative totals that only ever climb, so a trend line
           repeated nothing the number already says and read as noise.) */}
-      <CockpitStrip className="px-5 py-4" progress={Math.min(100, Math.round((repeatRate / 35) * 100))}>
+      {/* The hairline is the repeat rate on the gauge the Insights card draws:
+          full at Agent Runway's upper reference point (REPEAT_RATE_BANDS). */}
+      <CockpitStrip className="px-5 py-4" progress={repeatRateGaugePct(repeatRate, transactionalClients)}>
         <div className="grid grid-cols-2 gap-5 lg:grid-cols-4">
           <CockpitStat
             label="Total Clients"
