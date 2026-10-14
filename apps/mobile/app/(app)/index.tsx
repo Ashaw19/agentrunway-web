@@ -984,11 +984,16 @@ export default function DashboardScreen() {
 
             {/* Score component mini-bar */}
             <View style={{ flexDirection: "row", marginTop: Space.lg, gap: Space.xs, width: "100%" }}>
-              <ScoreBar label={t("scoreBar.pace")} pct={35} color="#6366F1" index={0} c={c} />
-              <ScoreBar label={t("scoreBar.pipeline")} pct={25} color="#818CF8" index={1} c={c} />
-              <ScoreBar label={t("scoreBar.expenses")} pct={15} color="#10B981" index={2} c={c} />
-              <ScoreBar label={t("scoreBar.bench")} pct={10} color="#06B6D4" index={3} c={c} />
-              <ScoreBar label={t("scoreBar.survival")} pct={15} color="#8B5CF6" index={4} c={c} />
+              {SCORE_BARS.map((bar, i) => (
+                <ScoreBar
+                  key={bar.component}
+                  label={t(bar.labelKey)}
+                  pct={snapshot?.components?.find((comp) => comp.label === bar.component)?.score ?? 0}
+                  color={bar.color}
+                  index={i}
+                  c={c}
+                />
+              ))}
             </View>
           </LinearGradient>
         </Pressable>
@@ -1324,6 +1329,18 @@ function MetricCard({
 const BAND_STAGGER_MS = 80;
 const BAND_FILL_MS = 600;
 
+// One bar per Runway Score component, filled to that component's score
+// (0-100) from the web dashboard's saved snapshot. `component` is the label
+// the score engine writes (runway-score-engine.ts). Equal widths keep every
+// label on one line.
+const SCORE_BARS = [
+  { component: "Goal Pace", labelKey: "scoreBar.pace", color: "#6366F1" },
+  { component: "Pipeline", labelKey: "scoreBar.pipeline", color: "#818CF8" },
+  { component: "Expenses", labelKey: "scoreBar.expenses", color: "#10B981" },
+  { component: "Benchmark", labelKey: "scoreBar.bench", color: "#06B6D4" },
+  { component: "Survival", labelKey: "scoreBar.survival", color: "#8B5CF6" },
+] as const;
+
 function ScoreBar({
   label,
   pct,
@@ -1352,12 +1369,13 @@ function ScoreBar({
     );
   }, [reduceMotion, index, fill]);
 
+  const target = Math.min(Math.max(pct, 0), 100) / 100;
   const fillStyle = useAnimatedStyle(() => ({
-    width: `${fill.value * 100}%`,
+    width: `${fill.value * target * 100}%`,
   }));
 
   return (
-    <View style={{ flex: pct, alignItems: "center" }}>
+    <View style={{ flex: 1, alignItems: "center" }}>
       {/* Track + animated gradient fill, masked by overflow:hidden so the
           gradient reveals left→right as the wrapper width grows. */}
       <View
@@ -1378,7 +1396,14 @@ function ScoreBar({
           />
         </Animated.View>
       </View>
-      <Text style={{ fontSize: 9, fontWeight: "700", color: c.textSecondary, marginTop: 4, letterSpacing: 0.2 }}>{label}</Text>
+      <Text
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.75}
+        style={{ fontSize: 9, fontWeight: "700", color: c.textSecondary, marginTop: 4, letterSpacing: 0.2 }}
+      >
+        {label}
+      </Text>
     </View>
   );
 }
