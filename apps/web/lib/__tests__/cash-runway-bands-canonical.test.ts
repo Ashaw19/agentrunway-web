@@ -44,6 +44,14 @@
  *   4. text that cannot import (the blog post's table) matches the engine
  *   5. the public metric page renders the engine's bands and colours
  *   6. what Flight Crew is told matches the engine
+ *   7. the Runway Score's Survival sub-score follows the bands (v1.4)
+ *
+ * On 7: the Survival bar is drawn beside the Cash Runway number and coloured
+ * by its 0–100 score. Until v1.4 the score had edges of its own, so a runway
+ * from 2 to under 3 months was a red bar (30, At Risk) beside an amber
+ * Warning number. The ladder is now built from the engine's bands
+ * (runway-score-engine.ts, SURVIVAL_SCORE_STEPS), and Flight Crew's table is
+ * built from the ladder.
  *
  * A regex can't prove a sentence is right, only that its figures were not
  * typed in. The sentences themselves are tested in
@@ -65,7 +73,15 @@ import {
   riskColorBand,
 } from "@agent-runway/core/engines/survival-engine";
 import { buildHealthReport } from "@agent-runway/core/engines/health-report";
-import { compute as computeRunwayScore } from "@agent-runway/core/engines/runway-score-engine";
+import {
+  bandColorHexForScore,
+  compute as computeRunwayScore,
+  stateLabel,
+  survivalSubScore,
+  SCORE_VERSION,
+  SURVIVAL_SCORE_STEPS,
+} from "@agent-runway/core/engines/runway-score-engine";
+import { classifyTopicMulti } from "@/lib/troubleshooting-classifier";
 import { KNOWLEDGE_BASE } from "@/lib/knowledge-base";
 import { getPlaybook } from "@/lib/troubleshooting-playbooks";
 import FinancialRunwayMetricPage from "@/app/metrics/financial-runway/page";
@@ -182,10 +198,6 @@ const ALLOWED_COMPARISONS: Allowed = {
     count: 3,
     why: 'How a runway under one month is displayed ("< 1 month", no calendar anchor). Not a band edge: no colour, status or alert hangs on it.',
   },
-  "packages/core/engines/runway-score-engine.ts": {
-    count: 6,
-    why: "The Runway Score's Survival sub-score ladder, a score per month from 1 to 6. Its top step is held to the Strong floor in survival-engine.test.ts.",
-  },
   "apps/web/app/cockpit/page.tsx": {
     count: 3,
     why: "The Director Cockpit's SaaS runway: Agent Runway Inc.'s own cash, internal only. Not an agent's cash runway and not the survival engine's figure.",
@@ -239,6 +251,8 @@ function typedEdges(): Hit[] {
 
 const BLOG_POST = "apps/web/content/blog/financial-runway-what-it-means-for-real-estate-agents.mdx";
 const PLAYBOOKS = "apps/web/lib/troubleshooting-playbooks.ts";
+const KNOWLEDGE = "apps/web/lib/knowledge-base.ts";
+const SCORE_ENGINE = "packages/core/engines/runway-score-engine.ts";
 
 const ALLOWED_TYPED_EDGES: Allowed = {
   "apps/web/app/(app)/dashboard/dashboard-content.tsx": {
@@ -250,10 +264,14 @@ const ALLOWED_TYPED_EDGES: Allowed = {
     why: "The band table's four rows. MDX cannot import, so check 4 holds each row to the engine.",
   },
   [PLAYBOOKS]: {
-    count: 9,
+    count: 3,
     why:
-      "Seven lines are the Runway Score playbook's Survival sub-score ladder (a score per month, from runway-score-engine.ts). " +
-      'Two are "Changed 2026-10-13" notes telling Flight Crew what the screens and the business report PDF said before, so it can explain why an alert or a card changed.',
+      'Three "Changed 2026-10-13" notes telling Flight Crew what was true before, so it can explain why an alert, a card or a score changed: ' +
+      "what the screens said, what the business report PDF said, and which Survival sub-score step moved in v1.4.",
+  },
+  [KNOWLEDGE]: {
+    count: 1,
+    why: 'The "Changed 2026-10-13 (v1.4)" note naming the Survival sub-score step that moved. A dated fact, not a band edge in use.',
   },
 };
 
@@ -268,8 +286,9 @@ const SURFACES = [
   "apps/web/components/pdf/business-report-pdf.tsx",
   "apps/web/components/pdf/guide-pdf.tsx",
   "apps/web/app/api/chat/route.ts",
-  "apps/web/lib/knowledge-base.ts",
+  KNOWLEDGE,
   PLAYBOOKS,
+  SCORE_ENGINE,
 ] as const;
 
 const IMPORTS_THE_ENGINE =
@@ -463,5 +482,121 @@ describe("Flight Crew is told the engine's bands", () => {
     const route = read("apps/web/app/api/chat/route.ts");
     expect(route).not.toMatch(/runway under 3 months/);
     expect(route).toContain("RISK_LEVEL_LABEL.critical");
+  });
+});
+
+describe("Runway Score: the Survival sub-score follows the cash runway bands", () => {
+  const COLOUR_WORD = { red: "Red", amber: "Amber", emerald: "Green", slate: "Gray" } as const;
+  const HEX_COLOUR_WORD: Record<string, string> = { "#EF4444": "Red", "#F59E0B": "Amber", "#10B981": "Green" };
+  const scorePlaybook = getPlaybook("runway-score");
+  const lines = scorePlaybook.split("\n");
+  const heading = lines.find((line) => line.startsWith("**Survival Score** (15%)")) ?? "";
+  const changed = lines.find((line) => line.startsWith("Changed 2026-10-13 (v1.4):")) ?? "";
+  const months = (n: number) => (n === 1 ? "1 month" : `${n} months`);
+
+  const rows = SURVIVAL_SCORE_STEPS.map((step, i) => {
+    const next = SURVIVAL_SCORE_STEPS[i + 1];
+    const range = !next
+      ? `${step.fromMonths}+ months`
+      : step.fromMonths === 0
+        ? `Under ${months(next.fromMonths)}`
+        : `${step.fromMonths} to under ${months(next.fromMonths)}`;
+    return { step, range };
+  });
+
+  it("the score engine has no month count of its own left to compare", () => {
+    expect(code(SCORE_ENGINE)).not.toMatch(MONTHS_VS_NUMBER);
+  });
+
+  it.each(rows)("Flight Crew's ladder has the engine's step for $range", ({ step, range }) => {
+    const colour = COLOUR_WORD[riskColorBand(step.level)];
+    // The bar (coloured by the score) and the runway number (coloured by the band) agree.
+    expect(HEX_COLOUR_WORD[bandColorHexForScore(step.score)]).toBe(colour);
+    expect(scorePlaybook).toContain(
+      `| ${range} | ${RISK_LEVEL_LABEL[step.level]} | ${step.score} | ${stateLabel(step.score)} | ${colour} |`,
+    );
+  });
+
+  it("the ladder has no row the engine does not", () => {
+    const table = lines.filter((line) => /^\| (?:Under \d|\d+ to under \d|\d+\+ months)/.test(line));
+    expect(table).toHaveLength(SURVIVAL_SCORE_STEPS.length);
+    expect(scorePlaybook).not.toMatch(/→ 30 \(At Risk\)|→ 42 \(Building \/ watch\)/);
+  });
+
+  it("the playbook gives the engine's score version and says why the two colours agree", () => {
+    expect(heading).toContain(`v${SCORE_VERSION}`);
+    expect(heading).toContain("the Survival bar is the colour of the Cash Runway number beside it");
+    expect(heading).not.toMatch(/the score's own/);
+  });
+
+  it("the playbook says an unset runway is a red bar beside a gray number, and why", () => {
+    const notSet = lines.find((line) => line.startsWith("- Not configured")) ?? "";
+    expect(notSet).toContain(`→ ${survivalSubScore(-1)} `);
+    expect(stateLabel(survivalSubScore(-1))).toBe("At Risk");
+    expect(notSet).toContain('reads "Not set" in gray while the Survival bar is red');
+  });
+
+  it("the playbook's dated note names the step that moved, both scores and the effect on the composite", () => {
+    expect(changed).not.toBe("");
+    expect(changed).toMatch(/from 2 to under 3 months scored 30 on Survival \(At Risk, a red bar\)/);
+    expect(changed).toContain("It now scores 41 (Building, amber)");
+    // A dated note keeps that day's figures; while v1.4 is current they are the ladder's.
+    expect(SCORE_VERSION).toBe("1.4");
+    expect(survivalSubScore(2.5)).toBe(41);
+    expect(changed).toContain("No other step moved");
+    expect(changed).toMatch(/Survival is 15% of the Runway Score.*1 or 2 points higher.*with nothing else changed/);
+    expect(`${heading}\n${changed}`).not.toMatch(/—/);
+  });
+
+  it.each(RISK_BAND_LEVELS)("both playbooks say which score band a %s runway scores in, and its colour", (level) => {
+    const scores = SURVIVAL_SCORE_STEPS.filter((step) => step.level === level).map((step) => step.score);
+    const scoreBands = new Set(scores.map(stateLabel));
+    expect(scoreBands.size).toBe(1);
+    const sentence = `a ${RISK_LEVEL_LABEL[level]} runway scores ${[...scoreBands][0]} (${COLOUR_WORD[riskColorBand(level)].toLowerCase()})`;
+    expect(heading).toContain(sentence);
+    expect(getPlaybook("survival")).toContain(sentence);
+  });
+
+  it("the survival playbook says the sub-score follows its bands, not only where the top step starts", () => {
+    const survivalPlaybook = getPlaybook("survival");
+    expect(survivalPlaybook).toContain("The Survival sub-score follows these bands");
+    expect(survivalPlaybook).not.toContain("The top Survival sub-score starts where");
+    expect(survivalPlaybook).toContain('a red bar beside a gray "Not set"');
+  });
+
+  it("the knowledge base gives the engine's version, each band's scores and the dated note", () => {
+    expect(KNOWLEDGE_BASE).toContain(`**Runway Score** (v${SCORE_VERSION}) = `);
+    expect(KNOWLEDGE_BASE).not.toMatch(/\*\*Runway Score\*\* \(v1\.[0-3]\)/);
+    for (const level of RISK_BAND_LEVELS) {
+      const scores = SURVIVAL_SCORE_STEPS.filter((step) => step.level === level).map((step) => step.score);
+      const range = scores.length > 1 ? `${scores[0]}–${scores[scores.length - 1]}` : `${scores[0]}`;
+      expect(KNOWLEDGE_BASE).toContain(`${RISK_LEVEL_LABEL[level]} ${range} (${stateLabel(scores[0])})`);
+    }
+    expect(KNOWLEDGE_BASE).toMatch(
+      /Changed 2026-10-13 \(v1\.4\): a runway from 2 to under 3 months scored 30 \(At Risk, red\) and now scores 41 \(Building, amber\); no other step moved\./,
+    );
+  });
+
+  it.each([
+    "why is my survival bar red when my cash runway is amber",
+    "my survival bar turned amber, it was red yesterday",
+    "Survival is 41 now, it was 30",
+    "my survival score went from 30 to 41 and I changed nothing",
+    "My runway score went up 2 points overnight, why?",
+  ])("%s reaches a playbook that says what changed", (question) => {
+    // A question that says "survival" without "score" reaches only the
+    // Survival playbook, so the dated note is in both.
+    const topics = classifyTopicMulti(question).map((t) => t.topic);
+    expect(topics.length).toBeGreaterThan(0);
+    expect(getPlaybook(topics[0])).toContain(changed);
+  });
+
+  it("Flight Crew's example of stating a Survival score uses a score the ladder gives", () => {
+    const prompts = read("apps/web/lib/flight-crew/system-prompts.ts");
+    const example = prompts.match(/Survival scored (\d+)\/100 \(engine label: (\w+)\)[^\n]*?([\d.]+) months/);
+    expect(example).not.toBeNull();
+    const [, score, level, runway] = example!;
+    expect(Number(score)).toBe(survivalSubScore(Number(runway)));
+    expect(SURVIVAL_SCORE_STEPS.find((step) => step.score === Number(score))?.level).toBe(level);
   });
 });
