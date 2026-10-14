@@ -38,7 +38,7 @@ import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { fmtCurrency } from "@/lib/formatters";
 import { KpiStrip, CockpitStat, SEMANTIC } from "@/components/cockpit-ui";
-import { computeGCI, getAgentPct, type Transaction, type PipelineDeal, type HistoryItem, type UserSettings } from "@/lib/types/database";
+import { computeGCI, getAgentPct, type Transaction, type PipelineDeal, type HistoryItem, type ListingAppointment, type UserSettings } from "@/lib/types/database";
 import { TransactionsPipelineTab } from "./transactions-pipeline-tab";
 import { TransactionsHistoryTab } from "./transactions-history-tab";
 import { useVoiceDraft } from "@/lib/voice/voice-draft-context";
@@ -51,6 +51,10 @@ interface Props {
   settingsSplit: number | null;
   settings: UserSettings | null;
   initialTab?: string;
+  /** `ytdExpenseTotals(...)`: with the listings, what the deal-close tax row is estimated from. */
+  expensesYTD?: number;
+  expensesRemaining?: number;
+  activeListings?: ListingAppointment[];
 }
 
 type FormState = {
@@ -100,7 +104,7 @@ const SIDE_CHIP: Record<string, string> = {
   both:   "bg-teal-100 text-teal-800 border border-teal-200",
 };
 
-export function TransactionsContent({ initialTransactions, initialPipelineDeals, historyItems, settingsSplit, settings, initialTab }: Props) {
+export function TransactionsContent({ initialTransactions, initialPipelineDeals, historyItems, settingsSplit, settings, initialTab, expensesYTD = 0, expensesRemaining = 0, activeListings = [] }: Props) {
   const [tab, setTab] = useState<"deals" | "pipeline" | "history">(
     initialTab === "history" ? "history" : initialTab === "pipeline" ? "pipeline" : "deals",
   );
@@ -436,6 +440,17 @@ export function TransactionsContent({ initialTransactions, initialPipelineDeals,
           closedTransactions={transactions
             .filter((t) => t.status === "closed")
             .map((t) => ({ sale_price: t.sale_price, commission_pct: t.commission_pct, date: t.date }))}
+          // The rows the dashboard's tax estimate reads; the tab adds its
+          // live pipeline when a deal closes.
+          taxEstimateInputs={settings ? {
+            settings,
+            ytdGCI,
+            ytdDealCount: ytdCount,
+            listings: activeListings,
+            historyItems,
+            expensesYTD,
+            expensesRemaining,
+          } : null}
         />
       )}
 

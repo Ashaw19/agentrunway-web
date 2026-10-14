@@ -223,6 +223,7 @@ const YTD_EXPENSE_SURFACES = [
   "apps/web/app/(app)/overhead/page.tsx",
   "apps/web/app/(app)/altimeter/page.tsx",
   "apps/web/app/(app)/scenarios/page.tsx",
+  "apps/web/app/(app)/transactions/page.tsx",
   "apps/web/app/demo/dashboard/page.tsx",
   "apps/web/app/api/chat/route.ts",
   "apps/web/app/api/cron/weekly-digest/route.ts",

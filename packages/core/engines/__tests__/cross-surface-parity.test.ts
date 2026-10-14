@@ -44,7 +44,8 @@ import { buildHealthReport } from "../health-report";
 import { compute as computeRunwayScore } from "../runway-score-engine";
 import { compare as benchmarkCompare } from "../benchmark-engine";
 import { computeHSTCollected } from "../hst-engine";
-import { gstHstRate } from "../canadian-tax-engine";
+import { calculate as calculateTax, gstHstRate } from "../canadian-tax-engine";
+import { dealCloseTaxPortion, taxPortionOfCommission, yearTaxEstimate } from "../deal-tax-portion";
 import { computeGCI, computeWeightedGCI, activePipelineDeals, type RecurringExpense, type Transaction } from "../../types/database";
 import { aggregateReceiptTotals, expenseTaxContext } from "../expense-totals-engine";
 import { buildT2125Expenses, ytdExpenseTotals } from "../t2125-expenses-engine";
@@ -462,6 +463,126 @@ describe("YTD expenses: the Expenses page total equals the dashboard's", () => {
       now: NOW,
     });
     expect(direct.ytdTotal).toBe(dashboard().expensesYTD);
+  });
+});
+
+// ── the tax portion of a commission: deal-close, dashboard, Flight Crew ───────
+//
+// 2026-10-13. One deal used to get three "tax on this deal" figures: the
+// dashboard's per-deal tax portion (the year's estimate / projected deals),
+// the deal-close screens' "Income tax reserve" (the commission x a marginal
+// rate looked up at GCI, no CPP), and the Flight Crew's worked example (the
+// agent's split x income tax / net income, called a marginal rate).
+//
+// One definition now (deal-tax-portion.ts): the year's estimate x the
+// commission / projected GCI. Each surface is modelled below the way the
+// rest of this file models them.
+
+describe("the tax portion of a commission is one figure on every surface", () => {
+  const pipelineRows = PIPELINE.map((d, i) => ({ id: `p${i + 1}`, ...d }));
+  // The offer-stage buyer deal (p1) closes at its estimated price.
+  const CLOSING_ID = "p1";
+  const COMMISSION = 450_000 * 0.025;
+
+  /**
+   * dashboard-content.tsx once the page reloads after the close: the deal is
+   * a closed transaction and its pipeline row is terminal.
+   */
+  function dashboardAfterClose() {
+    const ytdGCI = CLOSED_TX.reduce((sum, tx) => sum + computeGCI(tx), 0) + COMMISSION;
+    const ytdDealCount = CLOSED_TX.length + 1;
+    const livePipelineDeals = activePipelineDeals(
+      pipelineRows.map((d) => (d.id === CLOSING_ID ? { ...d, stage: "closed" } : d)),
+    );
+    const pipelineWeightedGCI = livePipelineDeals.reduce((sum, d) => sum + computeWeightedGCI(d), 0);
+    const listingWeightedGCI = computeListingWeightedGCI(LISTINGS);
+    const fraction = seasonalFractionElapsed(SETTINGS.national_quarter_pcts, NOW);
+    const projectedGCI = projectedYearEndGCI(ytdGCI, pipelineWeightedGCI + listingWeightedGCI, fraction, SETTINGS.goal_gci);
+    const projectedDealCount = projectedYearEndTransactions(ytdDealCount, livePipelineDeals.length, fraction);
+    const netForTax = computeProjectedNetForTax({
+      projectedGCI,
+      expensesYTD: EXPENSES_YTD,
+      expensesRemaining: EXPENSES_REMAINING,
+      settings: SETTINGS,
+      projectedDealCount,
+      now: NOW,
+    });
+    const taxResult = calculateTax(netForTax, SETTINGS.province, Math.max(projectedDealCount, 1));
+    return { projectedGCI, projectedDealCount, taxResult };
+  }
+
+  /** closing-day-prompt.tsx and transactions-pipeline-tab.tsx: the rows as they are when the agent confirms the close. */
+  function dealCloseScreen() {
+    return dealCloseTaxPortion({
+      settings: SETTINGS,
+      ytdGCI: CLOSED_TX.reduce((sum, tx) => sum + computeGCI(tx), 0),
+      ytdDealCount: CLOSED_TX.length,
+      pipelineDeals: pipelineRows,
+      listings: LISTINGS,
+      historyItems: [],
+      expensesYTD: EXPENSES_YTD,
+      expensesRemaining: EXPENSES_REMAINING,
+      commissionGCI: COMMISSION,
+      closingPipelineDealId: CLOSING_ID,
+      now: NOW,
+    });
+  }
+
+  it("the deal-close screens estimate the year the way the dashboard does after the close", () => {
+    const dash = dashboardAfterClose();
+    const close = dealCloseScreen();
+    expect(close.projectedGCI).toBe(dash.projectedGCI);
+    expect(close.annualTaxEstimate).toBe(dash.taxResult.totalBurden);
+    expect(close.taxYear).toBe(dash.taxResult.taxYear);
+    expect(dash.taxResult.totalBurden).toBeGreaterThan(0);
+  });
+
+  it("the deal-close figure is the dashboard's estimate by the commission's share of projected GCI", () => {
+    const dash = dashboardAfterClose();
+    const expected = Math.round(((dash.taxResult.totalBurden * COMMISSION) / dash.projectedGCI) * 100) / 100;
+    expect(dealCloseScreen().taxPortion).toBe(expected);
+    expect(expected).toBeGreaterThan(0);
+    expect(expected).toBeLessThan(COMMISSION);
+  });
+
+  it("for a deal of the projected average size it is the dashboard's Per-deal tax portion", () => {
+    const { projectedGCI, projectedDealCount, taxResult } = dashboardAfterClose();
+    const averageDeal = projectedGCI / Math.max(projectedDealCount, 1);
+    expect(taxPortionOfCommission(averageDeal, projectedGCI, taxResult.totalBurden)).toBeCloseTo(taxResult.perDealSetAside, 2);
+  });
+
+  it("the Flight Crew's worked example and its seasonal line are the same definition on the chat route's figures", () => {
+    // api/chat/route.ts: projGCI and taxResult from the shared chain, handed to
+    // paychequeAllocationLines and seasonalCommissionPatternLine.
+    const { projGCI, projDeals } = deriveInputs();
+    const netForTax = computeProjectedNetForTax({
+      projectedGCI: projGCI,
+      expensesYTD: EXPENSES_YTD,
+      expensesRemaining: EXPENSES_REMAINING,
+      settings: SETTINGS,
+      projectedDealCount: projDeals,
+      now: NOW,
+    });
+    const taxResult = calculateTax(netForTax, SETTINGS.province, projDeals);
+    // The chat route's year is the one yearTaxEstimate builds from the rows.
+    const year = yearTaxEstimate({
+      settings: SETTINGS,
+      ytdGCI: CLOSED_TX.reduce((sum, tx) => sum + computeGCI(tx), 0),
+      ytdDealCount: CLOSED_TX.length,
+      pipelineDeals: pipelineRows,
+      listings: LISTINGS,
+      historyItems: [],
+      expensesYTD: EXPENSES_YTD,
+      expensesRemaining: EXPENSES_REMAINING,
+      now: NOW,
+    });
+    expect(year.projectedGCI).toBe(projGCI);
+    expect(year.tax.totalBurden).toBe(taxResult.totalBurden);
+
+    // A $10,000 example, and a quarter carrying 30% of the year.
+    const example = taxPortionOfCommission(10_000, projGCI, taxResult.totalBurden);
+    expect(example).toBeCloseTo((taxResult.totalBurden * 10_000) / projGCI, 2);
+    expect(taxPortionOfCommission(projGCI * 0.3, projGCI, taxResult.totalBurden)).toBeCloseTo(taxResult.totalBurden * 0.3, 2);
   });
 });
 

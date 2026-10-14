@@ -53,7 +53,7 @@ function localDateStr(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 import { useConfetti } from "@/hooks/use-confetti";
-import { marginalRate } from "@/lib/engines/canadian-tax-engine";
+import { dealCloseTaxPortion, type YearTaxEstimateInputs } from "@agent-runway/core/engines/deal-tax-portion";
 import { DealCloseCelebration, type CelebrationData } from "./deal-close-celebration";
 
 interface Props {
@@ -61,6 +61,8 @@ interface Props {
   settings?: UserSettings | null;
   /** Closed transactions this year — used for YTD GCI + streak calculations */
   closedTransactions?: { sale_price: number; commission_pct: number; date: string }[];
+  /** The rows the dashboard's tax estimate reads, less the pipeline (this tab's own); null without settings. */
+  taxEstimateInputs?: Omit<YearTaxEstimateInputs, "pipelineDeals"> | null;
 }
 
 type FormState = {
@@ -123,7 +125,7 @@ type CloseForm = {
   date: string;
 };
 
-export function TransactionsPipelineTab({ pipelineDeals, settings, closedTransactions = [] }: Props) {
+export function TransactionsPipelineTab({ pipelineDeals, settings, closedTransactions = [], taxEstimateInputs = null }: Props) {
   const supabase = useMemo(() => createClient(), []);
   // Exclude BOTH terminal stages via the canonical filter. A buyer prospect
   // marked lost keeps its row at stage='lost'; a closed deal keeps its row at
@@ -424,9 +426,17 @@ export function TransactionsPipelineTab({ pipelineDeals, settings, closedTransac
       (t) => t.date?.startsWith(thisYear)
     ).length + 1;
 
-    // Estimated marginal rate at projected annual income
-    const projectedAnnual = ytdGCIBefore + gci;
-    const estMarginalRate = marginalRate(projectedAnnual > 0 ? projectedAnnual : goalGCI, province);
+    // The tax portion of this commission, with the deal counted as closed
+    // (core/engines/deal-tax-portion): the year's estimate the dashboard
+    // shows, by this commission's share of projected GCI.
+    const taxPortion = taxEstimateInputs
+      ? dealCloseTaxPortion({
+          ...taxEstimateInputs,
+          pipelineDeals: deals,
+          commissionGCI: gci,
+          closingPipelineDealId: closeTarget.id,
+        })
+      : null;
 
     setCelebration({
       address: closeTarget.address ?? "",
@@ -437,7 +447,7 @@ export function TransactionsPipelineTab({ pipelineDeals, settings, closedTransac
       province,
       dealsThisMonth,
       totalDealsThisYear,
-      estimatedMarginalRate: estMarginalRate,
+      taxPortion,
       // D-4 fix (Audit 1 2026-04-22): forward HST registration + brokerage-
       // withholds flag so the per-deal celebration row zeros out for
       // unregistered agents and brokerage-remits flows.

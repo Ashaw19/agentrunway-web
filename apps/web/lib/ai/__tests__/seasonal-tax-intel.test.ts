@@ -17,6 +17,8 @@
  */
 import { describe, expect, it } from "vitest";
 import { validateTaxCopy } from "@agent-runway/core/tax-copy";
+import { taxPortionOfCommission } from "@agent-runway/core/engines/deal-tax-portion";
+import { fmtCurrency } from "@/lib/formatters";
 import { seasonalCommissionPatternLine, seasonalQuarterStats } from "../seasonal-tax-intel";
 
 /** Noon on a calendar day, the shape atlanticNoon() hands the chat route. */
@@ -55,7 +57,7 @@ describe("seasonalQuarterStats — the quarter today is in", () => {
 });
 
 describe("seasonalCommissionPatternLine", () => {
-  const base = { projectedGCI: 200_000, effectiveRate: 0.25, perDealSetAside: 4_000 };
+  const base = { projectedGCI: 200_000, annualTaxEstimate: 40_000, perDealSetAside: 4_000 };
 
   it("fires in a heavy Q1 (it never did: the weight was read at index -1)", () => {
     const line = seasonalCommissionPatternLine({
@@ -90,9 +92,10 @@ describe("seasonalCommissionPatternLine", () => {
     expect(line).toBe(
       "[SEASONAL COMMISSION PATTERN] Q4 seasonal weight: 40% of annual. " +
       "Agent closed 2 deals in Q4. " +
-      // 200,000 x 40% x 25%
-      "Estimated tax liability on this quarter's projected GCI at marginal rate 25.0%: ~$20,000. " +
-      "Per-deal equivalent: $4,000. " +
+      // The year's estimate (40,000) by the quarter's share of projected GCI (40%).
+      "Tax portion of this quarter's projected GCI of $80,000: ~$16,000, " +
+      "the quarter's share of the year's estimate of $40,000. " +
+      "Per-deal tax portion: $4,000. " +
       "State the math only — describe no action.",
     );
   });
@@ -111,6 +114,18 @@ describe("seasonalCommissionPatternLine", () => {
     expect(seasonalCommissionPatternLine({
       ...base, today: day(2026, 2, 14), seasonalWeights: [], ytdTx: tx("2026-01-12", "2026-02-03"),
     })).toBeNull();
+  });
+
+  it("the quarter's figure is the engine's tax portion, and no rate is called marginal", () => {
+    const line = seasonalCommissionPatternLine({
+      ...base,
+      today: day(2026, 10, 13),
+      seasonalWeights: [0.2, 0.2, 0.2, 0.4],
+      ytdTx: tx("2026-10-01", "2026-10-09"),
+    }) ?? "";
+    expect(line).toContain(`~${fmtCurrency(taxPortionOfCommission(80_000, 200_000, 40_000))}`);
+    expect(line).not.toMatch(/marginal/i);
+    expect(line).not.toMatch(/\d\s*%\s*:/); // no rate applied to the quarter's GCI
   });
 
   it("is tax information, not advice", () => {

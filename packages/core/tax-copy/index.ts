@@ -9,6 +9,17 @@ export {
 } from "./disclaimer";
 
 export {
+  DEAL_CLOSE_BREAKDOWN_HEADING,
+  DEAL_TAX_PORTION_DEFINITION,
+  dealTaxPortionLabel,
+  dealTaxPortionNote,
+  dealGstHstLabel,
+  dealGstHstNote,
+  type DealTaxPortionCopyInput,
+  type DealGstHstCopyInput,
+} from "./deal-tax-portion";
+
+export {
   FORBIDDEN_VERBS,
   FORBIDDEN_PHRASES,
   QUALITATIVE_ADJECTIVES,
