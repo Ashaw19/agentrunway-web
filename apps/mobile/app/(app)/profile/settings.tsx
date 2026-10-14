@@ -34,6 +34,7 @@ import {
   Pressable,
   TextInput,
   Alert,
+  Switch,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
@@ -45,6 +46,7 @@ import {
   Award,
   Check,
   ChevronRight,
+  MessageSquare,
 } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
 import {
@@ -399,6 +401,50 @@ export default function SettingsScreen() {
         >
           {t("settings.cashReserveNote")}
         </Text>
+
+        {/* ── Texts (00180) ── */}
+        <Text
+          style={{
+            ...Type.label,
+            color: c.textMuted,
+            marginTop: Space.section,
+            marginBottom: Space.md,
+          }}
+        >
+          {t("settings.textsSection")}
+        </Text>
+        <View
+          style={[
+            {
+              backgroundColor: c.card,
+              borderRadius: Radius.xl,
+              borderWidth: 1,
+              borderColor: c.cardBorder,
+              padding: Space.lg,
+              flexDirection: "row",
+              alignItems: "center",
+              gap: Space.md,
+            },
+            sh.card,
+          ]}
+        >
+          <MessageSquare size={18} color={c.primary} />
+          <View style={{ flex: 1 }}>
+            <Text style={{ ...Type.bodyBold, color: c.text }}>{t("settings.textFooter")}</Text>
+            <Text style={{ ...Type.caption, color: c.textDim, marginTop: 2, lineHeight: 18 }}>
+              {t("settings.textFooterDesc")}
+            </Text>
+          </View>
+          <Switch
+            value={settings?.text_footer !== false}
+            disabled={saving}
+            onValueChange={(v) => void updateColumn({ text_footer: v })}
+            trackColor={{ false: c.textFaint, true: c.primary + "60" }}
+            thumbColor={settings?.text_footer !== false ? c.primary : c.textDim}
+            ios_backgroundColor={c.textFaint}
+            accessibilityLabel={t("settings.textFooter")}
+          />
+        </View>
 
         {/* ── Info Banner ── */}
         <View

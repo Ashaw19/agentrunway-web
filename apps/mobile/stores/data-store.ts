@@ -244,6 +244,11 @@ export interface UserSettings {
    * the quiz on web or on mobile.
    */
   ai_voice_guide: string | null;
+  /**
+   * Drafted texts end with the agent's name, brokerage and an opt-out line
+   * when true (default; 00180). Turned off in Settings → Texts.
+   */
+  text_footer?: boolean;
   runway_score_snapshot: {
     score: number;
     grade?: string;
@@ -554,7 +559,8 @@ interface DataStore {
 // v7 (2026-10-14): `pipeline` holds active deals only (a cached closed or
 //   lost row would show in the Deals list), every client instead of the
 //   first 200, and up to 500 open Checklist items.
-const CACHE_VERSION = 7;
+// v8 (2026-10-14): added `text_footer` on `settings` (Settings → Texts).
+const CACHE_VERSION = 8;
 const CACHE_KEY = "data_store_cache";
 const CACHE_VERSION_KEY = "data_store_cache_version";
 
@@ -869,7 +875,8 @@ export const useDataStore = create<DataStore>((set, get) => {
                   // (expense totals net of ITCs). CACHE_VERSION 5.
                   // 2026-10-13: home_office_business_use_pct (Home Office
                   // bills count at the workspace share). CACHE_VERSION 6.
-                  "user_id, display_name, avatar_url, goal_gci, goal_transactions, split_preset, province, experience_years, subscription_tier, cash_reserve, growth_goal_year_pcts, monthly_brokerage_fee, gst_hst_registered, vehicle_business_use_pct, home_office_business_use_pct, runway_score_snapshot, communication_profile, business_identity, agent_goals, ai_voice_guide"
+                  // 2026-10-14: text_footer (Settings → Texts). CACHE_VERSION 8.
+                  "user_id, display_name, avatar_url, goal_gci, goal_transactions, split_preset, province, experience_years, subscription_tier, cash_reserve, growth_goal_year_pcts, monthly_brokerage_fee, gst_hst_registered, vehicle_business_use_pct, home_office_business_use_pct, text_footer, runway_score_snapshot, communication_profile, business_identity, agent_goals, ai_voice_guide"
                 )
                 .eq("user_id", user.id)
                 .single(),

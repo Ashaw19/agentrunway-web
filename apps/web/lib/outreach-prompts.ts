@@ -1307,7 +1307,8 @@ export const TEXT_PURPOSE_LABELS: Record<TextPurpose, string> = {
 
 /**
  * One short text to one client, in the agent's voice. The code appends the
- * agent's name and the opt-out line, so the model writes the message only.
+ * agent's name and the opt-out line when the agent keeps that footer on, so
+ * the model writes the message only.
  * Facts the app doesn't hold (prices, rates, inventory) are never stated:
  * a market update is offered, not invented.
  */
@@ -1353,6 +1354,6 @@ TEXT MESSAGE RULES (these override any length or format guidance elsewhere):
 - Sound like ${agentFirst} typed it on their phone: plain, warm, specific. No marketing language, no hashtags, no links, no emojis unless the tone is casual (then at most one).
 - Never state facts you weren't given: no prices, rates, statistics, listings or market claims.
 - No em dashes. Use a comma or a full stop instead.
-- No sign-off and no name at the end: the app adds ${agentFirst}'s name and an opt-out line.
+- No sign-off and no name at the end. It comes from ${agentFirst}'s own phone number.
 - Output ONLY the message text. No quotes, no labels, no explanation.`;
 }

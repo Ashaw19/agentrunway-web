@@ -147,6 +147,17 @@ describe("draftTextForClient — the queued text", () => {
     expect(String(row.ai_body)).toMatch(/\nAndrew Shaw, REAL Broker\nReply STOP to opt out\.$/);
   });
 
+  it("leaves off the name, brokerage and opt-out line when the agent turned the footer off", async () => {
+    const { client, writes } = fakeSupabase(tables({
+      user_settings: [{ user_id: USER, display_name: "Andrew Shaw", brokerage_name: "REAL Broker", ai_voice_guide: null, text_footer: false }],
+    }));
+    const r = await draftTextForClient({ supabase: client, userId: USER, clientId: CLIENT, purpose: "check_in" });
+    expect(r.status).toBe("created");
+    const row = writes.find((w) => w.table === "outreach_queue" && w.op === "upsert")?.payload as Row;
+    expect(String(row.ai_body)).toBe("Hi Sam, how's everything going at the new place? Would love to hear how you're settling in.");
+    expect(String(row.ai_body)).not.toMatch(/REAL Broker|Reply STOP/);
+  });
+
   it("returns the text already waiting today instead of drafting another", async () => {
     const waiting = {
       id: "q-9", user_id: USER, client_id: CLIENT, opportunity_type: "text_message", trigger_date: "2026-10-14",
@@ -196,6 +207,10 @@ describe("finalizeTextBody", () => {
 
   it("keeps a message that merely ends in a capitalized word", () => {
     expect(finalizeTextBody("Hi Sam, are you around Saturday", signOff, "Andrew").split("\n")[0]).toBe("Hi Sam, are you around Saturday");
+  });
+
+  it("returns the message alone with no sign-off", () => {
+    expect(finalizeTextBody("Hi Sam, how are you? - Andrew", null, "Andrew")).toBe("Hi Sam, how are you?");
   });
 
   it("caps a long message on a sentence boundary and always ends with the opt-out line", () => {
