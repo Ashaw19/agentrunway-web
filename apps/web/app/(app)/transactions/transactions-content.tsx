@@ -12,6 +12,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { validateTransaction, FIELD_LIMITS } from "@agent-runway/core/validation/input-guards";
+import { commissionPaidDateHint } from "@agent-runway/core/tax-copy";
+import { incomeReportingMethod, taxYearGCIAdjustment } from "@agent-runway/core/engines/tax-year";
 import {
   Dialog,
   DialogContent,
@@ -59,6 +61,8 @@ interface Props {
 
 type FormState = {
   date: string;
+  /** Commission paid date (YYYY-MM-DD); "" = not entered. Read by engines/tax-year.ts. */
+  commission_paid_date: string;
   address: string;
   client_name: string;
   side: "buyer" | "seller" | "both";
@@ -80,6 +84,7 @@ function localDateStr(): string {
 
 const emptyForm = (): FormState => ({
   date: localDateStr(),
+  commission_paid_date: "",
   address: "",
   client_name: "",
   side: "buyer",
@@ -132,6 +137,7 @@ export function TransactionsContent({ initialTransactions, initialPipelineDeals,
     setForm({
       ...emptyForm(),
       date: tx.date ?? emptyForm().date,
+      commission_paid_date: "",
       address: tx.address ?? "",
       client_name: tx.client_name ?? "",
       side: tx.side ?? "buyer",
@@ -180,6 +186,7 @@ export function TransactionsContent({ initialTransactions, initialPipelineDeals,
     setEditingId(tx.id);
     setForm({
       date: tx.date,
+      commission_paid_date: tx.commission_paid_date ?? "",
       address: tx.address ?? "",
       client_name: tx.client_name ?? "",
       side: tx.side,
@@ -215,6 +222,8 @@ export function TransactionsContent({ initialTransactions, initialPipelineDeals,
       has_team_split: form.has_team_split,
       address: form.address,
       notes: form.notes,
+      date: form.date,
+      commission_paid_date: form.commission_paid_date,
     });
     if (!validation.valid || !validation.parsed) {
       validation.errors.forEach((msg) => toast.error(msg));
@@ -226,6 +235,7 @@ export function TransactionsContent({ initialTransactions, initialPipelineDeals,
 
     const payload = {
       date: form.date,
+      commission_paid_date: parsed.commission_paid_date,
       address: form.address.slice(0, FIELD_LIMITS.address),
       client_name: form.client_name.slice(0, FIELD_LIMITS.clientName),
       side: form.side,
@@ -450,6 +460,13 @@ export function TransactionsContent({ initialTransactions, initialPipelineDeals,
             historyItems,
             expensesYTD,
             expensesRemaining,
+            // Every closed row is loaded, so a cash-method agent's earlier
+            // closings paid this year are among them (core/engines/tax-year.ts).
+            taxYearGCIAdjustment: taxYearGCIAdjustment(
+              transactions.filter((t) => t.status === "closed"),
+              incomeReportingMethod(settings),
+              Number(currentYear),
+            ),
           } : null}
         />
       )}
@@ -627,6 +644,9 @@ export function TransactionsContent({ initialTransactions, initialPipelineDeals,
                     <TableCell className="whitespace-nowrap text-sm">
                       <div className="flex flex-col gap-0.5">
                         <span>{tx.date}</span>
+                        {tx.commission_paid_date && tx.commission_paid_date !== tx.date && (
+                          <span className="text-[11px] text-muted-foreground">Paid {tx.commission_paid_date}</span>
+                        )}
                         {tx.source === "imported" && (
                           <span className="inline-flex w-fit items-center rounded-full px-2.5 py-0.5 text-[10px] font-medium bg-slate-100 text-slate-500 border border-slate-200">
                             imported
@@ -792,6 +812,24 @@ export function TransactionsContent({ initialTransactions, initialPipelineDeals,
                 </span>
               </div>
             )}
+
+            {/* Commission paid date: read by the tax year (engines/tax-year.ts) */}
+            <div className="grid gap-1.5">
+              <Label htmlFor="tx-commission-paid-date">
+                Commission paid{" "}
+                <span className="text-xs text-muted-foreground">(optional)</span>
+              </Label>
+              <Input
+                id="tx-commission-paid-date"
+                type="date"
+                min={form.date || undefined}
+                value={form.commission_paid_date}
+                onChange={(e) => setField("commission_paid_date", e.target.value)}
+              />
+              <p className="text-[11px] text-muted-foreground">
+                {commissionPaidDateHint(incomeReportingMethod(settings))}
+              </p>
+            </div>
 
             {/* Address */}
             <div className="grid gap-1.5">

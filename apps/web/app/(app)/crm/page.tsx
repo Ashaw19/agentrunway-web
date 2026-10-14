@@ -5,6 +5,8 @@ import { computeGCI, type Client, type ClientRecord, type ContactActivity, type 
 import { expenseTaxContext } from "@agent-runway/core/engines/expense-totals-engine";
 import { ytdExpenseTotals } from "@agent-runway/core/engines/t2125-expenses-engine";
 import { yearTaxEstimate } from "@agent-runway/core/engines/deal-tax-portion";
+import { incomeReportingMethod, taxYearGCIAdjustment } from "@agent-runway/core/engines/tax-year";
+import { loadTaxYearCarryIn } from "@/lib/tax-year-carry-in";
 import { atlanticNoon } from "@agent-runway/core/lib/local-date";
 
 
@@ -156,7 +158,11 @@ export default async function ClientsPage({
       .limit(10000),
   ] as const;
 
+  // A cash-method agent's earlier closings paid this year: the tax estimate's
+  // carry-in (tax-year-carry-in.ts). Empty for accrual.
+  const taxYearCarryInPromise = loadTaxYearCarryIn(supabase, user.id, settings, taxYear);
   const [clientsResult, recordsResult, activitiesResult, tasksResult, expensesResult, relationshipsResult, coPartiesResult, flightPlansResult, flightPlanStepsResult, showingsResult, listingApptsResult, transactionsResult, pipelineResult, historyResult, receiptTotalsResult, recurringExpResult] = await Promise.all(queries);
+  const taxYearCarryIn = await taxYearCarryInPromise;
 
   // Year-to-date expenses, what is still to come and the monthly figure: the
   // dashboard's one engine call (t2125-expenses-engine), net of the ITCs a
@@ -182,6 +188,11 @@ export default async function ClientsPage({
         historyItems: historyResult.data ?? [],
         expensesYTD: expenseTotals.expensesYTD,
         expensesRemaining: expenseTotals.expensesRemaining,
+        taxYearGCIAdjustment: taxYearGCIAdjustment(
+          [...transactions, ...taxYearCarryIn],
+          incomeReportingMethod(settings),
+          taxYear,
+        ),
         now: today,
       }).netForTax
     : 0;

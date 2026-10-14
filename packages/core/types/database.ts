@@ -372,6 +372,10 @@ export interface UserSettings {
   filing_frequency: 'monthly' | 'quarterly' | 'annual';
   fiscal_year_end_month: number; // 1-12
   brokerage_withholds_hst: boolean; // brokerage holds HST and remits to CRA
+  // How commission income is reported for income tax (migration 00178):
+  // 'accrual' (year earned, default) | 'cash' (year received). Read it with
+  // incomeReportingMethod() in engines/tax-year.ts.
+  income_reporting_method: 'accrual' | 'cash';
 
   // Timestamps
   created_at: string;
@@ -503,6 +507,11 @@ export interface Transaction {
   team_split_pct?: number | null;
 
   pipeline_deal_id: string | null;  // FK to pipeline_deals for accuracy tracking
+
+  // When the commission was received (migration 00178). NULL = not entered.
+  // Read only through engines/tax-year.ts: a cash-method agent's deal is
+  // income of this date's tax year. Production metrics stay on `date`.
+  commission_paid_date?: string | null;
 
   // Import provenance + edit protection (migration 00121)
   // import_external_id: stable natural-key fingerprint set on imported rows;

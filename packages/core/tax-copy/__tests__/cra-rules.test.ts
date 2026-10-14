@@ -34,6 +34,12 @@
  *      instalment amounts are too low") is carried, not dropped.
  *   9. The deduction rules (reasonable current expense, meals at 50% of the
  *      lesser amount, capital property through CCA) are CRA's sentences.
+ *  10. The income reporting method rules (T4002 ch. 1): who can use the cash
+ *      method, what each method means for income and expenses, and both ways
+ *      of changing, with CRA's conditions (a statement of adjustments; for
+ *      cash to accrual, written permission from the tax services office
+ *      before the filing date). No method is put above the other, and the
+ *      Settings hint says which figures stay on the closing date.
  */
 
 import { describe, it, expect } from "vitest";
@@ -75,6 +81,12 @@ import {
   PERSONAL_EXPENSE_RULE,
   MEALS_ENTERTAINMENT_RULE,
   CAPITAL_COST_ALLOWANCE_RULE,
+  INCOME_REPORTING_METHOD_RULES,
+  INCOME_REPORTING_METHOD_RULE_LIST,
+  CRA_REPORTING_METHOD_SOURCES,
+  INCOME_REPORTING_METHOD_SETTING,
+  incomeReportingMethodHint,
+  commissionPaidDateHint,
 } from "../cra-rules";
 import { computeHSTCollected } from "../../engines/hst-engine";
 import { calculate, gstHstLabel, gstHstRate } from "../../engines/canadian-tax-engine";
@@ -532,5 +544,79 @@ describe("business expenses: what is deductible, meals, capital property", () =>
     expect(rule).not.toMatch(/strategy|well-managed|meaningfully/i);
     expect(errorsIn(rule)).toEqual([]);
     expect(rule).not.toContain("—");
+  });
+});
+
+describe("income reporting method (T4002 ch. 1)", () => {
+  const all = [
+    ...INCOME_REPORTING_METHOD_RULE_LIST,
+    incomeReportingMethodHint("cash"),
+    incomeReportingMethodHint("accrual"),
+    commissionPaidDateHint("cash"),
+    commissionPaidDateHint("accrual"),
+    ...Object.values(INCOME_REPORTING_METHOD_SETTING.options),
+    INCOME_REPORTING_METHOD_SETTING.label,
+  ];
+
+  it.each(all.map((t) => [t]))("passes the info-not-advice lint: %s", (text) => {
+    expect(errorsIn(text)).toEqual([]);
+  });
+
+  it("names commission agents among those who can choose, and accrual for other self-employment income", () => {
+    expect(INCOME_REPORTING_METHOD_RULES.whoCanUse).toMatch(/^Per CRA/);
+    expect(INCOME_REPORTING_METHOD_RULES.whoCanUse).toContain("self-employed commission agents can use the cash method or the accrual method");
+    expect(INCOME_REPORTING_METHOD_RULES.whoCanUse).toMatch(/Other self-employment income.*accrual method/);
+  });
+
+  it("cash method: income when received, expenses when paid", () => {
+    expect(INCOME_REPORTING_METHOD_RULES.cash).toContain("income is reported in the fiscal period it is received");
+    expect(INCOME_REPORTING_METHOD_RULES.cash).toContain("expenses are deducted in the fiscal period they are paid");
+  });
+
+  it("accrual method: income when earned whenever received, expenses when incurred", () => {
+    expect(INCOME_REPORTING_METHOD_RULES.accrual).toContain("income is reported in the fiscal period it is earned, no matter when it is received");
+    expect(INCOME_REPORTING_METHOD_RULES.accrual).toContain("incurred, whether or not they are paid in that period");
+  });
+
+  it("accrual to cash: the next return, with a statement of each adjustment", () => {
+    expect(INCOME_REPORTING_METHOD_RULES.accrualToCash).toContain("next income tax return");
+    expect(INCOME_REPORTING_METHOD_RULES.accrualToCash).toContain("statement showing each adjustment");
+    expect(INCOME_REPORTING_METHOD_RULES.accrualToCash).not.toMatch(/permission/);
+  });
+
+  it("cash to accrual: written permission from the tax services office before the filing date, and the statement", () => {
+    const rule = INCOME_REPORTING_METHOD_RULES.cashToAccrual;
+    expect(rule).toContain("permission from the tax services office");
+    expect(rule).toContain("in writing");
+    expect(rule).toContain("reason for the change");
+    expect(rule).toContain("before the date the income tax return is due");
+    expect(rule).toContain("statement showing each adjustment");
+  });
+
+  it("puts neither method above the other", () => {
+    for (const text of all) {
+      expect(text).not.toMatch(/\b(better|best|preferred|most agents|simpler|default)\b/i);
+    }
+  });
+
+  it("cites T4002 and the Accounting methods page on canada.ca", () => {
+    expect(CRA_REPORTING_METHOD_SOURCES.guide.url).toMatch(/^https:\/\/www\.canada\.ca\/.*t4002/);
+    expect(CRA_REPORTING_METHOD_SOURCES.accountingMethods.url).toMatch(/^https:\/\/www\.canada\.ca\/.*accounting-methods\.html$/);
+  });
+
+  it("the Settings hint says what stays on the closing date under either method", () => {
+    for (const method of ["cash", "accrual"] as const) {
+      const hint = incomeReportingMethodHint(method);
+      expect(hint).toContain("Deal counts, GCI by year, History, the Runway Score and GST/HST");
+      expect(hint).toMatch(/^Agent Runway counts/);
+    }
+    expect(incomeReportingMethodHint("cash")).toContain("Commission paid date");
+    expect(incomeReportingMethodHint("cash")).toContain("closing date when that date is blank");
+  });
+
+  it("the form hint follows the method in Settings", () => {
+    expect(commissionPaidDateHint("cash")).toContain("counts in the year the deal closed");
+    expect(commissionPaidDateHint("cash")).toContain("in the year it was paid");
+    expect(commissionPaidDateHint("accrual")).toContain("used only under the cash method");
   });
 });

@@ -58,6 +58,7 @@ interface QueryBuilder extends PromiseLike<QueryResult> {
   select(columns: string): QueryBuilder;
   eq(column: string, value: unknown): QueryBuilder;
   gte(column: string, value: unknown): QueryBuilder;
+  lt(column: string, value: unknown): QueryBuilder;
   lte(column: string, value: unknown): QueryBuilder;
   in(column: string, values: unknown[]): QueryBuilder;
   not(column: string, operator: string, value: string): QueryBuilder;
@@ -140,6 +141,11 @@ export function fakeSupabase(
       gte(column, value) {
         query.filters.push(`gte(${column},${String(value)})`);
         rows = rows.filter((r) => r[column] != null && compare(r[column], value) >= 0);
+        return builder;
+      },
+      lt(column, value) {
+        query.filters.push(`lt(${column},${String(value)})`);
+        rows = rows.filter((r) => r[column] != null && compare(r[column], value) < 0);
         return builder;
       },
       lte(column, value) {

@@ -398,7 +398,11 @@ export function T2125Pdf({ result, settings, taxYear, mileageSummary, taxOptCard
 
         {/* Income */}
         <SectionHeader title="Part 3A — Income" subtitle="Gross commission income from closed transactions" color="#059669" />
-        <LineRow lineNum="8200" label="Gross Commission Income (closed deals)" value={result.grossCommissionIncome} />
+        {result.incomeReportingMethod === "cash" ? (
+          <LineRow lineNum="8200" label="Gross Commission Income" note="Cash method: commissions paid in the year" value={result.grossCommissionIncome} />
+        ) : (
+          <LineRow lineNum="8200" label="Gross Commission Income (closed deals)" value={result.grossCommissionIncome} />
+        )}
         <LineHighlight lineNum="8200" label="Total Gross Business Income" value={result.totalGrossIncome} />
 
         {/* Expenses */}

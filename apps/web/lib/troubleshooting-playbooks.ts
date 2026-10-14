@@ -15,7 +15,7 @@
 
 import { EXPENSE_RATIO_COPY, expenseRatioBandsList } from "@agent-runway/core/engines/expense-ratio-bands";
 import { TAX_YEAR } from "@agent-runway/core/engines/canadian-tax-engine";
-import { TAX_ENGINE_TABLES } from "@agent-runway/core/tax-copy";
+import { INCOME_REPORTING_METHOD_RULES, INCOME_REPORTING_METHOD_SETTING, TAX_ENGINE_TABLES } from "@agent-runway/core/tax-copy";
 import {
   SCORE_VERSION,
   SURVIVAL_SCORE_STEPS,
@@ -221,6 +221,16 @@ Reports → T2125 computes lines 8521 to 9369 from expenses incurred to date (t2
 - Home Office bills are not expense lines: they are costs behind line 9945.
 The Expenses page "Est. Tax Deductible YTD" card is the same calculation, so line 9369 equals that card less its Home Office part. The dashboard's and the Reports headline's YTD Expenses are the same lines before the limits (ytdExpenseTotals), so they equal the Expenses page's YTD Expenses.
 The T2125 tab's tax figure is on year-to-date income and expenses. The dashboard and Forecast estimates are on projected annual figures, so the two are different numbers by design.
+
+### Which year a commission counts in (income reporting method, since 2026-10-14)
+${INCOME_REPORTING_METHOD_RULES.whoCanUse} ${INCOME_REPORTING_METHOD_RULES.cash} ${INCOME_REPORTING_METHOD_RULES.accrual}
+Settings → Tax Filing → "${INCOME_REPORTING_METHOD_SETTING.label}" (accrual by default). Under the cash method every tax figure counts a deal in the year of its "Commission paid" date (Transactions → Deals, edit the deal), or its closing date when that is blank (core/engines/tax-year.ts, taxYearDate). Engine: projected GCI as tax-year income = the dashboard's projected GCI + commissions paid this year on earlier closings − commissions on this year's closings paid in a later year (taxYearGCIAdjustment); the tax engine runs on that. T2125 line 8200 sums the deals that are income of the year.
+Common questions:
+- "Why does my tax estimate include last December's deal?" The agent is on the cash method and that deal's Commission paid date is this year. It stays in last year's deal count, History and YTD GCI.
+- "Why did my tax estimate drop after I added a paid date?" A Commission paid date in next year moves that commission out of this year's tax figures (cash method only).
+- "Why is the paid date ignored?" The agent is on the accrual method; the date is recorded and used only under the cash method.
+- "Why didn't the Runway Score or my YTD GCI change?" Production figures and GST/HST stay on the closing date under either method, by design.
+- Changing method: ${INCOME_REPORTING_METHOD_RULES.accrualToCash} ${INCOME_REPORTING_METHOD_RULES.cashToAccrual} Never say which method to use.
 
 **Step 1: CPP/QPP** (self-employed pay both halves)
 - CPP1: 11.90% on income between $3,500 (basic exemption) and $74,600 (YMPE ${TAX_YEAR})

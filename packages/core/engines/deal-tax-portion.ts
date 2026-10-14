@@ -40,6 +40,7 @@ import {
   seasonalFractionElapsed,
   type ListingWeightInput,
 } from "./projection-engine";
+import { taxYearProjectedGCI } from "./tax-year";
 import {
   activePipelineDeals,
   computeWeightedGCI,
@@ -167,12 +168,22 @@ export interface YearTaxEstimateInputs extends YearProjectionInputs {
   expensesYTD: number;
   /** `ytdExpenseTotals(...).expensesRemaining` */
   expensesRemaining: number;
+  /**
+   * `taxYearGCIAdjustment(rows, method, year)` (tax-year.ts) on this year's
+   * closed rows plus the carry-in (`loadTaxYearCarryIn`): what moves the
+   * year's GCI to tax-year income for a cash-method agent. 0 for accrual.
+   * Required, so no caller leaves a cash-method agent's paid dates out.
+   */
+  taxYearGCIAdjustment: number;
 }
 
 export interface YearTaxEstimate {
   /** Seasonal fraction of the year elapsed. */
   fraction: number;
+  /** The production projection (closing dates): pace, goals, the Runway Score. */
   projectedGCI: number;
+  /** {@link projectedGCI} as tax-year income (`taxYearProjectedGCI`): what the estimate is on. */
+  taxYearProjectedGCI: number;
   projectedDealCount: number;
   /** Projected net business income: the tax engine's input. */
   netForTax: number;
@@ -184,14 +195,20 @@ export interface YearTaxEstimate {
  * The dashboard's tax estimate for the year, from the rows the dashboard
  * reads. Mirrors dashboard-content.tsx ("Seasonality-aware projections" and
  * "Tax estimate"); cross-surface-parity.test.ts holds the two together.
+ *
+ * The projection is on closing dates; the estimate is on that projection as
+ * tax-year income (`taxYearProjectedGCI`), which differs only for a
+ * cash-method agent with commissions paid in a year other than the closing
+ * year.
  */
 export function yearTaxEstimate(inputs: YearTaxEstimateInputs): YearTaxEstimate {
   const { settings, expensesYTD, expensesRemaining, now = new Date() } = inputs;
 
   const { fraction, projectedGCI, projectedDealCount } = yearProjection({ ...inputs, now });
+  const taxGCI = taxYearProjectedGCI(projectedGCI, inputs.taxYearGCIAdjustment);
 
   const netForTax = computeProjectedNetForTax({
-    projectedGCI,
+    projectedGCI: taxGCI,
     expensesYTD,
     expensesRemaining,
     settings,
@@ -200,7 +217,7 @@ export function yearTaxEstimate(inputs: YearTaxEstimateInputs): YearTaxEstimate 
   });
   const tax = calculate(netForTax, settings.province, Math.max(projectedDealCount, 1));
 
-  return { fraction, projectedGCI, projectedDealCount, netForTax, tax };
+  return { fraction, projectedGCI, taxYearProjectedGCI: taxGCI, projectedDealCount, netForTax, tax };
 }
 
 // ── A deal closing ──────────────────────────────────────────────────────────
@@ -218,7 +235,7 @@ export interface DealTaxPortion {
   commissionGCI: number;
   /** The year's estimate with this deal closed (`totalBurden`). */
   annualTaxEstimate: number;
-  /** Projected year-end GCI with this deal closed. */
+  /** Projected year-end GCI as tax-year income, with this deal closed: what the portion is a share of. */
   projectedGCI: number;
   /** The engine's tax year. */
   taxYear: number;
@@ -229,7 +246,8 @@ export interface DealTaxPortion {
  *
  * The year is estimated with the deal already closed (its GCI in the year to
  * date, its row out of the pipeline), which is the estimate the dashboard
- * shows once it reloads.
+ * shows once it reloads. A deal closing now has no paid date yet, so it
+ * counts in the closing year for both methods (tax-year.ts).
  */
 export function dealCloseTaxPortion(inputs: DealCloseTaxInputs): DealTaxPortion {
   const { commissionGCI, closingPipelineDealId, ...year } = inputs;
@@ -245,10 +263,10 @@ export function dealCloseTaxPortion(inputs: DealCloseTaxInputs): DealTaxPortion 
   });
 
   return {
-    taxPortion: taxPortionOfCommission(gci, afterClose.projectedGCI, afterClose.tax.totalBurden),
+    taxPortion: taxPortionOfCommission(gci, afterClose.taxYearProjectedGCI, afterClose.tax.totalBurden),
     commissionGCI: gci,
     annualTaxEstimate: afterClose.tax.totalBurden,
-    projectedGCI: afterClose.projectedGCI,
+    projectedGCI: afterClose.taxYearProjectedGCI,
     taxYear: afterClose.tax.taxYear,
   };
 }

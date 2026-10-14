@@ -77,6 +77,7 @@ const YEAR: YearTaxEstimateInputs = {
   historyItems: [],
   expensesYTD: 9_000,
   expensesRemaining: 6_000,
+  taxYearGCIAdjustment: 0,
   now: NOW,
 };
 const GCI = 10_000;
@@ -363,7 +364,8 @@ describe("PAYCHEQUE ALLOCATION GUIDANCE", () => {
   it("the chat route hands it the dashboard chain's figures and works out none of its own", () => {
     const route = source("app/api/chat/route.ts");
     const call = route.slice(route.indexOf("...paychequeAllocationLines({"), route.indexOf('"── END COMPUTED ENGINE OUTPUTS ──"'));
-    expect(call).toContain("projectedGCI: projGCI,");
+    // Tax-year income (core/engines/tax-year.ts): projGCI for an accrual agent.
+    expect(call).toContain("projectedGCI: taxProjGCI,");
     expect(call).toContain("annualTaxEstimate: taxResult.totalBurden,");
     expect(call).toContain("perDealTaxPortion: taxResult.perDealSetAside,");
     expect(route).not.toMatch(/exampleTaxReserve|Estimated marginal tax rate/);

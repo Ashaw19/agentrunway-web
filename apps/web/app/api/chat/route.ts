@@ -11,7 +11,8 @@ import { KNOWLEDGE_BASE } from "@/lib/knowledge-base";
 import { buildPersonaPrefix } from "@/lib/flight-crew/system-prompts";
 import { DEFAULT_PERSONA, type Persona } from "@/lib/flight-crew/personas";
 import { CANONICAL_TAX_DISCLAIMER } from "@/lib/flight-crew/constants";
-import { SMALL_SUPPLIER_RULE } from "@agent-runway/core/tax-copy";
+import { INCOME_REPORTING_METHOD_SETTING, SMALL_SUPPLIER_RULE } from "@agent-runway/core/tax-copy";
+import { incomeReportingMethod, taxYearGCIAdjustment, taxYearProjectedGCI } from "@agent-runway/core/engines/tax-year";
 import {
   flightCrewEnabled,
   navigatorEnabled,
@@ -303,7 +304,7 @@ export async function POST(req: NextRequest) {
     const ytdStart = `${currentYear}-01-01`;
     const settled = await Promise.allSettled([
         supabase.from("user_settings").select("*").eq("user_id", user.id).maybeSingle(),                                                                  // 0
-        supabase.from("transactions").select("date, sale_price, commission_pct, team_split_pct, gci_override").eq("user_id", user.id).eq("status", "closed"), // 1
+        supabase.from("transactions").select("id, date, commission_paid_date, sale_price, commission_pct, team_split_pct, gci_override").eq("user_id", user.id).eq("status", "closed"), // 1
         supabase.from("pipeline_deals").select("estimated_price, estimated_commission_pct, probability_override, stage, expected_close_date").eq("user_id", user.id), // 2
         supabase.from("expense_categories").select("key, expense_items(key, monthly_recurring)").eq("user_id", user.id),                   // 3
         supabase.from("clients").select("id", { count: "exact", head: true }).eq("user_id", user.id).is("archived_at", null).in("status", ["boarding", "in_flight"]).lt("last_contact_at", new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()), // 4
@@ -360,6 +361,12 @@ export async function POST(req: NextRequest) {
       // contains January 1, before it: the cap carries across January 1, so
       // the plan waterfall needs them (the dashboard's carry-over). Cap state only.
       const carryOverTx = capYearCarryOver<PlanDealRow>(settings, transactions, currentYear);
+      // Tax-year income (core/engines/tax-year.ts): a cash-method agent's tax
+      // figures count each deal in the year its commission was paid. Every
+      // closed row is loaded above, so earlier closings paid this year are
+      // among them. 0 for accrual; the production figures stay on closing dates.
+      const incomeMethod = incomeReportingMethod(settings);
+      const taxGCIAdjustment = taxYearGCIAdjustment(transactions, incomeMethod, currentYear);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const livePipeline = activePipelineDeals(pipeline ?? []);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -629,8 +636,10 @@ export async function POST(req: NextRequest) {
         // helper. Old formula ignored tx fees + monthly brokerage × 12, and
         // double-applied season scaling via `expensesYTD / engineFraction`.
         // This now matches dashboard-content.tsx:596-603 exactly.
+        // On the projection as tax-year income (projGCI for an accrual agent).
+        const taxProjGCI = taxYearProjectedGCI(projGCI, taxGCIAdjustment);
         const projectedNetIncome = computeProjectedNetForTax({
-          projectedGCI: projGCI,
+          projectedGCI: taxProjGCI,
           expensesYTD,
           expensesRemaining,
           settings,
@@ -642,6 +651,24 @@ export async function POST(req: NextRequest) {
           (settings.province ?? "ontario") as Province,
           projDeals,
         );
+        // The cash position below feeds Survival and the Runway Score, which
+        // stay on closing dates: its tax to date is the estimate on the
+        // closing-date projection, the dashboard's closingYearTaxBurden.
+        // taxResult's for an accrual agent.
+        const closingYearTaxBurden = taxGCIAdjustment === 0
+          ? taxResult.totalBurden
+          : calculateTax(
+              computeProjectedNetForTax({
+                projectedGCI: projGCI,
+                expensesYTD,
+                expensesRemaining,
+                settings,
+                projectedDealCount: projDeals,
+                now: today,
+              }),
+              (settings.province ?? "ontario") as Province,
+              projDeals,
+            ).totalBurden;
 
         // 3. Cash Position Engine — implied business cash from YTD activity.
         // CRITICAL: must mirror dashboard-content.tsx:615-634 exactly so chat
@@ -691,7 +718,7 @@ export async function POST(req: NextRequest) {
           ytdGCI,
           ytdAgentNet: cpYtdAgentNet,
           ytdExpenses: expensesYTD,
-          ytdTaxSetAside: taxResult.totalBurden * Math.min(engineFraction, 1),
+          ytdTaxSetAside: closingYearTaxBurden * Math.min(engineFraction, 1),
           ytdHstCollected,
           ytdHstOnExpenses,
           brokerageWithholdsHst: settings.brokerage_withholds_hst ?? false,
@@ -854,6 +881,10 @@ export async function POST(req: NextRequest) {
             : null,
           "",
           `Tax Estimates (${settings.business_structure ?? "sole proprietor"}, ${settings.province}):`,
+          `  - Income reporting method (Settings → Tax Filing): ${INCOME_REPORTING_METHOD_SETTING.options[incomeMethod]}`,
+          taxGCIAdjustment !== 0
+            ? `  - Projected GCI as tax-year income: ${fmtCurrency(taxProjGCI)} (projected GCI ${fmtCurrency(projGCI)} ${taxGCIAdjustment > 0 ? "+" : "-"} ${fmtCurrency(Math.abs(taxGCIAdjustment))} of commissions paid in a different year from closing). The tax figures below are on it; production figures (YTD GCI, deals, pace, Runway Score) stay on closing dates.`
+            : null,
           `  - Projected Net Self-Employment Income: ${fmtCurrency(projectedNetIncome)}`,
           `  - Effective Rate: ${(taxResult.effectiveRate * 100).toFixed(1)}%`,
           `  - Total Tax + CPP Burden: ${fmtCurrency(taxResult.totalBurden)}`,
@@ -1032,7 +1063,7 @@ export async function POST(req: NextRequest) {
             today,
             seasonalWeights: engineSeasonalWeights,
             ytdTx,
-            projectedGCI: projGCI,
+            projectedGCI: taxProjGCI,
             annualTaxEstimate: taxResult.totalBurden,
             perDealSetAside: taxResult.perDealSetAside,
           }),
@@ -1079,7 +1110,7 @@ export async function POST(req: NextRequest) {
             province: settings.province ?? "ontario",
             brokerageWithholdsHst: settings.brokerage_withholds_hst === true,
             agentPct,
-            projectedGCI: projGCI,
+            projectedGCI: taxProjGCI,
             annualTaxEstimate: taxResult.totalBurden,
             perDealTaxPortion: taxResult.perDealSetAside,
           }),
@@ -1372,7 +1403,7 @@ IMPORTANT: Use the Computed Engine Outputs section in the business data as your 
 
 AGENTIC ACTIONS — You have tools to act on the agent's behalf. Always searchClients first before any client action.
 
-CORE TOOLS: searchClients, searchPipelineDeals, searchTransactions, searchExpenses, searchListingAppointments, searchCCAAssets, searchClientsByFilter, getClientSummary, getQuickStats, createClient, updateClientDetails, updateClientNotes, updateClientStatus, updateClientTags, updateClientTone, linkClientReferral, createPipelineDeal, updatePipelineDealStage, updatePipelineDealValue, logContactActivity, createContactTask, searchRecurringExpenses, createRecurringExpense, updateRecurringExpense, deleteRecurringExpense, logExpense, updateExpense, logMileage, recordReferral, recordTransaction, updateTransaction, addCCAAsset, updateListingAppointment.
+CORE TOOLS: searchClients, searchPipelineDeals, searchTransactions, searchExpenses, searchListingAppointments, searchCCAAssets, searchClientsByFilter, getClientSummary, getQuickStats, createClient, updateClientDetails, updateClientNotes, updateClientStatus, updateClientTags, updateClientTone, linkClientReferral, createPipelineDeal, updatePipelineDealStage, updatePipelineDealValue, logContactActivity, createContactTask, searchRecurringExpenses, createRecurringExpense, updateRecurringExpense, deleteRecurringExpense, logExpense, updateExpense, logMileage, recordReferral, recordTransaction, updateTransaction, updateIncomeReportingMethod, addCCAAsset, updateListingAppointment.
 
 Every write tool listed above is gated by an approval card — just call the tool when the agent describes the intent. The user sees a Confirm/Cancel card and the tool only runs on Confirm.
 
@@ -1392,7 +1423,9 @@ TOOL TRIGGERS:
 - Record referral → recordReferral (inbound or outbound, partner name, client name, fee %).
 - Recurring expense → createRecurringExpense (pass hstAmount only when the agent states the GST/HST inside each charge, never worked out from a rate).
 - A recurring expense that was real and has stopped ("I cancelled Canva at the end of June", "my lease is done") → searchRecurringExpenses → updateRecurringExpense with endDate (the date the agent states; ask for it when none is given). Its charges up to that date stay in the year's totals, the T2125 lines and the GST/HST credits, and none count after it. deleteRecurringExpense is only for an entry made by mistake: deleting takes the months already past this year out of every total as well.
-- Record closed deal → recordTransaction (address, client, side, close date, sale price + commission% OR exact GCI). Edit an existing transaction → searchTransactions → updateTransaction.
+- Record closed deal → recordTransaction (address, client, side, close date, sale price + commission% OR exact GCI; commissionPaidDate when the agent says when the commission was paid). Edit an existing transaction → searchTransactions → updateTransaction.
+- Commission paid on a date ("the Elm St commission came in January 9") → searchTransactions → updateTransaction with commissionPaidDate (on or after the close date). Under the cash method it decides the tax year; under accrual it is only recorded.
+- Switch income reporting method ("I report on the cash method", "switch me to accrual") → updateIncomeReportingMethod with the method the agent names. Never suggest a method or say which is better; state CRA's rule on changing (the tool returns it) and that an accountant confirms it. Which figures move: tax estimates, take-home, instalments, T2125. Which do not: deal counts, GCI by year, History, the Runway Score, GST/HST.
 - Buy business equipment (laptop, camera, car, office furniture) → addCCAAsset with the right CCA class (8=office/furniture 20%, 10=vehicles 30%, 10.1=passenger vehicles >$37K 30%, 12=software/tools <$500 100%, 50=computers 55%).
 - Listing update ("that listing at 44 Main went live" / "sold" / "expired") → searchListingAppointments → updateListingAppointment.
 - Client summary → searchClients → getClientSummary

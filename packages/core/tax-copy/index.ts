@@ -92,6 +92,12 @@ export {
   BROKERAGE_HST_WITHHOLDING,
   brokerageHstWithholdingHint,
   gstHstReportNote,
+  INCOME_REPORTING_METHOD_RULES,
+  INCOME_REPORTING_METHOD_RULE_LIST,
+  CRA_REPORTING_METHOD_SOURCES,
+  INCOME_REPORTING_METHOD_SETTING,
+  incomeReportingMethodHint,
+  commissionPaidDateHint,
   type GstHstReportNoteInput,
   type GstHstRateGroup,
 } from "./cra-rules";

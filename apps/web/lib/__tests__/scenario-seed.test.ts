@@ -298,7 +298,7 @@ function seedFor(f: Fixture): ScenarioSeedData {
   return buildScenarioSeed({
     settings: f.settings,
     transactions: f.transactions,
-    carryOverTx: [],
+    carryOverTx: [], taxYearCarryIn: [],
     pipelineDeals: f.pipelineDeals,
     listings: f.listings,
     historyItems: f.historyItems,
@@ -386,7 +386,7 @@ describe("Scenario Engine seed: the cases the old seed got wrong", () => {
 
   it("no settings row: no goal, four equal quarters, no cash", () => {
     const seed = buildScenarioSeed({
-      settings: null, transactions: TRANSACTIONS, carryOverTx: [], pipelineDeals: PIPELINE, listings: [], historyItems: [], expenses: EXPENSES,
+      settings: null, transactions: TRANSACTIONS, carryOverTx: [], taxYearCarryIn: [], pipelineDeals: PIPELINE, listings: [], historyItems: [], expenses: EXPENSES,
     });
     expect(seed.goalGCI).toBe(0);
     expect(seed.quarterPcts).toEqual([0.25, 0.25, 0.25, 0.25]);
@@ -463,7 +463,7 @@ describe("Scenarios page copy", () => {
     const taxAt = (comp_plan: "simple_split" | "real", dealCount: number) => {
       const seed = buildScenarioSeed({
         settings: settingsWith({ comp_plan, real_join_date: "2025-03-01" }),
-        transactions: [], carryOverTx: [], pipelineDeals: [], listings: [], historyItems: [], expenses: EXPENSES,
+        transactions: [], carryOverTx: [], taxYearCarryIn: [], pipelineDeals: [], listings: [], historyItems: [], expenses: EXPENSES,
       });
       return computeScenarioResult(seed, { ...seedScenarioInputs(seed), annualGCI: 250_000, dealCount }).taxOwed;
     };

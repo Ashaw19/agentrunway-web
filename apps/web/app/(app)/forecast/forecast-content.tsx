@@ -15,7 +15,8 @@ import { GuideLink } from "@/components/guide-link";
 import { Separator } from "@/components/ui/separator";
 import { fmtCurrency, fmtCompact, fmtPct } from "@/lib/formatters";
 import { CANONICAL_TAX_DISCLAIMER_SHORT } from "@/lib/flight-crew/constants";
-import { GST_HST_TRUST_RULE } from "@agent-runway/core/tax-copy";
+import { GST_HST_TRUST_RULE, INCOME_REPORTING_METHOD_SETTING } from "@agent-runway/core/tax-copy";
+import { incomeReportingMethod, taxYearGCIAdjustment, taxYearProjectedGCI } from "@agent-runway/core/engines/tax-year";
 import {
   computeGCI,
   computeWeightedGCI,
@@ -184,16 +185,26 @@ export function ForecastContent({
   const projectedGCI = rawProjectedGCI * scenarioMultiplier;
   const projectedDeals = projectedYearEndTransactions(ytdDealCount, livePipelineDeals.length, fraction);
 
+  // ── Tax-year income (core/engines/tax-year.ts) ────────────────────────
+  // A cash-method agent reports a commission in the year it is paid (T4002
+  // ch. 1). `transactions` holds every closed row, so earlier closings paid
+  // this year are among them. 0 for an accrual agent. The waterfall and the
+  // tax figures run on the projection as tax-year income; the KPIs, pace,
+  // goal gap, break-even and cash runway stay on closing dates.
+  const incomeMethod = incomeReportingMethod(settings);
+  const taxGCIAdjustment = taxYearGCIAdjustment(transactions, incomeMethod, currentYear);
+  const taxProjectedGCI = taxYearProjectedGCI(projectedGCI, taxGCIAdjustment);
+
   // ── Financial waterfall ───────────────────────────────────────────────
   // Plan-aware waterfall (REAL analytic or legacy split) — mirrors
   // effective-cash.ts:projectedAgentNet. brokerageTake = GCI − agent share
   // (REAL: company dollar + any team override; simple: brokerage %).
-  const planProjected = computePlanGross(settings, projectedGCI, {
+  const planProjected = computePlanGross(settings, taxProjectedGCI, {
     dealCount: projectedDeals,
     asOf: localISODate(),
   });
   const agentGross = planProjected.shareBeforePlanFees;
-  const brokerageTake = Math.max(0, projectedGCI - agentGross);
+  const brokerageTake = Math.max(0, taxProjectedGCI - agentGross);
   const txFees = planProjected.planFees;
   const brokerageFeeAnnual = settings.monthly_brokerage_fee * 12;
   const projectedNet = planProjected.grossAfterPlan - brokerageFeeAnnual;
@@ -314,7 +325,7 @@ export function ForecastContent({
   // ── Tax Optimization Engine ─────────────────────────────────────────────
   const taxOptInput = {
     netIncome: netForTax,
-    projectedGCI,
+    projectedGCI: taxProjectedGCI,
     annualExpenses,
     dealCount: Math.max(projectedDeals, 1),
     province: settings.province,
@@ -367,9 +378,11 @@ export function ForecastContent({
 
   // ── Break-even analysis ───────────────────────────────────────────────
   // Plan-aware: under 'real' use the projection's effective split (net of
-  // plan fees) so break-even math matches the waterfall above.
+  // plan fees). On the closing-date projection: break-even counts deals.
   const agentPctVal =
-    settings.comp_plan === "real" ? planProjected.effectiveAgentPct : getAgentPct(settings.split_preset);
+    settings.comp_plan === "real"
+      ? computePlanGross(settings, projectedGCI, { dealCount: projectedDeals, asOf: localISODate() }).effectiveAgentPct
+      : getAgentPct(settings.split_preset);
   const avgDealGCIForBreakEven = ytdDealCount > 0
     ? ytdGCI / ytdDealCount
     : projectedGCI / Math.max(projectedDeals, 1);
@@ -592,6 +605,14 @@ export function ForecastContent({
               <span>Projected GCI</span>
               <span className="font-medium">{fmtCurrency(projectedGCI)}</span>
             </div>
+            {taxGCIAdjustment !== 0 && (
+              <div className="flex justify-between text-muted-foreground">
+                <span title={INCOME_REPORTING_METHOD_SETTING.options.cash}>
+                  Commissions paid in a different year (cash method)
+                </span>
+                <span>{taxGCIAdjustment > 0 ? "+" : "-"}{fmtCurrency(Math.abs(taxProjectedGCI - projectedGCI))}</span>
+              </div>
+            )}
             <div className="flex justify-between text-muted-foreground">
               <span>
                 {settings.comp_plan === "real"
@@ -694,6 +715,7 @@ export function ForecastContent({
             </CardTitle>
             <CardDescription>
               {taxResult.taxYear} estimates &middot; {PROVINCE_LABELS[settings.province]}
+              {incomeMethod === "cash" && <> &middot; {INCOME_REPORTING_METHOD_SETTING.options.cash}</>}
             </CardDescription>
           </CardHeader>
           <CardContent>

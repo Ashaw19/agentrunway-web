@@ -44,7 +44,8 @@
  *                         updateRecurringExpense, deleteRecurringExpense,
  *                         logExpense, logMileage,
  *                         updateExpense, recordReferral, recordTransaction,
- *                         updateTransaction, updatePipelineDealValue,
+ *                         updateTransaction, updateIncomeReportingMethod,
+ *                         updatePipelineDealValue,
  *                         addCCAAsset, updateListingAppointment,
  *                         deleteExpense, deleteMileage, deleteTransaction,
  *                         deleteCCAAsset, deleteReferral,
@@ -56,7 +57,12 @@ import { tool, type ToolSet } from "ai";
 import { z } from "zod";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { OutreachOpportunityType, NewsletterTemplateType } from "@agent-runway/core/types/database";
-import { FIELD_LIMITS } from "@agent-runway/core/validation/input-guards";
+import { FIELD_LIMITS, validateCommissionPaidDate } from "@agent-runway/core/validation/input-guards";
+import {
+  INCOME_REPORTING_METHOD_RULES,
+  INCOME_REPORTING_METHOD_SETTING,
+  incomeReportingMethodHint,
+} from "@agent-runway/core/tax-copy";
 import { ACTIVE_PIPELINE_STAGES } from "@agent-runway/core/types/database";
 import {
   aggregateReceiptTotals,
@@ -130,6 +136,8 @@ export const NEEDS_APPROVAL_TOOLS = new Set([
   "recordTransaction",
   "updateTransaction",
   "deleteTransaction",
+  // Tax settings
+  "updateIncomeReportingMethod",
   // Pipeline value mutations
   "updatePipelineDealValue",
   // CCA / tax assets
@@ -214,7 +222,8 @@ export const APPROVAL_DESCRIPTIONS: Record<string, (args: Record<string, unknown
   recordTransaction: (args) => {
     const price = args.salePrice ? ` at $${Number(args.salePrice).toLocaleString()}` : "";
     const gci = args.gciOverride ? ` (GCI $${Number(args.gciOverride).toLocaleString()})` : "";
-    return `Record transaction: ${args.address} — ${args.clientName} (${args.side}) closed ${args.closeDate}${price}${gci}`;
+    const paid = typeof args.commissionPaidDate === "string" ? `, commission paid ${args.commissionPaidDate}` : "";
+    return `Record transaction: ${args.address} — ${args.clientName} (${args.side}) closed ${args.closeDate}${paid}${price}${gci}`;
   },
   updateTransaction: (args) => {
     const changes: string[] = [];
@@ -223,9 +232,14 @@ export const APPROVAL_DESCRIPTIONS: Record<string, (args: Record<string, unknown
     if (args.commissionPct !== undefined) changes.push(`commission → ${args.commissionPct}%`);
     if (args.gciOverride !== undefined) changes.push(`GCI → $${Number(args.gciOverride).toLocaleString()}`);
     if (args.closeDate) changes.push(`close → ${args.closeDate}`);
+    if (typeof args.commissionPaidDate === "string") changes.push(`commission paid → ${args.commissionPaidDate}`);
+    if (args.commissionPaidDate === null) changes.push("commission paid date cleared");
     if (args.notes !== undefined) changes.push("notes");
     return `Update transaction ${args.transactionDescription ?? ""}: ${changes.length ? changes.join(", ") : "(details)"}`.trim();
   },
+  // Tax settings
+  updateIncomeReportingMethod: (args) =>
+    `Set income reporting method to ${args.method === "cash" ? INCOME_REPORTING_METHOD_SETTING.options.cash : INCOME_REPORTING_METHOD_SETTING.options.accrual}. Tax estimates, take-home, instalments and the T2125 view follow it; deal counts, GCI by year and the Runway Score do not.`,
   // Pipeline value
   updatePipelineDealValue: (args) =>
     `Update ${args.dealDescription} estimated price → $${Number(args.estimatedPrice).toLocaleString()}`,
@@ -967,19 +981,20 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
 
     // ── RECORD CLOSED TRANSACTION (confirm required) ──────────────────────────
     recordTransaction: tool({
-      description: "Record a closed real estate transaction. Gated by the approval card — just call the tool when the agent describes a deal they closed. Use gciOverride to enter the exact commission received; otherwise set salePrice and commissionPct and it will be calculated automatically.",
+      description: "Record a closed real estate transaction. Gated by the approval card — just call the tool when the agent describes a deal they closed. Use gciOverride to enter the exact commission received; otherwise set salePrice and commissionPct and it will be calculated automatically. Set commissionPaidDate when the agent says when the commission was paid (it decides the tax year for an agent on the cash method).",
       inputSchema: z.object({
         address: z.string().describe("Property address"),
         clientName: z.string().describe("Client name"),
         side: z.enum(TRANSACTION_SIDES).describe("Agent side: buyer, seller, or both"),
         closeDate: z.string().describe("Close date in YYYY-MM-DD format"),
+        commissionPaidDate: z.string().optional().describe("Date the commission was received, YYYY-MM-DD, on or after the close date. Optional; leave out if unknown."),
         salePrice: z.number().positive().optional().describe("Property sale price in dollars"),
         commissionPct: z.number().min(0).max(10).optional().describe("Commission rate as a percentage, e.g. 2.5 for 2.5%"),
         gciOverride: z.number().positive().optional().describe("Exact GCI received in dollars — use this instead of salePrice + commissionPct when you know the final commission amount"),
         notes: z.string().optional().describe("Optional transaction notes"),
       }),
       needsApproval: true,
-      execute: async ({ address, clientName, side, closeDate, salePrice, commissionPct, gciOverride, notes }) => {
+      execute: async ({ address, clientName, side, closeDate, commissionPaidDate, salePrice, commissionPct, gciOverride, notes }) => {
         // Calculate GCI for the success message
         let previewGCI: number | null = null;
         if (gciOverride) {
@@ -992,12 +1007,15 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
           if (!salePrice && !gciOverride) {
             return "Please provide either the sale price + commission rate, or the exact GCI amount.";
           }
+          const paidCheck = validateCommissionPaidDate(closeDate, commissionPaidDate);
+          if (!paidCheck.valid) return `Not recorded: ${paidCheck.errors.join("; ")}.`;
 
           const { error } = await supabase
             .from("transactions")
             .insert({
               user_id: userId,
               date: closeDate,
+              commission_paid_date: commissionPaidDate || null,
               address,
               client_name: clientName,
               side,
@@ -1011,7 +1029,8 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
           if (error) return `Failed to record transaction: ${error.message}`;
 
           const gciStr = previewGCI ? ` GCI: $${previewGCI.toLocaleString()}.` : ".";
-          return `✓ Transaction recorded — ${address} (${clientName}, ${side}) closed ${closeDate}.${gciStr} Your YTD metrics will update on next page refresh.`;
+          const paidStr = commissionPaidDate ? ` Commission paid ${commissionPaidDate}.` : "";
+          return `✓ Transaction recorded — ${address} (${clientName}, ${side}) closed ${closeDate}.${gciStr}${paidStr} Your YTD metrics will update on next page refresh.`;
         } catch {
           return "Failed to record transaction. Please try again.";
         }
@@ -1971,7 +1990,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
 
     // ── UPDATE TRANSACTION ───────────────────────────────────────────────────
     updateTransaction: tool({
-      description: "Update details on a closed transaction. Use when the agent says 'change the sale price on that deal' or 'update the commission on [address]'. Gated by the approval card.",
+      description: "Update details on a closed transaction. Use when the agent says 'change the sale price on that deal', 'update the commission on [address]' or 'the commission on [address] was paid on [date]' (commissionPaidDate; null clears it). Gated by the approval card.",
       inputSchema: z.object({
         transactionId: z.string().uuid().describe("The transaction UUID"),
         transactionDescription: z.string().describe("Brief description for the approval card"),
@@ -1980,10 +1999,11 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
         commissionPct: z.number().min(0).max(10).optional().describe("Updated commission rate as percentage"),
         gciOverride: z.number().optional().describe("Updated exact GCI in dollars"),
         closeDate: z.string().optional().describe("Updated close date YYYY-MM-DD"),
+        commissionPaidDate: z.string().nullable().optional().describe("Date the commission was received, YYYY-MM-DD, on or after the close date; null clears it"),
         notes: z.string().optional().describe("Updated notes"),
       }),
       needsApproval: true,
-      execute: async ({ transactionId, transactionDescription, address, salePrice, commissionPct, gciOverride, closeDate, notes }) => {
+      execute: async ({ transactionId, transactionDescription, address, salePrice, commissionPct, gciOverride, closeDate, commissionPaidDate, notes }) => {
         // Stamp edited_at so a future re-import doesn't stomp this approved correction.
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const updates: Record<string, any> = {
@@ -1997,9 +2017,28 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
         if (commissionPct !== undefined) { updates.commission_pct = commissionPct / 100; changed.push(`commission → ${commissionPct}%`); }
         if (gciOverride !== undefined) { updates.gci_override = gciOverride; changed.push(`GCI → $${gciOverride.toLocaleString()}`); }
         if (closeDate !== undefined) { updates.date = closeDate; changed.push(`close date → ${closeDate}`); }
+        if (commissionPaidDate !== undefined) {
+          updates.commission_paid_date = commissionPaidDate || null;
+          changed.push(commissionPaidDate ? `commission paid → ${commissionPaidDate}` : "commission paid date cleared");
+        }
         if (notes !== undefined) { updates.notes = notes; changed.push("notes updated"); }
 
         if (changed.length === 0) return "No fields to update were provided.";
+
+        // A paid date is checked against the closing date the row will have.
+        if (commissionPaidDate || closeDate !== undefined) {
+          const { data: row } = await supabase
+            .from("transactions")
+            .select("date, commission_paid_date")
+            .eq("id", transactionId)
+            .eq("user_id", userId)
+            .maybeSingle();
+          const paidCheck = validateCommissionPaidDate(
+            closeDate ?? row?.date,
+            commissionPaidDate !== undefined ? commissionPaidDate : row?.commission_paid_date,
+          );
+          if (!paidCheck.valid) return `Not updated: ${paidCheck.errors.join("; ")}.`;
+        }
 
         try {
           const { error } = await supabase
@@ -2013,6 +2052,47 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
           return `✓ Transaction updated — ${transactionDescription}: ${changed.join(", ")}. YTD metrics will reflect this on refresh.`;
         } catch {
           return "Failed to update transaction. Please try again.";
+        }
+      },
+    }),
+
+    // ── UPDATE INCOME REPORTING METHOD (confirm required) ─────────────────────
+    // user_settings.income_reporting_method (migration 00178). Read through
+    // core/engines/tax-year.ts. The agent chooses; the tool states CRA's rule
+    // on the change and what the app does with it, never which to pick.
+    updateIncomeReportingMethod: tool({
+      description: "Set how the agent reports commission income for income tax: 'cash' (the year the commission is paid) or 'accrual' (the year the deal closes). Use only when the agent asks to switch. Never suggest a method. Gated by the approval card.",
+      inputSchema: z.object({
+        method: z.enum(["accrual", "cash"]).describe("The method the agent chose"),
+      }),
+      needsApproval: true,
+      execute: async ({ method }) => {
+        try {
+          const { data: row } = await supabase
+            .from("user_settings")
+            .select("income_reporting_method")
+            .eq("user_id", userId)
+            .maybeSingle();
+          const before = row?.income_reporting_method === "cash" ? "cash" : "accrual";
+          if (before === method) {
+            return `No change: Settings already show the ${INCOME_REPORTING_METHOD_SETTING.options[method]}.`;
+          }
+
+          const { error } = await supabase
+            .from("user_settings")
+            .update({ income_reporting_method: method, updated_at: new Date().toISOString() })
+            .eq("user_id", userId);
+          if (error) return `Failed to update the income reporting method: ${error.message}`;
+
+          const craRule = method === "cash"
+            ? INCOME_REPORTING_METHOD_RULES.accrualToCash
+            : INCOME_REPORTING_METHOD_RULES.cashToAccrual;
+          const followUp = method === "cash"
+            ? " Deals with no Commission paid date count in the year they closed; the agent can add the date on Transactions → Deals (edit a deal) or ask here."
+            : "";
+          return `✓ Income reporting method set to ${INCOME_REPORTING_METHOD_SETTING.options[method]} (Settings → Tax Filing). ${incomeReportingMethodHint(method)}${followUp} ${craRule} Verify with an accountant before filing.`;
+        } catch {
+          return "Failed to update the income reporting method. Please try again.";
         }
       },
     }),
@@ -2052,7 +2132,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
         try {
           const { data, error } = await supabase
             .from("transactions")
-            .select("id, address, client_name, date, sale_price, gci_override, side, status")
+            .select("id, address, client_name, date, commission_paid_date, sale_price, gci_override, side, status")
             .eq("user_id", userId)
             .or(`address.ilike.%${query}%,client_name.ilike.%${query}%`)
             .order("date", { ascending: false })
@@ -2061,9 +2141,10 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
           if (error) return `Search failed: ${error.message}`;
           if (!data || data.length === 0) return `No transactions found matching "${query}".`;
 
-          return data.map((t: { id: string; address: string; client_name: string; date: string; sale_price: number; gci_override: number | null; side: string; status: string }) => {
+          return data.map((t: { id: string; address: string; client_name: string; date: string; commission_paid_date: string | null; sale_price: number; gci_override: number | null; side: string; status: string }) => {
             const gci = t.gci_override ? `GCI $${Number(t.gci_override).toLocaleString()}` : `$${Number(t.sale_price).toLocaleString()}`;
-            return `${t.address} — ${t.client_name} (${t.side}, ${t.status}, ${gci}, ${t.date}) — ID: ${t.id}`;
+            const paid = t.commission_paid_date ? `, commission paid ${t.commission_paid_date}` : "";
+            return `${t.address} — ${t.client_name} (${t.side}, ${t.status}, ${gci}, closed ${t.date}${paid}) — ID: ${t.id}`;
           }).join("\n");
         } catch {
           return "Transaction search temporarily unavailable.";
@@ -3970,6 +4051,7 @@ export function createCoreAgentTools(supabase: SupabaseClient, userId: string): 
     // Writes (transactions / CCA / listings)
     recordTransaction: all.recordTransaction,
     updateTransaction: all.updateTransaction,
+    updateIncomeReportingMethod: all.updateIncomeReportingMethod,
     addCCAAsset: all.addCCAAsset,
     updateListingAppointment: all.updateListingAppointment,
   };
@@ -4053,6 +4135,8 @@ export function createPersonaAgentTools(
       logMileage: all.logMileage,
       recordTransaction: all.recordTransaction,
       updateTransaction: all.updateTransaction,
+      // Cash or accrual (Settings → Tax Filing): the agent's choice, applied on approval.
+      updateIncomeReportingMethod: all.updateIncomeReportingMethod,
       addCCAAsset: all.addCCAAsset,
     };
   }

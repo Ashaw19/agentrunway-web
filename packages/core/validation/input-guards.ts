@@ -153,6 +153,31 @@ export function validateAddress(text: string | null | undefined): ValidationResu
   return ok();
 }
 
+/**
+ * A transaction's commission paid date (migration 00178). Optional. A date
+ * before the closing date is refused: under the cash method it would move a
+ * commission into a year before the deal closed (engines/tax-year.ts).
+ */
+export function validateCommissionPaidDate(
+  closingDate: string | null | undefined,
+  paidDate: string | null | undefined,
+): ValidationResult {
+  if (!paidDate) return ok(); // optional
+  if (!isISODate(paidDate)) return fail("Commission paid date isn't a valid date");
+  if (closingDate && isISODate(closingDate) && paidDate < closingDate) {
+    return fail("Commission paid date is before the closing date");
+  }
+  return ok();
+}
+
+/** A real calendar day written YYYY-MM-DD. */
+function isISODate(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const [y, m, d] = value.split("-").map(Number);
+  const date = new Date(Date.UTC(y, m - 1, d));
+  return date.getUTCFullYear() === y && date.getUTCMonth() === m - 1 && date.getUTCDate() === d;
+}
+
 // ── Composite validators ────────────────────────────────────────────────────
 
 export interface TransactionInput {
@@ -164,6 +189,10 @@ export interface TransactionInput {
   address?: string;
   client_name?: string;
   notes?: string;
+  /** Closing date (YYYY-MM-DD); checked against the paid date. */
+  date?: string;
+  /** Commission paid date (YYYY-MM-DD); blank = not entered. */
+  commission_paid_date?: string | null;
 }
 
 export interface TransactionParsed {
@@ -171,6 +200,8 @@ export interface TransactionParsed {
   commission_pct: number;
   gci_override: number | null;
   team_split_pct: number | null;
+  /** null when blank. */
+  commission_paid_date: string | null;
 }
 
 export function validateTransaction(input: TransactionInput): ValidationResult & { parsed?: TransactionParsed } {
@@ -189,6 +220,7 @@ export function validateTransaction(input: TransactionInput): ValidationResult &
     validateTeamSplitPct(tsp),
     validateAddress(input.address),
     validateNotes(input.notes),
+    validateCommissionPaidDate(input.date, input.commission_paid_date),
   );
 
   if (!result.valid) return result;
@@ -200,6 +232,7 @@ export function validateTransaction(input: TransactionInput): ValidationResult &
       commission_pct: cp!,
       gci_override: gci,
       team_split_pct: tsp,
+      commission_paid_date: input.commission_paid_date || null,
     },
   };
 }

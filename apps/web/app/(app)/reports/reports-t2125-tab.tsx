@@ -320,7 +320,7 @@ export function ReportsT2125Tab({
         netIncome,
         projectedGCI,
         annualExpenses: totalExpenses,
-        dealCount: transactions.length,
+        dealCount: result.incomeDealCount,
         province: localSettings.province,
         experienceYears: localSettings.experience_years ?? null,
         isIncorporated: localSettings.is_incorporated ?? false,
@@ -500,7 +500,9 @@ export function ReportsT2125Tab({
               lineNum="8200"
               label="Gross Commission Income"
               value={result.grossCommissionIncome}
-              note={`${transactions.filter(tx => tx.status === "closed").length} closed deals`}
+              note={result.incomeReportingMethod === "cash"
+                ? `${result.incomeDealCount} deals with the commission paid in ${taxYear} (cash method; a blank paid date counts in the closing year)`
+                : `${result.incomeDealCount} closed deals`}
             />
             <div className="mt-3 px-3">
               <EditableAmount
@@ -963,7 +965,7 @@ export function ReportsT2125Tab({
                     <span className="font-medium">{fmtCurrency(result.gstHst.collectedOnGCI)}</span>
                   </div>
                   <p className="text-[10px] text-muted-foreground">
-                    Based on {fmtCurrency(result.grossCommissionIncome)} GCI × {(result.gstHst.rate * 100).toFixed(result.gstHst.rate === 0.14975 ? 3 : 0)}% rate.
+                    Based on {fmtCurrency(result.gstHst.gciBase)} GCI × {(result.gstHst.rate * 100).toFixed(result.gstHst.rate === 0.14975 ? 3 : 0)}% rate.
                     Verify against your actual records.
                   </p>
                 </div>

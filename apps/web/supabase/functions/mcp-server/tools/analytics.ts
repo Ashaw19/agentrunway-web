@@ -22,6 +22,11 @@ import { CANONICAL_TAX_DISCLAIMER } from "../lib/constants.ts";
 import { loadExpenseInputs } from "../lib/expense-inputs.ts";
 import { getFilingPeriods } from "../../_shared/core/engines/filing-period-engine.ts";
 import { atlanticISODate, atlanticYear } from "../../_shared/core/lib/local-date.ts";
+import {
+  incomeReportingMethod,
+  taxYearGCIAdjustment,
+  taxYearProjectedGCI,
+} from "../../_shared/core/engines/tax-year.ts";
 
 // Canonical stage probabilities — mirrors packages/core/types/database.ts
 // PIPELINE_STAGE_DEFAULTS. `lost: 0.0` was added there by migration 00154 and
@@ -380,7 +385,7 @@ export function getAnalyticsTools(supabase: SupabaseClient, userId: string): Mcp
     {
       name: "get_tax_estimate",
       description:
-        "Returns a Canadian income tax estimate for the agent's projected year-end net income, including CPP contributions, federal and provincial tax, effective rate, and quarterly installment amount. ESTIMATE ONLY — not tax advice.",
+        "Returns a Canadian income tax estimate for the agent's projected year-end net income, including CPP contributions, federal and provincial tax, effective rate, and quarterly installment amount. Commission income counts in the tax year set by the agent's income reporting method (income_reporting_method: cash = the year the commission was paid, accrual = the year the deal closed; tax_year_gci_adjustment = commissions paid in a different year from closing). ESTIMATE ONLY — not tax advice.",
       inputSchema: {
         type: "object",
         properties: {
@@ -401,17 +406,18 @@ export function getAnalyticsTools(supabase: SupabaseClient, userId: string): Mcp
         const overrideIncome = (args as { override_income?: number }).override_income;
         const now = new Date();
         // Atlantic year: from 8 pm Atlantic on Dec 31 the UTC year is already next year.
-        const yearStart = `${atlanticYear(now)}-01-01`;
+        const taxYear = atlanticYear(now);
+        const yearStart = `${taxYear}-01-01`;
         const today = atlanticISODate(now);
 
-        const [settingsRes, txRes, expenseInputs, pipelineRes, listingRes, historyRes] = await Promise.all([
+        const [settingsRes, txRes, carryInRes, expenseInputs, pipelineRes, listingRes, historyRes] = await Promise.all([
           supabase
             .from("user_settings")
             .select(
               "goal_gci, province, split_preset, post_cap_threshold_gci, " +
               "post_cap_agent_pct, post_cap_brokerage_pct, tx_fee_rate_pct, " +
               "tx_fee_annual_cap, monthly_brokerage_fee, use_national_seasonality, " +
-              "national_quarter_pcts, " +
+              "national_quarter_pcts, income_reporting_method, " +
               // REAL plan fields (migration 00161) — plan-aware net-for-tax
               "comp_plan, real_join_date, real_cap_amount, real_pre_cap_agent_pct, " +
               "real_post_cap_agent_pct, real_post_cap_fee, real_elite_fee, " +
@@ -422,11 +428,22 @@ export function getAnalyticsTools(supabase: SupabaseClient, userId: string): Mcp
             .maybeSingle(),
           supabase
             .from("transactions")
-            .select("sale_price, commission_pct, gci_override, team_split_pct, date")
+            .select("sale_price, commission_pct, gci_override, team_split_pct, date, commission_paid_date")
             .eq("user_id", userId)
             .eq("status", "closed")
             .gte("date", yearStart)
             .lte("date", today),
+          // A cash-method agent's carry-in: deals closed before January 1
+          // whose commission was paid this year (the web's
+          // loadTaxYearCarryIn). The helper ignores them for accrual.
+          supabase
+            .from("transactions")
+            .select("sale_price, commission_pct, gci_override, team_split_pct, date, commission_paid_date")
+            .eq("user_id", userId)
+            .eq("status", "closed")
+            .lt("date", yearStart)
+            .gte("commission_paid_date", yearStart)
+            .lte("commission_paid_date", `${taxYear}-12-31`),
           // Receipts, recurring expenses and the legacy monthly estimate: the
           // dashboard's tables and filters (lib/expense-inputs.ts).
           loadExpenseInputs(supabase, userId, now),
@@ -490,6 +507,16 @@ export function getAnalyticsTools(supabase: SupabaseClient, userId: string): Mcp
         // SEASONAL projection (incl. pipeline + listing weighted GCI), not the
         // prior plain `ytdGCI / yearFraction`, so the tax estimate's projected
         // income matches the dashboard. See dashboard_metric_divergence_fix_2026-06-26.md.
+        // Tax-year income (core/engines/tax-year.ts, the dashboard's): a
+        // cash-method agent's commissions count in the year paid. 0 for
+        // accrual; the projection itself stays on closing dates.
+        const incomeMethod = incomeReportingMethod(settings);
+        const taxGCIAdjustment = taxYearGCIAdjustment(
+          [...transactions, ...(carryInRes.data ?? [])],
+          incomeMethod,
+          taxYear,
+        );
+
         let netIncome: number;
         let projectedGCI: number;
         if (overrideIncome != null) {
@@ -531,7 +558,7 @@ export function getAnalyticsTools(supabase: SupabaseClient, userId: string): Mcp
                 : Math.max(1, Math.round(projectedGCI / 15000)),
           };
           netIncome = computeProjectedNetForTax({
-            projectedGCI,
+            projectedGCI: taxYearProjectedGCI(projectedGCI, taxGCIAdjustment),
             expensesYTD: ytdExpenses,
             expensesRemaining,
             settings: settingsSlice,
@@ -573,6 +600,10 @@ export function getAnalyticsTools(supabase: SupabaseClient, userId: string): Mcp
               quarterly_installment: Math.round(taxResult.quarterlyEstimate),
               per_deal_set_aside: Math.round(taxResult.perDealSetAside),
               projected_deal_count: projectedDealCount,
+              // CRA T4002 ch. 1: commission agents report on the cash method
+              // (year received) or the accrual method (year earned).
+              income_reporting_method: incomeMethod,
+              tax_year_gci_adjustment: Math.round(taxGCIAdjustment),
             }, null, 2),
           }],
         };
