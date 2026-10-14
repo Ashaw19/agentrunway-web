@@ -11,7 +11,7 @@
  */
 
 import { useCallback, useMemo, useState } from "react";
-import { View, Text, FlatList, Pressable, Alert, ActivityIndicator, ScrollView } from "react-native";
+import { View, Text, SectionList, Pressable, Alert, ActivityIndicator, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
@@ -25,6 +25,7 @@ import { useColors, useTheme, shadows, Space, Radius, Type } from "@/lib/theme";
 type Phase = "intro" | "reading" | "review" | "importing" | "done";
 
 function detail(c: ImportCandidate): string {
+  if (c.agentReason) return c.agentReason;
   const bits = [c.phone, c.email].filter(Boolean) as string[];
   if (c.kind === "business") bits.unshift("Business");
   return bits.length ? bits.join(" · ") : "No phone or email";
@@ -57,7 +58,8 @@ export default function ContactsImportScreen() {
       await fetchClients();
       const p = planContactImport(contacts, useDataStore.getState().clients as Client[]);
       setPlan(p);
-      setTicked(new Set(p.candidates.map((x) => x.contactId)));
+      // Other real estate agents start unticked: they're not clients.
+      setTicked(new Set(p.candidates.filter((x) => !x.agentReason).map((x) => x.contactId)));
       setPhase("review");
     } catch {
       Alert.alert("Couldn't Read Contacts", "Please try again.");
@@ -76,7 +78,10 @@ export default function ContactsImportScreen() {
   }, []);
 
   const candidates = useMemo(() => plan?.candidates ?? [], [plan]);
-  const allTicked = candidates.length > 0 && ticked.size === candidates.length;
+  const people = useMemo(() => candidates.filter((x) => !x.agentReason), [candidates]);
+  const agents = useMemo(() => candidates.filter((x) => x.agentReason), [candidates]);
+  // "Tick all" covers everyone except the agents; tick an agent one by one.
+  const allTicked = people.length > 0 && people.every((x) => ticked.has(x.contactId));
   const chosen = useMemo(() => candidates.filter((x) => ticked.has(x.contactId)), [candidates, ticked]);
 
   const runImport = useCallback(() => {
@@ -129,6 +134,7 @@ export default function ContactsImportScreen() {
             {[
               "Anyone who shares a phone number, email or name with a client is skipped, including archived clients.",
               "Duplicates in your contacts are added once.",
+              "Other real estate agents (a brokerage in their company, title, name or email) are listed separately and left unticked.",
               `New clients are filed as Cruising, lead source ${IMPORT_LEAD_SOURCE}, tagged "${IMPORT_TAG}", so you can find or remove them together.`,
               "Your contacts are read on this phone. Only the ones you import are saved.",
             ].map((line) => (
@@ -201,10 +207,16 @@ export default function ContactsImportScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: c.bg }} edges={["bottom"]}>
-      <FlatList
-        data={candidates}
+      <SectionList
+        sections={[
+          { key: "people", title: null as string | null, data: people },
+          ...(agents.length
+            ? [{ key: "agents", title: `REAL ESTATE AGENTS (${agents.length}): NOT TICKED` as string | null, data: agents }]
+            : []),
+        ]}
         keyExtractor={(x) => x.contactId}
         initialNumToRender={30}
+        stickySectionHeadersEnabled={false}
         contentContainerStyle={{ padding: Space.xl, gap: Space.sm, paddingBottom: 120 }}
         ListHeaderComponent={
           <View style={{ gap: Space.sm, marginBottom: Space.sm }}>
@@ -216,9 +228,18 @@ export default function ContactsImportScreen() {
             {!!skippedLine && (
               <Text style={[Type.caption, { color: c.textDim }]}>Skipping {skippedLine}.</Text>
             )}
-            {candidates.length > 0 && (
+            {people.length > 0 && (
               <Pressable
-                onPress={() => setTicked(allTicked ? new Set() : new Set(candidates.map((x) => x.contactId)))}
+                onPress={() =>
+                  setTicked((prev) => {
+                    const next = new Set(prev);
+                    for (const x of people) {
+                      if (allTicked) next.delete(x.contactId);
+                      else next.add(x.contactId);
+                    }
+                    return next;
+                  })
+                }
                 accessibilityRole="button"
                 style={{ alignSelf: "flex-start", paddingVertical: Space.xs }}
               >
@@ -226,6 +247,16 @@ export default function ContactsImportScreen() {
               </Pressable>
             )}
           </View>
+        }
+        renderSectionHeader={({ section }) =>
+          section.title ? (
+            <View style={{ marginTop: Space.lg, gap: 2 }}>
+              <Text style={[Type.label, { color: c.textMuted }]}>{section.title}</Text>
+              <Text style={[Type.caption, { color: c.textDim }]}>
+                Tick anyone here you do want as a client.
+              </Text>
+            </View>
+          ) : null
         }
         renderItem={({ item }) => {
           const on = ticked.has(item.contactId);
