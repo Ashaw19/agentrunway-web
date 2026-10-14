@@ -15,7 +15,7 @@
 // "ambiguous": shown to the agent, never filled in. Only empty fields are
 // proposed; a different value in Contacts is reported, never overwritten.
 
-import { clusterNameKey, normalizeEmail, normalizePhone } from "./client-identity";
+import { clusterNameKey, normalizeEmail, normalizePhone, toNameSearch } from "./client-identity";
 
 /**
  * The year stored for a birthday that has no year in Contacts. Apple uses
@@ -44,6 +44,10 @@ export type PhoneType = "mobile" | "home" | "work" | "other";
 export interface DeviceContact {
   id: string;
   name: string;
+  /** Company name; the display name of a business contact with no person name. */
+  company?: string | null;
+  /** True for a contact iOS files as a company rather than a person. */
+  isCompany?: boolean;
   firstName?: string | null;
   lastName?: string | null;
   phones: { number: string; label?: string | null }[];
@@ -119,7 +123,7 @@ function clientNameKeys(c: MatchableClient): string[] {
   return [...new Set([c.name, full].filter((n) => n && n.trim()).map((n) => clusterNameKey(n)))];
 }
 
-function isoBirthdate(b: NonNullable<DeviceContact["birthday"]>): string | null {
+export function isoBirthdate(b: NonNullable<DeviceContact["birthday"]>): string | null {
   const { month, day } = b;
   if (!Number.isInteger(month) || !Number.isInteger(day) || month < 1 || month > 12 || day < 1 || day > 31) return null;
   const year = b.year && b.year > 1800 ? b.year : YEARLESS_BIRTH_YEAR;
@@ -248,4 +252,124 @@ export function matchContactsToClients(
   matches.sort((a, b) => a.clientName.localeCompare(b.clientName));
   ambiguous.sort((a, b) => a.clientName.localeCompare(b.clientName));
   return { matches, ambiguous, upToDate };
+}
+
+// ── Import from Contacts ─────────────────────────────────────────────────────
+// Every contact that isn't already a client, as a new client. "Already a
+// client" is broader than the fill-in match above: ANY shared phone number,
+// email or name (archived clients included, so someone marked do-not-contact
+// isn't added back) means skip. Never a guess the other way: a contact that
+// might be a client stays out.
+
+/** clients.name is CHECK (char_length(name) <= 200). */
+const MAX_NAME = 200;
+
+export type ImportKind = "person" | "business" | "name_only";
+
+export interface ImportCandidate {
+  contactId: string;
+  name: string;
+  first_name: string | null;
+  last_name: string | null;
+  phone: string | null;
+  phone_type: PhoneType;
+  secondary_phone: string | null;
+  secondary_phone_type: PhoneType;
+  email: string | null;
+  secondary_email: string | null;
+  birthdate: string | null;
+  kind: ImportKind;
+}
+
+export interface ImportPlan {
+  candidates: ImportCandidate[];
+  /** Contacts that match a client (by phone, email or name). */
+  alreadyThere: number;
+  /** Contacts with no name or company: a client needs a name. */
+  noName: number;
+  /** Later copies of a contact already in this plan (iCloud duplicates). */
+  duplicates: number;
+}
+
+export function planContactImport(
+  contacts: readonly DeviceContact[],
+  clients: readonly MatchableClient[],
+): ImportPlan {
+  const phones = new Set<string>();
+  const emails = new Set<string>();
+  const names = new Set<string>();
+  const addName = (n: string | null | undefined) => {
+    if (n && n.trim()) {
+      names.add(clusterNameKey(n));
+      names.add(toNameSearch(n)); // the database's own unique key
+    }
+  };
+  for (const c of clients) {
+    for (const p of [c.phone, c.secondary_phone]) { const k = normalizePhone(p); if (k) phones.add(k); }
+    for (const e of [c.email, c.secondary_email]) { const k = normalizeEmail(e); if (k) emails.add(k); }
+    addName(c.name);
+    addName([c.first_name, c.last_name].filter((p) => p && p.trim()).join(" "));
+  }
+
+  const plan: ImportPlan = { candidates: [], alreadyThere: 0, noName: 0, duplicates: 0 };
+  const seenPhones = new Set<string>();
+  const seenEmails = new Set<string>();
+  const seenNames = new Set<string>();
+
+  for (const c of contacts) {
+    const personName = (c.name ?? "").trim() || [c.firstName, c.lastName].filter((p) => p && p.trim()).join(" ").trim();
+    const company = (c.company ?? "").trim();
+    const name = (c.isCompany ? company || personName : personName || company).slice(0, MAX_NAME).trim();
+    if (!name) { plan.noName++; continue; }
+
+    const phoneKeys = c.phones.map((p) => normalizePhone(p.number)).filter((k): k is string => !!k);
+    const emailKeys = c.emails.map((e) => normalizeEmail(e.email)).filter((k): k is string => !!k);
+    const nameKeys = [...new Set([clusterNameKey(name), toNameSearch(name), ...contactNameKeys(c)])];
+
+    if (phoneKeys.some((k) => phones.has(k)) || emailKeys.some((k) => emails.has(k)) || nameKeys.some((k) => names.has(k))) {
+      plan.alreadyThere++;
+      continue;
+    }
+    if (phoneKeys.some((k) => seenPhones.has(k)) || emailKeys.some((k) => seenEmails.has(k)) || nameKeys.some((k) => seenNames.has(k))) {
+      plan.duplicates++;
+      continue;
+    }
+    phoneKeys.forEach((k) => seenPhones.add(k));
+    emailKeys.forEach((k) => seenEmails.add(k));
+    nameKeys.forEach((k) => seenNames.add(k));
+
+    // Phones: a mobile number first, then one other distinct number.
+    const distinctPhones: { number: string; type: PhoneType }[] = [];
+    const ordered = [...c.phones].sort((a, b) =>
+      Number(phoneTypeFromLabel(b.label) === "mobile") - Number(phoneTypeFromLabel(a.label) === "mobile"));
+    for (const p of ordered) {
+      const k = normalizePhone(p.number);
+      if (k && !distinctPhones.some((d) => normalizePhone(d.number) === k)) {
+        distinctPhones.push({ number: p.number.trim(), type: phoneTypeFromLabel(p.label) });
+      }
+    }
+    const distinctEmails: string[] = [];
+    for (const e of c.emails) {
+      const k = normalizeEmail(e.email);
+      if (k && !distinctEmails.some((d) => normalizeEmail(d) === k)) distinctEmails.push(e.email.trim());
+    }
+
+    const isBusiness = !!c.isCompany || (!personName && !!company);
+    plan.candidates.push({
+      contactId: c.id,
+      name,
+      first_name: isBusiness ? null : (c.firstName?.trim() || null),
+      last_name: isBusiness ? null : (c.lastName?.trim() || null),
+      phone: distinctPhones[0]?.number ?? null,
+      phone_type: distinctPhones[0]?.type ?? "mobile",
+      secondary_phone: distinctPhones[1]?.number ?? null,
+      secondary_phone_type: distinctPhones[1]?.type ?? "home",
+      email: distinctEmails[0] ?? null,
+      secondary_email: distinctEmails[1] ?? null,
+      birthdate: c.birthday ? isoBirthdate(c.birthday) : null,
+      kind: isBusiness ? "business" : distinctPhones.length === 0 && distinctEmails.length === 0 ? "name_only" : "person",
+    });
+  }
+  plan.candidates.sort((a, b) => a.name.localeCompare(b.name));
+  return plan;
 }

@@ -11,18 +11,17 @@
  */
 
 import { useCallback, useMemo, useState } from "react";
-import { View, Text, ScrollView, Pressable, Alert, ActivityIndicator, Linking } from "react-native";
+import { View, Text, ScrollView, Pressable, Alert, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
-import * as Contacts from "expo-contacts";
 import * as Haptics from "expo-haptics";
 import { CheckCircle2, Circle, Contact, Info } from "lucide-react-native";
 import {
   type ContactMatchResult,
-  type DeviceContact,
   type FieldUpdate,
   matchContactsToClients,
 } from "@agent-runway/core/lib/contact-match";
+import { readDeviceContacts } from "@/lib/device-contacts";
 import { useDataStore, type Client } from "@/stores/data-store";
 import { Button } from "@/components/ui";
 import { useColors, useTheme, shadows, Space, Radius, Type } from "@/lib/theme";
@@ -34,24 +33,6 @@ const FIELD_LABEL: Record<FieldUpdate["field"], string> = {
   email: "Email",
   birthdate: "Birthday",
 };
-
-function toDeviceContact(c: Contacts.ExistingContact): DeviceContact | null {
-  const name = (c.name ?? [c.firstName, c.lastName].filter(Boolean).join(" ")).trim();
-  if (!name || !c.id) return null;
-  const b = c.birthday;
-  return {
-    id: c.id,
-    name,
-    firstName: c.firstName ?? null,
-    lastName: c.lastName ?? null,
-    phones: (c.phoneNumbers ?? []).filter((p) => p.number).map((p) => ({ number: p.number!, label: p.label ?? null })),
-    emails: (c.emails ?? []).filter((e) => e.email).map((e) => ({ email: e.email!, label: e.label ?? null })),
-    // expo-contacts months start at 0, like JavaScript Dates.
-    birthday: b && typeof b.month === "number" && typeof b.day === "number"
-      ? { month: b.month + 1, day: b.day, year: b.year ?? null }
-      : null,
-  };
-}
 
 /** "clientId:field" for each ticked change. */
 const key = (clientId: string, field: string) => `${clientId}:${field}`;
@@ -69,35 +50,21 @@ export default function ContactsFillScreen() {
   const [progress, setProgress] = useState({ done: 0, total: 0, failed: 0 });
 
   const readContacts = useCallback(async () => {
-    const perm = await Contacts.requestPermissionsAsync();
-    if (perm.status !== "granted") {
-      Alert.alert(
-        "Contacts Access Needed",
-        "Allow Agent Runway to read your contacts in Settings to fill in your clients' details.",
-        [
-          { text: "Not Now", style: "cancel" },
-          { text: "Open Settings", onPress: () => void Linking.openSettings() },
-        ],
-      );
-      return;
-    }
     setPhase("reading");
     try {
-      // The full client list first, so every client can be matched.
+      const deviceContacts = await readDeviceContacts(
+        "Allow Agent Runway to read your contacts in Settings to fill in your clients' details.",
+      );
+      if (!deviceContacts) {
+        setPhase("intro");
+        return;
+      }
+      // The full client list, so every client can be matched.
       await fetchClients();
-      const { data } = await Contacts.getContactsAsync({
-        fields: [
-          Contacts.Fields.Name,
-          Contacts.Fields.FirstName,
-          Contacts.Fields.LastName,
-          Contacts.Fields.PhoneNumbers,
-          Contacts.Fields.Emails,
-          Contacts.Fields.Birthday,
-        ],
-      });
-      const deviceContacts = data.map(toDeviceContact).filter((d): d is DeviceContact => d !== null);
+      // A person needs a name to be matched to a client.
+      const named = deviceContacts.filter((d) => d.name);
       const all = useDataStore.getState().clients as Client[];
-      const r = matchContactsToClients(deviceContacts, all);
+      const r = matchContactsToClients(named, all);
       setResult(r);
       setTicked(new Set(r.matches.flatMap((m) => m.updates.map((u) => key(m.clientId, u.field)))));
       setPhase("review");

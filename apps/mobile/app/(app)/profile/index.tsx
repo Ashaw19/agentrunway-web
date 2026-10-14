@@ -39,6 +39,7 @@ import {
   Briefcase,
   ListChecks,
   Contact,
+  UserPlus,
 } from "lucide-react-native";
 import { getLocaleName, type SupportedLocale } from "@agent-runway/i18n";
 import { useT } from "@/lib/useT";
@@ -379,6 +380,15 @@ export default function ProfileScreen() {
               label={t("tools.fillFromContacts")}
               description={t("tools.fillFromContactsDesc")}
               onPress={() => router.push("/profile/contacts-fill")}
+              c={c}
+            />
+            <Divider c={c} />
+            <MenuItem
+              icon={<UserPlus size={18} color={c.cyan} />}
+              iconBg={c.cyanDim}
+              label={t("tools.importContacts")}
+              description={t("tools.importContactsDesc")}
+              onPress={() => router.push("/profile/contacts-import")}
               c={c}
             />
             <Divider c={c} />

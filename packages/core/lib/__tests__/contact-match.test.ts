@@ -6,6 +6,7 @@ import {
   isYearlessBirthdate,
   matchContactsToClients,
   phoneTypeFromLabel,
+  planContactImport,
 } from "../contact-match";
 
 function contact(id: string, name: string, extra: Partial<DeviceContact> = {}): DeviceContact {
@@ -146,5 +147,74 @@ describe("phoneTypeFromLabel", () => {
     expect(phoneTypeFromLabel("home")).toBe("home");
     expect(phoneTypeFromLabel("work")).toBe("work");
     expect(phoneTypeFromLabel(null)).toBe("other");
+  });
+});
+
+describe("planContactImport", () => {
+  it("imports a contact no client shares a phone, email or name with", () => {
+    const r = planContactImport(
+      [contact("k1", "Pat Ng", {
+        phones: [{ number: "506-555-0100", label: "home" }, { number: "506-555-0199", label: "iPhone" }],
+        emails: [{ email: "pat@x.ca" }],
+        birthday: { month: 6, day: 2 },
+      })],
+      [client("c1", "Sam Lee", { phone: "5065550101", email: "sam@x.ca" })],
+    );
+    expect(r.candidates).toEqual([{
+      contactId: "k1", name: "Pat Ng", first_name: "Pat", last_name: "Ng",
+      phone: "506-555-0199", phone_type: "mobile", secondary_phone: "506-555-0100", secondary_phone_type: "home",
+      email: "pat@x.ca", secondary_email: null, birthdate: "1604-06-02", kind: "person",
+    }]);
+    expect(r.alreadyThere).toBe(0);
+  });
+
+  it("skips a contact that shares a phone, an email or a name with any client", () => {
+    const r = planContactImport(
+      [
+        contact("k1", "Samuel Lee", { phones: [{ number: "+1 506 555 0101" }] }),
+        contact("k2", "Other Name", { emails: [{ email: "SAM@x.ca" }] }),
+        contact("k3", "Zoë Leblanc"),
+        contact("k4", "New Person", { phones: [{ number: "506-555-0300" }] }),
+      ],
+      [
+        client("c1", "Sam Lee", { phone: "5065550101", email: "sam@x.ca" }),
+        client("c2", "zoe leblanc"),
+      ],
+    );
+    expect(r.candidates.map((c) => c.contactId)).toEqual(["k4"]);
+    expect(r.alreadyThere).toBe(3);
+  });
+
+  it("imports one copy of a contact listed twice, and skips contacts with no name", () => {
+    const r = planContactImport(
+      [
+        contact("k1", "Pat Ng", { phones: [{ number: "506-555-0100" }] }),
+        contact("k2", "Pat Ng", { phones: [{ number: "5065550100" }] }),
+        { id: "k3", name: "", phones: [{ number: "506-555-0400" }], emails: [] },
+      ],
+      [],
+    );
+    expect(r.candidates.map((c) => c.contactId)).toEqual(["k1"]);
+    expect(r.duplicates).toBe(1);
+    expect(r.noName).toBe(1);
+  });
+
+  it("names a business by its company, and flags name-only contacts", () => {
+    const r = planContactImport(
+      [
+        { id: "k1", name: "", company: "Bay Plumbing", isCompany: true, phones: [{ number: "506-555-0500", label: "work" }], emails: [] },
+        contact("k2", "Just Aname"),
+      ],
+      [],
+    );
+    expect(r.candidates.map((c) => [c.name, c.kind, c.first_name])).toEqual([
+      ["Bay Plumbing", "business", null],
+      ["Just Aname", "name_only", "Just"],
+    ]);
+  });
+
+  it("caps a name at the 200 characters the database allows", () => {
+    const r = planContactImport([contact("k1", "A".repeat(250), { emails: [{ email: "a@x.ca" }] })], []);
+    expect(r.candidates[0].name).toHaveLength(200);
   });
 });
