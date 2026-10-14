@@ -27,6 +27,8 @@ import { compute as computeRunwayScore } from "@agent-runway/core/engines/runway
 import { compare as benchmarkCompare } from "@agent-runway/core/engines/benchmark-engine";
 import { survivalResult } from "@agent-runway/core/engines/survival-engine";
 import { computeEffectiveCashForSurvival, computePipelineMonthlyIncome } from "@agent-runway/core/engines/effective-cash";
+import { toPlanDeals } from "@agent-runway/core/engines/real-compensation-engine";
+import { loadCapYearCarryOver } from "@/lib/cap-year-carry-over";
 import { projectedYearEndTransactions } from "@agent-runway/core/engines/projection-engine";
 import { aggregateReceiptTotals, expenseTaxContext } from "@agent-runway/core/engines/expense-totals-engine";
 import { ytdExpenseTotals } from "@agent-runway/core/engines/t2125-expenses-engine";
@@ -178,6 +180,10 @@ export async function GET(req: NextRequest) {
         .limit(10000);
 
       const transactions = (txRows ?? []) as Transaction[];
+      // A REAL agent's closed deals before January 1 in the anniversary year
+      // that contains it: the plan waterfall's cap carries across January 1
+      // (the dashboard's carry-over). No query otherwise.
+      const carryOverTx = await loadCapYearCarryOver(admin, user.user_id, user as UserSettings, year);
 
       // Deals closed in last 7 days
       const recentDeals = transactions.filter(
@@ -343,8 +349,8 @@ export async function GET(req: NextRequest) {
       const { cashPosition: digestCashPosition } = computeEffectiveCashForSurvival({
         settings: user as UserSettings,
         ytdGCI,
-        // The deals ytdGCI sums, for the plan's per-deal waterfall (the dashboard's planDeals).
-        transactions: transactions.map((tx) => ({ id: tx.id, date: tx.date, gci: computeGCI(tx) })),
+        // The dashboard's planDeals: the cap year's carry-over + the deals ytdGCI sums.
+        transactions: toPlanDeals(carryOverTx, transactions),
         expensesYTD,
         expensesRemaining,
         projectedGCI,

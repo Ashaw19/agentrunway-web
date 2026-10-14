@@ -54,8 +54,10 @@ import {
   REAL_COMPANY_DOLLAR_RATE,
   SPLIT_PRESET_AGENT_PCT,
   computeAgentGross,
+  computeGCI,
   computeTxFees,
   type CompPlan,
+  type Transaction,
   type UserSettings,
 } from "../types/database";
 import { localISODate } from "../lib/local-date";
@@ -384,6 +386,85 @@ export function aggregateRealComp(
     dealCount,
     effectiveAgentPct: gci > 0 ? agentNet / gci : settings.real_pre_cap_agent_pct,
   };
+}
+
+// ── The deals a calendar year's figures need (2026-10-14) ───────────────────
+//
+// The cap, the Elite fee, the BEOP share and the sign-up fee run per
+// ANNIVERSARY year, not per calendar year. A deal closed in January can be
+// post-cap because of deals closed the October before. Handed only the
+// calendar year's deals, the waterfall restarts the cap on January 1, prices
+// that deal pre-cap and charges the sign-up fee again, so a REAL agent's YTD
+// take-home, cash position, cash runway and Runway Score read low from
+// January 1 until they re-cap. Every surface that prices this year's deals
+// through the waterfall hands it the carry-over too:
+//
+//   ytdTx       = this calendar year's closed rows (ytdGCI, deal counts, every
+//                 "year to date" figure: unchanged)
+//   carryOverTx = capYearCarryOver(settings, closedRows, year), or the web's
+//                 loadCapYearCarryOver(...) where the rows start on January 1
+//   deals       = toPlanDeals(carryOverTx, ytdTx), aggregated over the
+//                 calendar year as before
+//
+// The carry-over changes cap state only: aggregateRealComp's calendar window
+// leaves its deals out of every sum.
+
+/** The two settings fields the carry-over reads (any settings row or slice). */
+export type CarryOverSettings =
+  | { comp_plan?: string | null; real_join_date?: string | null }
+  | null
+  | undefined;
+
+/** The closed-transaction fields the waterfall's deals are built from. */
+export type PlanDealRow = Pick<
+  Transaction,
+  "date" | "sale_price" | "commission_pct" | "team_split_pct" | "gci_override"
+> & { id?: string };
+
+/**
+ * The first close date whose deal the waterfall needs to price `year`'s deals:
+ * the start of the anniversary year that contains January 1 of `year`, when
+ * that is before January 1. January 1 under `simple_split` (its cap is the
+ * calendar year's), with no join date, for an agent who joined during `year`,
+ * and when the anniversary is January 1.
+ */
+export function planDealsStart(settings: CarryOverSettings, year: number): string {
+  const yearStart = `${year}-01-01`;
+  if (settings?.comp_plan !== "real" || !settings.real_join_date) return yearStart;
+  const { start } = anniversaryWindow(settings.real_join_date, yearStart);
+  return start < yearStart ? start : yearStart;
+}
+
+/**
+ * The closed rows dated before January 1 of `year` that the waterfall needs
+ * for `year` (from {@link planDealsStart}). Empty unless the agent is on REAL
+ * with an anniversary year that spans January 1. `rows` may be every closed
+ * row the agent has; only the carry-over window is kept.
+ */
+export function capYearCarryOver<T extends { date: string }>(
+  settings: CarryOverSettings,
+  rows: readonly T[],
+  year: number,
+): T[] {
+  const from = planDealsStart(settings, year);
+  const yearStart = `${year}-01-01`;
+  if (from >= yearStart) return [];
+  return rows.filter((tx) => {
+    const d = (tx.date ?? "").slice(0, 10);
+    return d >= from && d < yearStart;
+  });
+}
+
+/**
+ * The waterfall's deals for a calendar year's figures: the cap year's
+ * carry-over, then the year's own closed rows, each through `computeGCI`.
+ * `ytdTx` is the array `ytdGCI` sums.
+ */
+export function toPlanDeals(
+  carryOverTx: readonly PlanDealRow[],
+  ytdTx: readonly PlanDealRow[],
+): RealDealInput[] {
+  return [...carryOverTx, ...ytdTx].map((tx) => ({ id: tx.id, date: tx.date, gci: computeGCI(tx) }));
 }
 
 // ── Analytic simulation (scenarios / projections — no deal list) ─────────────

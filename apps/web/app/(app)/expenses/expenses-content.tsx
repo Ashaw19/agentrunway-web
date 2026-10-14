@@ -100,6 +100,7 @@ import type { PlaidItem, PlaidTransaction, MileageLog, RecurringExpense, Pipelin
 import { computeWeightedGCI, activePipelineDeals } from "@/lib/types/database";
 import { seasonalFractionElapsed, projectedYearEndGCI, projectedYearEndTransactions } from "@/lib/engines/projection-engine";
 import { computeEffectiveCashForSurvival, computePipelineMonthlyIncome } from "@/lib/engines/effective-cash";
+import { toPlanDeals } from "@/lib/engines/real-compensation-engine";
 import { ExpensesMileageTab }     from "./expenses-mileage-tab";
 import { ExpensesBankImportsTab } from "./expenses-bank-imports-tab";
 import { TaxDisclaimer } from "@/components/tax-disclaimer";
@@ -151,6 +152,8 @@ interface Props {
   hiddenExpenseItems?: { key: string; monthly_recurring: number | string | null }[];
   settings: UserSettings | null;
   transactions: Transaction[];
+  /** A REAL agent's closed deals before January 1 in the cap year (loadCapYearCarryOver); the plan waterfall's only. */
+  carryOverTx: Transaction[];
   initialReceipts?: ReceiptExpense[];
   /**
    * Every current-year receipt (category_key, total_amount, tax_amount,
@@ -203,7 +206,7 @@ const CAT_LABEL: Record<string, string> = Object.fromEntries(
 );
 
 export function ExpensesContent({
-  initialCategories, settings, transactions, initialReceipts = [],
+  initialCategories, settings, transactions, carryOverTx, initialReceipts = [],
   receiptTotalRows: receiptTotalRowsSeed, priorYearHistory = [], currentYear,
   mileageLogs = [], plaidItems = [], plaidTransactions = [],
   plaidExpenseItems = [], plaidExpenseCategories = [], plaidConfigured = false,
@@ -992,8 +995,8 @@ export function ExpensesContent({
         computeEffectiveCashForSurvival({
           settings,
           ytdGCI,
-          // The deals ytdGCI sums, for the plan's per-deal waterfall (the dashboard's planDeals).
-          transactions: transactions.map((tx) => ({ id: tx.id, date: tx.date, gci: computeGCI(tx) })),
+          // The dashboard's planDeals: the cap year's carry-over + the deals ytdGCI sums.
+          transactions: toPlanDeals(carryOverTx, transactions),
           expensesYTD: effectiveTotal,
           expensesRemaining,
           projectedGCI: expensesProjectedGCI,

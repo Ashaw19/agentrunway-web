@@ -25,7 +25,7 @@
 import { yearProjection } from "@agent-runway/core/engines/deal-tax-portion";
 import { atlanticNoon } from "@agent-runway/core/lib/local-date";
 import { computeEffectiveCashForSurvival, computePipelineMonthlyIncome } from "@/lib/engines/effective-cash";
-import { computePlanGross, type CompSettingsSlice } from "@/lib/engines/real-compensation-engine";
+import { computePlanGross, toPlanDeals, type CompSettingsSlice } from "@/lib/engines/real-compensation-engine";
 import { calculate as calculateTax } from "@/lib/engines/canadian-tax-engine";
 import { calculateCorporateTax } from "@/lib/engines/corporate-tax-engine";
 import { survivalResult } from "@/lib/engines/survival-engine";
@@ -106,6 +106,12 @@ export interface ScenarioSeedInputs {
   settings: UserSettings | null;
   /** This year's closed transactions (the dashboard's query). */
   transactions: Transaction[];
+  /**
+   * A REAL agent's closed deals before January 1 in the anniversary year that
+   * contains it (loadCapYearCarryOver, the dashboard's carry-over). The plan
+   * waterfall's cap carries across January 1; nothing else reads them.
+   */
+  carryOverTx: Transaction[];
   /** Every `pipeline_deals` row; terminal stages are dropped in the projection. */
   pipelineDeals: PipelineDeal[];
   /** `listing_appointments` rows with status scheduled or active (the dashboard's query). */
@@ -120,7 +126,7 @@ export interface ScenarioSeedInputs {
 
 /** The Scenario Engine's seed, through the dashboard's chain. */
 export function buildScenarioSeed(inputs: ScenarioSeedInputs): ScenarioSeedData {
-  const { settings, transactions, expenses, now = new Date() } = inputs;
+  const { settings, transactions, carryOverTx, expenses, now = new Date() } = inputs;
   const { expensesYTD, monthlyRecurring, expensesRemaining } = expenses;
 
   const ytdGCI = transactions.reduce((sum, tx) => sum + computeGCI(tx), 0);
@@ -136,13 +142,14 @@ export function buildScenarioSeed(inputs: ScenarioSeedInputs): ScenarioSeedData 
 
   // Baseline cash for Survival MUST be cashPosition.effectiveCash (not raw
   // cash_reserve) so the "current" scenario matches dashboard + chat. The
-  // closed deals give the plan's per-deal waterfall, as on the dashboard.
+  // dashboard's planDeals (the cap year's carry-over + this year's closed
+  // deals) give the plan's per-deal waterfall.
   // See memory/feedback_data_consistency_protocol.md.
   const baselineCash = settings
     ? computeEffectiveCashForSurvival({
         settings,
         ytdGCI,
-        transactions: transactions.map((tx) => ({ id: tx.id, date: tx.date, gci: computeGCI(tx) })),
+        transactions: toPlanDeals(carryOverTx, transactions),
         expensesYTD,
         expensesRemaining,
         projectedGCI: projection.projectedGCI,

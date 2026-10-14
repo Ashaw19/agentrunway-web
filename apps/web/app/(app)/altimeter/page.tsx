@@ -6,6 +6,7 @@ import { expenseTaxContext } from "@agent-runway/core/engines/expense-totals-eng
 import { ytdExpenseTotals } from "@agent-runway/core/engines/t2125-expenses-engine";
 import { computeIsPro } from "@/lib/compute-is-pro";
 import { atlanticNoon } from "@agent-runway/core/lib/local-date";
+import { loadCapYearCarryOver } from "@/lib/cap-year-carry-over";
 
 
 export default async function AltimeterPage() {
@@ -24,6 +25,11 @@ export default async function AltimeterPage() {
     .maybeSingle();
 
   const settings = settingsResult.data;
+
+  // A REAL agent's closed deals before January 1 in the anniversary year that
+  // contains it: the plan waterfall's cap carries across January 1 (the
+  // dashboard's carry-over, cap-year-carry-over.ts). Never rejects.
+  const carryOverPromise = loadCapYearCarryOver(supabase, user.id, settings, dashYear);
 
   // ── Live Supabase queries ──
   const [txResult, pipelineResult, historyResult, expItemResult, receiptTotalsResult, recurringExpResult] = await Promise.all([
@@ -67,6 +73,7 @@ export default async function AltimeterPage() {
     ]);
 
   const transactions = txResult.data ?? [];
+  const carryOverTx = await carryOverPromise;
   const pipelineDeals = pipelineResult.data ?? [];
   const historyItems = (historyResult.data ?? []) as HistoryItem[];
 
@@ -84,6 +91,7 @@ export default async function AltimeterPage() {
   return (
     <AltimeterContent
       transactions={transactions}
+      carryOverTx={carryOverTx}
       pipelineDeals={pipelineDeals}
       settings={settings}
       historyItems={historyItems}
