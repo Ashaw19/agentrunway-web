@@ -22,6 +22,11 @@ export interface QueuedMutation {
 }
 
 interface OfflineQueueStore {
+  /**
+   * Restores the saved queue and failed list once storage has loaded (app
+   * startup). Anything queued this session before then is kept too.
+   */
+  hydrate: () => void;
   queue: QueuedMutation[];
   failed: QueuedMutation[]; // Mutations that exhausted retries — kept for user review
   isOnline: boolean;
@@ -137,6 +142,20 @@ export const useOfflineQueueStore = create<OfflineQueueStore>((set, get) => ({
   pendingCount: initialQueue.length,
   failedCount: initialFailed.length,
   _processing: false,
+
+  hydrate: () => {
+    const mergeById = (saved: QueuedMutation[], current: QueuedMutation[]) => {
+      const ids = new Set(saved.map((m) => m.id));
+      return [...saved, ...current.filter((m) => !ids.has(m.id))];
+    };
+    const savedQueue = loadQueue();
+    const savedFailed = loadFailed();
+    const queue = mergeById(savedQueue, get().queue);
+    const failed = mergeById(savedFailed, get().failed);
+    set({ queue, failed, pendingCount: queue.length, failedCount: failed.length });
+    if (queue.length !== savedQueue.length) saveQueue(queue);
+    if (failed.length !== savedFailed.length) saveFailed(failed);
+  },
 
   enqueue: (type, payload) => {
     const id = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;

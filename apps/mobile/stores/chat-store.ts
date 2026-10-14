@@ -54,6 +54,8 @@ interface ChatStore {
    *  show a stop button and to suppress double-sends. */
   isStreaming: boolean;
 
+  /** Restores the saved thread and persona once storage has loaded (app startup). */
+  hydrate: () => void;
   /** Append a fully-formed message. */
   appendMessage: (m: ChatMessage) => void;
   /** Patch an existing message by id (for streaming updates). */
@@ -115,6 +117,12 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   messages: loadMessages(),
   activePersona: loadActivePersona(),
   isStreaming: false,
+
+  hydrate: () => {
+    // A conversation started this session (before storage loaded) is kept.
+    if (get().messages.length === 0) set({ messages: loadMessages() });
+    set({ activePersona: loadActivePersona() });
+  },
 
   appendMessage: (m) => {
     set((s) => {
