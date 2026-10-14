@@ -25,10 +25,17 @@ import {
   RISK_BAND_RANGE,
   RISK_BAND_LADDER,
   RISK_LEVEL_LABEL,
+  type RiskColorBand,
   type RiskLevel,
 } from "../survival-engine";
 import { generateAdvisory, ADVISOR_CATEGORY_LABELS, type AdvisorInput } from "../advisor-engine";
-import { compute as computeRunwayScore } from "../runway-score-engine";
+import {
+  bandColorHexForScore,
+  compute as computeRunwayScore,
+  stateLabel,
+  RUNWAY_SCORE_BANDS,
+  type RunwayStateLabel,
+} from "../runway-score-engine";
 import { buildHealthReport } from "../health-report";
 import { TEST_DATE, TEST_TRANSACTIONS } from "./test-data";
 
@@ -400,17 +407,66 @@ describe("advisor card: low cash runway", () => {
   });
 });
 
-// ── Runway Score: the Survival sub-score's top step ──────────────────────────
+// ── Runway Score: the Survival sub-score follows these bands ─────────────────
+// The Survival bar is drawn beside the Cash Runway number (dashboard, Reports,
+// the report PDF, the phone). The bar is coloured by its 0–100 score on the
+// Runway Score's bands; the number by riskColorBand. One runway, one colour:
+// until 2026-10-13 a runway from 2 to under 3 months was a red bar (30, At
+// Risk) beside an amber Warning number.
 
 describe("Runway Score Survival sub-score", () => {
   const report = buildHealthReport(120_000, 200_000, 0.75, 40_000, 39_600);
   const survivalScoreAt = (months: number) =>
-    computeRunwayScore(report, 50, months).components.find((c) => c.label === "Survival")?.score;
+    computeRunwayScore(report, 50, months).components.find((c) => c.label === "Survival")!.score;
+
+  /** The Runway Score band drawn in each of the cash runway's colours. */
+  const SCORE_BAND_IN_COLOUR: Record<RiskColorBand, RunwayStateLabel | null> = {
+    red: "At Risk",
+    amber: "Building",
+    emerald: "Strong",
+    slate: null, // not configured: no runway to colour
+  };
+
+  /** Every hundredth of a month from 0 to the 24-month cap. */
+  const EVERY_HUNDREDTH = Array.from({ length: 2401 }, (_, i) => i / 100);
+
+  it("the two colour tables use the same red, amber and green", () => {
+    // What makes "the same band" mean "the same colour": Tailwind's red-500,
+    // amber-500 and emerald-500, the shades the runway number is drawn in.
+    const hexOf = (label: RunwayStateLabel) => RUNWAY_SCORE_BANDS.stateLabel.find((b) => b.label === label)?.hex;
+    expect(hexOf("At Risk")).toBe("#EF4444");
+    expect(hexOf("Building")).toBe("#F59E0B");
+    expect(hexOf("Strong")).toBe("#10B981");
+  });
+
+  it.each(RISK_BAND_LEVELS)("a %s runway's Survival score is in the score band of the runway's own colour", (level) => {
+    const expected = SCORE_BAND_IN_COLOUR[riskColorBand(level)];
+    const months = EVERY_HUNDREDTH.filter((m) => riskLevelFromMonths(m) === level);
+    expect(months.length).toBeGreaterThan(0);
+    const wrong = months
+      .filter((m) => stateLabel(survivalScoreAt(m)) !== expected)
+      .map((m) => `${m} months scores ${survivalScoreAt(m)} (${stateLabel(survivalScoreAt(m))}), expected ${expected}`);
+    expect(wrong.slice(0, 3)).toEqual([]);
+  });
+
+  it("the score steps up at each band's floor", () => {
+    for (const floor of Object.values(RISK_BAND_FLOOR_MONTHS)) {
+      expect(survivalScoreAt(floor), `${floor} months`).toBeGreaterThan(survivalScoreAt(floor - 0.01));
+    }
+  });
 
   it("its top step starts where the Strong band does, so 'Strong scores highest on Survival' is true", () => {
     const top = survivalScoreAt(24);
     expect(survivalScoreAt(RISK_BAND_FLOOR_MONTHS.strong)).toBe(top);
-    expect(survivalScoreAt(RISK_BAND_FLOOR_MONTHS.strong - 0.01)).toBeLessThan(top!);
+    expect(survivalScoreAt(RISK_BAND_FLOOR_MONTHS.strong - 0.01)).toBeLessThan(top);
+  });
+
+  it("no cash reserve or costs entered scores a missing-data penalty, not a band", () => {
+    // survivalResult's sentinel. The number beside the bar reads "Not set".
+    const notSet = survivalResult(0, 0, 0);
+    expect(notSet.riskLevel).toBe("notConfigured");
+    expect(survivalScoreAt(notSet.months)).toBe(35);
+    expect(bandColorHexForScore(survivalScoreAt(notSet.months))).toBe("#EF4444");
   });
 });
 

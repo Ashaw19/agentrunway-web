@@ -6,7 +6,16 @@
  */
 
 import { EXPENSE_RATIO_BANDS, EXPENSE_RATIO_COPY } from "@agent-runway/core/engines/expense-ratio-bands";
-import { RISK_BAND_LADDER } from "@agent-runway/core/engines/survival-engine";
+import { SCORE_VERSION, SURVIVAL_SCORE_STEPS, stateLabel } from "@agent-runway/core/engines/runway-score-engine";
+import { RISK_BAND_LADDER, RISK_BAND_LEVELS, RISK_LEVEL_LABEL } from "@agent-runway/core/engines/survival-engine";
+
+// "Critical 10–20 (At Risk), Warning 41–42 (Building), ...": each cash runway
+// band's Survival sub-scores and the Runway Score band they sit in.
+const KB_SURVIVAL_SCORE_BY_BAND = RISK_BAND_LEVELS.map((level) => {
+  const scores = SURVIVAL_SCORE_STEPS.filter((step) => step.level === level).map((step) => step.score);
+  const range = scores.length > 1 ? `${scores[0]}–${scores[scores.length - 1]}` : `${scores[0]}`;
+  return `${RISK_LEVEL_LABEL[level]} ${range} (${stateLabel(scores[0])})`;
+}).join(", ");
 
 const KB_MILEAGE_FIRST_5K = "$0.73/km";
 const KB_MILEAGE_AFTER_5K = "$0.67/km";
@@ -81,7 +90,7 @@ Platform for Canadian real estate agents: income, expenses, pipeline, clients, t
 **Pace** = ((Actual YTD GCI - Expected) / Expected) x 100. Expected = Goal x Seasonal Fraction (Goal = this calendar year's goal).
 **Seasonal Fraction** = Accounts for uneven quarterly income. Default = uniform Q1:25% Q2:25% Q3:25% Q4:25% (DB stores [25,25,25,25], normalized to fractions). Cascade: agent-derived from history_items.quarter_gci (need 2+ years) → settings.national_quarter_pcts → uniform. Day-level interpolation within quarters.
 **Projected Year-End GCI** = (Closed YTD / Seasonal Fraction) + (Pipeline Weighted x 50%). Jan-Feb dampening blends toward goal.
-**Runway Score** (v1.2) = Pace(35%) + Pipeline(30%) + Expense(15%) + Survival(15%) + Benchmark(5%). Grades: A+(92+) A(85-91) B(75-84) C(62-74) D(50-61) F(0-49). Missing data penalizes (35 not 50).
+**Runway Score** (v${SCORE_VERSION}) = Pace(35%) + Pipeline(30%) + Expense(15%) + Survival(15%) + Benchmark(5%). Grades: A+(92+) A(85-91) B(75-84) C(62-74) D(50-61) F(0-49). Missing data penalizes (35 not 50). The Survival sub-score follows the cash runway band, so the Survival bar is the colour of the Cash Runway number: ${KB_SURVIVAL_SCORE_BY_BAND}. Changed 2026-10-13 (v1.4): a runway from 2 to under 3 months scored 30 (At Risk, red) and now scores 41 (Building, amber); no other step moved.
 **Benchmark** = Industry cohort estimates: Rookie(0-2yr,$42K/4deals), Growth(3-5yr,$78K/7), Established(6-10yr,$96K/8), TopProducer(>10yr,$145K/12). National median $96K/8.
 **Where You Stand** = Launching(0-10%ile)/Climbing(10-25)/Competitive(25-50)/Advancing(50-75)/Leading(75+). Momentum: gaining/holding/losing.
 **P-Bands** = P10/25/50/75/90 via CV. CV clamped 5-50%.

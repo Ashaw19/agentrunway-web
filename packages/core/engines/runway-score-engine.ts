@@ -2,7 +2,14 @@
 // Versioned composite score wrapping BusinessHealthReport + benchmark + survival.
 // 5-component health score (Setup removed in v1.1).
 
-export const SCORE_VERSION = "1.3";
+import {
+  nextRiskBand,
+  RISK_BAND_FLOOR_MONTHS,
+  RISK_BAND_LEVELS,
+  type RiskBandLevel,
+} from "./survival-engine";
+
+export const SCORE_VERSION = "1.4";
 
 // ── Component ───────────────────────────────────────────────────────────────
 
@@ -171,6 +178,71 @@ export function bandColorHexForScore(score: number): string {
   return RUNWAY_SCORE_BANDS.stateLabel[RUNWAY_SCORE_BANDS.stateLabel.length - 1].hex;
 }
 
+// ── Survival sub-score ──────────────────────────────────────────────────────
+
+/**
+ * Scored when no cash reserve or costs are entered (the survival engine's -1
+ * sentinel). Missing data pulls the composite down; before v1.2 it scored 50,
+ * which rewarded not entering a reserve. It is a penalty, not a band: the
+ * Cash Runway number reads "Not set" in slate while this is an At Risk score.
+ */
+const SURVIVAL_SCORE_NOT_CONFIGURED = 35;
+
+/**
+ * The Survival sub-score for a cash runway, by the survival engine's band: one
+ * score per month from the band's floor, the last holding to the top of the
+ * band. The Survival bar is drawn beside the Cash Runway number, the bar
+ * coloured by this score on RUNWAY_SCORE_BANDS and the number by
+ * `riskColorBand()`, so each band's scores stay inside the Runway Score band
+ * of the same colour:
+ *
+ *   critical → At Risk  (red,     under 41)
+ *   warning  → Building (amber,   41–60)
+ *   healthy  → Building (amber,   41–60)
+ *   strong   → Strong   (emerald, 81 and up)
+ *
+ * Held at every hundredth of a month by survival-engine.test.ts ("Runway
+ * Score Survival sub-score"). Scores rise with the runway across the whole
+ * ladder.
+ */
+const SURVIVAL_SCORES_BY_BAND: Record<RiskBandLevel, readonly number[]> = {
+  critical: [10, 20],
+  warning: [41, 42],
+  healthy: [50, 58],
+  strong: [95],
+};
+
+export interface SurvivalScoreStep {
+  /** The cash runway band the step is in. */
+  level: RiskBandLevel;
+  /** The month count the step starts at. It runs up to, not including, the next step's. */
+  fromMonths: number;
+  score: number;
+}
+
+/**
+ * The Survival ladder, lowest first, laid out on the survival engine's band
+ * floors. A playbook or a test reads this; nothing types the ladder again.
+ */
+export const SURVIVAL_SCORE_STEPS: readonly SurvivalScoreStep[] = RISK_BAND_LEVELS.flatMap((level) => {
+  const floor = level === "critical" ? 0 : RISK_BAND_FLOOR_MONTHS[level];
+  const ceiling = nextRiskBand(level)?.fromMonths ?? Infinity;
+  return SURVIVAL_SCORES_BY_BAND[level]
+    .map((score, monthsIntoBand) => ({ level, fromMonths: floor + monthsIntoBand, score }))
+    .filter((step) => step.fromMonths < ceiling);
+});
+
+/** The Survival sub-score (0–100) for a cash runway in months, as `survivalResult().months` gives it. */
+export function survivalSubScore(months: number): number {
+  // Non-finite (NaN from a broken cash-position chain) is treated as missing.
+  if (!isFinite(months) || months < 0) return SURVIVAL_SCORE_NOT_CONFIGURED;
+  let score = SURVIVAL_SCORE_STEPS[0].score;
+  for (const step of SURVIVAL_SCORE_STEPS) {
+    if (months >= step.fromMonths) score = step.score;
+  }
+  return score;
+}
+
 // ── Compute ─────────────────────────────────────────────────────────────────
 
 /**
@@ -198,6 +270,16 @@ export function bandColorHexForScore(score: number): string {
  *   scores 50 (Building) instead of 75 (top-tier) so the survival bar agrees
  *   with the rest of the dashboard's runway narrative. Survival is 15% of the
  *   composite, so low-runway accounts see a slightly lower, more honest score.
+ *
+ * v1.4 changes (2026-10-13):
+ * - Survival sub-score follows the survival engine's cash runway bands
+ *   (`survivalSubScore`). v1.3's edges were the dashboard's old narrative
+ *   ("< 3 months → At Risk"); every screen now reads the survival engine,
+ *   where Warning starts at 2 months. One step moved: a runway from 2 to under
+ *   3 months scores 41 (Building, amber), not 30 (At Risk, red), so the
+ *   Survival bar is the colour of the Warning runway beside it. That lifts
+ *   the composite by 1.65 points for a runway in that range and by nothing
+ *   for any other.
  */
 export function compute(
   healthReport: BusinessHealthReport,
@@ -210,38 +292,7 @@ export function compute(
   const safePace      = isFinite(healthReport.paceScore)     ? healthReport.paceScore     : 0;
   const safePipeline  = isFinite(healthReport.pipelineScore) ? healthReport.pipelineScore : 0;
   const safeExpense   = isFinite(healthReport.expenseScore)  ? healthReport.expenseScore  : 0;
-  // Convert survival months to 0–100 score.
-  //
-  // Anchored to the product's OWN published cash-runway standard: the
-  // cash-runway explainer (dashboard score-component descriptions + GuideLink copy)
-  // states "6+ months is considered strong." The sub-score band edges mirror
-  // that standard so the survival bar reads the same as the rest of the
-  // dashboard (no more emerald/"healthy" bar next to an amber "runway getting
-  // thin" alert for the same 4.2-month account):
-  //
-  //   >= 6 months  → Strong   (top of range; emerald in the component-bar
-  //                            contract, score >= 81)
-  //   3 to < 6 mo  → Building / "watch" (middle; amber, score 41–60)
-  //   < 3 months   → At Risk  (bottom; red, score < 41)
-  //
-  // The ladder is monotonic and smooth across the whole range. A 4.2-month
-  // account now lands at 50 (Building/amber) instead of 75 (which rendered as
-  // a top-tier band). This pulls low-runway composite scores down slightly and
-  // honestly — survival is 15% of the composite.
-  //
-  // -1 means "not configured" — score at 35 to penalize missing data
-  // (previously 50, which rewarded not entering a cash reserve).
-  // Non-finite (NaN from a broken cash-position chain) is treated as missing.
-  const safeSurvivalMonths = isFinite(survivalMonths) ? survivalMonths : -1;
-  let survivalScore: number;
-  if (safeSurvivalMonths < 0) survivalScore = 35;       // not configured
-  else if (safeSurvivalMonths >= 6) survivalScore = 95; // Strong
-  else if (safeSurvivalMonths >= 5) survivalScore = 58; // Building (watch)
-  else if (safeSurvivalMonths >= 4) survivalScore = 50; // Building (watch) — 4.2mo lands here
-  else if (safeSurvivalMonths >= 3) survivalScore = 42; // Building (watch)
-  else if (safeSurvivalMonths >= 2) survivalScore = 30; // At Risk
-  else if (safeSurvivalMonths >= 1) survivalScore = 20; // At Risk
-  else survivalScore = 10;                              // At Risk (floor)
+  const survivalScore = survivalSubScore(survivalMonths);
 
   const components: ScoreComponent[] = [
     { label: "Goal Pace", score: safePace,      weight: "35%", weightValue: 0.35 },

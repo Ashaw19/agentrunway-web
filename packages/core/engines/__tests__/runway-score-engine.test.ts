@@ -18,6 +18,11 @@
  *   2–<3 → 30, 1–<2 → 20, <1 → 10 (At Risk). A 4.2-month account moves
  *   from 75 (top-tier) to 50 (Building) so the survival bar matches the
  *   dashboard's runway narrative.
+ *
+ * v1.4 changes:
+ * - Survival sub-score follows the survival engine's cash runway bands:
+ *   Critical runways score At Risk, Warning and Healthy score Building,
+ *   Strong scores Strong. One step moved: 2–<3 months, 30 → 41.
  */
 
 import { describe, it, expect } from "vitest";
@@ -25,8 +30,16 @@ import {
   compute,
   stateLabel,
   bandColorHexForScore,
+  survivalSubScore,
   RUNWAY_SCORE_BANDS,
+  SCORE_VERSION,
+  SURVIVAL_SCORE_STEPS,
 } from "../runway-score-engine";
+import {
+  riskLevelFromMonths,
+  RISK_BAND_FLOOR_MONTHS,
+  RISK_BAND_LEVELS,
+} from "../survival-engine";
 import type {
   BusinessHealthReport,
   RunwayScoreResult,
@@ -117,12 +130,13 @@ describe("Runway Score — Composite Calculation", () => {
 });
 
 // ── Survival Score Mapping ───────────────────────────────────────────────────
-
 //
-// v1.3 survival anchoring: bands mirror the product's published cash-runway
-// standard ("6+ months is considered strong"). 6+ = Strong (95), 3–<6 =
-// Building/watch (42–58), <3 = At Risk (10–30). Monotonic and smooth.
-// Boundary cases at EXACTLY 3 and 6 months are pinned below.
+// v1.4: the Survival sub-score follows the cash runway's band in the survival
+// engine, a step per month inside a band. Critical runways score At Risk,
+// Warning and Healthy score Building, Strong scores Strong, so the Survival
+// bar is the colour of the Cash Runway number beside it. That agreement is
+// held at every band in survival-engine.test.ts ("Runway Score Survival
+// sub-score"); this block holds the ladder itself.
 
 function survivalScoreFor(months: number): number {
   const result = compute(
@@ -133,76 +147,118 @@ function survivalScoreFor(months: number): number {
   return result.components.find((c) => c.label === "Survival")!.score;
 }
 
-describe("Survival Score Mapping (v1.3 — anchored to 6+ = strong)", () => {
-  it("≥ 6 months → score 95 (Strong)", () => {
-    expect(survivalScoreFor(6)).toBe(95);
-    expect(survivalScoreFor(8)).toBe(95);
-    expect(survivalScoreFor(24)).toBe(95);
+/** The v1.3 ladder, kept to show which scores v1.4 moved. */
+function v13SurvivalScore(months: number): number {
+  if (months >= 6) return 95;
+  if (months >= 5) return 58;
+  if (months >= 4) return 50;
+  if (months >= 3) return 42;
+  if (months >= 2) return 30;
+  if (months >= 1) return 20;
+  return 10;
+}
+
+/** Every hundredth of a month from 0 to the engine's 24-month cap. */
+const EVERY_HUNDREDTH = Array.from({ length: 2401 }, (_, i) => i / 100);
+
+describe("Survival Score Mapping (v1.4: follows the cash runway bands)", () => {
+  it.each([
+    [0, 10],
+    [0.5, 10],
+    [0.99, 10],
+    [1, 20],
+    [1.99, 20],
+    [2, 41],
+    [2.5, 41],
+    [2.99, 41],
+    [3, 42],
+    [3.99, 42],
+    [4, 50],
+    [4.2, 50],
+    [4.99, 50],
+    [5, 58],
+    [5.99, 58],
+    [6, 95],
+    [11.54, 95],
+    [24, 95],
+  ])("%s months → %s", (months, score) => {
+    expect(survivalScoreFor(months)).toBe(score);
   });
 
-  it("exactly 6 months is the Strong boundary (≥ 81 band)", () => {
-    // 6.0 lands in Strong; just under 6 drops into Building.
-    expect(survivalScoreFor(6)).toBe(95);
-    expect(survivalScoreFor(5.99)).toBe(58);
-    expect(survivalScoreFor(6)).toBeGreaterThanOrEqual(81);
-    expect(survivalScoreFor(5.99)).toBeLessThan(61); // Building, not On Track/Strong
+  it("a Warning runway under 3 months is Building, not At Risk", () => {
+    // v1.3 scored it 30: a red Survival bar beside an amber Cash Runway number.
+    expect(riskLevelFromMonths(2.5)).toBe("warning");
+    expect(stateLabel(survivalScoreFor(2.5))).toBe("Building");
+    expect(stateLabel(survivalScoreFor(1.99))).toBe("At Risk");
   });
 
-  it("5 ≤ months < 6 → score 58 (Building/watch)", () => {
-    expect(survivalScoreFor(5)).toBe(58);
-    expect(survivalScoreFor(5.5)).toBe(58);
+  it("moved one step from v1.3: 2 to under 3 months, 30 → 41", () => {
+    const moved = EVERY_HUNDREDTH.filter((m) => survivalScoreFor(m) !== v13SurvivalScore(m));
+    expect(moved[0]).toBe(2);
+    expect(moved[moved.length - 1]).toBe(2.99);
+    expect(moved).toHaveLength(100);
+    expect(new Set(moved.map(v13SurvivalScore))).toEqual(new Set([30]));
+    expect(new Set(moved.map(survivalScoreFor))).toEqual(new Set([41]));
   });
 
-  it("4.2 months → score 50 (Building/watch, NOT top-tier) — the fixed contradiction", () => {
-    expect(survivalScoreFor(4.2)).toBe(50);
-    // The whole point of v1.3: 4.2mo no longer reads as a top-tier band.
-    expect(survivalScoreFor(4.2)).toBeLessThan(61); // not On Track/Strong
-    expect(survivalScoreFor(4.2)).toBeGreaterThanOrEqual(41); // still Building, not At Risk
+  it("that step lifts the composite by 15% of 11 points", () => {
+    // 50×0.35 + 50×0.30 + 50×0.15 + 50×0.05 = 42.5, plus Survival × 0.15:
+    // v1.3 30 → 47.0; v1.4 41 → 48.65 → 49.
+    const report = makeReport({ paceScore: 50, pipelineScore: 50, expenseScore: 50 });
+    expect(compute(report, 50, 2.5).score).toBe(49);
   });
 
-  it("4 ≤ months < 5 → score 50 (Building/watch)", () => {
-    expect(survivalScoreFor(4)).toBe(50);
-    expect(survivalScoreFor(4.9)).toBe(50);
-  });
-
-  it("exactly 3 months is the At-Risk boundary", () => {
-    // 3.0 is the bottom of the Building/watch band; just under 3 drops to At Risk.
-    expect(survivalScoreFor(3)).toBe(42);
-    expect(survivalScoreFor(2.99)).toBe(30);
-    expect(survivalScoreFor(3)).toBeGreaterThanOrEqual(41); // Building
-    expect(survivalScoreFor(2.99)).toBeLessThan(41); // At Risk
-  });
-
-  it("3 ≤ months < 4 → score 42 (Building/watch, just above the At-Risk floor)", () => {
-    expect(survivalScoreFor(3)).toBe(42);
-    expect(survivalScoreFor(3.5)).toBe(42);
-  });
-
-  it("2 ≤ months < 3 → score 30 (At Risk)", () => {
-    expect(survivalScoreFor(2)).toBe(30);
-    expect(survivalScoreFor(2.5)).toBe(30);
-  });
-
-  it("1 ≤ months < 2 → score 20 (At Risk)", () => {
-    expect(survivalScoreFor(1)).toBe(20);
-    expect(survivalScoreFor(1.5)).toBe(20);
-  });
-
-  it("< 1 month → score 10 (At Risk floor)", () => {
-    expect(survivalScoreFor(0.5)).toBe(10);
-    expect(survivalScoreFor(0)).toBe(10);
-  });
-
-  it("not configured (-1) → score 35 (penalize missing data)", () => {
-    expect(survivalScoreFor(-1)).toBe(35);
-  });
-
-  it("survival map is monotonically non-decreasing in months", () => {
-    const samples = [0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6, 8, 24];
-    const scores = samples.map(survivalScoreFor);
+  it("never falls as the runway grows", () => {
+    const scores = EVERY_HUNDREDTH.map(survivalScoreFor);
     for (let i = 1; i < scores.length; i++) {
       expect(scores[i]).toBeGreaterThanOrEqual(scores[i - 1]);
     }
+  });
+
+  it("not configured (-1) → 35 (penalize missing data)", () => {
+    expect(survivalScoreFor(-1)).toBe(35);
+  });
+
+  it("a non-finite month count is missing data, not a runway", () => {
+    expect(survivalScoreFor(Number.NaN)).toBe(35);
+    expect(survivalScoreFor(Number.POSITIVE_INFINITY)).toBe(35);
+    expect(survivalScoreFor(Number.NEGATIVE_INFINITY)).toBe(35);
+  });
+
+  it("compute()'s Survival component is survivalSubScore()", () => {
+    for (const months of [-1, 0, 1.9, 2.5, 3, 4.2, 5.99, 6, 24]) {
+      expect(survivalScoreFor(months)).toBe(survivalSubScore(months));
+    }
+  });
+});
+
+describe("SURVIVAL_SCORE_STEPS (the ladder a playbook reads)", () => {
+  it("starts at zero months and ascends in months and in score", () => {
+    expect(SURVIVAL_SCORE_STEPS[0].fromMonths).toBe(0);
+    for (let i = 1; i < SURVIVAL_SCORE_STEPS.length; i++) {
+      expect(SURVIVAL_SCORE_STEPS[i].fromMonths).toBeGreaterThan(SURVIVAL_SCORE_STEPS[i - 1].fromMonths);
+      expect(SURVIVAL_SCORE_STEPS[i].score).toBeGreaterThan(SURVIVAL_SCORE_STEPS[i - 1].score);
+    }
+  });
+
+  it("each step's band is the survival engine's band for the month it starts at", () => {
+    for (const step of SURVIVAL_SCORE_STEPS) {
+      expect(riskLevelFromMonths(step.fromMonths), `${step.fromMonths} months`).toBe(step.level);
+    }
+  });
+
+  it("every band has a step, and one starts at each band's floor", () => {
+    expect(new Set(SURVIVAL_SCORE_STEPS.map((s) => s.level))).toEqual(new Set(RISK_BAND_LEVELS));
+    const starts = SURVIVAL_SCORE_STEPS.map((s) => s.fromMonths);
+    for (const floor of Object.values(RISK_BAND_FLOOR_MONTHS)) expect(starts).toContain(floor);
+  });
+
+  it("survivalSubScore() holds each step's score from its start to the next step", () => {
+    SURVIVAL_SCORE_STEPS.forEach((step, i) => {
+      const next = SURVIVAL_SCORE_STEPS[i + 1];
+      expect(survivalSubScore(step.fromMonths)).toBe(step.score);
+      expect(survivalSubScore(next ? next.fromMonths - 0.01 : 24)).toBe(step.score);
+    });
   });
 });
 
@@ -211,7 +267,7 @@ describe("Survival Score Mapping (v1.3 — anchored to 6+ = strong)", () => {
 describe("Incomplete Data Penalty", () => {
   it("not-configured survival pulls score below neutral", () => {
     const report = makeReport({ paceScore: 50, pipelineScore: 50, expenseScore: 50 });
-    const configured = compute(report, 50, 5);    // v1.3: 5–<6 months → 58
+    const configured = compute(report, 50, 5);    // 5–<6 months → 58
     const notConfigured = compute(report, 50, -1); // not configured → 35
     expect(notConfigured.score).toBeLessThan(configured.score);
   });
@@ -255,9 +311,8 @@ describe("Grade Boundaries", () => {
     const report = makeReport({
       paceScore: 50, pipelineScore: 50, expenseScore: 50,
     });
-    // v1.3: survival 4–<5 months → 50. With every other component at 50 the
-    // composite is exactly 50 → grade D. (Pre-v1.3 this row used survival=2,
-    // which now scores 30 and would drop the composite to 47/F.)
+    // Survival 4–<5 months → 50. With every other component at 50 the
+    // composite is exactly 50 → grade D.
     const result = compute(report, 50, 4); // survival = 50
     // 50×0.35 + 50×0.30 + 50×0.15 + 50×0.05 + 50×0.15 = 50
     expect(result.score).toBe(50);
@@ -306,7 +361,7 @@ describe("State Label Boundaries", () => {
       weakestLabel: "Pipeline",
       hasEnoughData: true,
     };
-    // v1.3: survival 4–<5 months → 50, so an all-50 input gives composite 50 → Building.
+    // Survival 4–<5 months → 50, so an all-50 input gives composite 50 → Building.
     const result = compute(report, 50, 4); // composite 50 → Building
     expect(result.stateLabel).toBe(stateLabel(result.score));
     expect(result.stateLabel).toBe("Building");
@@ -318,7 +373,8 @@ describe("State Label Boundaries", () => {
 describe("Score Metadata", () => {
   it("includes version string", () => {
     const result = compute(makeReport(), 50, 5);
-    expect(result.version).toBe("1.3");
+    expect(SCORE_VERSION).toBe("1.4");
+    expect(result.version).toBe(SCORE_VERSION);
   });
 
   it("includes timestamp", () => {

@@ -38,8 +38,9 @@ import {
   computeEffectiveCashForSurvival,
   computePipelineMonthlyIncome,
   computeProjectedNetForTax,
+  pipelineIncomeMonthsLeft,
 } from "../effective-cash";
-import { survivalResult } from "../survival-engine";
+import { netMonthlyBurn, survivalResult } from "../survival-engine";
 import { buildHealthReport } from "../health-report";
 import { compute as computeRunwayScore } from "../runway-score-engine";
 import { compare as benchmarkCompare } from "../benchmark-engine";
@@ -599,5 +600,88 @@ describe("net-for-tax uses the canonical helper on the listing-inclusive project
     });
     expect(a).toBe(b);
     expect(a).toBeGreaterThan(0);
+  });
+});
+
+// ── Survival nets the pipeline income estimate, on every surface ─────────────
+//
+// The months are cash ÷ (burn − pipeline income estimate). Until 2026-10-13
+// the two builders in apps/web/lib/chat-diagnostics.ts (the Runway Score
+// breakdown and the survival diagnostic Flight Crew reads in troubleshooting
+// mode) passed 0 for the estimate while every screen, the weekly digest and
+// the chat route's main context passed the dashboard's. An account with
+// deals in its pipeline got two month counts in one prompt, and through the
+// Survival sub-score two Runway Scores.
+//
+// apps/web/lib/__tests__/chat-diagnostics-runway.test.ts runs the real
+// builders and scans every call site. Here the figures are pinned, and the
+// dashboard's own line is held to the helper the other surfaces call.
+
+describe("survival nets the pipeline income estimate (Flight Crew diagnostics included)", () => {
+  /** dashboard-content.tsx, "Survival prep (pipeline monthly estimate)", as written there. */
+  function dashboardPipelineMonthlyEst(pipelineWeightedGCI: number, fraction: number) {
+    const remainingMonths = Math.max(1, 12 - Math.floor(fraction * 12));
+    return fraction > 0 ? pipelineWeightedGCI / remainingMonths : 0;
+  }
+
+  it("the dashboard's inline estimate is computePipelineMonthlyIncome at every point in the year", () => {
+    for (let i = 0; i <= 1000; i++) {
+      const fraction = i / 1000;
+      expect(computePipelineMonthlyIncome(48_000, fraction)).toBe(dashboardPipelineMonthlyEst(48_000, fraction));
+    }
+    expect(pipelineIncomeMonthsLeft(0.547)).toBe(6);
+  });
+
+  it("the estimate is the active pipeline's weighted GCI over the months left: no listings, no closed or lost rows", () => {
+    const { pipelineWeighted, listingWeighted, fraction } = deriveInputs();
+    // offer 450,000 × 2.5% × 50% = 5,625; conditional 380,000 × 2.5% × 75% = 7,125.
+    expect(pipelineWeighted).toBe(12_750);
+    // 15 July on 20/30/30/20 quarters: six whole twelfths elapsed, six left.
+    expect(pipelineIncomeMonthsLeft(fraction)).toBe(6);
+    expect(computePipelineMonthlyIncome(pipelineWeighted, fraction)).toBe(2_125);
+    expect(listingWeighted).toBeGreaterThan(0);
+    expect(computePipelineMonthlyIncome(pipelineWeighted + listingWeighted, fraction)).not.toBe(2_125);
+  });
+
+  it("on the listing-heavy agent, leaving the estimate out gives a different month count", () => {
+    const { survivalMonths, pipelineWeighted, fraction } = deriveInputs();
+    // 2,125 a month of pipeline income is above the 1,800 burn (600 + 1,200).
+    expect(computePipelineMonthlyIncome(pipelineWeighted, fraction)).toBeGreaterThan(SETTINGS.monthly_brokerage_fee + MONTHLY_RECURRING);
+    expect(survivalMonths).toBe(24);
+  });
+
+  // The two accounts the chat-diagnostics test builds from rows: a $2,500
+  // burn and six months left in the year.
+  const BURN = 2_500;
+
+  it("$7,500 of cash and $1,000 a month of pipeline income: 5.0 months, Healthy, where cash ÷ burn says 3.0, Warning", () => {
+    const screens = survivalResult(BURN, 0, 7_500, computePipelineMonthlyIncome(6_000, 0.54));
+    expect(screens.monthlyIncome).toBe(1_000);
+    expect(netMonthlyBurn(screens)).toBe(1_500);
+    expect(screens.label).toBe("5.0 months");
+    expect(screens.riskLevel).toBe("healthy");
+
+    const withoutEstimate = survivalResult(BURN, 0, 7_500, 0);
+    expect(withoutEstimate.label).toBe("3.0 months");
+    expect(withoutEstimate.riskLevel).toBe("warning");
+  });
+
+  it("$0 of cash and an estimate above the burn: 24+ months, Strong, where cash ÷ burn says 0, Critical, and a lower Runway Score", () => {
+    const screens = survivalResult(BURN, 0, 0, computePipelineMonthlyIncome(18_000, 0.54));
+    expect(screens.monthlyIncome).toBe(3_000);
+    expect(screens.label).toBe("24+ months");
+    expect(screens.riskLevel).toBe("strong");
+
+    const withoutEstimate = survivalResult(BURN, 0, 0, 0);
+    expect(withoutEstimate.months).toBe(0);
+    expect(withoutEstimate.riskLevel).toBe("critical");
+
+    // Same health report and benchmark, so the whole gap is the Survival
+    // component (15% of the composite).
+    const healthReport = buildHealthReport(0, 120_000, 0.54, 18_000, 0);
+    const scoreOn = (months: number) => computeRunwayScore(healthReport, 50, months);
+    const survivalOf = (months: number) => scoreOn(months).components.find((c) => c.label === "Survival")!.score;
+    expect(survivalOf(screens.months)).toBeGreaterThan(survivalOf(withoutEstimate.months));
+    expect(scoreOn(screens.months).score).toBeGreaterThan(scoreOn(withoutEstimate.months).score);
   });
 });

@@ -15,6 +15,12 @@
 
 import { EXPENSE_RATIO_COPY, expenseRatioBandsList } from "@agent-runway/core/engines/expense-ratio-bands";
 import {
+  SCORE_VERSION,
+  SURVIVAL_SCORE_STEPS,
+  stateLabel,
+  survivalSubScore,
+} from "@agent-runway/core/engines/runway-score-engine";
+import {
   RISK_BAND_FLOOR_MONTHS,
   RISK_BAND_LADDER,
   RISK_BAND_LEVELS,
@@ -37,6 +43,36 @@ const RUNWAY_BAND_ROWS = [...RISK_BAND_LEVELS]
     return `| ${range[0].toUpperCase()}${range.slice(1)} | ${RISK_LEVEL_LABEL[level]} | ${RUNWAY_COLOUR_WORD[riskColorBand(level)]} |`;
   })
   .join("\n");
+
+// The Runway Score's Survival sub-score as Flight Crew's table, highest first,
+// built from the score engine's ladder so it cannot state a step, a score or a
+// band the engine does not use. The last column is the colour of the Survival
+// bar and of the Cash Runway number beside it: the ladder keeps them the same.
+const monthCount = (months: number) => (months === 1 ? "1 month" : `${months} months`);
+const SURVIVAL_SCORE_ROWS = SURVIVAL_SCORE_STEPS.map((step, i) => {
+  const next = SURVIVAL_SCORE_STEPS[i + 1];
+  const range = !next
+    ? `${step.fromMonths}+ months`
+    : step.fromMonths === 0
+      ? `Under ${monthCount(next.fromMonths)}`
+      : `${step.fromMonths} to under ${monthCount(next.fromMonths)}`;
+  return `| ${range} | ${RISK_LEVEL_LABEL[step.level]} | ${step.score} | ${stateLabel(step.score)} | ${RUNWAY_COLOUR_WORD[riskColorBand(step.level)]} |`;
+})
+  .reverse()
+  .join("\n");
+
+// "a Critical runway scores At Risk (red), a Warning runway scores Building (amber), ..."
+const SURVIVAL_SCORE_BAND_BY_RUNWAY_BAND = RISK_BAND_LEVELS.map((level) => {
+  const first = SURVIVAL_SCORE_STEPS.find((step) => step.level === level);
+  const scoreBand = first ? stateLabel(first.score) : "";
+  return `a ${RISK_LEVEL_LABEL[level]} runway scores ${scoreBand} (${RUNWAY_COLOUR_WORD[riskColorBand(level)].toLowerCase()})`;
+}).join(", ");
+
+const SURVIVAL_SCORE_NOT_SET = survivalSubScore(-1);
+
+// What v1.4 moved, for both playbooks a question about the Survival bar can
+// reach. A dated fact: its figures are what was true that day, typed here.
+const SURVIVAL_SCORE_CHANGED_V14 = `Changed 2026-10-13 (v1.4): a cash runway from 2 to under 3 months scored 30 on Survival (At Risk, a red bar) beside a Cash Runway number in the ${RISK_LEVEL_LABEL.warning} range, in amber. It now scores 41 (Building, amber). No other step moved. Survival is 15% of the Runway Score, so an account with a runway in that range shows a Runway Score 1 or 2 points higher than the day before with nothing else changed, and its Survival bar went from red to amber.`;
 
 export function getPlaybook(topic: TroubleshootingTopic): string {
   return PLAYBOOKS[topic] ?? "";
@@ -92,15 +128,13 @@ The Runway Score is a weighted composite of 5 sub-scores, each 0–100:
 - If no GCI yet: 50 (neutral — agent hasn't started)
 - If has GCI but zero expenses logged: 35 (incomplete data penalty — no real estate agent has zero expenses, so this signals missing data)
 
-**Survival Score** (15%) — v1.3, anchored to the cash runway bands' top edge (${RISK_BAND_RANGE.strong} is ${RISK_LEVEL_LABEL.strong}). This ladder is the score's own, a step per month; the bands on the screens are in the Survival playbook:
-- ≥6 months → 95 (Strong)
-- ≥5 months → 58 (Building / watch)
-- ≥4 months → 50 (Building / watch — a 4.2-month account lands here)
-- ≥3 months → 42 (Building / watch)
-- ≥2 months → 30 (At Risk)
-- ≥1 month → 20 (At Risk)
-- <1 month → 10 (At Risk)
-- Not configured (no cash reserve set) → 35 (incomplete data penalty — previously 50 in v1.1)
+**Survival Score** (15%), v${SCORE_VERSION}. The score follows the cash runway's band (survival-engine.ts; the bands are in the Survival playbook), a step per month inside a band, so the Survival bar is the colour of the Cash Runway number beside it: ${SURVIVAL_SCORE_BAND_BY_RUNWAY_BAND}. The ladder (runway-score-engine.ts, survivalSubScore):
+| Cash runway | Runway band | Survival score | Score band | Colour of both |
+|-------------|-------------|----------------|------------|----------------|
+${SURVIVAL_SCORE_ROWS}
+- Not configured (no cash reserve or costs entered) → ${SURVIVAL_SCORE_NOT_SET} (incomplete data penalty — previously 50 in v1.1). This one is not a band: the Cash Runway number reads "Not set" in gray while the Survival bar is red, because ${SURVIVAL_SCORE_NOT_SET} is an ${stateLabel(SURVIVAL_SCORE_NOT_SET)} score. Entering a cash reserve in Settings replaces the penalty with the runway's own score.
+
+${SURVIVAL_SCORE_CHANGED_V14}
 
 **Benchmark Score** (5%):
 - Direct percentile from industry-cohort comparison
@@ -140,7 +174,7 @@ Walk through each component:
 - Is their pace negative? (35% of total — biggest contributor)
 - Is pipeline empty or thin? (30% — second biggest)
 - Is expense ratio above Agent Runway's target of ${EXPENSE_RATIO_COPY.target}? (15%)
-- Is cash reserve not set? (survival score defaults to 35 → only 5.25 of 15 points)
+- Is cash reserve not set? (survival score defaults to ${SURVIVAL_SCORE_NOT_SET} → only ${SURVIVAL_SCORE_NOT_SET * 0.15} of 15 points)
 - Has GCI but no expenses logged? (expense score defaults to 35 → only 5.25 of 15 points)
 - Are they a newer agent with low benchmark percentile? (5%)
 
@@ -160,7 +194,7 @@ Identify the weakest component and prioritize:
 **"How do I set my goal for next year?"**
 → Settings → Annual Goal → choose the calendar year → enter the GCI target → Save. Or ask me ("set my 2027 goal to $80,000"). Setting a future year doesn't change this year's pace or projections; it takes over on January 1. Each year is separate: a year nobody set has no goal (nothing carries forward), so from October 1 the dashboard prompts for next year's goal. The dashboard's year switch (this year | next year) shows next year as a plan: goal, pipeline already expected to close that year, deals still needed, monthly targets, and estimated take-home at goal. The take-home deducts the business expenses expected that year: each Recurring Expenses entry by its charge dates in that year, plus 12 months of the "/mo" figures on expense items.
 - Zero GCI: Expense score defaults to 50 (neutral)
-- Cash reserve = $0 or not set: Survival score = 35 (incomplete data penalty — not 50)
+- Cash reserve = $0 or not set: Survival score = ${SURVIVAL_SCORE_NOT_SET} (incomplete data penalty — not 50)
 `,
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -1323,10 +1357,12 @@ All figures are a snapshot of the REAL income deck and are user-editable — if 
 - monthlyRecurring: sum of all active recurring expense amounts (monthly + prorated quarterly/annual), net of ITCs for a GST/HST registrant
 - NOTE: This does NOT use YTD expenses ÷ months elapsed — it uses the configured recurring amounts only
 
-**Income Offset** = Pipeline Weighted GCI ÷ max(1, 12 − months elapsed)
+**Income Offset** = Pipeline Weighted GCI ÷ months left in the year (minimum 1)
 - This is the pipeline monthly estimate used to offset burn
 - NOT YTD Agent Net ÷ months elapsed — it is forward-looking (pipeline-based)
-- Divisor is remaining months of the year (minimum 1): late-year pipeline is spread across fewer months, so the monthly offset is larger
+- Pipeline Weighted GCI is the active pipeline only: closed and lost deals are not in it, and neither are listing appointments
+- Months left = 12 − the whole twelfths of the year elapsed, counted from the seasonal fraction of the year elapsed (the agent's seasonal weights), so it can differ from the calendar months left. Late-year pipeline is spread across fewer months, so the monthly offset is larger
+- In troubleshooting mode the [SURVIVAL DIAGNOSTIC] block prints the estimate, the weighted GCI and the months left it was divided by, and the net burn. Quote those figures; do not work the divisor out from the calendar month. They are the dashboard's inputs, so the months, band, Survival sub-score and Runway Score in the diagnostic data are the ones on the user's screens (until 2026-10-13 the diagnostic blocks left the Income Offset out and could show fewer months than the dashboard)
 
 **Net Burn** = Monthly Burn − Income Offset
 
@@ -1368,7 +1404,7 @@ Changed 2026-10-13: until then these screens used cut-offs of their own, so they
 - Cash reserve $0 with positive net burn: Runway = 0 (critical).
 
 ### Survival Impact on Other Metrics
-1. **Runway Score**: Survival is 15% of composite score. The top Survival sub-score starts where the ${RISK_LEVEL_LABEL.strong} band does.
+1. **Runway Score**: Survival is 15% of composite score. The Survival sub-score follows these bands, so the Survival bar in the score breakdown is the colour of the Cash Runway number: ${SURVIVAL_SCORE_BAND_BY_RUNWAY_BAND}. The score for each month is in the Runway Score playbook. With no cash reserve or costs entered the score is ${SURVIVAL_SCORE_NOT_SET}, a missing-data penalty: a red bar beside a gray "Not set". ${SURVIVAL_SCORE_CHANGED_V14}
 2. **Advisor Cards**: "Low Cash Runway" appears for a flagged runway (${RISK_LEVEL_LABEL.critical} or ${RISK_LEVEL_LABEL.warning})
 3. **Dashboard**: the Cash Runway number beside the Runway Score, the alert, the Daily Briefing row and the Business Health card (see "Which runways are flagged")
 
@@ -1378,7 +1414,7 @@ Changed 2026-10-13: until then these screens used cut-offs of their own, so they
 → Cash reserve is $0 or not set. Go to Settings → Cash Reserve and enter current business savings.
 
 **"Survival shows 24 months — is that right?"**
-→ Yes, if monthly income exceeds monthly expenses (net burn ≤ 0), runway caps at 24 months. This means you're cash-flow positive.
+→ The runway reads 24+ months when the cash covers 24 months or more of net burn, or when the Income Offset is at or above the monthly burn (net burn $0; the diagnostic says so when that is the case). The Income Offset is an estimate from deals that have not closed, weighted by stage: it is not money received, so 24+ months on this basis does not mean the account holds that much cash.
 
 **"Survival seems too low"**
 1. Check cash reserve amount in Settings — is it current?
@@ -1389,8 +1425,8 @@ Changed 2026-10-13: until then these screens used cut-offs of their own, so they
 **"How do I improve survival?"**
 1. Increase cash reserve (Settings)
 2. Reduce expenses
-3. Close more deals (increases monthly income average)
-4. Both income and expenses are averaged — more months of data = smoother calculation
+3. A deal that closes raises Effective Cash (through YTD Agent Net) and leaves the pipeline, so the Income Offset no longer counts it
+4. Nothing in the runway is an average of past months: the burn is the current monthly figure and the income is the pipeline estimate
 
 **Edge Cases:**
 - January 1: Only 1 month of data — burn rate is based on that single month
