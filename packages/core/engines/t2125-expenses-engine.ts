@@ -127,7 +127,7 @@ export interface T2125ExpensesResult {
   ytdTotal: number;
   /** Expected each month: the sum of the lines' `monthlyAmount`. */
   monthlyTotal: number;
-  /** After the limits. Less `byRule.home`, this is the T2125's line 9369. */
+  /** After the limits. Less `byRule.home`, this is the T2125's expense lines total (lines 8521 to 9270, before CCA). */
   deductibleTotal: number;
   byRule: Record<DeductionRule, number>;
 }

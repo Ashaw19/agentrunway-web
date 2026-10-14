@@ -6,6 +6,50 @@ import { MarketingFooter } from "@/components/marketing-footer";
 import { ScrollRevealSection } from "@/components/scroll-reveal-section";
 import { EmailCapture } from "@/components/email-capture";
 import { articleSchema } from "@/lib/schema";
+import { t2125FormLineForExpenseItem as lineForItem } from "@agent-runway/core/engines/t2125-engine";
+import {
+  T2125_FORM,
+  t2125Line,
+  t2125ReturnLinesPhrase,
+  type T2125Line,
+} from "@agent-runway/core/engines/t2125-lines";
+
+// Every line number on this page comes from the form's line list
+// (t2125Line) or, for an expense the app tracks, from the engine's expense
+// map (lineForItem), so this guide and the T2125 pre-fill cannot disagree.
+// Until 2026-10-13 the numbers were typed here and 11 of the 14 expense lines
+// were wrong, along with the income and net income lines.
+
+const ADJUSTED_SALES_LINE = t2125Line("8000");
+const OTHER_INCOME_LINE = t2125Line("8230");
+const GROSS_INCOME_LINE = t2125Line("8299");
+const MANAGEMENT_FEES_LINE = t2125Line("8871");
+const VEHICLE_LINE = lineForItem("vehicle_fuel");
+const TOTAL_EXPENSES_LINE = t2125Line("9368");
+const NET_BEFORE_ADJUSTMENTS_LINE = t2125Line("9369");
+const HOME_LINE = lineForItem("home_utilities");
+const NET_INCOME_LINE = t2125Line("9946");
+
+// The form has no line named for a brokerage split and CRA publishes no
+// placement, so the placement is stated as this guide's, not CRA's.
+const BROKERAGE_SPLIT_FAQ = {
+  question: "Where does a brokerage commission split go on the T2125?",
+  answer:
+    `The T2125 has no line named for a brokerage split. This guide places it on ${MANAGEMENT_FEES_LINE.ref} (${MANAGEMENT_FEES_LINE.label}); which line a return uses is the preparer's call. ` +
+    "The split is an expense in Part 4 of the form, not a reduction of the income in Part 3: the full commission is the income, and the brokerage's share is deducted from it.",
+};
+
+// The home office answer, in CRA's own conditions. The wording that was here
+// answered "Yes", gave one condition where CRA gives two, named Line 8810
+// (Office expenses) and listed internet, which CRA's page does not.
+const HOME_OFFICE_FAQ = {
+  question: "Where is a home office claimed on the T2125?",
+  conditions:
+    "Per CRA, business-use-of-home expenses are deductible when the work space is the principal place of business, or when it is used only to earn business income and on a regular and ongoing basis to meet clients",
+  line: `The claim is worked out in Part 7 of the form and entered on ${HOME_LINE.ref} (${HOME_LINE.label}). Part 7 lists heat, electricity, insurance, maintenance, mortgage interest and property taxes, and takes off the personal-use part`,
+  limit:
+    "Per CRA, the claim cannot create or increase a business loss; an amount that cannot be used is carried to a later year",
+};
 
 export const metadata: Metadata = {
   title: "How to Fill Out T2125 as a Real Estate Agent in Canada",
@@ -66,6 +110,11 @@ const CRA_SOURCES = [
     label: "CRA — File a GST/HST return",
     url: "https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/gst-hst-businesses/file-gst-hst-return.html",
   },
+  {
+    id: 9,
+    label: "CRA — Classes of depreciable property (CCA classes 8, 10, 12 and 50)",
+    url: "https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/sole-proprietorships-partnerships/report-business-income-expenses/claiming-capital-cost-allowance/classes-depreciable-property.html",
+  },
 ] as const;
 
 function CRACite({ id }: { id: number }) {
@@ -92,7 +141,7 @@ const JSON_LD_ARTICLE = articleSchema({
     "A line-by-line guide to CRA Form T2125 for self-employed real estate agents in Canada, covering industry code, commission income, deductible expenses, and common filing mistakes.",
   url: "/t2125-guide-real-estate-agents-canada",
   datePublished: "2025-04-01",
-  dateModified: "2026-05-10",
+  dateModified: "2026-10-13",
 });
 
 const JSON_LD_FAQ = {
@@ -109,18 +158,18 @@ const JSON_LD_FAQ = {
     },
     {
       "@type": "Question",
-      name: "Where do I enter my brokerage commission split on T2125?",
+      name: BROKERAGE_SPLIT_FAQ.question,
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Your brokerage split (the portion of commission your brokerage keeps) goes on Line 8871 \u2014 Management and administration fees. Do not subtract it from your gross income on Line 8000. Report the full commission amount as income, then deduct the brokerage\u2019s share as an expense.",
+        text: BROKERAGE_SPLIT_FAQ.answer,
       },
     },
     {
       "@type": "Question",
-      name: "Can I claim a home office on T2125 as a real estate agent?",
+      name: HOME_OFFICE_FAQ.question,
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Yes, if you use a dedicated space in your home regularly and exclusively for business. You can claim a proportional share of rent or mortgage interest, property tax, utilities, insurance, and internet on Line 8810. The proportion is typically calculated by square footage of the office versus total home area.",
+        text: `${HOME_OFFICE_FAQ.conditions}. ${HOME_OFFICE_FAQ.line}. ${HOME_OFFICE_FAQ.limit}.`,
       },
     },
     {
@@ -136,107 +185,89 @@ const JSON_LD_FAQ = {
 
 // -- Expense line data --------------------------------------------------------
 
+// Part 4 of the form, in the form's order. `line.label` is the form's own
+// label. Business-use-of-home is not in this list: on the form it is Part 7,
+// entered on line 9945 in Part 5.
 const EXPENSE_LINES: {
-  line: string;
-  label: string;
+  line: T2125Line;
   description: string;
-  tip: string;
+  /** CRA_SOURCES ids for a description that states a CRA rule. */
+  sources?: number[];
 }[] = [
   {
-    line: "8521",
-    label: "Advertising & marketing",
+    line: lineForItem("marketing_ads"),
     description:
-      "Social media ads, Google Ads, print flyers, signage, Just Listed/Just Sold cards, professional photography costs.",
-    tip: "Agent tip: This is often one of your largest deductions. Keep every receipt and screenshot of digital ad spend.",
+      "Social media ads, Google Ads, print flyers, signage, Just Listed and Just Sold cards, professional photography.",
   },
   {
-    line: "8590",
-    label: "Business taxes, fees, licences",
+    line: lineForItem("meals_client"),
     description:
-      "Real estate board dues, MLS fees, CREA fees, provincial regulator fees (RECO, RECBC, etc.), lockbox fees.",
-    tip: "Agent tip: Include your annual board membership renewal, technology levy, and any mandatory insurance levies from your board.",
+      "Client meals, coffee meetings, client appreciation events. CRA's guide gives the maximum claim for food, beverages and entertainment as 50% of the amount.",
+    sources: [4],
   },
   {
-    line: "8620",
-    label: "Insurance",
-    description: "Errors & omissions (E&O) insurance premiums.",
-    tip: "Agent tip: If your brokerage deducts E&O from your commission, it still shows here as an expense \u2014 the full commission goes on Line 8000.",
+    line: lineForItem("prof_eo"),
+    description: "Errors and omissions (E&O) insurance premiums.",
   },
   {
-    line: "8640",
-    label: "Interest & bank charges",
+    line: t2125Line("8710"),
     description:
-      "Interest on business loans or lines of credit, business bank account fees, payment processing fees.",
-    tip: "Agent tip: If you carry a business credit card balance, the interest portion is deductible here.",
+      "Interest on business loans or lines of credit, and business bank account fees.",
   },
   {
-    line: "8690",
-    label: "Meals & entertainment",
+    line: lineForItem("prof_board_mls"),
     description:
-      "Client meals, coffee meetings, client appreciation events. Only 50% of the amount is deductible.",
-    tip: "Agent tip: Record who you met, the business purpose, and keep the itemised receipt. CRA auditors look closely at this category.",
+      "Real estate board dues, MLS fees, CREA fees, provincial regulator fees (RECO, RECBC and others), lockbox fees.",
   },
   {
-    line: "8710",
-    label: "Office expenses",
+    line: t2125Line("8810"),
     description:
-      "Office supplies, printer ink, stationery, small software subscriptions (CRM, e-signature, etc.).",
-    tip: "Agent tip: Your Agent Runway subscription, MLS tools, and digital signature platform all belong here.",
+      "CRA's guide lists pens, pencils, paper clips, stationery and stamps as office expenses. It names calculators, filing cabinets, chairs and a desk as capital property, which is claimed as capital cost allowance and not on this line.",
+    sources: [4],
   },
   {
-    line: "8810",
-    label: "Office-in-home expenses",
+    line: lineForItem("office_supplies"),
     description:
-      "Proportional share of rent or mortgage interest, property tax, utilities, home insurance, internet \u2014 based on square footage of your dedicated workspace.",
-    tip: "Agent tip: Measure your office space carefully. The CRA formula is (office sq ft / total home sq ft) \u00d7 eligible expenses.",
+      "Agent Runway's T2125 pre-fill puts office supplies and software subscriptions (CRM, e-signature, MLS tools) on this line.",
   },
   {
-    line: "8860",
-    label: "Professional fees",
-    description: "Accountant fees, bookkeeper fees, legal fees related to your business.",
-    tip: "Agent tip: Your tax preparation fee for the business portion of your return is deductible here.",
+    line: lineForItem("prof_accounting"),
+    description: "Accountant fees, bookkeeper fees, legal fees related to the business.",
   },
   {
-    line: "8871",
-    label: "Management & administration fees",
+    line: MANAGEMENT_FEES_LINE,
     description:
-      "This is where your brokerage split goes \u2014 the portion of commission your brokerage retains.",
-    tip: "Agent tip: This is the most important line for agents. Your brokerage\u2019s share is NOT subtracted from income \u2014 it goes here as an expense.",
+      "CRA's guide describes this line as management and administration fees, including bank charges, incurred to run the business. The T2125 has no line named for a brokerage split. This guide places the split here; which line a return uses is the preparer's call.",
+    sources: [4],
   },
   {
-    line: "8910",
-    label: "Travel",
+    line: t2125Line("9200"),
     description:
-      "Flights, hotels, and meals for business travel (conferences, out-of-town showings). Not regular vehicle use.",
-    tip: "Agent tip: OREA or provincial association conferences count here. Keep boarding passes and hotel receipts.",
+      `Flights, hotels and ground transportation for business travel (conferences, out-of-town showings). Day-to-day vehicle use is on ${VEHICLE_LINE.ref}.`,
   },
   {
-    line: "8940",
-    label: "Telephone & internet",
+    line: lineForItem("office_phone"),
     description:
-      "Business portion of your cell phone plan, home internet (if not already claimed under home office), and any dedicated business phone line.",
-    tip: "Agent tip: If you use one phone for both personal and business, estimate the business-use percentage and apply it consistently.",
+      "CRA's guide puts telephone expenses on this line with utilities. For a cellphone it gives the deductible amount as the percentage of airtime expenses used to earn business income. Agent Runway's T2125 pre-fill puts the business phone and internet here.",
+    sources: [4],
   },
   {
-    line: "9180",
-    label: "Motor vehicle expenses",
+    line: VEHICLE_LINE,
     description:
-      "Gas, insurance, maintenance, lease payments, parking \u2014 multiplied by your business-use percentage from your vehicle logbook.",
-    tip: "Agent tip: A logbook is required by CRA. Without one, the CRA can deny the entire vehicle claim on audit.",
+      "Fuel, insurance, maintenance, lease payments and parking, at the business-use share. Per CRA, that share is the kilometres driven to earn business income against the total kilometres driven, from a record of both.",
+    sources: [7],
   },
   {
-    line: "9270",
-    label: "Capital cost allowance (CCA)",
+    line: t2125Line("9936"),
     description:
-      "Depreciation on capital assets: laptop, camera, drone, furniture. Claimed over multiple years based on CCA class and rate.",
-    tip: "Agent tip: A laptop is Class 50 (55% rate). A camera is Class 8 (20% rate). Your accountant can calculate the optimal claim.",
+      "Capital cost allowance on capital property such as a laptop, camera, drone or furniture, claimed over several years by CCA class. CRA's class list puts computer hardware in Class 50 (55%) and furniture in Class 8 (20%).",
+    sources: [3, 9],
   },
   {
-    line: "9281",
-    label: "Other expenses",
+    line: lineForItem("other_misc"),
     description:
-      "Anything that doesn\u2019t fit above: staging supplies, courier fees, client gifts (up to $500 each), virtual tour software.",
-    tip: "Agent tip: Always document what the expense was for. \u201COther\u201D is a catch-all, but you still need receipts and a clear business purpose.",
+      "Expenses with no line of their own. Agent Runway's T2125 pre-fill puts client gifts, courses and conferences here. CRA's guide covers convention expenses under this line and allows the cost of up to two conventions a year.",
+    sources: [4],
   },
 ];
 
@@ -418,7 +449,7 @@ export default function T2125GuidePage() {
               {/* -- Part 1: Business Identification -- */}
               <div className="mt-10">
                 <h3 className="text-lg font-bold text-slate-800">
-                  Part 1 &mdash; Business Identification
+                  Part 1: Business Identification
                 </h3>
                 <div className="mt-4 overflow-hidden rounded-xl border border-slate-200">
                   <table className="w-full text-sm">
@@ -463,10 +494,11 @@ export default function T2125GuidePage() {
                 </div>
               </div>
 
-              {/* -- Part 2: Business Income -- */}
+              {/* -- Part 3: Income -- */}
               <div className="mt-10">
                 <h3 className="text-lg font-bold text-slate-800">
-                  Part 2 &mdash; Business Income (Lines 8000&ndash;8230)
+                  Part 3: Income (Lines {ADJUSTED_SALES_LINE.number} to{" "}
+                  {GROSS_INCOME_LINE.number})
                   <CRACite id={1} />
                 </h3>
                 <div className="mt-4 overflow-hidden rounded-xl border border-slate-200">
@@ -483,20 +515,44 @@ export default function T2125GuidePage() {
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       <tr>
-                        <td className="px-4 py-3 font-mono font-semibold text-emerald-700">8000</td>
+                        <td className="px-4 py-3 font-mono font-semibold text-emerald-700">3A</td>
                         <td className="px-4 py-3 text-slate-600">
-                          <strong>Gross professional fees</strong> &mdash; Enter
-                          the total commission amount from your T4A slip(s). This
-                          is your <em>gross</em> commission before your brokerage
-                          takes its split.
+                          <strong>Gross sales, commissions, or fees.</strong>{" "}
+                          Part 3A of the form starts from gross commissions
+                          with the GST/HST collected included, then takes the
+                          GST/HST back off. This is the commission before the
+                          brokerage&apos;s share.
                         </td>
                       </tr>
                       <tr>
-                        <td className="px-4 py-3 font-mono font-semibold text-emerald-700">8230</td>
+                        <td className="px-4 py-3 font-mono font-semibold text-emerald-700">
+                          {ADJUSTED_SALES_LINE.number}
+                        </td>
                         <td className="px-4 py-3 text-slate-600">
-                          <strong>Subcontracts / returns</strong> &mdash;
-                          Subtract any adjustments, returns, or allowances. Most
-                          agents leave this at zero.
+                          <strong>Adjusted gross sales.</strong> The result
+                          of Part 3A, carried into Part 3C.
+                        </td>
+                      </tr>
+                      <tr>
+                        <td className="px-4 py-3 font-mono font-semibold text-emerald-700">
+                          {OTHER_INCOME_LINE.number}
+                        </td>
+                        <td className="px-4 py-3 text-slate-600">
+                          <strong>{OTHER_INCOME_LINE.label}.</strong>{" "}
+                          Business income that is not commission, such as a
+                          referral fee received.
+                        </td>
+                      </tr>
+                      <tr>
+                        <td className="px-4 py-3 font-mono font-semibold text-emerald-700">
+                          {GROSS_INCOME_LINE.number}
+                        </td>
+                        <td className="px-4 py-3 text-slate-600">
+                          <strong>{GROSS_INCOME_LINE.label}.</strong>{" "}
+                          Line {ADJUSTED_SALES_LINE.number} plus reserves
+                          deducted last year and other income.
+                          The form says to report it on the return as{" "}
+                          {t2125ReturnLinesPhrase("gross")}.
                         </td>
                       </tr>
                     </tbody>
@@ -504,20 +560,21 @@ export default function T2125GuidePage() {
                 </div>
                 <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3">
                   <p className="text-sm leading-relaxed text-emerald-800">
-                    <strong>Important:</strong> Report the full gross commission
-                    from your T4A &mdash; do not subtract your brokerage split
-                    here. The brokerage&apos;s share goes under expenses
-                    (Line&nbsp;8871). If you subtract it from income, your
-                    numbers won&apos;t match what the CRA has on file and you may
-                    trigger a review.
+                    <strong>The brokerage split is not taken off here.</strong>{" "}
+                    The brokerage&apos;s share is an expense in Part&nbsp;4
+                    (this guide places it on {MANAGEMENT_FEES_LINE.ref}), not a
+                    reduction of the income in Part&nbsp;3. Income reported net
+                    of the split does not match the gross commission on a T4A
+                    slip.
                   </p>
                 </div>
               </div>
 
-              {/* -- Part 3: Business Expenses -- */}
+              {/* -- Part 4: Expenses -- */}
               <div className="mt-10">
                 <h3 className="text-lg font-bold text-slate-800">
-                  Part 3 &mdash; Business Expenses (Lines 8521&ndash;9281)
+                  Part 4: Expenses (Lines {EXPENSE_LINES[0].line.number}{" "}
+                  to {EXPENSE_LINES[EXPENSE_LINES.length - 1].line.number})
                 </h3>
                 <p className="mt-3 text-sm text-slate-500">
                   These are the lines most relevant to real estate agents
@@ -532,37 +589,37 @@ export default function T2125GuidePage() {
                   Motor vehicle expenses (logbook + business-use percentage)
                   follow CRA&rsquo;s motor-vehicle guidance<CRACite id={7} />.
                   Capital cost allowance follows CRA&rsquo;s line-9936 rules
-                  <CRACite id={3} />. Office-in-home rules are covered above
-                  <CRACite id={5} />.
+                  <CRACite id={3} />. Business-use-of-home expenses are not in
+                  this list: they are worked out in Part&nbsp;7 and entered on{" "}
+                  {HOME_LINE.ref}<CRACite id={5} />.
                 </p>
 
                 <div className="mt-6 space-y-4">
                   {EXPENSE_LINES.map((item) => (
                     <div
-                      key={item.line}
+                      key={item.line.number}
                       className="rounded-xl border border-slate-200 bg-white p-5"
                     >
                       <div className="flex items-baseline gap-3">
                         <span className="inline-flex shrink-0 rounded-md bg-slate-100 px-2.5 py-1 font-mono text-xs font-bold text-slate-700">
-                          Line {item.line}
+                          {item.line.ref}
                         </span>
-                        <h4 className="font-semibold text-slate-800">{item.label}</h4>
+                        <h4 className="font-semibold text-slate-800">{item.line.label}</h4>
                       </div>
                       <p className="mt-2 text-sm leading-relaxed text-slate-600">
                         {item.description}
-                      </p>
-                      <p className="mt-2 text-sm italic leading-relaxed text-emerald-700">
-                        {item.tip}
+                        {item.sources?.map((id) => <CRACite key={id} id={id} />)}
                       </p>
                     </div>
                   ))}
                 </div>
               </div>
 
-              {/* -- Part 4: Net Income -- */}
+              {/* -- Parts 4 and 5: Net income -- */}
               <div className="mt-10">
                 <h3 className="text-lg font-bold text-slate-800">
-                  Part 4 &mdash; Net Income Calculation
+                  Parts 4 and 5: Net income
+                  <CRACite id={1} />
                 </h3>
                 <div className="mt-4 overflow-hidden rounded-xl border border-slate-200">
                   <table className="w-full text-sm">
@@ -578,32 +635,54 @@ export default function T2125GuidePage() {
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       <tr>
-                        <td className="px-4 py-3 font-mono font-semibold text-emerald-700">9369</td>
+                        <td className="px-4 py-3 font-mono font-semibold text-emerald-700">
+                          {TOTAL_EXPENSES_LINE.number}
+                        </td>
                         <td className="px-4 py-3 text-slate-600">
-                          <strong>Total expenses</strong> &mdash; Sum of all
-                          expense lines above.
+                          <strong>{TOTAL_EXPENSES_LINE.label}.</strong>{" "}
+                          The expense lines above added up, capital cost
+                          allowance included.
                         </td>
                       </tr>
                       <tr>
-                        <td className="px-4 py-3 font-mono font-semibold text-emerald-700">9945</td>
+                        <td className="px-4 py-3 font-mono font-semibold text-emerald-700">
+                          {NET_BEFORE_ADJUSTMENTS_LINE.number}
+                        </td>
                         <td className="px-4 py-3 text-slate-600">
-                          <strong>Net income (loss)</strong> &mdash; Gross income
-                          minus total expenses. This is your net
-                          self-employment income.
+                          <strong>{NET_BEFORE_ADJUSTMENTS_LINE.label}.</strong>{" "}
+                          Gross income less line {TOTAL_EXPENSES_LINE.number}.
                         </td>
                       </tr>
                       <tr>
-                        <td className="px-4 py-3 font-mono font-semibold text-emerald-700">9946</td>
+                        <td className="px-4 py-3 font-mono font-semibold text-emerald-700">
+                          {HOME_LINE.number}
+                        </td>
                         <td className="px-4 py-3 text-slate-600">
-                          <strong>Your share</strong> &mdash; If you&apos;re a
-                          sole proprietor (not a partnership), this equals
-                          Line&nbsp;9945. This number flows to Line&nbsp;135 of
-                          your T1 personal return.
+                          <strong>{HOME_LINE.label}.</strong> The allowable
+                          claim from Part&nbsp;7 of the form
+                          <CRACite id={5} />. {HOME_OFFICE_FAQ.limit}
+                          <CRACite id={5} />.
+                        </td>
+                      </tr>
+                      <tr>
+                        <td className="px-4 py-3 font-mono font-semibold text-emerald-700">
+                          {NET_INCOME_LINE.number}
+                        </td>
+                        <td className="px-4 py-3 text-slate-600">
+                          <strong>{NET_INCOME_LINE.label}.</strong> For a
+                          sole proprietor, line{" "}
+                          {NET_BEFORE_ADJUSTMENTS_LINE.number} less line{" "}
+                          {HOME_LINE.number}. The form says to report it on the
+                          return as {t2125ReturnLinesPhrase("net")}.
                         </td>
                       </tr>
                     </tbody>
                   </table>
                 </div>
+                <p className="mt-3 text-xs text-slate-500">
+                  Line numbers and labels are those of form {T2125_FORM.edition},
+                  read on {T2125_FORM.readOn}<CRACite id={1} />.
+                </p>
               </div>
 
             </ScrollRevealSection>
@@ -628,7 +707,7 @@ export default function T2125GuidePage() {
                   {
                     title: "Deducting brokerage split from income instead of expensing it",
                     detail:
-                      "Your brokerage\u2019s share goes on Line 8871 as an expense \u2014 not subtracted from Line 8000. Doing it wrong creates a mismatch with your T4A and can trigger a CRA review.",
+                      `The brokerage\u2019s share is an expense in Part 4 of the form (this guide places it on ${MANAGEMENT_FEES_LINE.ref}), not a reduction of the income in Part 3. Income reported net of the split does not match the gross commission on a T4A slip.`,
                   },
                   {
                     title: "Not keeping a vehicle logbook",
@@ -643,7 +722,7 @@ export default function T2125GuidePage() {
                   {
                     title: "Declaring less income than what\u2019s on your T4A",
                     detail:
-                      "The CRA already has your T4A on file. If your Line 8000 is lower than what your brokerage reported, expect a reassessment notice.",
+                      "The CRA already has the T4A on file. Income in Part 3 of the form that is lower than the slip is a mismatch the CRA can see.",
                   },
                   {
                     title: "Counting HST/GST collected as income",
@@ -698,28 +777,21 @@ export default function T2125GuidePage() {
                 </div>
                 <div>
                   <h3 className="text-lg font-semibold text-slate-900">
-                    Where do I enter my brokerage commission split on T2125?
+                    {BROKERAGE_SPLIT_FAQ.question}
                   </h3>
                   <p className="mt-2 text-base leading-relaxed text-slate-600">
-                    Your brokerage split goes on Line&nbsp;8871 &mdash;
-                    Management and administration fees. Report the full gross
-                    commission on Line&nbsp;8000 as income, then deduct the
-                    brokerage&apos;s share on Line&nbsp;8871 as an expense. Do
-                    not subtract it from income directly.
+                    {BROKERAGE_SPLIT_FAQ.answer}
                   </p>
                 </div>
                 <div>
                   <h3 className="text-lg font-semibold text-slate-900">
-                    Can I claim a home office on T2125 as a real estate agent?
+                    {HOME_OFFICE_FAQ.question}
                   </h3>
                   <p className="mt-2 text-base leading-relaxed text-slate-600">
-                    Yes, if you use a dedicated space in your home regularly and
-                    exclusively for business<CRACite id={5} />. You can claim a
-                    proportional share of rent or mortgage interest, property
-                    tax, utilities, insurance, and internet on Line&nbsp;8810
-                    <CRACite id={5} />. The proportion is typically calculated
-                    by square footage of the office versus total home area
-                    <CRACite id={6} />.
+                    {HOME_OFFICE_FAQ.conditions}
+                    <CRACite id={5} />. {HOME_OFFICE_FAQ.line}
+                    <CRACite id={1} />. {HOME_OFFICE_FAQ.limit}
+                    <CRACite id={5} />.
                   </p>
                 </div>
                 <div>

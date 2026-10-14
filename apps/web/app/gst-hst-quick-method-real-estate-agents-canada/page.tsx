@@ -5,6 +5,19 @@ import { MarketingNav } from "@/components/marketing-nav";
 import { MarketingFooter } from "@/components/marketing-footer";
 import { EmailCapture } from "@/components/email-capture";
 import { articleSchema } from "@/lib/schema";
+import {
+  QUICK_METHOD_SERVICE_RATES,
+  QUICK_METHOD_SOURCE,
+  fmtQuickMethodRate,
+  quickMethodServiceRate,
+} from "@agent-runway/core/tax-copy/quick-method";
+
+// The rate table is CRA's, held once in tax-copy/quick-method.ts with the
+// Tax IQ tip and Flight Crew's knowledge. Until 2026-10-13 the rows were typed
+// here and the Nova Scotia row gave no rate ("See RC4058 / Notice 342").
+const NOVA_SCOTIA_RATE = quickMethodServiceRate("novaScotia");
+const HST_15_RATE = quickMethodServiceRate("newBrunswick");
+if (!NOVA_SCOTIA_RATE || !HST_15_RATE) throw new Error("Quick method rate table is missing a province");
 
 export const metadata: Metadata = {
   title:
@@ -45,7 +58,7 @@ const JSON_LD_ARTICLE = articleSchema({
     "How the GST/HST Quick Method works for self-employed Canadian real estate agents — the $400,000 turnover threshold, the service-provider remittance rates by province, the 1% credit on the first $30,000 of eligible supplies, the GST74 election mechanic, and the operating-expense ITC trade-off that decides whether the Quick Method actually saves money for an agent.",
   url: "/gst-hst-quick-method-real-estate-agents-canada",
   datePublished: "2026-05-09",
-  dateModified: "2026-05-10",
+  dateModified: "2026-10-13",
 });
 
 // ─── CRA primary sources (audit registry) ─────────────────────────────────────
@@ -417,34 +430,18 @@ export default function GstHstQuickMethodRealEstateAgentsCanadaPage() {
                     </tr>
                   </thead>
                   <tbody className="text-slate-600">
-                    <tr className="border-b border-slate-200">
-                      <td className="px-4 py-2">
-                        BC, Alberta, Saskatchewan, Manitoba, Yukon, NT, Nunavut
-                      </td>
-                      <td className="px-4 py-2">5% GST</td>
-                      <td className="px-4 py-2 font-mono">3.6%</td>
-                    </tr>
-                    <tr className="border-b border-slate-200">
-                      <td className="px-4 py-2">Ontario</td>
-                      <td className="px-4 py-2">13% HST</td>
-                      <td className="px-4 py-2 font-mono">8.8%</td>
-                    </tr>
-                    <tr className="border-b border-slate-200">
-                      <td className="px-4 py-2">
-                        New Brunswick, Newfoundland and Labrador, Prince Edward Island
-                      </td>
-                      <td className="px-4 py-2">15% HST</td>
-                      <td className="px-4 py-2 font-mono">10.0%</td>
-                    </tr>
-                    <tr className="border-b border-slate-200">
-                      <td className="px-4 py-2">
-                        Nova Scotia (post Apr 1, 2025)
-                      </td>
-                      <td className="px-4 py-2">14% HST</td>
-                      <td className="px-4 py-2 font-mono">
-                        See RC4058 / Notice 342
-                      </td>
-                    </tr>
+                    {QUICK_METHOD_SERVICE_RATES.map((row) => (
+                      <tr key={row.label} className="border-b border-slate-200">
+                        <td className="px-4 py-2">
+                          {row.label}
+                          {row.since ? ` (from ${row.since})` : ""}
+                        </td>
+                        <td className="px-4 py-2">{row.taxCharged}</td>
+                        <td className="px-4 py-2 font-mono">
+                          {(row.rate * 100).toFixed(1)}%
+                        </td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>
@@ -456,10 +453,11 @@ export default function GstHstQuickMethodRealEstateAgentsCanadaPage() {
                 total HST rate from 15% to 14%<CRACite id={6} />. CRA
                 published transitional rules and updated remittance-rate
                 tables for reporting periods beginning after March 31,
-                2025<CRACite id={6} />. Nova Scotia agents on the Quick
-                Method confirm the post-transition service-provider rate
-                directly from the current edition of RC4058 before electing
-                or filing<CRACite id={1} /><CRACite id={2} />.
+                2025<CRACite id={6} />. RC4058 gives{" "}
+                {fmtQuickMethodRate(NOVA_SCOTIA_RATE.rate)} for a Nova Scotia
+                service provider from {NOVA_SCOTIA_RATE.since}, and{" "}
+                {(HST_15_RATE.rate * 100).toFixed(1)}%, the 15% HST rate,
+                before that date<CRACite id={2} />.
               </p>
 
               <p>
@@ -781,7 +779,7 @@ export default function GstHstQuickMethodRealEstateAgentsCanadaPage() {
                 one for which the Quick Method was originally designed.
                 The 1% credit on the first $30,000 is fully consumed; the
                 marginal saving above that comes from the rate spread
-                itself (8.8% applied to HST-included revenue versus 13%
+                itself (in Ontario, 8.8% applied to HST-included revenue versus 13%
                 effectively collected on pre-tax revenue, after ITCs).
               </p>
 
@@ -1002,7 +1000,9 @@ export default function GstHstQuickMethodRealEstateAgentsCanadaPage() {
               <p className="mt-2 text-xs text-slate-500">
                 Every quantitative or mechanical claim in this article is
                 backed by one of the primary sources below. Hand-verified
-                live on 2026-05-10.
+                live on 2026-05-10. The remittance rates were read again
+                against {QUICK_METHOD_SOURCE.guide} on{" "}
+                {QUICK_METHOD_SOURCE.readOn}.
               </p>
               <ol className="mt-4 space-y-2 text-xs text-slate-500">
                 {CRA_SOURCES.map((s) => (

@@ -22,20 +22,23 @@
 import type { UserSettings, Transaction, CcaAsset } from "../types/database";
 import { computeGCI } from "../types/database";
 import { gstHstRate, gstHstLabel, calculate as calculateTax } from "./canadian-tax-engine";
+import { t2125Line, type T2125Line, type T2125LineNumber } from "./t2125-lines";
 
 // ── Expense key → T2125 line mapping ─────────────────────────────────────────
 // Maps each expense_item key to the correct T2125 line number and whether
-// the 50% meals rule applies.
+// the 50% meals rule applies. `lineNumber` is a line of the form itself
+// (t2125-lines.ts); `lineName` is Agent Runway's name for the expense item,
+// not the form's label for the line.
 
 export interface T2125LineMap {
-  lineNumber: string;
+  lineNumber: T2125LineNumber;
   lineName: string;
   deductiblePct: number; // 1.0 = fully deductible, 0.5 = 50% meals rule
   applyVehicleUse: boolean; // multiply by vehicle_business_use_pct
   /**
    * A home bill (heat, insurance, mortgage interest...). Only the home
    * business-use share is a business cost, and it is claimed on line 9945
-   * (business-use-of-home), never on an expense line or in line 9369.
+   * (business-use-of-home), never on an expense line or in the expense lines total.
    */
   applyHomeUse?: boolean;
   t2125Part: "expenses" | "vehicle" | "home_office" | "professional" | "other";
@@ -199,12 +202,26 @@ export function t2125LineForExpenseKey(key: string | null | undefined): T2125Lin
   return T2125_OTHER_EXPENSES;
 }
 
+/**
+ * The form line an expense ITEM is on, for copy that names the line (the
+ * public guides). Throws for a key that is not an item: a page naming a line
+ * for an item the app does not have is a typo, and the fall-back to "Other
+ * expenses" that t2125LineForExpenseKey gives a tracked amount would print it
+ * as if it were right.
+ */
+export function t2125FormLineForExpenseItem(itemKey: string): T2125Line {
+  if (!hasOwn(EXPENSE_KEY_TO_T2125, itemKey)) {
+    throw new Error(`No T2125 line for expense item "${itemKey}"`);
+  }
+  return t2125Line(EXPENSE_KEY_TO_T2125[itemKey].lineNumber);
+}
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export interface ExpenseLineItem {
   key: string | null;        // null = receipts saved with no category
   lineName: string;
-  lineNumber: string;
+  lineNumber: T2125LineNumber;
   rawAmount: number;         // Total amount from receipts/items (before adjustments)
   deductiblePct: number;     // 1.0 or 0.5
   vehicleUsePct: number;     // 1.0 if not vehicle, vehicle_business_use_pct if vehicle
@@ -336,10 +353,10 @@ export interface T2125Result {
   fiscalYearEnd: string;
   industryCode: string;        // Always "531210" for RE agents
 
-  // ── Part 2: Income (T2125 Part 3A)
-  grossCommissionIncome: number;     // Sum of all closed transaction GCI
-  otherIncome: number;               // Placeholder — user can add other sources
-  totalGrossIncome: number;          // line 8200
+  // ── Part 2: Income (T2125 Part 3C)
+  grossCommissionIncome: number;     // Sum of all closed transaction GCI (line 8000)
+  otherIncome: number;               // User-entered other business income (line 8230)
+  totalGrossIncome: number;          // line 8299, gross business or professional income
 
   // ── Part 3: Detailed expense line items
   expenseLines: ExpenseLineItem[];
@@ -355,18 +372,33 @@ export interface T2125Result {
   line8760_licencesMemberships: number;
   line8690_insurance: number;
   line8860_professionalFees: number;
-  line9369_totalExpenses: number;            // sum of all expense lines
+  /**
+   * The expense lines above added up (8521 to 9270), before CCA. Not a line
+   * on the form: the form's total, line 9368, also holds CCA (line 9936).
+   * Until 2026-10-13 this was named `line9369_totalExpenses` and printed as
+   * "Line 9369". On the form 9369 is net income (loss) before adjustments.
+   */
+  expenseLinesTotal: number;
 
   // ── Part 5: CCA (CRA T2125 line 9936)
   ccaLines: CcaLineItem[];
   line9936_totalCca: number;
+  /** Form line 9368, "Total expenses": the expense lines plus CCA. */
+  line9368_totalExpenses: number;
 
   // ── Part 6: Home office (CRA T2125 line 9945)
   homeOffice: HomeOfficeResult;
   line9945_homeOfficeDeduction: number;
 
   // ── Net income
-  line8270_netBusinessIncome: number;  // 8200 − 9369 − 9936 − 9945
+  /**
+   * Form line 9946, "Your net income (loss)": 8299 − 9368 − 9945. Held at 0
+   * when the deductions come to more than the income: the pre-fill does not
+   * work out a loss. Until 2026-10-13 this was named
+   * `line8270_netBusinessIncome` and printed as "Line 8270", which is not a
+   * line on the form.
+   */
+  line9946_netIncome: number;
 
   // ── CPP
   cppContribution: number;    // total self-employed CPP (cpp1 + cpp2)
@@ -430,7 +462,7 @@ export function computeT2125(input: T2125Input): T2125Result {
     .map((e) => t2125ExpenseLine(e, vehicleUsePct));
 
   // Helper: sum deductible amount for items matching a line number or key prefix
-  const lineSum = (lineNumbers: string[]) =>
+  const lineSum = (lineNumbers: T2125LineNumber[]) =>
     expenseLines
       .filter((l) => lineNumbers.includes(l.lineNumber))
       .reduce((s, l) => s + l.deductibleAmount, 0);
@@ -448,7 +480,7 @@ export function computeT2125(input: T2125Input): T2125Result {
   const line8690_insurance = lineSum(["8690"]);
   const line8860_professionalFees = lineSum(["8860"]);
 
-  const line9369_totalExpenses =
+  const expenseLinesTotal =
     line8521_advertising +
     line9281_motorVehicle +
     line8811_officeSupplies +
@@ -497,6 +529,7 @@ export function computeT2125(input: T2125Input): T2125Result {
     };
   });
   const line9936_totalCca = ccaLines.reduce((s, l) => s + l.ccaClaimed, 0);
+  const line9368_totalExpenses = expenseLinesTotal + line9936_totalCca;
 
   // ── 4. Home office (CRA actual-cost method) ────────────────────────────────
   // Canada does NOT have an IRS-style simplified method. CRA T2125 uses
@@ -542,14 +575,14 @@ export function computeT2125(input: T2125Input): T2125Result {
   };
 
   // ── 5. Net business income ─────────────────────────────────────────────────
-  const line8270_netBusinessIncome = Math.max(
+  const line9946_netIncome = Math.max(
     0,
-    totalGrossIncome - line9369_totalExpenses - line9936_totalCca - homeOfficeDeduction,
+    totalGrossIncome - line9368_totalExpenses - homeOfficeDeduction,
   );
 
   // ── 6. Tax engine (on net income after T2125 deductions) ──────────────────
   const dealCount = transactions.filter((tx) => tx.status === "closed").length;
-  const taxResult = calculateTax(line8270_netBusinessIncome, settings.province, Math.max(dealCount, 1));
+  const taxResult = calculateTax(line9946_netIncome, settings.province, Math.max(dealCount, 1));
 
   const cppContribution = taxResult.cpp1Contribution + taxResult.cpp2Contribution;
   const cppDeductible = taxResult.cpp1Contribution * 0.5 + taxResult.cpp2Contribution;
@@ -620,15 +653,16 @@ export function computeT2125(input: T2125Input): T2125Result {
     line8760_licencesMemberships,
     line8690_insurance,
     line8860_professionalFees,
-    line9369_totalExpenses,
+    expenseLinesTotal,
 
     ccaLines,
     line9936_totalCca,
+    line9368_totalExpenses,
 
     homeOffice,
     line9945_homeOfficeDeduction: homeOfficeDeduction,
 
-    line8270_netBusinessIncome,
+    line9946_netIncome,
 
     cppContribution,
     cppDeductible,

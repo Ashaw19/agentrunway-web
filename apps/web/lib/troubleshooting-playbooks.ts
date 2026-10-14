@@ -30,6 +30,7 @@ import {
   riskColorBand,
   type RiskColorBand,
 } from "@agent-runway/core/engines/survival-engine";
+import { QUICK_METHOD_SERVICE_RATES_RULE } from "@agent-runway/core/tax-copy/quick-method";
 import type { TroubleshootingTopic } from "./troubleshooting-classifier";
 
 // The cash runway bands as Flight Crew's table, highest first, built from the
@@ -212,12 +213,12 @@ Annual Expenses = expenses year to date + what is still to come this year (expen
 Annual Expenses for a GST/HST registrant are net of the GST/HST claimed as input tax credits (expense-totals-engine.ts; see the Expenses playbook). For a non-registrant they are the amounts paid, GST/HST included.
 
 ### T2125 pre-fill: what feeds the expense lines
-Reports → T2125 computes lines 8521 to 9369 from expenses incurred to date (t2125-expenses-engine.ts, buildT2125Expenses, then computeT2125). Nothing is projected forward.
+Reports → T2125 computes lines 8521 to 9270 from expenses incurred to date (t2125-expenses-engine.ts, buildT2125Expenses, then computeT2125). Nothing is projected forward.
 - Receipts by expense item, or the item's "/mo" figure x months elapsed where that is larger.
 - Receipts saved with no category (line 9270).
-- Every active entry in the Recurring Expenses list, for the occurrences so far this year. Added 2026-10-13: before that the list was left out of every T2125 line, so line 9369 was too low and net business income (line 8270) and the T2125 tab's tax figures were too high by that amount.
+- Every active entry in the Recurring Expenses list, for the occurrences so far this year. Added 2026-10-13: before that the list was left out of every T2125 line, so the expense lines total was too low and net income (line 9946) and the T2125 tab's tax figures were too high by that amount.
 - Home Office bills are not expense lines: they are costs behind line 9945.
-The Expenses page "Est. Tax Deductible YTD" card is the same calculation, so line 9369 equals that card less its Home Office part. The dashboard's and the Reports headline's YTD Expenses are the same lines before the limits (ytdExpenseTotals), so they equal the Expenses page's YTD Expenses.
+The Expenses page "Est. Tax Deductible YTD" card is the same calculation, so the tab's "Total Deductible Expenses (before CCA)" equals that card less its Home Office part. The dashboard's and the Reports headline's YTD Expenses are the same lines before the limits (ytdExpenseTotals), so they equal the Expenses page's YTD Expenses.
 The T2125 tab's tax figure is on year-to-date income and expenses. The dashboard and Forecast estimates are on projected annual figures, so the two are different numbers by design.
 
 **Step 1: CPP/QPP** (self-employed pay both halves)
@@ -280,7 +281,7 @@ Required when annual tax owing >$3,000 (>$1,800 in Quebec)
 3. Check business structure — sole prop vs PREC vs corp have different rates
 4. Check if expenses are entered — expenses reduce net income → lower tax
 5. Check RRSP contributions entered in settings
-6. T2125 tab figures that went DOWN on 2026-10-13 with no new data (higher line 9369, lower net business income): the Recurring Expenses list started counting on the T2125 lines that day, along with receipts that had no category, a custom item, or a whole category instead of an item. They were already in the dashboard total and the dashboard estimate.
+6. T2125 tab figures that went DOWN on 2026-10-13 with no new data (higher expense lines total, lower net income): the Recurring Expenses list started counting on the T2125 lines that day, along with receipts that had no category, a custom item, or a whole category instead of an item. They were already in the dashboard total and the dashboard estimate.
 7. GST/HST registrant whose estimate went UP on or after 2026-10-13 with no new data: before that date expense totals still included the GST/HST that the GST34 also claims as ITCs, so expenses were overstated and the estimate was low. In a 15% HST province that was $15 of every $115 on taxed expenses. Totals are now net of ITCs. Explain the change; do not describe it as money owed.
 
 **"How much should I set aside per deal?"**
@@ -508,9 +509,18 @@ Source of truth: packages/core/engines/t2125-engine.ts (t2125LineForExpenseKey, 
 | 9281 → CCA Class 10/10.1 | Vehicle CCA | Tracked separately on the CCA schedule, not in 9281 above |
 | 9936 | Total CCA | Sum of all CCA classes |
 | 9945 | Business-Use-of-Home | Actual-cost method only (Canada has no IRS-style $5/sqft). Fed by the Home Office expense category (home_utilities, home_internet, home_insurance, home_maintenance, home_property_tax, home_mortgage_interest, home_rent, home_condo_fees) and/or the home office estimates, × home office %. Never part of 9369 |
-| 8200 | Gross Commission Income | Reported revenue line |
-| 9369 | Total Expenses | Sum of expense lines (engine variable: line9369_totalExpenses) |
-| 8270 | Net Business Income | 8200 − 9369 − 9936 − 9945 |
+| 8000 | Adjusted gross sales | Gross commission income from closed deals |
+| 8230 | Other income | The "Other business income" box on the T2125 tab |
+| 8299 | Gross business or professional income | 8000 + 8230. The tab's "Total Gross Income" |
+| (no line) | Total Deductible Expenses (before CCA) | The expense lines above added up (engine variable: expenseLinesTotal). Not a line on the form |
+| 9368 | Total expenses | The expense lines plus CCA (9936). The tab shows the two parts, not this sum |
+| 9946 | Your net income (loss) | 8299 − 9368 − 9945. The tab's "Net Income". Shown as $0 when deductions exceed income: the pre-fill does not work out a loss |
+
+Line numbers and labels are CRA form T2125 E (25), held once in packages/core/engines/t2125-lines.ts (T2125_LINES). The form says to report line 9946 on the return as business income on line 13500, professional income on line 13700 or commission income on line 13900. It does not say which of the three a real estate agent's income is: that is the accountant's call, so do not pick one.
+
+Changed 2026-10-13: the T2125 tab and its PDF used to print 8200 for gross income, 9369 for the expense total, 8270 for net income and "T1 General Line 10400". None of those match the form (8200 and 8270 are not on it, 9369 is net income before adjustments, 10400 is other employment income). The figures did not change, only the labels. The public T2125 guide and business expenses guide were corrected the same day: phone is on 9220 (was "8940"), travel on 9200 (was "8910", which is Rent), home office on 9945 (was "8810", which is Office expenses), meals on 8523, insurance on 8690, licences and dues on 8760, motor vehicle on 9281, CCA on 9936, other expenses on 9270. A user holding an older copy of either guide has the wrong numbers; give them the table above.
+
+The form has no line named for a brokerage split, and the T2125 tab does not deduct one: its income is gross commission and its expenses are the tracked expense items. The public guides place the split on line 8871 (Management and administration fees) as the guide's own placement, not a CRA rule. Which line it goes on is the accountant's call.
 
 Common "wrong line number" question: legacy notes/screenshots may cite 8210/8211/8212/8213/8215/8216/8220/8226/8228 — those are NOT used by the engine or the CRA T2125 today. If a user references one, point them to the canonical line above.
 
@@ -626,7 +636,7 @@ If a user asks "what are these tips?" or "why is Agent Runway showing me this?" 
 2. Check the entry is active and its start date has passed.
 3. Quarterly and annual entries count only once their charge date has passed this year.
 4. A vehicle entry counts at the vehicle business-use %, and a meal at 50%, so its Deductible amount is lower than its YTD amount. That is the limit, not a missing expense.
-5. Home Office bills count at the home office share and sit on line 9945, not in line 9369.
+5. Home Office bills count at the home office share and sit on line 9945, not in the expense lines total.
 
 **"My Est. Tax Deductible / T2125 expenses went up on October 13" / "My T2125 net income dropped"**
 → No data changed. The Recurring Expenses list started counting in Est. Tax Deductible and on the T2125 lines that day. It was already part of YTD Expenses.
@@ -1960,7 +1970,7 @@ Vehicle share follows the business-use % in Expenses: 10% or less = none claimab
 4. They file with CRA themselves (My Business Account or GST/HST NETFILE). Agent Runway does not file anything.
 A return is expected for every reporting period, including one with no sales. Give the figures and CRA's rules only; do not tell them what to claim.
 
-**Quick Method**: Available if taxable revenue ≤ $400K. Instead of tracking every ITC, remit a flat rate (typically 8.8% of HST-included revenue for service providers). May result in lower remittance but Agent Runway uses the detailed method — consult an accountant before switching.
+**Quick Method**: An election open to a registrant whose annual taxable supplies, GST/HST included, are $400,000 or less. In place of ITCs on most purchases, the registrant remits a set percentage of revenue. ${QUICK_METHOD_SERVICE_RATES_RULE} There is also a 1% credit on the first $30,000 of revenue in each fiscal year. The rate goes by province: 8.8% is Ontario's rate only, so never quote it to someone outside Ontario (the Tax IQ tip and this playbook said "8.8% for service providers" until 2026-10-13). Quebec is not in CRA's guide: Revenu Québec administers the GST there. Agent Runway's GST/HST figures use the regular method (GST/HST collected less ITCs), not the quick method. Give the rule and the rate for their province; whether to elect is their accountant's call.
 
 ### GST/HST Filing Period Deadlines (from filing-period-engine.ts)
 
@@ -2133,6 +2143,7 @@ The deduction uses the tiered CRA rate:
 - **"Mileage not showing in deductions"**: Mileage deductions appear on the Overhead page under vehicle expenses. Make sure trips are logged.
 - **"I forgot to log trips"**: You can backdate mileage entries. Use the Flight Crew: "I drove 45km to a showing last Tuesday."
 - **"Rate changed mid-year"**: CRA rates are set annually. The platform uses the current year's rates for all entries in that year.
+- **"What is the 'Business-use % and your mileage log' card?" / "It used to say my log supports my claim"**: The Mileage tab shows the business-use % from Settings beside the logged business km, and the total driving that % works out to (logged km ÷ the %). It is arithmetic on the agent's own two figures, shown whenever a % is set and at least one trip is logged. Changed 2026-10-13: the card used to measure the log against an assumed 20,000 km of driving a year and say the log did or did not support the claimed %. That total was Agent Runway's placeholder, not the agent's driving, so the verdict is gone. Agent Runway does not store an odometer reading. CRA's rule: the business share comes from a record of the kilometres driven to earn business income and the total kilometres driven, with each vehicle's odometer read at the start and end of the fiscal period. Give the rule and the figures; do not say whether their % is supportable.
 
 ### Best Practices
 - Log trips the same day — easier to remember details

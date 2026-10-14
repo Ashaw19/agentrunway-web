@@ -7,6 +7,37 @@ import { ScrollRevealSection } from "@/components/scroll-reveal-section";
 import { EmailCapture } from "@/components/email-capture";
 import { articleSchema } from "@/lib/schema";
 import { EXPENSE_RATIO_COPY } from "@agent-runway/core/engines/expense-ratio-bands";
+import { t2125FormLineForExpenseItem as lineForItem } from "@agent-runway/core/engines/t2125-engine";
+import { t2125Line } from "@agent-runway/core/engines/t2125-lines";
+
+// T2125 line references are not typed on this page. A category the app tracks
+// takes its line from the engine's expense map (lineForItem), so this guide
+// and the T2125 pre-fill cannot disagree; a category with no expense item of
+// its own takes it from the form's line list (t2125Line). Until 2026-10-13 the
+// numbers were typed here and four were wrong: phone on "8940" (not on the
+// form), travel on 8910 (Rent), home office on 8810 (Office expenses) and
+// training on "8523 / 8760" (meals, and licences).
+
+const MANAGEMENT_FEES_LINE = t2125Line("8871");
+const OFFICE_EXPENSES_LINE = t2125Line("8810");
+const OFFICE_SUPPLIES_LINE = lineForItem("office_supplies");
+const INSURANCE_LINE = lineForItem("prof_eo");
+const VEHICLE_LINE = lineForItem("vehicle_fuel");
+const TRAVEL_LINE = t2125Line("9200");
+const PHONE_LINE = lineForItem("office_phone");
+const TRAINING_LINE = lineForItem("edu_courses");
+const CCA_LINE = t2125Line("9936");
+
+// The brokerage split answer, used by the FAQ on the page and its JSON-LD.
+// The form has no line named for a split and CRA publishes no placement, so
+// the placement is stated as this guide's, not CRA's.
+const BROKERAGE_SPLIT_FAQ = {
+  question: "Is the brokerage split a deductible business expense?",
+  expense:
+    "The portion of gross commission paid to a brokerage is a business expense incurred to earn commission income.",
+  noLine: "The T2125 has no line named for it",
+  placement: `This guide places it on ${MANAGEMENT_FEES_LINE.ref} (${MANAGEMENT_FEES_LINE.label}); which line a return uses is the preparer's call. A brokerage split that retains 20% of GCI produces an expense equal to 20% of GCI.`,
+};
 
 // One question and answer, used by the FAQ on the page and its JSON-LD. The
 // figure is Agent Runway's target (EXPENSE_RATIO_BANDS). The wording that was
@@ -89,6 +120,11 @@ const CRA_SOURCES = [
     label: "CRA — Keeping records (six-year retention rule)",
     url: "https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/keeping-records.html",
   },
+  {
+    id: 9,
+    label: "CRA — Classes of depreciable property (CCA classes 8, 10, 12 and 50)",
+    url: "https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/sole-proprietorships-partnerships/report-business-income-expenses/claiming-capital-cost-allowance/classes-depreciable-property.html",
+  },
 ] as const;
 
 function CRACite({ id }: { id: number }) {
@@ -115,7 +151,7 @@ const JSON_LD_ARTICLE = articleSchema({
     "A practical guide to every deduction available to self-employed Canadian real estate agents — organized by CRA category, with T2125 line references.",
   url: "/real-estate-agent-business-expenses-canada",
   datePublished: "2025-04-01",
-  dateModified: "2026-05-10",
+  dateModified: "2026-10-13",
 });
 
 const JSON_LD_FAQ = {
@@ -124,10 +160,10 @@ const JSON_LD_FAQ = {
   mainEntity: [
     {
       "@type": "Question",
-      name: "Is the brokerage split a deductible business expense?",
+      name: BROKERAGE_SPLIT_FAQ.question,
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Per CRA's expense classifications, the portion of gross commission paid to a brokerage is a deductible business expense, reported on Line 8871 (Management and admin fees) of the T2125. A brokerage split that retains 20% of GCI produces an expense equal to 20% of GCI on Line 8871.",
+        text: `${BROKERAGE_SPLIT_FAQ.expense} ${BROKERAGE_SPLIT_FAQ.noLine}. ${BROKERAGE_SPLIT_FAQ.placement}`,
       },
     },
     {
@@ -170,7 +206,7 @@ const JSON_LD_FAQ = {
 const EXPENSE_CATEGORIES = [
   {
     name: "Advertising & Marketing",
-    line: "Line 8521",
+    line: lineForItem("marketing_ads").ref,
     included: [
       "Website hosting and domain registration",
       "Social media ads (Facebook, Instagram, Google)",
@@ -191,12 +227,12 @@ const EXPENSE_CATEGORIES = [
   },
   {
     name: "Business Taxes, Fees & Licenses",
-    line: "Line 8760",
+    line: lineForItem("prof_board_mls").ref,
     included: [
       "Real estate board dues (CREA, provincial, local)",
       "MLS fees and lockbox fees",
       "Brokerage desk fees (if flat fee arrangement)",
-      "Errors & Omissions (E&O) insurance premiums",
+      `Errors & Omissions (E&O) insurance premiums (on ${INSURANCE_LINE.ref}, ${INSURANCE_LINE.label})`,
       "Business license fees",
       "Provincial regulatory fees (RECO, RECBC, etc.)",
     ],
@@ -209,7 +245,7 @@ const EXPENSE_CATEGORIES = [
   },
   {
     name: "Management & Admin Fees",
-    line: "Line 8871",
+    line: MANAGEMENT_FEES_LINE.ref,
     included: [
       "Brokerage commission split",
       "Referral fees paid to other agents",
@@ -221,11 +257,11 @@ const EXPENSE_CATEGORIES = [
       "Your own salary draws or owner distributions",
       "Personal assistant costs unrelated to business",
     ],
-    tip: "Line 8871 is where the brokerage commission split is reported. If the brokerage retains 20% of GCI, that 20% is an expense on Line 8871.",
+    tip: `${BROKERAGE_SPLIT_FAQ.noLine}. ${BROKERAGE_SPLIT_FAQ.placement}`,
   },
   {
     name: "Office Expenses",
-    line: "Line 8810",
+    line: `Lines ${OFFICE_EXPENSES_LINE.number} and ${OFFICE_SUPPLIES_LINE.number}`,
     included: [
       "Software subscriptions (CRM, transaction management, design tools)",
       "Office supplies (paper, ink, toner, pens)",
@@ -238,18 +274,19 @@ const EXPENSE_CATEGORIES = [
       "Personal phone plan (only business portion)",
       "Home furnishings not used exclusively for business",
     ],
-    tip: "SaaS subscriptions are commonly underreported. A complete software inventory captures every recurring deductible cost.",
+    tip: `The form has two office lines. CRA's guide lists pens, pencils, paper clips, stationery and stamps as office expenses on ${OFFICE_EXPENSES_LINE.ref}. Agent Runway's T2125 pre-fill puts office supplies and software subscriptions on ${OFFICE_SUPPLIES_LINE.ref} (${OFFICE_SUPPLIES_LINE.label}).`,
+    tipSource: 7,
   },
   {
     name: "Vehicle Expenses",
-    line: "Line 9281",
+    line: VEHICLE_LINE.ref,
     included: [
       "Gas and fuel",
       "Insurance (business-use portion)",
       "Maintenance and repairs (business-use portion)",
       "Parking fees for client meetings and showings",
       "Lease payments (business-use portion)",
-      "CCA depreciation if vehicle is owned",
+      `CCA on an owned vehicle (claimed on ${CCA_LINE.ref}; ${VEHICLE_LINE.ref} does not include CCA)`,
       "Car washes (business-use portion)",
     ],
     notIncluded: [
@@ -264,7 +301,7 @@ const EXPENSE_CATEGORIES = [
   },
   {
     name: "Home Office",
-    line: "Line 8810",
+    line: lineForItem("home_utilities").ref,
     included: [
       "Proportional share of rent or mortgage interest",
       "Utilities (heat, hydro, water)",
@@ -284,7 +321,7 @@ const EXPENSE_CATEGORIES = [
   },
   {
     name: "Meals & Entertainment",
-    line: "Line 8523",
+    line: lineForItem("meals_client").ref,
     included: [
       "Client meals (only 50% deductible)",
       "Event tickets for client entertaining (only 50% deductible)",
@@ -300,7 +337,7 @@ const EXPENSE_CATEGORIES = [
   },
   {
     name: "Professional Fees",
-    line: "Line 8860",
+    line: lineForItem("prof_accounting").ref,
     included: [
       "Accounting and bookkeeping fees",
       "Legal fees for business matters",
@@ -315,7 +352,7 @@ const EXPENSE_CATEGORIES = [
   },
   {
     name: "Education & Training",
-    line: "Line 8523 / 8760",
+    line: TRAINING_LINE.ref,
     included: [
       "Real estate continuing education courses",
       "Conference and convention registration fees",
@@ -327,11 +364,12 @@ const EXPENSE_CATEGORIES = [
       "Initial licensing courses (capital expense)",
       "Courses unrelated to real estate",
     ],
-    tip: "Continuing-education fees are fully deductible. Conference travel costs (flights, hotels) are deductible separately on the travel line.",
+    tip: `The T2125 has no line named for training. Agent Runway's T2125 pre-fill puts courses and conferences on ${TRAINING_LINE.ref} (${TRAINING_LINE.label}). CRA's guide covers convention expenses under that line and allows the cost of up to two conventions a year. Conference travel (flights, hotels) is a travel expense on ${TRAVEL_LINE.ref}.`,
+    tipSource: 7,
   },
   {
     name: "Telephone & Internet",
-    line: "Line 8940",
+    line: PHONE_LINE.ref,
     included: [
       "Business portion of cell phone plan",
       "Dedicated business phone line",
@@ -342,12 +380,12 @@ const EXPENSE_CATEGORIES = [
       "Personal phone plan (only business portion is deductible)",
       "Streaming services",
     ],
-    tip: `${PHONE_FAQ.airtime}. ${PHONE_FAQ.noPercentage}`,
+    tip: `CRA's guide puts telephone expenses on ${PHONE_LINE.ref} (${PHONE_LINE.label}). ${PHONE_FAQ.airtime}. ${PHONE_FAQ.noPercentage}`,
     tipSource: 7,
   },
   {
     name: "Travel",
-    line: "Line 8910",
+    line: TRAVEL_LINE.ref,
     included: [
       "Flights for business travel (conferences, out-of-town showings)",
       "Hotel accommodations for business trips",
@@ -363,26 +401,31 @@ const EXPENSE_CATEGORIES = [
   },
   {
     name: "Capital Cost Allowance (CCA)",
-    line: "Line 9936",
+    line: CCA_LINE.ref,
     included: [
       "Computer and laptop (depreciated over time)",
       "Camera and photography equipment",
       "Drone",
-      "Office furniture (items over ~$500)",
+      "Office furniture such as desks, chairs and filing cabinets (Class 8, 20%)",
       "Vehicle (if owned, not leased)",
     ],
     notIncluded: [
-      "Items under ~$500 (expense these immediately as office supplies)",
+      `Pens, paper, stamps and similar small office items (office expenses on ${OFFICE_EXPENSES_LINE.ref}, not capital property)`,
       "Land (land does not depreciate)",
     ],
-    tip: "Small items under approximately $500 are commonly expensed as office supplies rather than capitalized, per CRA's published treatment for low-value assets.",
+    // The wording that was here gave "~$500" as a general cut-off below which
+    // a purchase is written off at once, "per CRA's published treatment for
+    // low-value assets". CRA publishes no such cut-off: its $500 figure is
+    // inside Class 12 and covers three kinds of item.
+    tip: "CRA's $500 figure belongs to Class 12, which has a 100% rate and covers tools, kitchen utensils and medical or dental instruments that cost less than $500. The class list gives no such figure for office purchases: CRA's guide names calculators, filing cabinets, chairs and a desk as capital property, and the class list puts furniture in Class 8 at 20%.",
+    tipSource: [9, 7],
   },
 ];
 
 const MISSED_EXPENSES = [
   "Home insurance (proportional for home office)",
   "Professional development and coaching programs",
-  "Client gift expenses (up to $500 per person per year)",
+  "Client gifts",
   "Association and networking group memberships",
   "Bank fees on business accounts",
   "Vehicle washes and detailing (business-use portion)",
@@ -574,7 +617,8 @@ export default function BusinessExpensesGuidePage() {
                     {/* Tip */}
                     <p className="mt-5 text-sm italic text-slate-500">
                       {cat.tip}
-                      {"tipSource" in cat && cat.tipSource && <CRACite id={cat.tipSource} />}
+                      {"tipSource" in cat &&
+                        [cat.tipSource].flat().map((id) => <CRACite key={id} id={id} />)}
                     </p>
                   </div>
                 </ScrollRevealSection>
@@ -690,15 +734,11 @@ export default function BusinessExpensesGuidePage() {
               <div className="mt-8 space-y-8">
                 <div>
                   <h3 className="text-lg font-semibold text-slate-900">
-                    Is the brokerage split a deductible business expense?
+                    {BROKERAGE_SPLIT_FAQ.question}
                   </h3>
                   <p className="mt-2 text-base leading-relaxed text-slate-600">
-                    Per CRA&apos;s expense classifications<CRACite id={2} />, the
-                    portion of gross commission paid to a brokerage is a
-                    deductible business expense, reported on Line 8871
-                    (Management and admin fees) of the T2125<CRACite id={1} />.
-                    A brokerage split that retains 20% of GCI produces an
-                    expense equal to 20% of GCI on Line 8871.
+                    {BROKERAGE_SPLIT_FAQ.expense} {BROKERAGE_SPLIT_FAQ.noLine}
+                    <CRACite id={1} />. {BROKERAGE_SPLIT_FAQ.placement}
                   </p>
                 </div>
                 <div>
@@ -820,7 +860,9 @@ export default function BusinessExpensesGuidePage() {
               <p className="mt-2 text-xs text-slate-500">
                 Every quantitative or mechanical claim in this article is backed
                 by one of the primary sources below. Hand-verified live on
-                2026-05-10.
+                2026-05-10. The T2125 line numbers and the CCA classes were
+                read again against CRA&apos;s form and class list on
+                2026-10-13.
               </p>
               <ol className="mt-3 space-y-1 text-xs text-slate-500">
                 {CRA_SOURCES.map((s) => (

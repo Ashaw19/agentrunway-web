@@ -63,8 +63,11 @@ const CRA_INSTALMENT_INTEREST_RATE = 0.07;
 /** Minimum estimated savings to display a card */
 const MIN_SAVINGS_THRESHOLD = 100;
 
-/** Typical annual mileage estimate for agents without logged trips */
-const TYPICAL_AGENT_ANNUAL_KM = 20_000;
+/**
+ * Total annual driving assumed for an agent with no logged trips. Agent
+ * Runway's placeholder, not a published average: the card says so.
+ */
+const PLACEHOLDER_ANNUAL_KM = 20_000;
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -387,7 +390,7 @@ export function generateTaxOptimizations(
   if (input.vehicleType !== "none" && input.netIncome > 0) {
     const km = input.hasTrackedMileage && input.annualMileageKm > 0
       ? input.annualMileageKm
-      : TYPICAL_AGENT_ANNUAL_KM;
+      : PLACEHOLDER_ANNUAL_KM;
     const businessKm = km * input.vehicleBusinessUsePct;
     const craDeduction =
       Math.min(businessKm, CRA_MILEAGE_THRESHOLD) * CRA_MILEAGE_RATE_FIRST_5K +
@@ -408,15 +411,15 @@ export function generateTaxOptimizations(
         evidence: [
           `CRA 2026 reasonable allowance rates (planning benchmark): $${CRA_MILEAGE_RATE_FIRST_5K}/km (first ${CRA_MILEAGE_THRESHOLD.toLocaleString()} km) + $${CRA_MILEAGE_RATE_AFTER}/km after`,
           isEstimate
-            ? `Estimated ${businessKm.toLocaleString()} business km (typical agent average at ${fmtPct(input.vehicleBusinessUsePct)} business use)`
+            ? `Estimated ${businessKm.toLocaleString()} business km (Agent Runway's placeholder of ${PLACEHOLDER_ANNUAL_KM.toLocaleString()} km a year at ${fmtPct(input.vehicleBusinessUsePct)} business use, not a published average)`
             : `${businessKm.toLocaleString()} logged business km at ${fmtPct(input.vehicleBusinessUsePct)} business use`,
           `Potential deduction: ${fmtCurrency(Math.round(craDeduction))} \u2192 tax reduction of ${savingsLabel(savings).replace("/yr", "")}`,
         ],
         action: isEstimate
-          ? "Start logging your business trips to substantiate vehicle deductions. CRA requires a contemporaneous log \u2014 the estimate shown is based on typical agent mileage, not your actual driving."
+          ? "Start logging your business trips to substantiate vehicle deductions. CRA requires a contemporaneous log \u2014 the estimate shown uses Agent Runway's placeholder for annual driving, not your actual driving."
           : `Discuss with your accountant whether the CRA per-km method or actual expense method yields a larger deduction for your ${fmtCurrency(Math.round(craDeduction))} in business driving.`,
         disclaimer:
-          "CRA requires a detailed, contemporaneous vehicle log recording date, destination, purpose, and kilometres for each business trip. Estimates based on averages are not valid for filing. The CRA per-km rates shown are employer allowance benchmarks used for planning only \u2014 T2125 vehicle deductions use the actual-expense or CCA method. See Terms of Service.",
+          "CRA requires a detailed, contemporaneous vehicle log recording date, destination, purpose, and kilometres for each business trip. An estimate from a placeholder is not a record for filing. The CRA per-km rates shown are employer allowance benchmarks used for planning only \u2014 T2125 vehicle deductions use the actual-expense or CCA method. See Terms of Service.",
         estimatedSavings: savings,
         estimatedSavingsLabel: savingsLabel(savings),
         priority,

@@ -338,7 +338,7 @@ describe("T2125 lines from net amounts", () => {
     expect(t.line8523_mealsEntertainment50pct).toBe(53.75);
     // 80% of the $100 before HST: the business share, with its HST claimed as an ITC
     expect(t.line9281_motorVehicle).toBeCloseTo(80, 10);
-    expect(t.line9369_totalExpenses).toBeCloseTo(233.75, 10);
+    expect(t.expenseLinesTotal).toBeCloseTo(233.75, 10);
   });
 
   it("non-registrant: lines carry the GST/HST, as before", () => {
@@ -349,7 +349,7 @@ describe("T2125 lines from net amounts", () => {
     expect(t.line8811_officeSupplies).toBe(115);
     expect(t.line8523_mealsEntertainment50pct).toBe(57.5);
     expect(t.line9281_motorVehicle).toBeCloseTo(92, 10);
-    expect(t.line9369_totalExpenses).toBeCloseTo(264.5, 10);
+    expect(t.expenseLinesTotal).toBeCloseTo(264.5, 10);
   });
 
   it("the old HST-inclusive input overstated a registrant's T2125 expenses", () => {
@@ -357,7 +357,7 @@ describe("T2125 lines from net amounts", () => {
     const net = aggregateReceiptTotals(rows, expenseTaxContext(settings));
     const before = computeT2125({ settings, transactions: [], expenses: t2125EntriesFromAmounts({ office_supplies: 115, meals_client: 115, vehicle_fuel: 115 }), ccaAssets: [], taxYear: 2026 });
     const after = computeT2125({ settings, transactions: [], expenses: t2125EntriesFromAmounts(net.byKey), ccaAssets: [], taxYear: 2026 });
-    expect(before.line9369_totalExpenses - after.line9369_totalExpenses).toBeCloseTo(30.75, 10);
+    expect(before.expenseLinesTotal - after.expenseLinesTotal).toBeCloseTo(30.75, 10);
   });
 });
 

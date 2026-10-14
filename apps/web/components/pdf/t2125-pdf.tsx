@@ -18,6 +18,7 @@ import type { TaxOptimizationCard } from "@/lib/engines/tax-optimization-engine"
 import type { UserSettings } from "@/lib/types/database";
 import { PROVINCE_LABELS } from "@/lib/types/database";
 import { INCOME_TAX_INSTALMENT_DUE_DATES } from "@agent-runway/core/tax-copy";
+import { t2125ReturnLinesPhrase } from "@agent-runway/core/engines/t2125-lines";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -397,12 +398,12 @@ export function T2125Pdf({ result, settings, taxYear, mileageSummary, taxOptCard
         </View>
 
         {/* Income */}
-        <SectionHeader title="Part 3A — Income" subtitle="Gross commission income from closed transactions" color="#059669" />
-        <LineRow lineNum="8200" label="Gross Commission Income (closed deals)" value={result.grossCommissionIncome} />
-        <LineHighlight lineNum="8200" label="Total Gross Business Income" value={result.totalGrossIncome} />
+        <SectionHeader title="Part 3C — Income" subtitle="Gross commission income from closed transactions" color="#059669" />
+        <LineRow lineNum="8000" label="Gross Commission Income (closed deals)" value={result.grossCommissionIncome} />
+        <LineHighlight lineNum="8299" label="Total Gross Business Income" value={result.totalGrossIncome} />
 
         {/* Expenses */}
-        <SectionHeader title="Part 3B — Deductible Expenses" subtitle="CRA T2125 lines 8521–9369 · Auto-filled from expense tracking" color="#7C3AED" />
+        <SectionHeader title="Part 4 — Deductible Expenses" subtitle="CRA T2125 lines 8521–9270 · Auto-filled from expense tracking" color="#7C3AED" />
         <LineRow lineNum="8521" label="Advertising & Marketing" value={result.line8521_advertising} />
         <LineRow lineNum="9281" label={`Motor Vehicle Expenses (${fmtPct(settings.vehicle_business_use_pct)} business use)`} value={result.line9281_motorVehicle} note="* User-declared %" />
         <LineRow lineNum="8811" label="Office Supplies & Software" value={result.line8811_officeSupplies} />
@@ -421,7 +422,7 @@ export function T2125Pdf({ result, settings, taxYear, mileageSummary, taxOptCard
           <LineRow lineNum="8690" label="Insurance (E&O)" value={result.line8690_insurance} />
         )}
         <LineRow lineNum="8860" label="Professional Fees (Accounting & Legal)" value={result.line8860_professionalFees} />
-        <LineHighlight lineNum="9369" label="Total Deductible Expenses" value={result.line9369_totalExpenses} />
+        <LineHighlight label="Total Deductible Expenses (before CCA)" value={result.expenseLinesTotal} />
         {result.line9281_motorVehicle > 0 && (
           <Text style={{ fontSize: 7, color: "#92400E", paddingHorizontal: 6, marginTop: 2 }}>
             * Vehicle business-use % ({fmtPct(settings.vehicle_business_use_pct)}) is user-declared. CRA requires a contemporaneous mileage logbook to substantiate this figure.
@@ -489,17 +490,17 @@ export function T2125Pdf({ result, settings, taxYear, mileageSummary, taxOptCard
         <LineRow label={`Total × ${fmtPct(result.homeOffice.businessUsePct)} business use`} value={result.homeOffice.deduction} />
         <LineHighlight lineNum="9945" label="Home Office Deduction" value={result.line9945_homeOfficeDeduction} />
 
-        {/* Net Business Income */}
-        <SectionHeader title="Net Business Income — Line 8270" subtitle="T1 General Line 10400 — Reportable self-employment income" color="#059669" />
+        {/* Net income (form line 9946) */}
+        <SectionHeader title="Net Income — Line 9946" subtitle={`On the return: ${t2125ReturnLinesPhrase("net")}`} color="#059669" />
         <View style={s.netIncomeBox}>
           <Text style={s.netIncomeTitle}>Business Income Waterfall</Text>
           <View style={s.netWaterfallRow}>
-            <Text style={s.netWaterfallLabel}>Total Gross Income (8200)</Text>
+            <Text style={s.netWaterfallLabel}>Total Gross Income (8299)</Text>
             <Text style={s.netWaterfallValue}>{fmt(result.totalGrossIncome)}</Text>
           </View>
           <View style={s.netWaterfallRow}>
-            <Text style={s.netWaterfallLabel}>− Deductible Expenses (9369)</Text>
-            <Text style={s.netWaterfallValue}>−{fmt(result.line9369_totalExpenses)}</Text>
+            <Text style={s.netWaterfallLabel}>− Deductible Expenses (8521–9270)</Text>
+            <Text style={s.netWaterfallValue}>−{fmt(result.expenseLinesTotal)}</Text>
           </View>
           <View style={s.netWaterfallRow}>
             <Text style={s.netWaterfallLabel}>− Capital Cost Allowance (9936)</Text>
@@ -510,8 +511,8 @@ export function T2125Pdf({ result, settings, taxYear, mileageSummary, taxOptCard
             <Text style={s.netWaterfallValue}>−{fmt(result.line9945_homeOfficeDeduction)}</Text>
           </View>
           <View style={s.netTotal}>
-            <Text style={s.netTotalLabel}>Net Business Income (8270)</Text>
-            <Text style={s.netTotalValue}>{fmt(result.line8270_netBusinessIncome)}</Text>
+            <Text style={s.netTotalLabel}>Net Income (9946)</Text>
+            <Text style={s.netTotalValue}>{fmt(result.line9946_netIncome)}</Text>
           </View>
         </View>
 

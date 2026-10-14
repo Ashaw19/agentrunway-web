@@ -18,6 +18,7 @@
     "./tax-copy/validate": "./tax-copy/validate.ts",
     "./tax-copy/cra-rules": "./tax-copy/cra-rules.ts",
     "./tax-copy/engine-estimate": "./tax-copy/engine-estimate.ts",
+    "./tax-copy/quick-method": "./tax-copy/quick-method.ts",
     "./voice-quiz": "./voice-quiz/index.ts",
     "./business-identity": "./business-identity/index.ts",
     "./agent-goals": "./agent-goals/index.ts"

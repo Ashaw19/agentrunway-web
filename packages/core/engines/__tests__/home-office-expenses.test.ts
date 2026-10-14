@@ -13,7 +13,7 @@
  *                          eligibility table for operating expenses: 10% or
  *                          less none, 90% or more all)
  *   t2125-engine           the whole bills are the costs behind line 9945,
- *                          and are never an expense line or part of 9369
+ *                          and are never an expense line or part of the expense lines total
  *
  * Fixtures are $115 paid with $15 HST at a 15% share unless a test says
  * otherwise.
@@ -271,13 +271,13 @@ describe("T2125 line 9945 from logged bills", () => {
     expect(totals.total).toBeCloseTo(t.line9945_homeOfficeDeduction, 2);
   });
 
-  it("home bills are not expense lines and are not in line 9369", () => {
+  it("home bills are not expense lines and are not in the expense lines total", () => {
     const { t } = run(settings(), [
       { category_key: "home_utilities", total_amount: 115, tax_amount: 15 },
       { category_key: "office_supplies", total_amount: 115, tax_amount: 15 },
     ]);
     expect(t.expenseLines.map((l) => l.key)).toEqual(["office_supplies"]);
-    expect(t.line9369_totalExpenses).toBe(100);
+    expect(t.expenseLinesTotal).toBe(100);
     expect(t.line9220_utilities).toBe(0);
     expect(t.line9945_homeOfficeDeduction).toBeCloseTo(15, 10);
   });
@@ -305,7 +305,7 @@ describe("T2125 line 9945 from logged bills", () => {
       expenses: t2125EntriesFromAmounts({ home_utilities: 45 }),
     });
     expect(t.expenseLines).toEqual([]);
-    expect(t.line9369_totalExpenses).toBe(0);
+    expect(t.expenseLinesTotal).toBe(0);
     expect(t.line9945_homeOfficeDeduction).toBe(0);
   });
 });

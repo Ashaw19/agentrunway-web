@@ -14,7 +14,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import {
-  Car, Plus, Trash2, Download, Info, X, Check, Loader2, AlertTriangle, ShieldCheck,
+  Car, Plus, Trash2, Download, Info, X, Check, Loader2,
 } from "lucide-react";
 import { fmtCurrency }         from "@/lib/formatters";
 import { cn }                  from "@/lib/utils";
@@ -292,66 +292,50 @@ export function ExpensesMileageTab({ mileageLogs, year, settings }: Props) {
         </Card>
       )}
 
-      {/* Business-use % comparison banner */}
+      {/* Business-use % beside the mileage log */}
       {(() => {
         const claimedPct = settings?.vehicle_business_use_pct ?? 0;
-        // Assumed total driving: 20,000 km a year, prorated by months elapsed.
-        // Agent Runway's placeholder, not a published average.
-        const estTotalAnnualKm = 20_000;
-        const monthsElapsed = Math.max(1, new Date().getMonth() + 1);
-        const estTotalKmSoFar = (estTotalAnnualKm / 12) * monthsElapsed;
-        const loggedPct = estTotalKmSoFar > 0 ? totalKm / estTotalKmSoFar : 0;
-        const hasMeaningfulLogs = totalKm > 100 && logs.length >= 3;
-        const gap = claimedPct - loggedPct;
-        const showGapWarning = claimedPct > 0 && hasMeaningfulLogs && gap > 0.15;
-        const showOnTrack = claimedPct > 0 && hasMeaningfulLogs && gap <= 0.15;
-
-        if (claimedPct === 0) return null;
-
+        if (claimedPct <= 0 || totalKm <= 0) return null;
+        // What the claimed % says about total driving, from the agent's own
+        // two figures. Until 2026-10-13 this card measured the log against an
+        // assumed 20,000 km of total driving a year and told the agent the
+        // log did or did not "support" the claimed %. The app holds no
+        // odometer reading, so it has no total to judge a claim against.
+        const impliedTotalKm = Math.round(totalKm / claimedPct);
+        const claimedLabel = `${Math.round(claimedPct * 100)}%`;
         return (
-          <>
-            {showGapWarning && (
-              <Card className="border-amber-300 bg-amber-50/70">
-                <CardContent className="flex items-start gap-3 py-3">
-                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
-                  <div className="space-y-1">
-                    <p className="text-sm font-semibold text-amber-900">
-                      Mileage log doesn&apos;t yet support your claimed business-use %
-                    </p>
-                    <p className="text-xs text-amber-800 leading-relaxed">
-                      Your Settings claim <strong>{Math.round(claimedPct * 100)}% business use</strong>, but
-                      your logged trips so far ({totalKm.toLocaleString()} km across {logs.length} trips) suggest
-                      roughly <strong>{Math.round(loggedPct * 100)}%</strong> of estimated total driving.
-                      CRA&apos;s motor vehicle rules base the business share on kilometres driven to earn
-                      income against total kilometres driven in the year.
-                    </p>
-                    <p className="text-[10px] text-amber-700/80">
-                      Estimate assumes about {estTotalAnnualKm.toLocaleString()} km of total driving a year.
-                      That is Agent Runway&apos;s placeholder, not a published average. Your actual total
-                      may differ.
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-            {showOnTrack && (
-              <Card className="border-emerald-200 bg-emerald-50/60">
-                <CardContent className="flex items-start gap-3 py-3">
-                  <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
-                  <div>
-                    <p className="text-sm font-semibold text-emerald-900">
-                      Mileage log supports your claimed business-use %
-                    </p>
-                    <p className="text-xs text-emerald-800">
-                      Your logged trips ({totalKm.toLocaleString()} km) align with your
-                      claimed <strong>{Math.round(claimedPct * 100)}%</strong> business use.
-                      Keep logging to maintain CRA-ready documentation.
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-          </>
+          <Card className="border-slate-200 bg-slate-50/70">
+            <CardContent className="flex items-start gap-3 py-3">
+              <Info className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" />
+              <div className="space-y-1">
+                <p className="text-sm font-semibold text-slate-900">
+                  Business-use % and your mileage log
+                </p>
+                <p className="text-xs leading-relaxed text-slate-700">
+                  Your Settings claim <strong>{claimedLabel} business use</strong>. Your log holds{" "}
+                  <strong>{totalKm.toLocaleString("en-CA", { maximumFractionDigits: 0 })} km</strong> of
+                  business driving across {logs.length} trip{logs.length !== 1 ? "s" : ""} in {year}.
+                  At {claimedLabel}, that is{" "}
+                  <strong>{impliedTotalKm.toLocaleString("en-CA")} km</strong> of total driving over the
+                  same period.
+                </p>
+                <p className="text-[10px] leading-relaxed text-slate-600">
+                  Per CRA, the business share of motor vehicle expenses comes from a record of the
+                  kilometres driven to earn business income and the total kilometres driven, with each
+                  vehicle&apos;s odometer read at the start and end of the fiscal period (
+                  <a
+                    href="https://www.canada.ca/en/revenue-agency/services/tax/businesses/small-businesses-self-employed-income/business-income-tax-reporting/business-expenses/motor-vehicle-expenses.html"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline underline-offset-2"
+                  >
+                    CRA: Motor vehicle expenses
+                  </a>
+                  ). Agent Runway does not store an odometer reading, so the total is yours to compare.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
         );
       })()}
 

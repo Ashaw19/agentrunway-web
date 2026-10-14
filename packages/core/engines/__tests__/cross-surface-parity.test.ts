@@ -427,7 +427,7 @@ describe("YTD expenses: the Expenses page total equals the dashboard's", () => {
     }
   });
 
-  it("the T2125 tab is built from the same lines: line 9369 is their deductible total", () => {
+  it("the T2125 tab is built from the same lines: the expense lines total is their deductible total", () => {
     const totals = dashboard();
     // reports/page.tsx hands `tracked.entries` to the T2125 tab.
     const t2125 = computeT2125({
@@ -438,7 +438,7 @@ describe("YTD expenses: the Expenses page total equals the dashboard's", () => {
       ccaAssets: [],
       taxYear: 2026,
     });
-    expect(t2125.line9369_totalExpenses).toBeCloseTo(totals.tracked.deductibleTotal - totals.tracked.byRule.home, 10);
+    expect(t2125.expenseLinesTotal).toBeCloseTo(totals.tracked.deductibleTotal - totals.tracked.byRule.home, 10);
     // Before the limits (50% on the meal, 80% on fuel and the two lease
     // entries) those lines are YTD Expenses.
     expect(totals.tracked.lines.reduce((s, l) => s + l.rawAmount, 0)).toBe(totals.expensesYTD);

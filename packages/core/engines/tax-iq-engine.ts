@@ -17,6 +17,13 @@
  *   - IC78-10R5: Books and Records Retention/Destruction
  */
 
+import { fmtCurrency } from "../formatters";
+import {
+  QUICK_METHOD_REVENUE_LIMIT,
+  QUICK_METHOD_SERVICE_RATES_RULE,
+  QUICK_METHOD_SOURCE,
+} from "../tax-copy/quick-method";
+
 // ── Types ──────────────────────────────────────────────────────────────────
 
 export interface TaxTip {
@@ -137,10 +144,12 @@ const TAX_TIPS: TaxTip[] = [
   },
   {
     id: "quick-method-consideration",
-    title: "Consider the Quick Method for GST/HST",
-    body: "If your taxable revenue (including GST/HST) is $400,000 or less, you may benefit from the Quick Method. Instead of tracking every ITC, you remit a flat percentage of revenue. For service providers in most provinces, this is often 8.8% of HST-included revenue — which can result in paying less than the regular method.",
-    source: "CRA RC4058 — Quick Method of Accounting for GST/HST",
-    url: "https://www.canada.ca/en/revenue-agency/services/forms-publications/publications/rc4058.html",
+    title: "The Quick Method for GST/HST",
+    // The rate is by province (tax-copy/quick-method.ts). The wording that was
+    // here gave 8.8% for "most provinces"; 8.8% is Ontario's rate alone.
+    body: `The quick method is an election open to a registrant whose annual taxable supplies, GST/HST included, are ${fmtCurrency(QUICK_METHOD_REVENUE_LIMIT)} or less. In place of input tax credits on most purchases, the registrant remits a set percentage of revenue. ${QUICK_METHOD_SERVICE_RATES_RULE} Which method remits less depends on the GST/HST paid on expenses.`,
+    source: `CRA ${QUICK_METHOD_SOURCE.guide} — ${QUICK_METHOD_SOURCE.title}`,
+    url: QUICK_METHOD_SOURCE.url,
     category: "gst_hst",
     trigger: { always: true },
   },

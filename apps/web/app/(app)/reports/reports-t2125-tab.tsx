@@ -20,6 +20,7 @@ import { PROVINCE_LABELS, CCA_CLASSES } from "@/lib/types/database";
 import type { UserSettings, Transaction, CcaAsset } from "@/lib/types/database";
 import { computeT2125, t2125LineForExpenseKey, T2125_OTHER_EXPENSES } from "@/lib/engines/t2125-engine";
 import type { HomeOfficeCostType, T2125ExpenseEntry, T2125Result } from "@/lib/engines/t2125-engine";
+import { t2125ReturnLinesPhrase } from "@agent-runway/core/engines/t2125-lines";
 import { generateTaxOptimizations, type DeductionTrackingFlags } from "@/lib/engines/tax-optimization-engine";
 import { T2125Pdf } from "@/components/pdf/t2125-pdf";
 import { INCOME_TAX_INSTALMENT_DUE_DATES, SMALL_SUPPLIER_RULE_SHORT } from "@agent-runway/core/tax-copy";
@@ -305,8 +306,8 @@ export function ReportsT2125Tab({
 
       // Compute tax optimization cards
       const projectedGCI = result.totalGrossIncome;
-      const totalExpenses = result.line9369_totalExpenses + result.line9936_totalCca + result.line9945_homeOfficeDeduction;
-      const netIncome = result.line8270_netBusinessIncome;
+      const totalExpenses = result.expenseLinesTotal + result.line9936_totalCca + result.line9945_homeOfficeDeduction;
+      const netIncome = result.line9946_netIncome;
       const gstRemitted = (localSettings.gst_hst_remitted_q1 ?? 0) +
         (localSettings.gst_hst_remitted_q2 ?? 0) +
         (localSettings.gst_hst_remitted_q3 ?? 0) +
@@ -482,7 +483,7 @@ export function ReportsT2125Tab({
           <div className="flex items-center justify-between">
             <SectionHeader
               icon={Receipt}
-              label="Income (Line 8200)"
+              label="Income (Line 8299)"
               subtitle="Gross commission income from closed deals"
               color="text-emerald-600"
             />
@@ -497,7 +498,7 @@ export function ReportsT2125Tab({
         {expandedSections.income && (
           <CardContent className="pt-0">
             <LineRow
-              lineNum="8200"
+              lineNum="8000"
               label="Gross Commission Income"
               value={result.grossCommissionIncome}
               note={`${transactions.filter(tx => tx.status === "closed").length} closed deals`}
@@ -512,7 +513,7 @@ export function ReportsT2125Tab({
             </div>
             <Separator className="my-3" />
             <LineRow
-              lineNum="8200"
+              lineNum="8299"
               label="Total Gross Income"
               value={result.totalGrossIncome}
               bold
@@ -531,7 +532,7 @@ export function ReportsT2125Tab({
           <div className="flex items-center justify-between">
             <SectionHeader
               icon={CreditCard}
-              label="Deductible Expenses (Lines 8521–9369)"
+              label="Deductible Expenses (Lines 8521–9270)"
               subtitle={
                 localSettings.gst_hst_registered
                   ? "Auto-filled from your receipts and recurring expenses to date, net of the GST/HST claimed as input tax credits"
@@ -541,7 +542,7 @@ export function ReportsT2125Tab({
             />
             <div className="flex items-center gap-2">
               <span className="text-lg font-bold text-slate-700 tabular-nums">
-                {fmtCurrency(result.line9369_totalExpenses)}
+                {fmtCurrency(result.expenseLinesTotal)}
               </span>
               {expandedSections.expenses ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
             </div>
@@ -608,7 +609,8 @@ export function ReportsT2125Tab({
             </div>
 
             <Separator className="my-2" />
-            <LineRow lineNum="9369" label="Total Deductible Expenses" value={result.line9369_totalExpenses} bold highlight />
+            {/* Not a line on the form: its total, line 9368, also holds CCA. */}
+            <LineRow label="Total Deductible Expenses (before CCA)" value={result.expenseLinesTotal} bold highlight />
           </CardContent>
         )}
       </Card>
@@ -859,26 +861,25 @@ export function ReportsT2125Tab({
         )}
       </Card>
 
-      {/* ── Net Business Income ── */}
-      {/* ── Net Business Income ── */}
+      {/* ── Net income (form line 9946) ── */}
       <Card className="rounded-2xl border-2 border-emerald-200 bg-emerald-50/50">
         <CardHeader className="pb-2">
           <SectionHeader
             icon={CheckCircle2}
-            label="Net Business Income (Line 8270)"
-            subtitle="T1 General Line 10400 — This is your reportable self-employment income"
+            label="Net Income (Line 9946)"
+            subtitle={`The form reports this on the return as ${t2125ReturnLinesPhrase("net")}`}
             color="text-emerald-700"
           />
         </CardHeader>
         <CardContent className="space-y-2 pt-0">
           <div className="rounded-lg bg-white border border-emerald-200 px-4 py-3 space-y-1.5 text-sm">
             <div className="flex justify-between">
-              <span className="text-muted-foreground">Total Gross Income (8200)</span>
+              <span className="text-muted-foreground">Total Gross Income (8299)</span>
               <span>{fmtCurrency(result.totalGrossIncome)}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-muted-foreground">− Deductible Expenses (9369)</span>
-              <span className="text-red-600">−{fmtCurrency(result.line9369_totalExpenses)}</span>
+              <span className="text-muted-foreground">− Deductible Expenses (8521–9270)</span>
+              <span className="text-red-600">−{fmtCurrency(result.expenseLinesTotal)}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">− CCA (9936)</span>
@@ -890,8 +891,8 @@ export function ReportsT2125Tab({
             </div>
             <Separator />
             <div className="flex justify-between text-base font-bold text-emerald-800">
-              <span>Net Business Income (8270)</span>
-              <span>{fmtCurrency(result.line8270_netBusinessIncome)}</span>
+              <span>Net Income (9946)</span>
+              <span>{fmtCurrency(result.line9946_netIncome)}</span>
             </div>
           </div>
           <div className="grid gap-2 sm:grid-cols-3 pt-1">

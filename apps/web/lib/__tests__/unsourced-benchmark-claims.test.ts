@@ -243,15 +243,14 @@ const ALLOWED_CROWD: Allowed = {
   },
 };
 
-/** Tax-rate ranges stated as typical: tax copy, reported with this change for the tax lane. */
-const TAX_LANE =
-  "A tax-rate range stated as typical. Tax copy: reported with this change for the tax lane to restate as CRA rates or engine estimates.";
-
+/**
+ * The tax estimator page, the tax savings page, the financial runway post and
+ * the troubleshooting playbooks each had a ceiling here for tax-rate ranges
+ * stated as typical. #327 restated those as the tax engine's estimates and
+ * the Quick Method line now quotes CRA's rate by province, so all four hold
+ * no match and have no entry: a new one in any of them fails this test.
+ */
 const ALLOWED_TYPICAL: Allowed = {
-  "apps/web/app/tools/realtor-tax-estimator/page.tsx": { max: 2, why: TAX_LANE },
-  "apps/web/lib/troubleshooting-playbooks.ts": { max: 1, why: TAX_LANE },
-  "apps/web/app/how-much-should-real-estate-agents-save-for-taxes-canada/page.tsx": { max: 3, why: TAX_LANE },
-  "apps/web/content/blog/financial-runway-what-it-means-for-real-estate-agents.mdx": { max: 1, why: TAX_LANE },
   "apps/web/app/self-employed-cpp-real-estate-agents-canada/page.tsx": {
     max: 1,
     why: "The lowest combined federal and provincial rate, 'typically around 20–25%': a span of published tax rates, not a benchmark.",
