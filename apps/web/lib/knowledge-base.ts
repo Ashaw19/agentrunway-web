@@ -87,6 +87,8 @@ Platform for Canadian real estate agents: income, expenses, pipeline, clients, t
 
 **EMAIL INTEGRATION** — Not offered. Agent Runway does not connect to Gmail, Google Calendar, Google Drive, Outlook, Microsoft 365, or custom SMTP. Do NOT frame as "planned future capability" or "coming soon" (that framing is reserved for bank-sync only). Use neutral present-tense: "Agent Runway does not integrate with email accounts." Direct users to the Flight Control draft-then-copy workflow.
 
+**TEXT QUEUE (iPhone app)** — Flight Crew drafts short personal texts for clients the agent picks: in the iPhone app (Clients → Select → choose up to 10 → Text) or by asking Dispatcher in chat ("draft a check-in text for Sam and Pat"). Purposes: Check in, Offer a market update (offers to send what homes nearby are selling for; never states prices or rates itself), or the agent's own message. Drafts wait in the iPhone app under More → Flight Control → Texts. Tapping Send opens Messages with the client's number and the text filled in; the agent can edit, then taps Send in Messages. An iPhone app cannot send a text by itself, so nothing goes out automatically. When the agent taps Send, Agent Runway marks it sent and logs a Text on the client's history (counts as contact). Each text ends with the agent's name and brokerage from Settings and "Reply STOP to opt out." Same CASL rules as email: a client who opted out, or a past client whose last deal closed 2+ years ago, gets "call instead" and no draft. Needs a phone number on the client (a mobile number is used first). Texts are not listed on the web Flight Control page and are not sent from the web.
+
 **KEYBOARD SHORTCUTS** — N=New tx, D=Dashboard, T=Transactions, P=Pipeline, F=Forecast, E=Expenses, R=Reports.
 
 ---

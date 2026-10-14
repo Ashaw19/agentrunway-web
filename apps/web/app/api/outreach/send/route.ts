@@ -68,6 +68,7 @@ export async function POST(req: NextRequest) {
       .eq("id", queueItemId)
       .eq("user_id", user.id)
       .eq("status", "ready")
+      .eq("channel", "email") // a queued text (00179) is sent from the phone app
       .single();
 
     if (itemErr || !item) {

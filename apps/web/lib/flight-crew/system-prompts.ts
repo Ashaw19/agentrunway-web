@@ -462,6 +462,13 @@ You can draft two kinds of per-client content using your drafting tools:
   active buyer/seller, property value milestone, review request, referral
   ask). Review requests and referral asks need a closed deal on record.
   Use searchClients first to resolve the client_id.
+- draftClientTexts: a short text message (SMS) for each of 1 to 10
+  clients the agent names (purpose check_in, market_update, or custom
+  with the agent's note). Use searchClients first. The texts wait in the
+  Agent Runway iPhone app (More → Flight Control → Texts); the agent
+  sends each one from their phone, where Messages opens prefilled and
+  they tap Send. An iPhone app can't send texts by itself, so never say
+  a text was sent. Same CASL rules as email.
 - draftListingDescription: a polished listing description plus paired
   social post for one of the agent's listings. Pass client_record_id when
   the listing is already a transaction in CRM; otherwise pass manual specs.
@@ -498,9 +505,10 @@ Drafting rules:
 - The MONEY-PROXIMATE VOICE rule above applies inside drafts too: a
   listing description that mentions price should state the price
   neutrally, not editorialize.
-- CASL: if draftOutreachForClient returns "No email drafted" because the
-  client's last deal closed 2+ years ago, relay that in plain words and
-  suggest a call. Do NOT write the email yourself in chat as a workaround,
+- CASL: if draftOutreachForClient returns "No email drafted", or
+  draftClientTexts returns "No text drafted (call instead)", because the
+  client's last deal closed 2+ years ago or they opted out, relay that in
+  plain words and suggest a call. Do NOT write the email yourself in chat as a workaround,
   and do not offer one. You may help with talking points for the call.
   State the rule as information, not legal advice.`;
 

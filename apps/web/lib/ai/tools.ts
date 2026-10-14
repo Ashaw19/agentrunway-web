@@ -77,6 +77,8 @@ import {
   draftSocialPost as draftSocialPostService,
   type SocialPostTemplate,
 } from "@/lib/ai/draft-services";
+import { type DraftTextResult, MAX_TEXT_DRAFTS_PER_REQUEST, draftTextForClient } from "@/lib/ai/draft-text";
+import { TEXT_PURPOSES } from "@/lib/outreach-prompts";
 import { APP_TIME_ZONE, addDaysISO, atlanticDayStart, atlanticISODate, atlanticNoon, atlanticYear } from "@agent-runway/core/lib/local-date";
 import { recurringHasEnded } from "@agent-runway/core/engines/recurring-expense-engine";
 import { hasClosedDeal } from "@/lib/crm/contactable-records";
@@ -1767,7 +1769,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
         try {
           let query = supabase
             .from("outreach_queue")
-            .select("id, client_id, opportunity_type, status, ai_subject, trigger_date")
+            .select("id, client_id, opportunity_type, channel, status, ai_subject, ai_body, trigger_date")
             .eq("user_id", userId)
             .order("trigger_date", { ascending: true })
             .limit(10);
@@ -1783,7 +1785,12 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
           if (error) return `Search failed: ${error.message}`;
           if (!data || data.length === 0) return "No pending outreach items. Your queue is clear!";
 
-          const items = data.map((o: { id: string; opportunity_type: string; status: string; ai_subject: string | null; trigger_date: string }) => {
+          const items = data.map((o: { id: string; opportunity_type: string; channel: string | null; status: string; ai_subject: string | null; ai_body: string | null; trigger_date: string }) => {
+            if (o.channel === "sms") {
+              // A text (00179): sent from the iPhone app's Flight Control → Texts tab.
+              const preview = (o.ai_body ?? "").split("\n")[0]?.slice(0, 60) ?? "";
+              return `text (${o.status}, send from the iPhone app) — "${preview}", ${o.trigger_date} — ID: ${o.id}`;
+            }
             const type = o.opportunity_type.replace(/_/g, " ");
             return `${type} (${o.status}) — ${o.ai_subject ?? "no subject"}, due ${o.trigger_date} — ID: ${o.id}`;
           });
@@ -3771,6 +3778,45 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
       },
     }),
 
+    // ── DRAFT CLIENT TEXTS (Dispatcher) — text queue, 00179 ───────────────────
+    draftClientTexts: tool({
+      description: "Draft a short text message (SMS) for each of 1 to 10 specific clients. Use searchClients first to resolve the client_ids. Each text lands in the Agent Runway iPhone app (More → Flight Control → Texts); the agent sends each one from their phone, where Messages opens with the number and text filled in and they tap Send. Nothing is sent automatically. purpose: check_in (a personal check-in), market_update (offers to send what homes in their area are selling for; never states numbers), custom (pass note with what the agent wants to say). Same CASL rules as email: opted-out clients and past clients whose last deal closed 2+ years ago get 'call instead'.",
+      inputSchema: z.object({
+        client_ids: z.array(z.string().uuid()).min(1).max(MAX_TEXT_DRAFTS_PER_REQUEST).describe("Client UUIDs from searchClients"),
+        purpose: z.enum(TEXT_PURPOSES).describe("check_in, market_update or custom"),
+        note: z.string().max(500).optional().describe("What the agent wants to say. Required for custom; optional context otherwise."),
+      }),
+      execute: async ({ client_ids, purpose, note }) => {
+        try {
+          if (purpose === "custom" && !note?.trim()) {
+            return "Tell me what you'd like the text to say, and I'll draft it.";
+          }
+          const results: DraftTextResult[] = [];
+          for (const clientId of [...new Set(client_ids)]) {
+            results.push(await draftTextForClient({ supabase, userId, clientId, purpose, note: note ?? null }));
+          }
+          const drafted = results.filter((r) => r.status === "created" || (r.status === "existing" && !r.reason));
+          const callOnly = results.filter((r) => r.status === "call_only");
+          const other = results.filter((r) => r.status === "skipped" || (r.status === "existing" && r.reason));
+          const lines: string[] = [];
+          if (drafted.length > 0) {
+            lines.push(`✓ ${drafted.length} text${drafted.length === 1 ? "" : "s"} ready for ${drafted.map((r) => r.clientName).join(", ")}. Send ${drafted.length === 1 ? "it" : "them"} from the Agent Runway iPhone app: More → Flight Control → Texts. Nothing goes out until you tap Send.`);
+          }
+          if (callOnly.length > 0) {
+            // CASL: relay as-is. Do not write the text in chat instead.
+            lines.push(`No text drafted (call instead): ${callOnly.map((r) => `${r.clientName}: ${r.reason}`).join(" ")}`);
+          }
+          if (other.length > 0) {
+            lines.push(`Not drafted: ${other.map((r) => `${r.clientName}: ${r.reason ?? "skipped"}`).join(" ")}`);
+          }
+          return lines.join("\n");
+        } catch (err) {
+          console.error("[tool/draftClientTexts] error:", err);
+          return "Drafting texts failed. Try again in a moment, or pick the clients in the iPhone app (Clients → Select → Text).";
+        }
+      },
+    }),
+
     // ── DRAFT LISTING DESCRIPTION (Dispatcher) ────────────────────────────────
     draftListingDescription: tool({
       description: "Draft a listing description and paired social post for a client's property. Pass either client_record_id (preferred — pulls specs from the transaction record) or specs (manual entry). Returns the description and social post inline. Drafts only — the agent copies the text into MLS / social platforms.",
@@ -4170,6 +4216,7 @@ export function createPersonaAgentTools(
     // Drafting — per-client (Dispatcher's lane). Broadcast drafts (newsletter,
     // social post) live with Captain.
     draftOutreachForClient: all.draftOutreachForClient,
+    draftClientTexts: all.draftClientTexts,
     draftListingDescription: all.draftListingDescription,
     // Flight Status workflow library (Phase 2.3) — read-only template lookup.
     // Lets Dispatcher proactively suggest a templated draft when a client
