@@ -9,6 +9,7 @@ export * from "./benchmark-engine";
 export * from "./probabilistic-forecast-engine";
 export * from "./runway-score-engine";
 export * from "./expense-ratio-bands";
+export * from "./repeat-rate-bands";
 export * from "./insights-engine";
 export * from "./advisor-engine";
 export * from "./tax-optimization-engine";

@@ -30,6 +30,7 @@ import {
   riskColorBand,
   type RiskColorBand,
 } from "@agent-runway/core/engines/survival-engine";
+import { REPEAT_RATE_COPY, repeatRateBandsList } from "@agent-runway/core/engines/repeat-rate-bands";
 import type { TroubleshootingTopic } from "./troubleshooting-classifier";
 
 // The cash runway bands as Flight Crew's table, highest first, built from the
@@ -889,6 +890,18 @@ Each contact has a decayed engagement score based on recent activity history.
 
 **"My Lifetime GCI, Total Deals or repeat rate went down"** / **"Why doesn't a deal count toward a client's GCI, badges or gift budget?"**
 → The Clients page totals count every deal in a client's Deal History except deals set to Collapsed. A collapsed deal never closed, so it adds no GCI and isn't counted as a deal. It's also left out of avg / deal, repeat rate, the client's own Lifetime GCI and Deals, top clients, concentration %, badges (High Yield, Frequent Flyer, Silver Wings, Tailwind Club, First Class), client tiers, the Lead sources table and the closing-gift budget. It stays in Deal History. If it was marked Collapsed by mistake, change its condition status back and the totals return. A deal with no close date still counts, because history imports don't always include one. It's left off only what needs a date: the last deal date, the GCI trend line on hover, and anniversaries. The dashboard's GCI comes from Transactions, not Deal History, so it isn't affected.
+
+**"What's a good repeat rate?"** / **"Is my repeat rate good?"** / **"Why did the wording or the bar on my repeat rate change?"**
+→ Repeat rate = clients with two or more counted deals ÷ clients with at least one. Contacts with no deal are not in it. Agent Runway has no sourced industry figure for it, so don't give one. ${REPEAT_RATE_COPY.referenceSentence} ${REPEAT_RATE_COPY.provenance} Never present them as an industry figure. Never call a rate good, strong, excellent or poor: say where it sits, and that the comparison with the agent's own rate a year earlier tells them more.
+
+Bands (one table: REPEAT_RATE_BANDS in packages/core/engines/repeat-rate-bands.ts. The Insights card, the KPI strip and Scan cards all read it):
+${repeatRateBandsList()}
+
+${REPEAT_RATE_COPY.minClientsSentence} With fewer, the Repeat Client Rate card on the Insights tab is hidden and the line along the top of the KPI strip stays empty.
+
+What the screens show: the card's bar and the line along the top of the KPI strip are one gauge, full at the upper reference point, with the lower one marked along it. The card is tinted violet from the lower reference point and its bar is a deeper violet from the upper one. Violet is not a health colour here: it says where the rate sits, not whether that is good. In Flight Control, a Scan card's impact line may mention that past clients come back when the rate is at or above the upper reference point. Flight Crew has no tool that returns the rate: the figure is on the Clients page.
+
+Changed 2026-10-13: until then the card read "Excellent loyalty" from 30% and "Good repeat rate" from 15%, was highlighted from 20%, the strip's line was full at 35%, and Scan cards called the rate "strong" above 25%. One table replaced them. The agent's rate did not change.
 
 **"Save button isn't working"**
 → The Save button commits first name, last name, and notes. Other fields (email, phone, etc.) may save differently. Ensure required fields aren't empty.

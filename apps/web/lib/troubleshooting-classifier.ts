@@ -338,6 +338,7 @@ const TOPIC_RULES: TopicRule[] = [
       "collapsed deal",
       "total deals",
       "repeat rate",
+      "repeat client rate",
       "gift budget",
       "closing gift",
       "first class badge",

@@ -26,6 +26,7 @@ import type { OutreachQueueItem, AgentState } from "@agent-runway/core/types/dat
 import { POST_CLOSE_OPPORTUNITY_CONFIGS as POST_CLOSE_CONFIGS } from "@agent-runway/core/engines/nurture-engine";
 import type { SupabaseClient }    from "@supabase/supabase-js";
 import type { ClientMemoryFacts } from "@/lib/ai/client-memory-engine";
+import { isRepeatRateAtOrAboveUpper } from "@agent-runway/core/engines/repeat-rate-bands";
 import { contactableRecords, excludeCollapsedDeals } from "@/lib/crm/contactable-records";
 import { lastClosedDealByClient, outreachChannel, withCoBuyerDeals } from "@/lib/crm/outreach-consent";
 import { recentlyContactedClientIds, outreachSuppressionCutoff } from "@/lib/crm/recently-contacted";
@@ -1848,6 +1849,8 @@ function buildFinancialImpact(
     avgGci: number;
     totalDeals: number;
     repeatRate: number;
+    /** The repeat rate's denominator: a rate over fewer than two clients has no band. */
+    clientsWithADeal: number;
     activeClients: number;
   },
   state: AgentState,
@@ -1858,8 +1861,12 @@ function buildFinancialImpact(
   const isRepeat = clientDealCount >= 2;
   const pipelineLight = portfolioStats.activeClients < 3;
   const pipelineDry = portfolioStats.activeClients === 0;
-  const hasStrongRepeatHistory = portfolioStats.repeatRate > 25;
-  const _hasModerateRepeatHistory = portfolioStats.repeatRate > 10;
+  // Agent Runway's upper reference point for the repeat rate, from the one
+  // table every screen reads (REPEAT_RATE_BANDS). Never a number typed here.
+  const repeatRateAtUpperReference = isRepeatRateAtOrAboveUpper(
+    portfolioStats.repeatRate,
+    portfolioStats.clientsWithADeal,
+  );
   const monthsIdle = ctx.months_idle ? parseInt(String(ctx.months_idle), 10) : 0;
   const daysRemaining = ctx.days_remaining ? Number(ctx.days_remaining) : 0;
   const gciLabel = gci > 0 ? `$${(gci / 1000).toFixed(0)}k` : null;
@@ -1901,8 +1908,8 @@ function buildFinancialImpact(
     if (isHighValue && gciLabel) {
       return `At ${gciLabel} GCI, referrals from this client are likely to be similarly valuable. This is a higher-probability path to your next closing than any new lead source.`;
     }
-    if (hasStrongRepeatHistory) {
-      return `Your repeat rate is strong — this referral window is how you keep feeding that. One ask here is worth more than a week of prospecting.`;
+    if (repeatRateAtUpperReference) {
+      return "Past clients already come back to you for another deal. This referral window is the time to ask this one for an introduction.";
     }
     if (state.pace_status === "ahead") {
       return "You're on track this month — this referral ask helps you maintain momentum rather than recover it. That's a better position to be asking from.";
@@ -1968,8 +1975,8 @@ function buildFinancialImpact(
     if (monthsIdle > 24) {
       return "It's been over two years — the longer you wait, the harder it gets to re-engage. Acting now, while the relationship is still recoverable, protects future deal potential.";
     }
-    if (hasStrongRepeatHistory) {
-      return "You already turn past clients into repeat clients at a strong rate. This is another opportunity to keep that working — and it takes less effort than finding a new one.";
+    if (repeatRateAtUpperReference) {
+      return "Past clients already come back to you for another deal. Reaching out to this one keeps that going.";
     }
     if (pipelineLight) {
       return "Your pipeline is light and this client already knows your work. Past-client outreach converts at a significantly higher rate than cold prospecting.";
@@ -2519,6 +2526,10 @@ export async function getTopOpportunities(
 
   // Clients with multiple deals (repeat rate proxy)
   // Denominator: only clients with closed transactions (clientDealDates), not all records
+  // A proxy, not the Clients page figure: it counts only dated deals linked to
+  // a client who isn't archived, where repeatClientStats() also counts undated
+  // deals and deal-holders with no client row. It is never printed. It only
+  // picks a sentence, on the cut-off in REPEAT_RATE_BANDS.
   const repeatClients = [...clientDealDates.entries()].filter(([, dates]) => dates.length >= 2).length;
   const repeatRate = clientDealDates.size > 0
     ? Math.round((repeatClients / clientDealDates.size) * 100)
@@ -2584,7 +2595,7 @@ export async function getTopOpportunities(
         facts,
         client?.status ?? null,
         (clientDealDates.get(typed.client_id) ?? []).length,
-        { avgGci, totalDeals, repeatRate, activeClients },
+        { avgGci, totalDeals, repeatRate, clientsWithADeal: clientDealDates.size, activeClients },
         agentState,
       ),
       is_primary:     false,

@@ -23,6 +23,14 @@ import type {
 } from "@/lib/types/database";
 import { computeSourceFunnel } from "@/lib/engines/crm-analytics-engine";
 import { repeatClientStats, type ClientGroup, type SourceStat } from "@/lib/crm/client-groups";
+import {
+  REPEAT_RATE_COPY,
+  REPEAT_RATE_GAUGE_LOWER_MARK_PCT,
+  repeatRateBand,
+  repeatRateGaugePct,
+  repeatRateVsReferencePoints,
+} from "@agent-runway/core/engines/repeat-rate-bands";
+import { REPEAT_RATE_TONE_CLASS } from "@/lib/repeat-rate-style";
 import { CockpitStrip, CockpitStat, SEMANTIC, GOLD, magnitudePct } from "@/components/cockpit-ui";
 
 // ── Types ───────────────────────────────────────────────────────────────────
@@ -75,8 +83,11 @@ export function InsightsTab({
         )
       : 0;
 
-  // Same repeat rate as the KPI strip (collapsed deals don't count).
+  // Same repeat rate as the KPI strip (collapsed deals don't count), placed
+  // in the same band: REPEAT_RATE_BANDS decides the colour, the bar and the
+  // sentence, and whether there are enough clients to place the rate at all.
   const { transactionalClients, repeatCount, repeatRate } = repeatClientStats(grouped);
+  const repeatBand = repeatRateBand(repeatRate, transactionalClients);
 
   // ── Listing Price Accuracy ──────────────────────────────────────────────────
   // Only computed when at least one appointment has both estimated and actual sale price.
@@ -383,23 +394,11 @@ export function InsightsTab({
       {/* ═══════════════════════════════════════════════════════════════════ */}
       {/* EXISTING: Repeat Client Rate                                       */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
-      {transactionalClients >= 2 && (
-        <Card
-          className={cn(
-            "rounded-2xl shadow-sm",
-            repeatRate >= 20
-              ? "border-violet-200 bg-gradient-to-br from-violet-50 to-indigo-50"
-              : "border-border",
-          )}
-        >
+      {repeatBand && (
+        <Card className={cn("rounded-2xl shadow-sm", REPEAT_RATE_TONE_CLASS[repeatBand.tone].card)}>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-semibold flex items-center gap-2">
-              <Star
-                className={cn(
-                  "h-4 w-4",
-                  repeatRate >= 20 ? "text-violet-500" : "text-muted-foreground",
-                )}
-              />
+              <Star className={cn("h-4 w-4", REPEAT_RATE_TONE_CLASS[repeatBand.tone].icon)} />
               Repeat Client Rate
             </CardTitle>
           </CardHeader>
@@ -412,21 +411,26 @@ export function InsightsTab({
                 {repeatCount} of {transactionalClients} clients with closed deals
               </p>
             </div>
-            <div className="h-2 rounded-full bg-muted overflow-hidden">
-              <div
-                className={cn(
-                  "h-full rounded-full transition-all",
-                  repeatRate >= 30 ? "bg-violet-500" : repeatRate >= 15 ? "bg-violet-400" : "bg-slate-300",
-                )}
-                style={{ width: `${Math.min(repeatRate, 100)}%` }}
-              />
+            {/* The same gauge as the KPI strip's hairline: full at the upper
+                reference point, with the lower one marked along it. */}
+            <div>
+              <div className="h-2 rounded-full bg-muted overflow-hidden">
+                <div
+                  className={cn("h-full rounded-full transition-all", REPEAT_RATE_TONE_CLASS[repeatBand.tone].bar)}
+                  style={{ width: `${repeatRateGaugePct(repeatRate, transactionalClients)}%` }}
+                />
+              </div>
+              <div className="relative mt-1 h-3.5 text-[10px] tabular-nums text-muted-foreground">
+                <span className="absolute left-0">0%</span>
+                <span className="absolute -translate-x-1/2" style={{ left: `${REPEAT_RATE_GAUGE_LOWER_MARK_PCT}%` }}>
+                  {REPEAT_RATE_COPY.lowerMarkCaption}
+                </span>
+                <span className="absolute right-0">{REPEAT_RATE_COPY.gaugeMaxCaption}</span>
+              </div>
             </div>
             <p className="text-xs text-muted-foreground">
-              {repeatRate >= 30
-                ? "Excellent loyalty — your clients keep coming back."
-                : repeatRate >= 15
-                ? "Good repeat rate. Nurturing past clients could grow this further."
-                : "Opportunity to build more repeat business."}
+              Your repeat rate is {repeatRateVsReferencePoints(repeatRate, transactionalClients)}.{" "}
+              {REPEAT_RATE_COPY.provenance}
             </p>
             {repeatCount > 0 && (
               <div className="pt-1 space-y-1">

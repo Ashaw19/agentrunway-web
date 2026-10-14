@@ -116,6 +116,10 @@ describe("classifyTopic — CRM lifetime GCI questions reach the CRM playbook", 
     "my total deals and repeat rate dropped after a deal collapsed",
     "the gift budget for this client changed",
     "why did the first class badge disappear",
+    // The reference points the rate is placed against (repeat-rate-bands.ts)
+    // are explained in the CRM playbook.
+    "is my repeat rate good",
+    "what does my repeat client rate mean",
   ];
 
   for (const message of cases) {
