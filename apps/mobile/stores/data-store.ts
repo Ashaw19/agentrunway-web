@@ -7,7 +7,7 @@
 
 import { create } from "zustand";
 import { supabase } from "../lib/supabase";
-import { storage } from "../lib/mmkv";
+import { storage, isStorageReady } from "../lib/mmkv";
 import { useToastStore } from "./toast-store";
 import { useOfflineQueueStore } from "./offline-queue";
 import { safeDateMs, safeParseDate } from "../lib/safe-date";
@@ -371,6 +371,13 @@ export interface SmartListCounts {
 // ── Store ────────────────────────────────────────────────────────────────────
 
 interface DataStore {
+  /**
+   * Restores the offline copy once saved storage has loaded (app startup,
+   * lib/storage-bootstrap.ts). Skipped when a fetch has already filled the
+   * store: fresh data beats the copy.
+   */
+  hydrate: () => void;
+
   // Data
   transactions: Transaction[];
   pipeline: PipelineDeal[];
@@ -565,6 +572,10 @@ const CACHE_KEY = "data_store_cache";
 const CACHE_VERSION_KEY = "data_store_cache_version";
 
 function loadCache(): Partial<DataStore> {
+  // Before saved storage has loaded every read is empty: the version would
+  // read as missing and the check below would delete a good cache. Nothing
+  // to restore yet; `hydrate` restores it after initStorage.
+  if (!isStorageReady()) return {};
   try {
     const version = storage.getNumber(CACHE_VERSION_KEY);
     if (version !== CACHE_VERSION) {
@@ -809,6 +820,23 @@ export const useDataStore = create<DataStore>((set, get) => {
     lastFetched: null,
     nextTask: (cached.tasks as ContactTask[] | undefined)?.[0] ?? null,
     outreachReadyCount: 0,
+
+    hydrate: () => {
+      if (get().lastFetched) return;
+      const c = loadCache();
+      if (Object.keys(c).length === 0) return;
+      set({
+        transactions: (c.transactions as Transaction[]) ?? [],
+        pipeline: (c.pipeline as PipelineDeal[]) ?? [],
+        clients: (c.clients as Client[]) ?? [],
+        tasks: (c.tasks as ContactTask[]) ?? [],
+        settings: (c.settings as UserSettings | null) ?? null,
+        receipts: (c.receipts as ReceiptExpense[]) ?? [],
+        briefings: (c.briefings as BriefingItem[]) ?? [],
+        briefingsFetchedAt: (c.briefingsFetchedAt as number | null) ?? null,
+        nextTask: (c.tasks as ContactTask[] | undefined)?.[0] ?? null,
+      });
+    },
 
     fetchAll: async () => {
       set({ loading: true, isLoading: true });

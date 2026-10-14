@@ -163,4 +163,14 @@ i18n.use(initReactI18next).init({
   },
 });
 
+/**
+ * Switches to the saved language once storage has loaded (app startup):
+ * i18next initialised at import time, before saved values were readable,
+ * so it started on the device language.
+ */
+export function hydrateLanguage(): void {
+  const saved = getSavedLanguage();
+  if (saved && i18n.language !== saved) void i18n.changeLanguage(saved);
+}
+
 export default i18n;

@@ -42,6 +42,11 @@ export const useTheme = create<ThemeStore>((set) => ({
   },
 }));
 
+/** Applies the saved theme once storage has loaded (app startup). */
+export function hydrateTheme(): void {
+  useTheme.setState({ mode: getSavedTheme() });
+}
+
 // ── Palette Factory ───────────────────────────────────────────────────────────
 // Colors aligned with web app's CSS variables (oklch converted to hex)
 

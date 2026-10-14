@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Redirect, Slot, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { View, ActivityIndicator } from "react-native";
@@ -8,6 +8,7 @@ import { useTheme, useColors } from "@/lib/theme";
 import Toast from "@/components/Toast";
 import { CookieConsentBanner } from "@/components/CookieConsentBanner";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
+import { bootstrapStorage, isStorageReady } from "@/lib/storage-bootstrap";
 import "react-native-reanimated";
 import "@/lib/i18n"; // Initialize i18next before app renders
 
@@ -83,6 +84,16 @@ function RootLayoutNav() {
 }
 
 export default function RootLayout() {
+  // Saved values (privacy choice, theme, language, offline copy and queue,
+  // chat) load before anything renders; the splash stays up meanwhile.
+  const [storageReady, setStorageReady] = useState(isStorageReady());
+  useEffect(() => {
+    if (storageReady) return;
+    void bootstrapStorage().finally(() => setStorageReady(true));
+  }, [storageReady]);
+
+  if (!storageReady) return null;
+
   return (
     <AuthProvider>
       <RootLayoutNav />

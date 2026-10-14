@@ -15,28 +15,46 @@ const STORE_ID = "agent-runway";
 // In-memory cache so reads can be synchronous after init
 const cache = new Map<string, string>();
 let _initialized = false;
+let _initPromise: Promise<void> | null = null;
+// Keys written or deleted this session before init finished: init must not
+// put the older value on disk back over them.
+const touchedBeforeInit = new Set<string>();
+
+/** True once initStorage has loaded saved values into memory. */
+export function isStorageReady(): boolean {
+  return _initialized;
+}
 
 /**
- * Must be called once at app start (before stores read from storage).
- * Loads all keys into the in-memory cache.
+ * Loads every saved key into the in-memory cache. Until it resolves, every
+ * synchronous read returns undefined, so the app calls it (through
+ * lib/storage-bootstrap.ts) before rendering, and stores that read storage
+ * when their module loads re-read it afterwards (their `hydrate`).
+ * Safe to call more than once: later calls share the first load.
  */
-export async function initStorage(): Promise<void> {
-  if (_initialized) return;
-  try {
-    const keys = await AsyncStorage.getAllKeys();
-    const prefixedKeys = keys.filter((k) => k.startsWith(`${STORE_ID}:`));
-    if (prefixedKeys.length > 0) {
-      const pairs = await AsyncStorage.multiGet(prefixedKeys);
-      for (const [key, value] of pairs) {
-        if (value != null) {
-          cache.set(key.replace(`${STORE_ID}:`, ""), value);
+export function initStorage(): Promise<void> {
+  if (!_initPromise) {
+    _initPromise = (async () => {
+      try {
+        const keys = await AsyncStorage.getAllKeys();
+        const prefixedKeys = keys.filter((k) => k.startsWith(`${STORE_ID}:`));
+        if (prefixedKeys.length > 0) {
+          const pairs = await AsyncStorage.multiGet(prefixedKeys);
+          for (const [key, value] of pairs) {
+            const name = key.replace(`${STORE_ID}:`, "");
+            if (value != null && !touchedBeforeInit.has(name)) {
+              cache.set(name, value);
+            }
+          }
         }
+      } catch (e) {
+        console.warn("[storage] Failed to initialize cache:", e);
       }
-    }
-  } catch (e) {
-    console.warn("[storage] Failed to initialize cache:", e);
+      _initialized = true;
+      touchedBeforeInit.clear();
+    })();
   }
-  _initialized = true;
+  return _initPromise;
 }
 
 function prefixed(key: string) {
@@ -67,6 +85,7 @@ export const storage = {
 
   set(key: string, value: string | number | boolean) {
     const str = String(value);
+    if (!_initialized) touchedBeforeInit.add(key);
     cache.set(key, str);
     AsyncStorage.setItem(prefixed(key), str).catch((e) =>
       console.warn("[storage] write failed:", key, e),
@@ -74,6 +93,7 @@ export const storage = {
   },
 
   delete(key: string) {
+    if (!_initialized) touchedBeforeInit.add(key);
     cache.delete(key);
     AsyncStorage.removeItem(prefixed(key)).catch((e) =>
       console.warn("[storage] delete failed:", key, e),
