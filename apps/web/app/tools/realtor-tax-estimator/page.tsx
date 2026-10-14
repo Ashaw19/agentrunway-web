@@ -8,18 +8,33 @@ import { CRA_INSTALMENT_SOURCES, INSTALMENT_OPTION_LIST, INSTALMENT_OPTIONS_RULE
 import { TaxEstimator } from "./tax-estimator";
 import { CharterScarcityStrip } from "@/components/charter-scarcity-strip";
 import { articleSchema, faqSchema, breadcrumbSchema, howToSchema } from "@/lib/schema";
-import { TAX_ENGINE_ESTIMATE, taxEstimateSpreadSentence } from "@agent-runway/core/tax-copy";
+import { TAX_YEAR } from "@/lib/engines/canadian-tax-engine";
+import {
+  CANONICAL_TAX_DISCLAIMER,
+  INSTALMENT_DUE_DATES_RULE,
+  INSTALMENT_INTEREST_RULE,
+  INSTALMENT_REQUIREMENT_RULE,
+  INSTALMENT_WITHHOLDING_RULE,
+  SELF_EMPLOYED_CPP,
+  SMALL_SUPPLIER_RULE,
+  TAX_ENGINE_ESTIMATE,
+  TAX_ENGINE_TABLES_SUMMARY,
+  taxEstimateSpreadSentence,
+} from "@agent-runway/core/tax-copy";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Metadata
 // ─────────────────────────────────────────────────────────────────────────────
+//
+// The year in every label on this page is the tax engine's TAX_YEAR, the year
+// the calculator below runs. Nothing here types it:
+// lib/__tests__/tax-year-label-copy.test.ts.
 
 const URL = "https://agentrunway.ca/tools/realtor-tax-estimator";
 
 export const metadata: Metadata = {
-  title: "Canadian Realtor Tax Estimator — 2025 Self-Employed Calculator",
-  description:
-    "Free tax estimator for Canadian real estate agents. Calculate your 2025 federal + provincial income tax, CPP/QPP, and quarterly instalments — all 13 provinces and territories.",
+  title: `Canadian Realtor Tax Estimator — ${TAX_YEAR} Self-Employed Calculator`,
+  description: `Free tax estimator for Canadian real estate agents. Calculate your ${TAX_YEAR} federal + provincial income tax, CPP/QPP, and quarterly instalments — all 13 provinces and territories.`,
   keywords: [
     "realtor tax calculator canada",
     "canadian real estate agent tax",
@@ -31,14 +46,13 @@ export const metadata: Metadata = {
   openGraph: {
     type: "article",
     url: URL,
-    title: "Canadian Realtor Tax Estimator — 2025 Self-Employed Calculator",
-    description:
-      "Free tax estimator for Canadian real estate agents. 2025 federal + provincial brackets, CPP/QPP contributions, and quarterly instalment amounts for all 13 provinces.",
+    title: `Canadian Realtor Tax Estimator — ${TAX_YEAR} Self-Employed Calculator`,
+    description: `Free tax estimator for Canadian real estate agents. Federal and provincial income tax, CPP/QPP contributions, and quarterly instalment amounts for the ${TAX_YEAR} tax year, in all 13 provinces and territories.`,
     images: [{ url: "/og-image-v2.png", width: 1200, height: 630 }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Canadian Realtor Tax Estimator — 2025",
+    title: `Canadian Realtor Tax Estimator — ${TAX_YEAR}`,
     description:
       "Free tax calculator for Canadian real estate agents. Federal + provincial tax, CPP/QPP, quarterly instalments.",
   },
@@ -58,8 +72,7 @@ const FAQS = [
   },
   {
     question: "Do real estate agents have to pay quarterly taxes in Canada?",
-    answer:
-      "Yes. The Canada Revenue Agency (CRA) requires quarterly tax instalments when you owe more than $3,000 in tax for two consecutive years ($1,800 in Quebec). Instalments are due March 15, June 15, September 15, and December 15. Missing instalments triggers compounding interest that cannot be deducted.",
+    answer: `${INSTALMENT_WITHHOLDING_RULE} ${INSTALMENT_REQUIREMENT_RULE} ${INSTALMENT_DUE_DATES_RULE} ${INSTALMENT_INTEREST_RULE}`,
   },
   {
     question: "How do I calculate my net income as a realtor?",
@@ -68,13 +81,11 @@ const FAQS = [
   },
   {
     question: "When does HST or GST registration apply for a realtor?",
-    answer:
-      "Once your gross revenue exceeds $30,000 over four consecutive calendar quarters, the CRA requires HST registration (in HST-harmonized provinces) or GST registration (in the remaining provinces). Most active agents reach this threshold within their first couple of deals. Registered agents charge HST/GST on commission and may claim input tax credits on business expenses. This is an estimate based on rules published by the CRA. Verify with your accountant before making any filing or financial decision.",
+    answer: `${SMALL_SUPPLIER_RULE} A registrant charges GST or HST on commissions, depending on the province, and may claim input tax credits on eligible business expenses. ${CANONICAL_TAX_DISCLAIMER}`,
   },
   {
     question: "What CPP do I pay as a self-employed realtor?",
-    answer:
-      "Self-employed agents pay both the employee and employer portions of CPP — 11.90% on earnings between $3,500 and $74,600 in 2026 (Tier 1), plus 8.00% on earnings between $74,600 and $85,000 (Tier 2). In Quebec you pay QPP instead, at slightly higher rates (12.80% Tier 1, 8.00% Tier 2). Half of Tier 1 and all of Tier 2 are tax-deductible.",
+    answer: `${SELF_EMPLOYED_CPP.rates} ${SELF_EMPLOYED_CPP.quebec} ${SELF_EMPLOYED_CPP.deduction}`,
   },
   {
     question: "When does incorporating as a PREC become tax-relevant?",
@@ -83,8 +94,7 @@ const FAQS = [
   },
   {
     question: "Is this calculator accurate?",
-    answer:
-      "The estimator uses 2025 federal and provincial tax brackets, the 2025 CPP/QPP contribution rates and maximums, the federal basic personal amount, and the blended federal rate cut from 15% to 14% (effective July 1, 2025). It assumes self-employment income only — no employment income, no RRSP deductions, no dependent credits, no spousal amounts. For precise planning and complex situations, consult a CPA.",
+    answer: `The estimator runs the same tax engine as the Agent Runway dashboard. ${TAX_ENGINE_TABLES_SUMMARY} ${TAX_ENGINE_ESTIMATE.assumptions} ${CANONICAL_TAX_DISCLAIMER}`,
   },
   {
     question: "How is this different from Agent Runway's full product?",
@@ -98,12 +108,11 @@ const FAQS = [
 // ─────────────────────────────────────────────────────────────────────────────
 
 const JSON_LD_ARTICLE = articleSchema({
-  headline: "Canadian Realtor Tax Estimator — 2025",
-  description:
-    "Interactive 2025 tax calculator for self-employed Canadian real estate agents. Covers federal and provincial income tax, CPP/QPP, and quarterly instalments across all 13 provinces and territories.",
+  headline: `Canadian Realtor Tax Estimator — ${TAX_YEAR}`,
+  description: `Interactive ${TAX_YEAR} tax calculator for self-employed Canadian real estate agents. Covers federal and provincial income tax, CPP/QPP, and quarterly instalments across all 13 provinces and territories.`,
   url: URL,
   datePublished: "2026-04-15",
-  dateModified: "2026-04-15",
+  dateModified: "2026-10-13",
   authorName: "Andrew Shaw",
   imageUrl: "/og-image-v2.png",
 });
@@ -182,7 +191,7 @@ export default function RealtorTaxEstimatorPage() {
               </span>
             </h1>
             <p className="mt-5 text-lg leading-relaxed text-slate-300 sm:text-xl">
-              Estimate your 2025 federal tax, provincial tax, CPP/QPP contributions, and quarterly
+              Estimate your {TAX_YEAR} federal tax, provincial tax, CPP/QPP contributions, and quarterly
               instalments in under a minute. Covers all 13 Canadian provinces and territories.
             </p>
 
@@ -194,7 +203,7 @@ export default function RealtorTaxEstimatorPage() {
               </div>
               <div className="flex items-center gap-1.5">
                 <Calculator className="h-3.5 w-3.5 text-violet-400" />
-                <span>2025 federal + provincial brackets</span>
+                <span>{TAX_YEAR} tax year</span>
               </div>
               <div className="flex items-center gap-1.5">
                 <Clock className="h-3.5 w-3.5 text-emerald-400" />
@@ -245,11 +254,8 @@ export default function RealtorTaxEstimatorPage() {
                 What are the CRA quarterly instalment dates?
               </h2>
               <p className="mt-3 rounded-lg border-l-4 border-violet-500 bg-violet-50 px-4 py-3 text-slate-700">
-                <strong>Short answer:</strong> Quarterly instalments are due{" "}
-                <strong>March 15, June 15, September 15, and December 15</strong>. You&rsquo;re
-                required to pay instalments once you owe more than $3,000 in tax for two consecutive
-                years ($1,800 in Quebec). Missing an instalment triggers compounding interest that
-                cannot be deducted on your return.
+                <strong>Short answer:</strong> {INSTALMENT_DUE_DATES_RULE}{" "}
+                {INSTALMENT_REQUIREMENT_RULE} {INSTALMENT_INTEREST_RULE}
               </p>
               <p className="mt-4">
                 {INSTALMENT_OPTIONS_RULE}{" "}
@@ -301,18 +307,10 @@ export default function RealtorTaxEstimatorPage() {
                 How does CPP work for self-employed realtors?
               </h2>
               <p className="mt-3 rounded-lg border-l-4 border-amber-500 bg-amber-50 px-4 py-3 text-slate-700">
-                <strong>Short answer:</strong> Self-employed realtors pay{" "}
-                <strong>both the employee and employer portions of CPP</strong> — 11.90% on
-                earnings between $3,500 and $74,600 in 2026 (Tier 1), plus 8.00% on earnings between
-                $74,600 and $85,000 (Tier 2). In Quebec, QPP rates are slightly higher.
-                Half of Tier 1 and all of Tier 2 are tax-deductible.
+                <strong>Short answer:</strong> {SELF_EMPLOYED_CPP.rates} {SELF_EMPLOYED_CPP.quebec}{" "}
+                {SELF_EMPLOYED_CPP.deduction}
               </p>
-              <p className="mt-4">
-                CPP and QPP contributions are capped. The maximum CPP contribution in 2026 is
-                approximately $9,293 (combined Tier 1 + Tier 2). Once you hit that, no further
-                CPP is owed on additional income. Quebec&rsquo;s QPP maximum is slightly higher
-                due to the higher contribution rate.
-              </p>
+              <p className="mt-4">{SELF_EMPLOYED_CPP.maximum}</p>
             </ScrollRevealSection>
 
             <ScrollRevealSection>
@@ -485,8 +483,7 @@ export default function RealtorTaxEstimatorPage() {
             <div className="mt-6 flex items-start justify-center gap-2 text-[11px] text-slate-500">
               <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
               <p className="max-w-md text-left">
-                This calculator is an estimate only and not tax advice. For precise planning and
-                complex situations, consult a CPA.
+                This calculator is an estimate only and not tax advice. {CANONICAL_TAX_DISCLAIMER}
               </p>
             </div>
           </div>

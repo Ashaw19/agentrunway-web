@@ -5,6 +5,8 @@ import { MarketingNav } from "@/components/marketing-nav";
 import { MarketingFooter } from "@/components/marketing-footer";
 import { EmailCapture } from "@/components/email-capture";
 import { articleSchema } from "@/lib/schema";
+import { TAX_YEAR } from "@/lib/engines/canadian-tax-engine";
+import { TAX_ENGINE_TABLES } from "@agent-runway/core/tax-copy";
 
 export const metadata: Metadata = {
   title:
@@ -622,8 +624,10 @@ export default function SelfEmployedCPPCanadaPage() {
               </p>
 
               <p>
-                Agent Runway&apos;s tax engine implements the 2025 CRA-published CPP1
-                and CPP2 schedule directly. As deals close and net business income
+                Agent Runway&apos;s tax engine applies the CRA-published CPP1 and
+                CPP2 schedule for the {TAX_YEAR} tax year (ceilings of{" "}
+                {TAX_ENGINE_TABLES.cpp.firstCeiling} and{" "}
+                {TAX_ENGINE_TABLES.cpp.secondCeiling}). As deals close and net business income
                 accumulates, the engine produces a running estimate of the year&apos;s
                 CPP contribution alongside the federal income tax estimate, the
                 provincial income tax estimate, and (where applicable) HST

@@ -6,8 +6,17 @@
  */
 
 import { EXPENSE_RATIO_BANDS, EXPENSE_RATIO_COPY } from "@agent-runway/core/engines/expense-ratio-bands";
+import { TAX_YEAR } from "@agent-runway/core/engines/canadian-tax-engine";
 import { SCORE_VERSION, SURVIVAL_SCORE_STEPS, stateLabel } from "@agent-runway/core/engines/runway-score-engine";
 import { RISK_BAND_LADDER, RISK_BAND_LEVELS, RISK_LEVEL_LABEL } from "@agent-runway/core/engines/survival-engine";
+
+/**
+ * The heading of the tax reference section below. Its year is the tax
+ * engine's, and the in-app guide (guide-content.tsx) finds the section by
+ * this heading. The figures under it are typed:
+ * lib/__tests__/tax-year-label-copy.test.ts holds them to the engine's.
+ */
+export const TAX_REFERENCE_HEADING = `TAX REFERENCE — ${TAX_YEAR} CRA`;
 
 // "Critical 10–20 (At Risk), Warning 41–42 (Building), ...": each cash runway
 // band's Survival sub-scores and the Runway Score band they sit in.
@@ -112,7 +121,7 @@ Platform for Canadian real estate agents: income, expenses, pipeline, clients, t
 
 ---
 
-### TAX REFERENCE — 2026 CRA
+### ${TAX_REFERENCE_HEADING}
 
 **Federal:** $0-58,523@14%, $58,523-117,045@20.5%, $117,045-181,440@26%, $181,440-258,482@29%, $258,482+@33%. BPA $16,452 credit @14% = $2,303.28.
 

@@ -9,6 +9,7 @@ import {
   Calculator,
   FileText,
 } from "lucide-react";
+import { TAX_YEAR } from "@/lib/engines/canadian-tax-engine";
 import { MarketingNav } from "@/components/marketing-nav";
 import { MarketingFooter } from "@/components/marketing-footer";
 import { CharterScarcityStrip } from "@/components/charter-scarcity-strip";
@@ -586,7 +587,7 @@ export default function RealEstateTaxDeadlinesPage() {
                 {
                   href: "/tools/realtor-tax-estimator",
                   icon: Calculator,
-                  title: "Free 2025 Tax Estimator",
+                  title: `Free ${TAX_YEAR} Tax Estimator`,
                   description:
                     "Project federal, provincial, CPP, and quarterly instalments for your GCI and province.",
                 },

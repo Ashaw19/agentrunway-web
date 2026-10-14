@@ -5,6 +5,7 @@ import { MarketingNav } from "@/components/marketing-nav";
 import { MarketingFooter } from "@/components/marketing-footer";
 import { EmailCapture } from "@/components/email-capture";
 import { articleSchema } from "@/lib/schema";
+import { TAX_YEAR } from "@/lib/engines/canadian-tax-engine";
 
 export const metadata: Metadata = {
   title:
@@ -519,10 +520,10 @@ export default function MaritimeProvincialTaxRatesPage() {
               </h2>
 
               <p>
-                Agent Runway&apos;s tax engine implements the 2025 federal and
-                provincial bracket schedules for all three Maritime provinces
-                directly. The same engine powers two surfaces a Maritime agent
-                will encounter:
+                Agent Runway&apos;s tax engine holds a federal bracket table
+                and a provincial one for each of the three Maritime provinces.
+                The same engine powers two surfaces a Maritime agent will
+                encounter:
               </p>
 
               <ul>
@@ -535,8 +536,9 @@ export default function MaritimeProvincialTaxRatesPage() {
                     Canadian Realtor Tax Estimator
                   </Link>{" "}
                   — produces a federal + provincial + CPP estimate from a single
-                  GCI input. NB, NS, and PEI are selectable provinces; the
-                  estimator applies the 2025 brackets published above.
+                  GCI input. NB, NS, and PEI are selectable provinces. The
+                  estimator runs the engine for the {TAX_YEAR} tax year, so
+                  its figures can differ from the brackets published above.
                 </li>
                 <li>
                   The in-app dashboard tax readiness card, which projects a
@@ -548,8 +550,8 @@ export default function MaritimeProvincialTaxRatesPage() {
               <p>
                 Provincial-tax questions that surface inside the app are
                 answered by the Flight Crew&apos;s Navigator persona, which
-                operates against the same 2025 published bracket schedules and
-                cites primary CRA and provincial finance sources rather than
+                reads the same engine and cites primary CRA and provincial
+                finance sources rather than
                 producing strategic recommendations. Navigator returns figures
                 and rule descriptions; filing decisions belong to the agent and
                 the agent&apos;s accountant.
