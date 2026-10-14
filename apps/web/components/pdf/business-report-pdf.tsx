@@ -40,8 +40,9 @@ import {
 } from "@/lib/engines/benchmark-engine";
 import {
   riskColorBand,
+  riskBandPhrase,
+  runwayBasisSentence,
   RISK_BAND_LADDER,
-  RISK_BAND_RANGE,
   RISK_LEVEL_LABEL,
   type SurvivalResult,
   type RiskLevel,
@@ -140,7 +141,7 @@ function generateAssessment(
   const survivalNote =
     survival.riskLevel === "notConfigured"
       ? ""
-      : ` Your cash runway of ${survival.label} is in the ${RISK_LEVEL_LABEL[survival.riskLevel]} range (${RISK_BAND_RANGE[survival.riskLevel]}).`;
+      : ` Your cash runway of ${survival.label} is ${riskBandPhrase(survival.riskLevel)}.`;
 
   // Agent Runway's own reference figures, in the engine's words. Nothing here
   // ranks the agent among other agents.
@@ -1847,9 +1848,9 @@ export function BusinessReportPDF({
               ? RISK_LEVEL_LABEL.notConfigured
               : `${survival.label} of cash runway · ${RISK_LEVEL_LABEL[survival.riskLevel]}`}
           </Text>
+          {/* The months are cash ÷ (burn − pipeline income): the engine's sentence names the income when there is some */}
           <Text style={s.assessmentText}>
-            Based on your cash reserve of {fmtCurrency(survival.cashReserve)} and a monthly burn
-            rate of {fmtCurrency(survival.monthlyBurn)}.{" "}
+            {runwayBasisSentence(survival)}{" "}
             {survival.riskLevel === "notConfigured"
               ? "Add your cash reserve and monthly costs in Settings to see your runway."
               : RISK_BAND_LADDER}

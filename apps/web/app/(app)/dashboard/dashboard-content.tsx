@@ -146,7 +146,20 @@ import {
 } from "@/lib/engines/benchmark-engine";
 import { computeWhereYouStand, BAND_LABELS, type PerformanceBand } from "@/lib/engines/where-you-stand-engine";
 import type { BriefingItem } from "@/lib/engines/crm-analytics-engine";
-import { survivalResult, riskColorBand, type SurvivalResult, type RiskColorBand } from "@/lib/engines/survival-engine";
+import {
+  survivalResult,
+  riskColorBand,
+  riskBandPhrase,
+  isFlaggedRiskLevel,
+  runwayFlag,
+  runwayBasisSentence,
+  nextRiskBandSentence,
+  RISK_BAND_LADDER,
+  RISK_BAND_RANGE,
+  RISK_LEVEL_LABEL,
+  type SurvivalResult,
+  type RiskColorBand,
+} from "@/lib/engines/survival-engine";
 import { computeCashPosition, type CashPositionResult } from "@/lib/engines/cash-position-engine";
 import { compute as computeRunwayScore, SCORE_VERSION, bandColorHexForScore, type BusinessHealthReport, type RunwayScoreResult, type ScoreComponent } from "@/lib/engines/runway-score-engine";
 import { RunwayGauge } from "./runway-gauge";
@@ -1069,20 +1082,17 @@ export function DashboardContent({
   // ── Smart alerts — only render when conditions are met ────────────────
   const smartAlerts: Array<{ type: "warning" | "danger" | "info"; icon: string; title: string; body: string }> = [];
 
-  // Alert 1: Low cash runway (skip if not configured — don't scare new users)
-  if (survival.riskLevel !== "notConfigured" && survival.months < 3) {
+  // Alert 1: a cash runway the survival engine flags (Critical or Warning),
+  // in the engine's words. Red for Critical, amber for Warning: the colours
+  // of the Cash Runway number above. Nothing when not configured.
+  const cashRunwayFlag = runwayFlag(survival);
+  if (cashRunwayFlag) {
+    const critical = cashRunwayFlag.level === "critical";
     smartAlerts.push({
-      type: "danger",
-      icon: "🔴",
-      title: "Cash runway is critically low",
-      body: `At current burn, your reserves cover ~${survival.months.toFixed(1)} months. Time to close some pipeline.`,
-    });
-  } else if (survival.riskLevel !== "notConfigured" && survival.months < 5) {
-    smartAlerts.push({
-      type: "warning",
-      icon: "🟡",
-      title: "Runway is getting thin",
-      body: `~${survival.months.toFixed(1)} months of runway remaining. A few closes would extend it significantly.`,
+      type: critical ? "danger" : "warning",
+      icon: critical ? "🔴" : "🟡",
+      title: cashRunwayFlag.title,
+      body: cashRunwayFlag.body,
     });
   }
 
@@ -1193,6 +1203,14 @@ export function DashboardContent({
     amber: "text-amber-500",     // warning/healthy (2–<6mo) — watch
     emerald: "text-emerald-500", // strong (6mo+)
     slate: "text-slate-400",     // notConfigured
+  };
+  // The Daily Briefing's Runway row, on a white card: the same bands, with
+  // Strong left in the row's neutral ink (the row states a figure, not a win).
+  const briefingRunwayText: Record<RiskColorBand, string> = {
+    red: "text-red-700 font-semibold",
+    amber: "text-amber-700",
+    emerald: "text-slate-700",
+    slate: "text-slate-700",
   };
 
   // ── YTD Net Take-Home calculations ────────────────────────────────────
@@ -1331,7 +1349,7 @@ export function DashboardContent({
           {survival.monthlyBurn > 0 && (
             <div className="flex gap-2.5 items-start">
               <span className="text-[10px] font-bold uppercase tracking-wide text-slate-400 shrink-0 w-16 pt-0.5">Runway</span>
-              <p className={cn("text-xs leading-snug", survival.months < 3 ? "text-red-700 font-semibold" : survival.months < 5 ? "text-amber-700" : "text-slate-700")}>
+              <p className={cn("text-xs leading-snug", briefingRunwayText[riskColorBand(survival.riskLevel)])}>
                 {survival.months < 1 ? "Less than 1 month" : `${survival.months.toFixed(1)} months`} of operating runway
               </p>
             </div>
@@ -1713,8 +1731,8 @@ export function DashboardContent({
                 is NEUTRALIZED — no red destructive variant, no "% behind"
                 restatement (the hero narrative is the single pace surface). It
                 states the path: how many deals at average size close the gap.
-                Reserve true red strictly for cash runway under 3 months
-                (item 5: negativity dedupe). */}
+                Reserve true red strictly for a cash runway in the survival
+                engine's Critical band (item 5: negativity dedupe). */}
             <Badge
               className="text-[10px] px-1.5 py-0"
               variant={paceStatus === "ahead" ? "default" : "secondary"}
@@ -2798,7 +2816,7 @@ export function DashboardContent({
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Cash Runway</p>
                 <MetricInfo tip={cashPosition.source === "implied"
                   ? `Based on your YTD income (${fmtCurrency(cashPosition.breakdown.ytdAgentNet)}) minus expenses (${fmtCurrency(cashPosition.breakdown.ytdExpenses)}), estimated tax to date (${fmtCurrency(cashPosition.breakdown.ytdTaxSetAside)})${cashPosition.breakdown.ytdHstOwing > 0 ? `, HST owing (${fmtCurrency(cashPosition.breakdown.ytdHstOwing)})` : ""}${cashPosition.manualReserve > 0 ? ` + starting reserve (${fmtCurrency(cashPosition.manualReserve)})` : ""}. Effective cash: ${fmtCurrency(cashPosition.effectiveCash)}.`
-                  : "How many months you could sustain current expenses using only your cash reserve, with zero new income. Update your cash reserve in Settings."
+                  : "How many months your cash reserve covers your monthly costs (brokerage fee and recurring expenses), after the monthly income estimated from your pipeline. Update your cash reserve in Settings."
                 } />
                 <GuideLink anchor="cash-runway" label="Cash Runway explained in Guide" />
                 {isPro && <ExplainButton question="What is my current cash runway and how can I extend it?" />}
@@ -3383,7 +3401,7 @@ const SCORE_COMPONENT_DESCRIPTIONS: Record<string, string> = {
   Expenses:
     `Your expense ratio (expenses ÷ GCI) against ${EXPENSE_RATIO_COPY.targetPhrase}. ${EXPENSE_RATIO_COPY.scoreSentence}`,
   Survival:
-    "Months of cash runway based on your burn rate (brokerage fee + recurring expenses) and cash reserves. 6+ months is considered strong.",
+    `Months your cash covers your net monthly burn: brokerage fee and recurring expenses, less the income estimated from your pipeline. ${RISK_BAND_LADDER}`,
   Benchmark: `${BENCHMARK_COPY.definition} ${BENCHMARK_COPY.scale}`,
 };
 
@@ -3491,7 +3509,7 @@ function RunwayScoreInfoDialog({
             <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
               <li>• Close or advance pipeline deals to boost Goal Pace and Pipeline scores</li>
               <li>• Keep expenses at {expenseRatioBandRange(EXPENSE_RATIO_BANDS[0])} of GCI to maximise the Expenses component</li>
-              <li>• Build 4–6 months of cash reserves for a strong Survival score</li>
+              <li>• Reach {RISK_BAND_RANGE.strong} of cash runway (the {RISK_LEVEL_LABEL.strong} band) for the top Survival score</li>
               <li>• Complete all fields in Settings — each unlocks more accurate projections</li>
               <li>• Grow projected GCI to raise your Benchmark score</li>
             </ul>
@@ -3541,6 +3559,23 @@ function formatSurvivalDisplay(survival: SurvivalResult): string {
   if (survival.monthlyBurn === 0) return "—";
   if (survival.months < 1) return "< 1 month";
   return survival.label;
+}
+
+// ── Helpers: the health card's sentences about a configured cash runway ────
+// The band and its range are the survival engine's, so the card states where
+// the runway sits in the same words as the Reports badge and the report PDF.
+
+/** "Cash runway is 2.5 months, in the Warning range (2–4 months)." */
+function runwayPlacedSentence(survival: SurvivalResult): string {
+  if (survival.riskLevel === "notConfigured") return "Cash runway is not set.";
+  return `Cash runway is ${formatSurvivalDisplay(survival)}, ${riskBandPhrase(survival.riskLevel)}.`;
+}
+
+/** Where the runway sits, then what the band above takes at this burn. */
+function runwayNextMove(survival: SurvivalResult): string {
+  const above = nextRiskBandSentence(survival);
+  const placed = runwayPlacedSentence(survival);
+  return above ? `${placed} ${above} A larger reserve or a lower monthly burn lengthens the runway.` : placed;
 }
 
 // ── Helper: Runway score one-liner explanation ─────────────────────────────
@@ -3747,12 +3782,14 @@ function deriveStatus(
   ytdGCI: number,
 ): HealthStatus {
   const grade = runwayScore.grade;
-  const hasBurn = survival.monthlyBurn > 0;
 
-  if (grade === "F" || (hasBurn && survival.months < 1)) return "Critical";
+  // Cash runway: the survival engine's bands. Its Critical is this card's
+  // Critical and its Warning is At Risk, so the card never calls a runway
+  // something its badge on Reports does not.
+  if (grade === "F" || survival.riskLevel === "critical") return "Critical";
   if (
     grade === "D" ||
-    (hasBurn && survival.months < 3) ||
+    survival.riskLevel === "warning" ||
     (paceStatus === "behind" && pacePercent < -30)
   )
     return "At Risk";
@@ -3842,8 +3879,8 @@ function generateBusinessHealthNarrative({
   }
 
   let pipelineSentence: string;
-  if (survival.monthlyBurn > 0 && survival.months < 3) {
-    pipelineSentence = `Cash runway is ${formatSurvivalDisplay(survival)} — this requires immediate attention alongside revenue generation.`;
+  if (isFlaggedRiskLevel(survival.riskLevel)) {
+    pipelineSentence = runwayPlacedSentence(survival);
   } else if (pipelineCount > 0) {
     pipelineSentence = `Your pipeline carries ${fmtCurrency(pipelineWeightedGCI)} in probability-weighted income across ${pipelineCount} active deal${pipelineCount !== 1 ? "s" : ""}.`;
   } else {
@@ -3880,16 +3917,16 @@ function generateBusinessHealthNarrative({
         : `Expense tracking (score: ${healthReport.expenseScore}/100) — configure your costs in Settings to see expense ratio and burn analysis.`,
     Benchmark: benchmarkSentence(projectedGCI, benchmark),
     Survival:
-      survival.monthlyBurn > 0
-        ? `Cash runway is ${formatSurvivalDisplay(survival)} against a ${fmtCurrency(survival.monthlyBurn)}/month burn rate. This is the highest-priority operational risk on the dashboard.`
+      survival.riskLevel !== "notConfigured" && survival.monthlyBurn > 0
+        ? `${runwayPlacedSentence(survival)} ${runwayBasisSentence(survival)}`
         : "Cash runway cannot be calculated — configure your monthly brokerage fee and recurring expenses in Settings.",
   };
   const why = whyMap[weakest.label] ?? `${weakest.label} scored ${weakest.score}/100 — review your business inputs to improve this component.`;
 
   // ── Next move (specific, data-backed) ─────────────────────────────────────
   let nextMove: string;
-  if (status === "Critical" && survival.monthlyBurn > 0 && survival.months < 1) {
-    nextMove = "Immediate priority: build your cash reserve or reduce monthly burn to extend runway beyond 1 month.";
+  if (survival.riskLevel === "critical") {
+    nextMove = runwayNextMove(survival);
   } else if (weakest.label === "Goal Pace" && dealsNeeded && dealsNeeded > 0 && pipelineCount === 0) {
     // No pipeline to convert — point at the real first move, not a deal that
     // does not exist (mirrors the Captain read's empty-pipeline branch).
@@ -3909,8 +3946,8 @@ function generateBusinessHealthNarrative({
       ? EXPENSE_RATIO_COPY.targetShort
       : expenseRatioBandRange(EXPENSE_RATIO_BANDS[0]);
     nextMove = `Review your Expenses page and identify at least $500/month in reducible recurring costs to bring the expense ratio to ${nextEdge}.`;
-  } else if (weakest.label === "Survival" && survival.monthlyBurn > 0) {
-    nextMove = `Build your cash reserve to cover at least 3 months of the ${fmtCurrency(survival.monthlyBurn)}/month burn rate (${fmtCurrency(survival.monthlyBurn * 3)} target).`;
+  } else if (weakest.label === "Survival" && survival.riskLevel !== "notConfigured" && survival.monthlyBurn > 0) {
+    nextMove = runwayNextMove(survival);
   } else if (pipelineCount > 0 && gciGap > 0) {
     nextMove = `Convert pipeline deals to close the ${fmtCurrency(gciGap)} remaining gap to your ${fmtCurrency(goalGCI)} goal.`;
   } else if (paceStatus === "ahead" && goalGCI > 0) {

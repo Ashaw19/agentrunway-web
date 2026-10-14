@@ -87,7 +87,7 @@ const COMPARISON_ROWS: ComparisonRow[] = [
     feature: "Financial runway score",
     spreadsheet: "no",
     agentRunway: "yes",
-    agentRunwayNote: "6-component composite score (A+ to F)",
+    agentRunwayNote: "5-component composite score (A+ to F)",
   },
   {
     feature: "Benchmark score",

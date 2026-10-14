@@ -234,7 +234,7 @@ const SECTIONS = [
     bullets: [
       "Pre-built expense categories for real estate agents",
       `Live expense ratio vs a target of ${EXPENSE_RATIO_COPY.targetShort}`,
-      "Runway score: Critical, Warning, Healthy, or Strong",
+      "Cash runway band: Critical, Warning, Healthy, or Strong",
       "Composite business health grade (A+ to F)",
     ],
     Mockup: ExpenseRunwayMockup,

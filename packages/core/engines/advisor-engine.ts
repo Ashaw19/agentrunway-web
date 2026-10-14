@@ -29,6 +29,13 @@ import {
   formatExpenseRatio,
   isExpenseRatioAboveTarget,
 } from "./expense-ratio-bands";
+import {
+  RISK_BAND_RANGE,
+  RISK_LEVEL_LABEL,
+  isFlaggedRiskLevel,
+  nextRiskBand,
+  riskLevelFromMonths,
+} from "./survival-engine";
 
 /**
  * The split the "Negotiate Your Split" card measures against: the agent
@@ -57,7 +64,7 @@ export const ADVISOR_CATEGORY_LABELS: Record<AdvisorCategory, string> = {
   expenseBenchmark: "Expense Target",
   pipelineHealth: "Pipeline Health",
   paceCorrection: "Pace Correction",
-  survivalWarning: "Survival Warning",
+  survivalWarning: "Cash Runway",
   marketTiming: "Market Timing",
   dealSizeAnalysis: "Deal Size",
   diversification: "Diversification",
@@ -196,14 +203,19 @@ export function generateAdvisory(input: AdvisorInput, limit: number = 5): Adviso
     }
   }
 
-  // 5. Survival Warning
-  if (input.survivalMonths >= 0 && input.survivalMonths < 3) {
+  // 5. Low cash runway: the runways the survival engine flags (Critical or
+  // Warning), the same ones the dashboard alerts on. A negative or non-finite
+  // month count means nothing is configured.
+  const runwayLevel = input.survivalMonths >= 0 ? riskLevelFromMonths(input.survivalMonths) : "notConfigured";
+  const runwayAbove = nextRiskBand(runwayLevel);
+  if (isFlaggedRiskLevel(runwayLevel) && runwayAbove) {
     cards.push({
       id: nextId(), category: "survivalWarning", icon: "alert-triangle",
       title: "Low Cash Runway",
       evidence: [
         `Current runway: ${input.survivalMonths.toFixed(1)} months`,
-        "Recommended minimum: 3–6 months of fixed costs",
+        `${RISK_LEVEL_LABEL[runwayLevel]} range: ${RISK_BAND_RANGE[runwayLevel]}`,
+        `${RISK_LEVEL_LABEL[runwayAbove.level]} starts at ${runwayAbove.fromMonths} months`,
       ],
       action: "Reduce discretionary spending and prioritize deals closest to closing.",
       estimatedImpact: "Risk reduction",
