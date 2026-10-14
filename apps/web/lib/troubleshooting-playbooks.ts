@@ -1305,10 +1305,12 @@ All figures are a snapshot of the REAL income deck and are user-editable — if 
 - monthlyRecurring: sum of all active recurring expense amounts (monthly + prorated quarterly/annual), net of ITCs for a GST/HST registrant
 - NOTE: This does NOT use YTD expenses ÷ months elapsed — it uses the configured recurring amounts only
 
-**Income Offset** = Pipeline Weighted GCI ÷ max(1, 12 − months elapsed)
+**Income Offset** = Pipeline Weighted GCI ÷ months left in the year (minimum 1)
 - This is the pipeline monthly estimate used to offset burn
 - NOT YTD Agent Net ÷ months elapsed — it is forward-looking (pipeline-based)
-- Divisor is remaining months of the year (minimum 1): late-year pipeline is spread across fewer months, so the monthly offset is larger
+- Pipeline Weighted GCI is the active pipeline only: closed and lost deals are not in it, and neither are listing appointments
+- Months left = 12 − the whole twelfths of the year elapsed, counted from the seasonal fraction of the year elapsed (the agent's seasonal weights), so it can differ from the calendar months left. Late-year pipeline is spread across fewer months, so the monthly offset is larger
+- In troubleshooting mode the [SURVIVAL DIAGNOSTIC] block prints the estimate, the weighted GCI and the months left it was divided by, and the net burn. Quote those figures; do not work the divisor out from the calendar month. They are the dashboard's inputs, so the months, band, Survival sub-score and Runway Score in the diagnostic data are the ones on the user's screens (until 2026-10-13 the diagnostic blocks left the Income Offset out and could show fewer months than the dashboard)
 
 **Net Burn** = Monthly Burn − Income Offset
 
@@ -1360,7 +1362,7 @@ Changed 2026-10-13: until then these screens used cut-offs of their own, so they
 → Cash reserve is $0 or not set. Go to Settings → Cash Reserve and enter current business savings.
 
 **"Survival shows 24 months — is that right?"**
-→ Yes, if monthly income exceeds monthly expenses (net burn ≤ 0), runway caps at 24 months. This means you're cash-flow positive.
+→ The runway reads 24+ months when the cash covers 24 months or more of net burn, or when the Income Offset is at or above the monthly burn (net burn $0; the diagnostic says so when that is the case). The Income Offset is an estimate from deals that have not closed, weighted by stage: it is not money received, so 24+ months on this basis does not mean the account holds that much cash.
 
 **"Survival seems too low"**
 1. Check cash reserve amount in Settings — is it current?
@@ -1371,8 +1373,8 @@ Changed 2026-10-13: until then these screens used cut-offs of their own, so they
 **"How do I improve survival?"**
 1. Increase cash reserve (Settings)
 2. Reduce expenses
-3. Close more deals (increases monthly income average)
-4. Both income and expenses are averaged — more months of data = smoother calculation
+3. A deal that closes raises Effective Cash (through YTD Agent Net) and leaves the pipeline, so the Income Offset no longer counts it
+4. Nothing in the runway is an average of past months: the burn is the current monthly figure and the income is the pipeline estimate
 
 **Edge Cases:**
 - January 1: Only 1 month of data — burn rate is based on that single month
