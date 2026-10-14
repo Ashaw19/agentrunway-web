@@ -7,6 +7,7 @@ import {
   matchContactsToClients,
   phoneTypeFromLabel,
   planContactImport,
+  realEstateAgentReason,
 } from "../contact-match";
 
 function contact(id: string, name: string, extra: Partial<DeviceContact> = {}): DeviceContact {
@@ -161,7 +162,7 @@ describe("planContactImport", () => {
       [client("c1", "Sam Lee", { phone: "5065550101", email: "sam@x.ca" })],
     );
     expect(r.candidates).toEqual([{
-      contactId: "k1", name: "Pat Ng", first_name: "Pat", last_name: "Ng",
+      contactId: "k1", agentReason: null, name: "Pat Ng", first_name: "Pat", last_name: "Ng",
       phone: "506-555-0199", phone_type: "mobile", secondary_phone: "506-555-0100", secondary_phone_type: "home",
       email: "pat@x.ca", secondary_email: null, birthdate: "1604-06-02", kind: "person",
     }]);
@@ -216,5 +217,53 @@ describe("planContactImport", () => {
   it("caps a name at the 200 characters the database allows", () => {
     const r = planContactImport([contact("k1", "A".repeat(250), { emails: [{ email: "a@x.ca" }] })], []);
     expect(r.candidates[0].name).toHaveLength(200);
+  });
+});
+
+describe("realEstateAgentReason", () => {
+  const person = (extra: Partial<DeviceContact>) => contact("k1", "Jane Smith", extra);
+
+  it("flags brokerage brands in the company, however they're written", () => {
+    for (const company of ["RE/MAX Professionals", "Royal LePage Atlantic", "Century 21 Colonial", "Keller Williams Capital",
+      "eXp Realty", "Coldwell Banker Select", "Sutton Group", "REAL Broker", "EXIT Realty Advantage", "Sotheby\u2019s International",
+      "Engel & Völkers"]) {
+      expect(realEstateAgentReason(person({ company }))).toBe(`Company: ${company}`);
+    }
+  });
+
+  it("flags agent job titles and names saved with REALTOR", () => {
+    expect(realEstateAgentReason(person({ jobTitle: "REALTOR®" }))).toBe("Job title: REALTOR®");
+    expect(realEstateAgentReason(person({ jobTitle: "Broker of Record" }))).toBe("Job title: Broker of Record");
+    expect(realEstateAgentReason(contact("k1", "Jane Smith Realtor"))).toBe("Name: Jane Smith Realtor");
+    expect(realEstateAgentReason(contact("k1", "Jane (RE/MAX)"))).toBe("Name: Jane (RE/MAX)");
+  });
+
+  it("flags brokerage email domains", () => {
+    expect(realEstateAgentReason(person({ emails: [{ email: "jane@remax.ca" }] }))).toBe("Email: @remax.ca");
+    expect(realEstateAgentReason(person({ emails: [{ email: "jane@kw.com" }] }))).toBe("Email: @kw.com");
+    expect(realEstateAgentReason(person({ emails: [{ email: "jane@smithrealty.ca" }] }))).toBe("Email: @smithrealty.ca");
+  });
+
+  it("leaves referral partners and everyone else alone", () => {
+    for (const extra of [
+      { company: "Smith Real Estate Law" }, { jobTitle: "Mortgage Broker" }, { company: "Atlantic Home Inspections" },
+      { company: "Royal Bank" }, { jobTitle: "Insurance Broker" }, { company: "Irving Oil" }, {},
+    ] as Partial<DeviceContact>[]) {
+      expect(realEstateAgentReason(person(extra))).toBeNull();
+    }
+    // A surname is not a brokerage.
+    expect(realEstateAgentReason(contact("k1", "Pat Sutton"))).toBeNull();
+    expect(realEstateAgentReason(person({ emails: [{ email: "jane@gmail.com" }] }))).toBeNull();
+  });
+
+  it("marks agents in the import plan", () => {
+    const r = planContactImport(
+      [contact("k1", "Jane Smith", { company: "Royal LePage" }), contact("k2", "Pat Ng", { emails: [{ email: "pat@x.ca" }] })],
+      [],
+    );
+    expect(r.candidates.map((x) => [x.name, x.agentReason])).toEqual([
+      ["Jane Smith", "Company: Royal LePage"],
+      ["Pat Ng", null],
+    ]);
   });
 });

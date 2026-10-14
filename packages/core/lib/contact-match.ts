@@ -48,6 +48,8 @@ export interface DeviceContact {
   company?: string | null;
   /** True for a contact iOS files as a company rather than a person. */
   isCompany?: boolean;
+  jobTitle?: string | null;
+  department?: string | null;
   firstName?: string | null;
   lastName?: string | null;
   phones: { number: string; label?: string | null }[];
@@ -268,6 +270,12 @@ export type ImportKind = "person" | "business" | "name_only";
 
 export interface ImportCandidate {
   contactId: string;
+  /**
+   * Why this contact looks like a real estate agent (e.g. "Company: RE/MAX"),
+   * or null. Agents are listed but left unticked: Andrew doesn't import other
+   * agents as clients.
+   */
+  agentReason: string | null;
   name: string;
   first_name: string | null;
   last_name: string | null;
@@ -357,6 +365,7 @@ export function planContactImport(
     const isBusiness = !!c.isCompany || (!personName && !!company);
     plan.candidates.push({
       contactId: c.id,
+      agentReason: realEstateAgentReason(c),
       name,
       first_name: isBusiness ? null : (c.firstName?.trim() || null),
       last_name: isBusiness ? null : (c.lastName?.trim() || null),
@@ -372,4 +381,68 @@ export function planContactImport(
   }
   plan.candidates.sort((a, b) => a.name.localeCompare(b.name));
   return plan;
+}
+
+// ── Other real estate agents ────────────────────────────────────────────────
+// A contact whose company, job title, department, name or email points at a
+// real estate brokerage is probably another agent, not a client. The general
+// words ("real estate", "realty", "realtor", "brokerage") don't count when
+// the same text names a partner trade (a real estate lawyer, a mortgage
+// broker, a home inspector): those are referral partners, not agents. Brand
+// names always count. A guess either way is the agent's to correct: agents
+// are listed unticked, not hidden.
+
+const strip = (t: string) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+
+const BRAND_PATTERNS: RegExp[] = [
+  /\bre\s*\/\s*max\b/, /\bremax\b/, /\broyal\s*le\s*page\b/, /\bcentury\s*21\b/, /\bc21\b/,
+  /\bcoldwell\s*banker\b/, /\bkeller\s*williams\b/, /\bexp\s*realty\b/, /\bsutton\s*group\b/,
+  /\breal\s*broker(age)?\b/, /\bexit\s*realty\b/, /\bsotheby['\u2019]?s\b/, /\bengel\s*(&|and)\s*volkers\b/,
+  /\bberkshire\s*hathaway\s*home\s*services\b/, /\bhomelife\b/, /\bright\s*at\s*home\s*realty\b/,
+  /\bharvey\s*kalles\b/, /\bchestnut\s*park\b/, /\brealty\s*executives\b/, /\bpurplebricks\b/,
+];
+const ROLE_PATTERNS: RegExp[] = [
+  /\brealtors?\b/, /\breal\s*estate\s*(agent|sales|associate|advisor|consultant)\b/,
+  /\bbroker\s*of\s*record\b/, /\b(managing|associate|real\s*estate)\s*broker\b/, /\blisting\s*agent\b/,
+  /\bcourtier\s*immobilier\b/,
+];
+const GENERAL_PATTERNS: RegExp[] = [/\breal\s*estate\b/, /\brealty\b/, /\bbrokerage\b/, /\bimmobilier\b/];
+const PARTNER_TRADES = /\b(law|lawyer|lawyers|legal|notary|notaire|mortgage|mortgages|lender|lending|bank|appraiser|appraisal|inspector|inspection|inspections|insurance|staging|stager|photograph\w*|title)\b/;
+
+const BRAND_DOMAIN_LABELS = new Set([
+  "remax", "royallepage", "kw", "kwrealty", "exprealty", "century21", "c21", "coldwellbanker", "cbrealty",
+  "suttongroup", "therealbrokerage", "realbroker", "joinreal", "onereal", "exitrealty", "sothebysrealty",
+  "evrealestate", "engelvoelkers", "homelife", "purplebricks", "harveykalles", "chestnutpark",
+]);
+
+function textReason(label: string, raw: string | null | undefined): string | null {
+  const value = (raw ?? "").trim();
+  if (!value) return null;
+  const t = strip(value);
+  if (BRAND_PATTERNS.some((r) => r.test(t)) || ROLE_PATTERNS.some((r) => r.test(t))) return `${label}: ${value}`;
+  if (GENERAL_PATTERNS.some((r) => r.test(t)) && !PARTNER_TRADES.test(t)) return `${label}: ${value}`;
+  return null;
+}
+
+/** Why a contact looks like a real estate agent, or null. */
+export function realEstateAgentReason(c: DeviceContact): string | null {
+  return (
+    textReason("Company", c.company) ??
+    textReason("Job title", c.jobTitle) ??
+    textReason("Department", c.department) ??
+    // Agents are often saved as "Jane Smith REALTOR®" or "Jane (RE/MAX)".
+    (() => {
+      const n = strip(c.name ?? "");
+      return BRAND_PATTERNS.some((r) => r.test(n)) || ROLE_PATTERNS.some((r) => r.test(n)) ? `Name: ${c.name.trim()}` : null;
+    })() ??
+    (() => {
+      for (const e of c.emails) {
+        const domain = strip(e.email).split("@")[1];
+        if (!domain) continue;
+        const labels = domain.split(".");
+        if (labels.some((l) => BRAND_DOMAIN_LABELS.has(l) || /realty|realestate|realtor/.test(l))) return `Email: @${domain}`;
+      }
+      return null;
+    })()
+  );
 }
