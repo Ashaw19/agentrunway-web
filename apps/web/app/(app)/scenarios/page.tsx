@@ -1,67 +1,13 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { ScenariosContent } from "./scenarios-content";
-import type { Transaction, PipelineDeal, SplitPreset, RecurringExpense } from "@/lib/types/database";
+import type { HistoryItem, ListingAppointment, Transaction, PipelineDeal, RecurringExpense } from "@/lib/types/database";
 import { expenseTaxContext } from "@agent-runway/core/engines/expense-totals-engine";
 import { ytdExpenseTotals } from "@agent-runway/core/engines/t2125-expenses-engine";
-import { computeGCI, computeWeightedGCI, activePipelineDeals } from "@/lib/types/database";
-import { projectedYearEndGCI, projectedYearEndTransactions, seasonalFractionElapsed } from "@/lib/engines/projection-engine";
-import { computeEffectiveCashForSurvival } from "@/lib/engines/effective-cash";
+import { buildScenarioSeed } from "@/lib/scenario-seed";
 import { atlanticNoon } from "@agent-runway/core/lib/local-date";
 
-
-/** Data the client component needs — pre-computed server-side. */
-export interface ScenarioSeedData {
-  /** Plan-aware compensation slice (comp_plan + real_* + legacy split/fee
-   *  fields). null when user_settings row is missing. */
-  comp: import("@agent-runway/core/engines/real-compensation-engine").CompSettingsSlice | null;
-  /** Province slug from settings */
-  province: string;
-  /** Annual GCI goal */
-  goalGCI: number;
-  /** YTD GCI (closed transactions this year) */
-  ytdGCI: number;
-  /** Projected annual GCI (year-end projection from pace + pipeline) */
-  projectedAnnualGCI: number;
-  /** YTD closed deal count */
-  dealCount: number;
-  /** Pipeline weighted GCI total */
-  pipelineWeightedGCI: number;
-  /** Expected each month: ytdExpenseTotals(...).monthlyRecurring (matches dashboard) */
-  monthlyRecurring: number;
-  /** Year-to-date expenses: ytdExpenseTotals(...).expensesYTD (matches dashboard) */
-  expensesYTD: number;
-  /** Expenses still to come this year (remainingYearExpenses): with expensesYTD, the year's expenses */
-  expensesRemaining: number;
-  /** Monthly brokerage fee from settings */
-  monthlyBrokerageFee: number;
-  /** Baseline cash for Survival — cashPosition.effectiveCash (matches dashboard/chat).
-   *  User slider adjusts this value in scenarios-content; the seed value is the
-   *  implied business cash position, not the raw user-entered cash_reserve field. */
-  cashReserve: number;
-  /** Whether incorporated */
-  isIncorporated: boolean;
-  /** Compensation method (salary/dividends/mixed) */
-  compensationMethod: string;
-  /** Seasonal quarter weights */
-  quarterPcts: number[];
-  /** Brokerage split preset */
-  splitPreset: SplitPreset;
-  /** Post-cap threshold GCI */
-  postCapThreshold: number;
-  /** Post-cap agent percentage */
-  postCapAgentPct: number;
-  /** Post-cap brokerage percentage */
-  postCapBrokeragePct: number;
-  /** Transaction fee rate (decimal) */
-  txFeeRate: number;
-  /** Transaction fee annual cap */
-  txFeeCap: number;
-  /** Self-reported average weekly working hours (null = not set) */
-  estimatedWeeklyHours: number | null;
-  /** Weeks of vacation/time-off per year (null = not set) */
-  vacationWeeks: number | null;
-}
+export type { ScenarioSeedData } from "@/lib/scenario-seed";
 
 export default async function ScenariosPage() {
   const supabase = await createClient();
@@ -82,7 +28,8 @@ export default async function ScenariosPage() {
     .maybeSingle();
 
   // ── Live Supabase queries ──────────────────────────────────────────
-  const [txResult, pipelineResult, expItemResult, receiptResult, recurringExpResult] =
+  // The dashboard page's queries: the seed is the dashboard's projection.
+  const [txResult, pipelineResult, expItemResult, receiptResult, recurringExpResult, historyResult, listingResult] =
       await Promise.all([
         supabase
           .from("transactions")
@@ -113,82 +60,45 @@ export default async function ScenariosPage() {
           .eq("user_id", user.id)
           .eq("is_active", true)
           .limit(10000),
+        // The agent's own seasonal pattern, once two years carry quarterly GCI.
+        supabase
+          .from("history_items")
+          .select("*")
+          .eq("user_id", user.id)
+          .order("year", { ascending: false })
+          .limit(10000),
+        // The dashboard's listing query: its projected GCI counts scheduled
+        // and active listing appointments.
+        supabase
+          .from("listing_appointments")
+          .select("*")
+          .eq("user_id", user.id)
+          .in("status", ["scheduled", "active"])
+          .limit(10000),
       ]);
 
-    const transactions = (txResult.data ?? []) as Transaction[];
-    const pipelineDeals = (pipelineResult.data ?? []) as PipelineDeal[];
+  // Year-to-date expenses, the monthly figure and what is still to come
+  // this year: the dashboard's one engine call (t2125-expenses-engine).
+  // Receipts, the per-item monthly figures and the Recurring Expenses list,
+  // net of the ITCs a registrant claims.
+  const expenses = ytdExpenseTotals({
+    receipts: receiptResult.data,
+    recurring: (recurringExpResult.data ?? []) as RecurringExpense[],
+    expenseItems: expItemResult.data,
+    ctx: expenseTaxContext(settingsRow),
+    now: today,
+  });
 
-    const ytdGCI = transactions.reduce((sum, tx) => sum + computeGCI(tx), 0);
-    // Hoisted so the weighted-GCI reduce and the deal COUNT are derived from
-  // the SAME filtered array. #258 filtered the money and left the count raw,
-  // which fed terminal deals into projectedYearEndTransactions at +0.3 each.
-    const livePipelineDeals = activePipelineDeals(pipelineDeals);
-    const pipelineWeightedGCI = livePipelineDeals.reduce(
-      (sum, d) => sum + computeWeightedGCI(d),
-      0,
-    );
-
-    // Year-to-date expenses, the monthly figure and what is still to come
-    // this year: the dashboard's one engine call (t2125-expenses-engine).
-    // Receipts, the per-item monthly figures and the Recurring Expenses list,
-    // net of the ITCs a registrant claims.
-    const { expensesYTD, monthlyRecurring, expensesRemaining } = ytdExpenseTotals({
-      receipts: receiptResult.data,
-      recurring: (recurringExpResult.data ?? []) as RecurringExpense[],
-      expenseItems: expItemResult.data,
-      ctx: expenseTaxContext(settingsRow),
-      now: today,
-    });
-
-    const qPcts = settingsRow?.national_quarter_pcts ?? [0.25, 0.25, 0.25, 0.25];
-    const fraction = seasonalFractionElapsed(qPcts);
-    const projectedAnnualGCI = projectedYearEndGCI(ytdGCI, pipelineWeightedGCI, fraction, settingsRow?.goal_gci ?? 0);
-
-    // Baseline cash input MUST be cashPosition.effectiveCash (not raw cash_reserve)
-    // to match dashboard + chat. The scenarios slider lets the user adjust
-    // this lever — but the starting point has to agree with the dashboard.
-    // See memory/feedback_data_consistency_protocol.md.
-    const projectedDealCount = projectedYearEndTransactions(transactions.length, livePipelineDeals.length, fraction);
-    const scenarioBaselineCash = settingsRow
-      ? computeEffectiveCashForSurvival({
-          settings: settingsRow,
-          ytdGCI,
-          expensesYTD,
-          expensesRemaining,
-          projectedGCI: projectedAnnualGCI,
-          projectedDealCount,
-          fraction,
-          now: today,
-        }).cashPosition.effectiveCash
-      : 0;
-
-  const seed: ScenarioSeedData = {
-    province: settingsRow?.province ?? "ontario",
-    goalGCI: settingsRow?.goal_gci ?? 0,
-    ytdGCI,
-    projectedAnnualGCI,
-    dealCount: transactions.length,
-    pipelineWeightedGCI,
-    monthlyRecurring,
-    expensesYTD,
-    expensesRemaining,
-    monthlyBrokerageFee: settingsRow?.monthly_brokerage_fee ?? 0,
-    cashReserve: scenarioBaselineCash,
-    isIncorporated: settingsRow?.is_incorporated ?? false,
-    compensationMethod: settingsRow?.compensation_method ?? "salary",
-    quarterPcts: qPcts,
-    splitPreset: (settingsRow?.split_preset ?? "p80_20") as SplitPreset,
-    postCapThreshold: settingsRow?.post_cap_threshold_gci ?? 0,
-    postCapAgentPct: settingsRow?.post_cap_agent_pct ?? 1,
-    postCapBrokeragePct: settingsRow?.post_cap_brokerage_pct ?? 0,
-    txFeeRate: settingsRow?.tx_fee_rate_pct ?? 0,
-    txFeeCap: settingsRow?.tx_fee_annual_cap ?? 0,
-    // Full plan slice (REAL waterfall support) — settingsRow is a select("*")
-    // row, so the slice is complete; null settings → legacy defaults.
-    comp: settingsRow ?? null,
-    estimatedWeeklyHours: settingsRow?.estimated_weekly_hours ?? null,
-    vacationWeeks: settingsRow?.vacation_weeks_per_year ?? null,
-  };
+  // The dashboard's projection, seasonal weights, deal count, cash and
+  // benchmark (lib/scenario-seed.ts).
+  const seed = buildScenarioSeed({
+    settings: settingsRow ?? null,
+    transactions: (txResult.data ?? []) as Transaction[],
+    pipelineDeals: (pipelineResult.data ?? []) as PipelineDeal[],
+    listings: (listingResult.data ?? []) as ListingAppointment[],
+    historyItems: (historyResult.data ?? []) as HistoryItem[],
+    expenses,
+  });
 
   return <ScenariosContent seed={seed} />;
 }

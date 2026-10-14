@@ -2,15 +2,8 @@
 
 import { useState, useMemo } from "react";
 import type { ScenarioSeedData } from "./page";
-import type { Province } from "@/lib/types/database";
-import { computeAgentGross, computeTxFees } from "@/lib/types/database";
-import { computePlanGross } from "@/lib/engines/real-compensation-engine";
-import { calculate as calculateTax } from "@/lib/engines/canadian-tax-engine";
-import { calculateCorporateTax } from "@/lib/engines/corporate-tax-engine";
-import { survivalResult, riskLevelFromMonths, isFlaggedRiskLevel, riskBandPhrase } from "@/lib/engines/survival-engine";
-import { buildHealthReport } from "@/lib/engines/health-report";
-import { compute as computeRunwayScore } from "@/lib/engines/runway-score-engine";
-import { seasonalFractionElapsed } from "@/lib/engines/projection-engine";
+import { computeScenarioResult, seedScenarioInputs, type CompensationMethod } from "@/lib/scenario-seed";
+import { riskLevelFromMonths, isFlaggedRiskLevel, riskBandPhrase } from "@/lib/engines/survival-engine";
 import { fmtCurrency, fmtPct } from "@/lib/formatters";
 import {
   SlidersHorizontal,
@@ -52,233 +45,51 @@ function gradeColor(grade: string) {
   return "text-red-500";
 }
 
-// ── Types ──────────────────────────────────────────────────────────────────
-
-interface ComputedResult {
-  taxOwed: number;
-  netIncome: number;
-  effectiveRate: number;
-  quarterlyInstalment: number;
-  perDealSetAside: number;
-  runwayScore: number;
-  runwayGrade: string;
-  survivalMonths: number;
-}
-
-// ── Computation ────────────────────────────────────────────────────────────
-
-function computeResult(
-  annualGCI: number,
-  dealCount: number,
-  rrspContribution: number,
-  isIncorporated: boolean,
-  compensationMethod: "salary" | "dividends" | "mixed",
-  monthlyRecurring: number,
-  cashReserve: number,
-  goalGCI: number,
-  pipelineWeightedGCI: number,
-  province: Province,
-  quarterPcts: number[],
-  monthlyBrokerageFee: number,
-  splitPreset: ScenarioSeedData["splitPreset"],
-  postCapThreshold: number,
-  postCapAgentPct: number,
-  postCapBrokeragePct: number,
-  txFeeRate: number,
-  txFeeCap: number,
-  expensesYTD: number,
-  ytdGCI: number,
-  comp: ScenarioSeedData["comp"],
-  /** seed.expensesRemaining: what is still to come this year as things stand. */
-  expensesRemaining: number,
-  /** seed.monthlyRecurring: the monthly figure `expensesRemaining` was built on. */
-  baselineMonthlyRecurring: number,
-): ComputedResult {
-  // ── Match dashboard: deduct split, fees, brokerage, expenses before tax ──
-  // Plan-aware (REAL analytic waterfall or legacy split) — mirrors
-  // effective-cash.ts:projectedAgentNet on hypothetical annual figures.
-  const planScenario = comp
-    ? computePlanGross(comp, annualGCI, { dealCount })
-    : null;
-  const agentGross = planScenario
-    ? planScenario.shareBeforePlanFees
-    : computeAgentGross(annualGCI, splitPreset, postCapThreshold, postCapAgentPct, postCapBrokeragePct).agentGross;
-  const txFees = planScenario ? planScenario.planFees : computeTxFees(annualGCI, txFeeRate, txFeeCap);
-  const brokerageFeeAnnual = monthlyBrokerageFee * 12;
-
-  // Dashboard projects annual expenses: expensesYTD + what is still to come
-  // this year. A changed monthly figure moves each whole month after this
-  // one by the difference; unchanged, this is the dashboard's number. The
-  // rest of the year never goes below zero: the monthly figure carries a
-  // twelfth of an annual fee that may already be charged, so lowering it
-  // can't take back what is in expensesYTD.
-  const now = new Date();
-  const expRemainingMonths = Math.max(0, 12 - (now.getMonth() + 1));
-  const restOfYear = Math.max(
-    0,
-    expensesRemaining + (monthlyRecurring - baselineMonthlyRecurring) * expRemainingMonths,
-  );
-  const annualExpenses = expensesYTD + restOfYear;
-
-  const projectedNet = agentGross - txFees - brokerageFeeAnnual;
-  const netForTax = Math.max(0, projectedNet - annualExpenses - rrspContribution);
-
-  let taxOwed: number;
-  let netIncome: number;
-  let effectiveRate: number;
-  let quarterlyInstalment: number;
-  let perDealSetAside: number;
-
-  if (isIncorporated) {
-    // Dashboard passes netForTax as corporateIncome (RRSP already deducted above for salary)
-    const corpResult = calculateCorporateTax({
-      corporateIncome: netForTax,
-      province,
-      compensationMethod,
-      dealCount: dealCount > 0 ? dealCount : 1,
-    });
-    taxOwed = corpResult.totalCombinedTax;
-    netIncome = corpResult.netPersonalIncome;
-    effectiveRate = netForTax > 0 ? taxOwed / netForTax : 0;
-    quarterlyInstalment = taxOwed / 4;
-    perDealSetAside = dealCount > 0 ? taxOwed / dealCount : taxOwed;
-  } else {
-    const taxResult = calculateTax(netForTax, province, dealCount > 0 ? dealCount : 1);
-    taxOwed = taxResult.totalBurden;
-    netIncome = netForTax - taxOwed;
-    effectiveRate = taxResult.effectiveRate;
-    quarterlyInstalment = taxResult.quarterlyEstimate;
-    perDealSetAside = taxResult.perDealSetAside;
-  }
-
-  // ── Runway score (uses YTD GCI for pace, not projected) ──────────────
-  const fraction = seasonalFractionElapsed(quarterPcts);
-  const healthReport = buildHealthReport(
-    ytdGCI,
-    goalGCI,
-    fraction,
-    pipelineWeightedGCI,
-    expensesYTD,
-  );
-
-  // Survival months — cashReserve here is the user-adjusted slider value,
-  // but the baseline comes from cashPosition.effectiveCash (computed in
-  // scenarios/page.tsx) so the "no change" scenario matches dashboard + chat.
-  // See memory/feedback_data_consistency_protocol.md.
-  const survival = survivalResult(
-    monthlyBrokerageFee,
-    monthlyRecurring,
-    cashReserve,
-  );
-
-  const benchmarkPercentile = 50; // neutral — scenario isolates the effect of changes
-  const runwayResult = computeRunwayScore(
-    healthReport,
-    benchmarkPercentile,
-    survival.months,
-  );
-
-  return {
-    taxOwed,
-    netIncome,
-    effectiveRate,
-    quarterlyInstalment,
-    perDealSetAside,
-    runwayScore: runwayResult.score,
-    runwayGrade: runwayResult.grade,
-    survivalMonths: survival.months,
-  };
-}
-
 // ── Main Component ─────────────────────────────────────────────────────────
 
 export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
   // ── Input state (scenario values — user adjusts these) ────────────────
   const [scenarioGCI, setScenarioGCI] = useState(seed.projectedAnnualGCI);
-  const [scenarioDealCount, setScenarioDealCount] = useState(seed.dealCount);
+  const [scenarioDealCount, setScenarioDealCount] = useState(seed.projectedDealCount);
   const [scenarioRRSP, setScenarioRRSP] = useState(0);
   const [scenarioIncorporated, setScenarioIncorporated] = useState(seed.isIncorporated);
-  const [scenarioCompMethod, setScenarioCompMethod] = useState<"salary" | "dividends" | "mixed">(
-    (seed.compensationMethod as "salary" | "dividends" | "mixed") || "salary",
+  const [scenarioCompMethod, setScenarioCompMethod] = useState<CompensationMethod>(
+    (seed.compensationMethod as CompensationMethod) || "salary",
   );
   const [scenarioMonthlyRecurring, setScenarioMonthlyRecurring] = useState(seed.monthlyRecurring);
   const [scenarioCashReserve, setScenarioCashReserve] = useState(seed.cashReserve);
   const [scenarioWeeklyHours, setScenarioWeeklyHours] = useState(seed.estimatedWeeklyHours ?? 0);
   const [showAdvanced, setShowAdvanced] = useState(false);
 
-  const province = (seed.province || "ontario") as Province;
-
   // Track how many inputs differ from seed (for Reset button)
   const modifiedCount = [
     scenarioGCI !== seed.projectedAnnualGCI,
-    scenarioDealCount !== seed.dealCount,
+    scenarioDealCount !== seed.projectedDealCount,
     scenarioRRSP !== 0,
     scenarioIncorporated !== seed.isIncorporated,
-    scenarioCompMethod !== ((seed.compensationMethod as "salary" | "dividends" | "mixed") || "salary"),
+    scenarioCompMethod !== ((seed.compensationMethod as CompensationMethod) || "salary"),
     scenarioMonthlyRecurring !== seed.monthlyRecurring,
     scenarioCashReserve !== seed.cashReserve,
     scenarioWeeklyHours !== (seed.estimatedWeeklyHours ?? 0),
   ].filter(Boolean).length;
 
-  // Shared args for split/fee deductions (passed to computeResult)
-  const deductionArgs = useMemo(() => [
-    seed.splitPreset,
-    seed.postCapThreshold,
-    seed.postCapAgentPct,
-    seed.postCapBrokeragePct,
-    seed.txFeeRate,
-    seed.txFeeCap,
-    seed.expensesYTD,
-  ] as const, [seed.splitPreset, seed.postCapThreshold, seed.postCapAgentPct, seed.postCapBrokeragePct, seed.txFeeRate, seed.txFeeCap, seed.expensesYTD]);
-
-  // ── Current result (from real data — matches dashboard logic) ─────────
-  const current = useMemo(
-    () =>
-      computeResult(
-        seed.projectedAnnualGCI,
-        seed.dealCount,
-        0, // no RRSP adjustment for current
-        seed.isIncorporated,
-        (seed.compensationMethod as "salary" | "dividends" | "mixed") || "salary",
-        seed.monthlyRecurring,
-        seed.cashReserve,
-        seed.goalGCI,
-        seed.pipelineWeightedGCI,
-        province,
-        seed.quarterPcts,
-        seed.monthlyBrokerageFee,
-        ...deductionArgs,
-        seed.ytdGCI,
-        seed.comp,
-        seed.expensesRemaining,
-        seed.monthlyRecurring,
-      ),
-    [seed, province, deductionArgs],
-  );
+  // ── Current result (the seed as it is: the dashboard's figures) ───────
+  const current = useMemo(() => computeScenarioResult(seed, seedScenarioInputs(seed)), [seed]);
 
   // ── Scenario result (from user-adjusted inputs) ───────────────────────
   const scenario = useMemo(
     () =>
-      computeResult(
-        scenarioGCI,
-        scenarioDealCount,
-        scenarioRRSP,
-        scenarioIncorporated,
-        scenarioCompMethod,
-        scenarioMonthlyRecurring,
-        scenarioCashReserve,
-        seed.goalGCI,
-        seed.pipelineWeightedGCI,
-        province,
-        seed.quarterPcts,
-        seed.monthlyBrokerageFee,
-        ...deductionArgs,
-        seed.ytdGCI,
-        seed.comp,
-        seed.expensesRemaining,
-        seed.monthlyRecurring,
-      ),
+      computeScenarioResult(seed, {
+        annualGCI: scenarioGCI,
+        dealCount: scenarioDealCount,
+        rrspContribution: scenarioRRSP,
+        isIncorporated: scenarioIncorporated,
+        compensationMethod: scenarioCompMethod,
+        monthlyRecurring: scenarioMonthlyRecurring,
+        cashReserve: scenarioCashReserve,
+      }),
     [
+      seed,
       scenarioGCI,
       scenarioDealCount,
       scenarioRRSP,
@@ -286,16 +97,6 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
       scenarioCompMethod,
       scenarioMonthlyRecurring,
       scenarioCashReserve,
-      seed.goalGCI,
-      seed.pipelineWeightedGCI,
-      province,
-      seed.quarterPcts,
-      seed.monthlyBrokerageFee,
-      deductionArgs,
-      seed.ytdGCI,
-      seed.comp,
-      seed.expensesRemaining,
-      seed.monthlyRecurring,
     ],
   );
 
@@ -331,7 +132,9 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
     const runwayLevel = current.survivalMonths > 0 ? riskLevelFromMonths(current.survivalMonths) : "notConfigured";
     if (isFlaggedRiskLevel(runwayLevel)) {
       return {
-        column: `Cash runway is ${current.survivalMonths.toFixed(1)} months at your current expense level`,
+        column:
+          `Cash runway is ${current.survivalMonths.toFixed(1)} months at your current expense level` +
+          (current.pipelineMonthlyIncome > 0 ? ", after the income estimated from your pipeline" : ""),
         nudge: `Your cash runway is ${riskBandPhrase(runwayLevel)}. Try adjusting your reserve to see the effect.`,
       };
     }
@@ -427,10 +230,14 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
               </div>
             </div>
 
-            {/* 2. Deal Count */}
+            {/* 2. Projected Deal Count: the dashboard's projected year-end deals */}
             <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-600">Deal Count</label>
-              <span className="block text-[10px] text-slate-400 -mt-1">Only changes the per-deal tax portion. Total tax stays the same</span>
+              <label className="text-sm font-medium text-slate-600">Projected Deal Count</label>
+              <span className="block text-[10px] text-slate-400 -mt-1">
+                {seed.comp?.comp_plan === "real"
+                  ? "Changes the per-deal tax portion, and your plan's per-deal fees and so the tax"
+                  : "Only changes the per-deal tax portion. Total tax stays the same"}
+              </span>
               <div className="flex items-center gap-3">
                 <button
                   type="button"
@@ -622,11 +429,11 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
               disabled={modifiedCount === 0}
               onClick={() => {
                 setScenarioGCI(seed.projectedAnnualGCI);
-                setScenarioDealCount(seed.dealCount);
+                setScenarioDealCount(seed.projectedDealCount);
                 setScenarioRRSP(0);
                 setScenarioIncorporated(seed.isIncorporated);
                 setScenarioCompMethod(
-                  (seed.compensationMethod as "salary" | "dividends" | "mixed") || "salary",
+                  (seed.compensationMethod as CompensationMethod) || "salary",
                 );
                 setScenarioMonthlyRecurring(seed.monthlyRecurring);
                 setScenarioCashReserve(seed.cashReserve);
@@ -823,11 +630,11 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
               <QuickButton
                 label="What if I close 5 more deals?"
                 onClick={() => {
-                  setScenarioDealCount(seed.dealCount + 5);
+                  setScenarioDealCount(seed.projectedDealCount + 5);
                   setScenarioGCI(
                     seed.projectedAnnualGCI +
-                      (seed.dealCount > 0
-                        ? (seed.projectedAnnualGCI / seed.dealCount) * 5
+                      (seed.projectedDealCount > 0
+                        ? (seed.projectedAnnualGCI / seed.projectedDealCount) * 5
                         : 50_000),
                   );
                 }}

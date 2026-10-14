@@ -2130,32 +2130,43 @@ The Altimeter is your deep analytics dashboard — performance tracking, insight
   // ═══════════════════════════════════════════════════════════════════════════
   scenarios: `## TROUBLESHOOTING: SCENARIOS (WHAT-IF MODELING)
 
-### What the Scenarios Page Does
-Financial what-if modeling that lets you test different business assumptions without affecting real data.
+### What the Scenario Engine Does
+What-if modeling that never changes the agent's records. It is on the Scenarios page and on Overhead's "Scenarios" tab: the same engine, the same figures.
 
-**Adjustable Variables:**
-- Deal count (how many deals you'll close)
-- Average sale price
-- Commission rate
-- Expense levels (increase/decrease by percentage)
-- Brokerage fees / caps
+**Two columns:**
+- **Your Projection**: the agent's figures as they stand, which are the dashboard's ("Based on your dashboard data")
+- **What If**: the same calculation on the inputs the agent changes. "Reset to Current" puts every input back to Your Projection's
 
-**How It Works:**
-1. Start from your current year actuals as the baseline
-2. Adjust one or more variables
-3. See projected year-end GCI, take-home, tax impact
-4. Compare multiple scenarios side by side
+**Inputs:**
+- Projected Annual GCI (starts at the dashboard's projected year-end GCI)
+- Projected Deal Count (starts at the dashboard's projected year-end deal count). Divides the year's tax into the per-deal tax portion
+- RRSP contribution, incorporation and compensation method
+- Monthly Recurring, Cash Reserve (starts at the dashboard's cash position, not the cash reserve typed in Settings), Weekly Hours
+
+**Figures shown:** take-home, tax owed, effective tax rate, CRA instalments, per-deal tax portion, Runway Score, cash runway, effective hourly rate (when weekly hours are set).
+
+**Your Projection = the dashboard** (lib/scenario-seed.ts, buildScenarioSeed, from the rows the dashboard reads):
+- Projected GCI and projected deal count: the dashboard's projection. Seasonal pattern: the agent's own once two history years carry quarterly GCI, else the national pattern when it is switched on for the account, else four equal quarters. Listing appointments (scheduled or active) are counted in projected GCI the way the dashboard counts them
+- Tax owed and per-deal tax portion: the dashboard's tax estimate, and tax ÷ projected deals (its "Per-deal tax portion"). Incorporated: the dashboard's Corporate Tax Estimate card
+- Cash runway: the dashboard's cash position ÷ (burn − the pipeline income estimate), so the same months and band as the dashboard
+- Runway Score: the dashboard's, benchmark included (where projected GCI sits in the agent's experience cohort). In What If, a changed GCI moves the benchmark the way it would on the dashboard
+
+**Changed 2026-10-14:** before that date the engine used the national pattern whether or not it was switched on and ignored the agent's own history, left listing appointments out of projected GCI, started Deal Count at the deals closed so far (so the per-deal tax portion was the year's tax ÷ deals to date), worked the cash runway out as cash ÷ burn with no pipeline income, and fixed the Runway Score's benchmark at the 50th percentile. So Your Projection could show a different projected GCI, tax, per-deal tax portion, cash runway or Runway Score from the dashboard. On that date it moved to the dashboard's figures with no change in the agent's data. Deal Count is now labelled "Projected Deal Count" and starts higher than before for most agents.
 
 **Use Cases:**
-- "What if I close 2 more deals this year?"
-- "What if my average sale price goes up by $50K?"
-- "What happens to my take-home if I cut marketing expenses by 30%?"
-- "Should I aim for more deals or higher-value deals?"
+- "What if I close 5 more deals this year?" (Quick Scenarios: adds 5 deals at the projected average deal, projected GCI ÷ projected deals)
+- "What if I earn $30K more?"
+- "What happens to my tax if I incorporate?"
+- "How much longer does my cash last if I cut monthly expenses?"
 
 ### Common Issues
-- **"Scenario shows wrong baseline"**: The baseline uses your current year's actual data. If transactions or expenses are missing, the baseline will be off.
-- **"Results seem unrealistic"**: Scenarios use your current commission structure and tax brackets. If Settings are wrong, scenarios will be wrong.
-- **"Can I save scenarios?"**: Scenarios are for real-time exploration. Adjust variables and compare — they reset when you leave the page.
+- **"Scenarios doesn't match my dashboard"**: since 2026-10-14 Your Projection is the dashboard's figures. If they still differ, the pages were loaded at different times (a deal, expense or listing appointment added in between); reload both. What If differs by design once an input is changed.
+- **"Deal Count went up" / "Projected Deal Count is more than I've closed"**: it is the dashboard's projected year-end count (deals to date at the current pace, plus 0.3 for each active pipeline deal), not deals closed so far. Changed 2026-10-14.
+- **"My cash runway on Scenarios changed"**: since 2026-10-14 it nets the pipeline income estimate, like the dashboard. Before that it was cash ÷ burn, which is lower whenever the agent has an active pipeline.
+- **"Scenarios' cash runway differs from the dashboard's" (incorporated agent)**: one known difference, not yet resolved. For an incorporated agent paid by dividends or a mix, the cash position on Scenarios (as on Forecast and Reports) counts the corporate tax estimate to date, while the dashboard's counts the personal income tax estimate. Paid by salary, the two agree.
+- **"Deal Count changes my tax" (REAL plan)**: on a REAL plan the deal count also sets the plan's per-deal fees, so changing it changes net income and the tax. On a simple split it only changes the per-deal tax portion.
+- **"Results seem unrealistic"**: Scenarios use the agent's commission plan, fees and tax brackets from Settings. If Settings are wrong, scenarios will be wrong.
+- **"Can I save scenarios?"**: Scenarios are for real-time exploration. They reset when you leave the page.
 
 ### How Scenarios Feed Into Decisions
 - Compare against your current pace from the Forecast page

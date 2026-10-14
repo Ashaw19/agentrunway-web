@@ -104,23 +104,69 @@ export function seasonalWeightsFor(
     : FLAT_SEASONAL_WEIGHTS;
 }
 
-export interface YearTaxEstimateInputs {
-  settings: ProjectedNetForTaxInputs["settings"] &
-    Pick<UserSettings, "province" | "goal_gci" | "use_national_seasonality" | "national_quarter_pcts">;
+export interface YearProjectionInputs {
+  /** null when the agent has no settings row: no goal, four equal quarters unless history says otherwise. */
+  settings: Pick<UserSettings, "goal_gci" | "use_national_seasonality" | "national_quarter_pcts"> | null;
   /** GCI of this year's closed deals (sum of `computeGCI`). */
   ytdGCI: number;
   /** This year's closed deals. */
   ytdDealCount: number;
   /** Every pipeline row; terminal stages are dropped here. */
-  pipelineDeals: ReadonlyArray<PipelineDealMetrics & { id: string; stage: string }>;
+  pipelineDeals: ReadonlyArray<PipelineDealMetrics & { stage: string }>;
   /** `listing_appointments` rows with status scheduled or active. */
   listings: ReadonlyArray<ListingWeightInput> | null | undefined;
   historyItems: ReadonlyArray<SeasonalHistoryYear>;
+  now?: Date;
+}
+
+export interface YearProjection {
+  /** Quarter weights the fraction is read from ({@link seasonalWeightsFor}). */
+  seasonalWeights: number[];
+  /** Seasonal fraction of the year elapsed. */
+  fraction: number;
+  /** Weighted GCI of the active pipeline: no listings, no closed or lost rows. */
+  pipelineWeightedGCI: number;
+  /** Probability-weighted GCI of the listing appointments. */
+  listingWeightedGCI: number;
+  /** Projected year-end GCI: pace + half of the pipeline and listing weighted GCI. */
+  projectedGCI: number;
+  projectedDealCount: number;
+}
+
+/**
+ * The dashboard's projection of the year, from the rows the dashboard reads.
+ * Mirrors dashboard-content.tsx ("Pipeline", "Listing appointment weighted
+ * GCI" and "Seasonality-aware projections").
+ */
+export function yearProjection(inputs: YearProjectionInputs): YearProjection {
+  const { settings, ytdGCI, ytdDealCount, now = new Date() } = inputs;
+
+  const livePipelineDeals = activePipelineDeals(inputs.pipelineDeals);
+  const pipelineWeightedGCI = livePipelineDeals.reduce((sum, d) => sum + computeWeightedGCI(d), 0);
+  const listingWeightedGCI = computeListingWeightedGCI(inputs.listings);
+
+  const seasonalWeights = seasonalWeightsFor(
+    inputs.historyItems,
+    settings ?? { use_national_seasonality: false, national_quarter_pcts: FLAT_SEASONAL_WEIGHTS },
+  );
+  const fraction = seasonalFractionElapsed(seasonalWeights, now);
+  const projectedGCI = projectedYearEndGCI(
+    ytdGCI, pipelineWeightedGCI + listingWeightedGCI, fraction, settings?.goal_gci ?? 0,
+  );
+  const projectedDealCount = projectedYearEndTransactions(ytdDealCount, livePipelineDeals.length, fraction);
+
+  return { seasonalWeights, fraction, pipelineWeightedGCI, listingWeightedGCI, projectedGCI, projectedDealCount };
+}
+
+export interface YearTaxEstimateInputs extends YearProjectionInputs {
+  settings: ProjectedNetForTaxInputs["settings"] &
+    Pick<UserSettings, "province" | "goal_gci" | "use_national_seasonality" | "national_quarter_pcts">;
+  /** Every pipeline row; terminal stages are dropped here. */
+  pipelineDeals: ReadonlyArray<PipelineDealMetrics & { id: string; stage: string }>;
   /** `ytdExpenseTotals(...).expensesYTD` */
   expensesYTD: number;
   /** `ytdExpenseTotals(...).expensesRemaining` */
   expensesRemaining: number;
-  now?: Date;
 }
 
 export interface YearTaxEstimate {
@@ -140,17 +186,9 @@ export interface YearTaxEstimate {
  * "Tax estimate"); cross-surface-parity.test.ts holds the two together.
  */
 export function yearTaxEstimate(inputs: YearTaxEstimateInputs): YearTaxEstimate {
-  const { settings, ytdGCI, ytdDealCount, expensesYTD, expensesRemaining, now = new Date() } = inputs;
+  const { settings, expensesYTD, expensesRemaining, now = new Date() } = inputs;
 
-  const livePipelineDeals = activePipelineDeals(inputs.pipelineDeals);
-  const pipelineWeightedGCI = livePipelineDeals.reduce((sum, d) => sum + computeWeightedGCI(d), 0);
-  const listingWeightedGCI = computeListingWeightedGCI(inputs.listings);
-
-  const fraction = seasonalFractionElapsed(seasonalWeightsFor(inputs.historyItems, settings), now);
-  const projectedGCI = projectedYearEndGCI(
-    ytdGCI, pipelineWeightedGCI + listingWeightedGCI, fraction, settings.goal_gci ?? 0,
-  );
-  const projectedDealCount = projectedYearEndTransactions(ytdDealCount, livePipelineDeals.length, fraction);
+  const { fraction, projectedGCI, projectedDealCount } = yearProjection({ ...inputs, now });
 
   const netForTax = computeProjectedNetForTax({
     projectedGCI,
