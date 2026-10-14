@@ -38,9 +38,13 @@ import {
   UserPlus,
   TrendingUp,
   X,
+  CheckCircle2,
+  Circle,
 } from "lucide-react-native";
 import {
   useDataStore,
+  type DraftTextResult,
+  type TextPurpose,
   type Client,
   type ContactActivity,
   type PipelineDeal,
@@ -142,7 +146,7 @@ export default function ClientsScreen() {
   const { t: tCommon } = useTranslation("common");
 
   const {
-    clients, fetchClients, addClient, addActivity, updateClient, isLoading,
+    clients, fetchClients, addClient, addActivity, updateClient, isLoading, draftTexts,
     smartListCounts, overdueFollowupClients, uncontactedLeadClients,
     clientPipelineContext,
   } = useDataStore();
@@ -160,6 +164,14 @@ export default function ClientsScreen() {
     pipelineContext: string | null;
   } | null>(null);
   const [showPostContact, setShowPostContact] = useState(false);
+
+  // ── Text queue (00179): pick clients, Flight Crew drafts a text for each ──
+  const [selecting, setSelecting] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [showTextSheet, setShowTextSheet] = useState(false);
+  const [textPurpose, setTextPurpose] = useState<TextPurpose>("check_in");
+  const [textNote, setTextNote] = useState("");
+  const [drafting, setDrafting] = useState(false);
 
   useEffect(() => {
     if (clients.length === 0) fetchClients();
@@ -228,6 +240,61 @@ export default function ClientsScreen() {
     setPendingContact({ clientId: client.id, clientName: client.name, type: "email", ...ctx });
     Linking.openURL(`mailto:${client.email}`);
   }, [getContactContext]);
+
+  const MAX_TEXTS = 10;
+
+  const toggleSelected = useCallback((client: Client) => {
+    setSelectedIds((prev) => {
+      if (prev.includes(client.id)) return prev.filter((id) => id !== client.id);
+      if (prev.length >= MAX_TEXTS) {
+        Alert.alert("Up to 10 at a Time", "Flight Crew drafts up to 10 texts at once. Send these, then pick more.");
+        return prev;
+      }
+      Haptics.selectionAsync();
+      return [...prev, client.id];
+    });
+  }, []);
+
+  const exitSelecting = useCallback(() => {
+    setSelecting(false);
+    setSelectedIds([]);
+  }, []);
+
+  const handleDraftTexts = useCallback(async () => {
+    if (textPurpose === "custom" && !textNote.trim()) {
+      Alert.alert("What Should It Say?", "Write a few words about what you'd like to tell them.");
+      return;
+    }
+    setDrafting(true);
+    const res = await draftTexts(selectedIds, textPurpose, textNote.trim() || null);
+    setDrafting(false);
+    if ("error" in res) {
+      Alert.alert("Couldn't Draft Texts", res.error);
+      return;
+    }
+    const ready = res.results.filter((r: DraftTextResult) => r.status === "created" || (r.status === "existing" && !r.reason));
+    const callOnly = res.results.filter((r: DraftTextResult) => r.status === "call_only");
+    const other = res.results.filter((r: DraftTextResult) => r.status === "skipped" || (r.status === "existing" && r.reason));
+    const lines = [
+      ready.length ? `${ready.length} text${ready.length === 1 ? "" : "s"} ready to send.` : null,
+      ...callOnly.map((r: DraftTextResult) => `Call ${r.clientName} instead: ${r.reason ?? ""}`),
+      ...other.map((r: DraftTextResult) => `${r.clientName}: ${r.reason ?? "not drafted"}`),
+    ].filter(Boolean) as string[];
+    setShowTextSheet(false);
+    setTextNote("");
+    exitSelecting();
+    Haptics.notificationAsync(ready.length ? Haptics.NotificationFeedbackType.Success : Haptics.NotificationFeedbackType.Warning);
+    Alert.alert(
+      ready.length ? "Texts Drafted" : "No Texts Drafted",
+      lines.join("\n\n"),
+      ready.length
+        ? [
+            { text: "Later", style: "cancel" },
+            { text: "Open Texts", onPress: () => router.push({ pathname: "/profile/outreach", params: { tab: "texts" } }) },
+          ]
+        : [{ text: "OK" }],
+    );
+  }, [draftTexts, selectedIds, textPurpose, textNote, exitSelecting, router]);
 
   const handlePostContactLog = useCallback(
     async (activityType: ActivityType, notes: string) => {
@@ -327,13 +394,28 @@ export default function ClientsScreen() {
       {/* ── Header ── */}
       <View style={{ paddingHorizontal: Space.xl, paddingTop: Space.xl, paddingBottom: Space.xs }}>
         <View style={styles.headerRow}>
-          <Text style={[Type.h1, { color: c.text }]}>{t("title")}</Text>
-          <Button
-            label={tCommon("actions.add")}
-            variant="primary"
-            icon="add"
-            onPress={() => setShowAdd(true)}
-          />
+          {selecting ? (
+            <Text style={[Type.h2, { color: c.text }]}>
+              {selectedIds.length ? `${selectedIds.length} selected` : "Select clients"}
+            </Text>
+          ) : (
+            <Text style={[Type.h1, { color: c.text }]}>{t("title")}</Text>
+          )}
+          <View style={{ flexDirection: "row", gap: Space.sm }}>
+            {selecting ? (
+              <Button label="Cancel" variant="ghost" onPress={exitSelecting} />
+            ) : (
+              <>
+                <Button label="Select" variant="ghost" onPress={() => setSelecting(true)} />
+                <Button
+                  label={tCommon("actions.add")}
+                  variant="primary"
+                  icon="add"
+                  onPress={() => setShowAdd(true)}
+                />
+              </>
+            )}
+          </View>
         </View>
 
         {/* ── Search Bar ── */}
@@ -552,12 +634,99 @@ export default function ClientsScreen() {
             <ClientRow
               key={cl.id}
               client={cl}
-              onPress={() => setSelectedClient(cl)}
+              onPress={() => (selecting ? toggleSelected(cl) : setSelectedClient(cl))}
               onCall={handleCall}
+              selecting={selecting}
+              selected={selectedIds.includes(cl.id)}
             />
           ))
         )}
       </ScrollView>
+
+      {/* ── Text selected clients ── */}
+      {selecting && selectedIds.length > 0 && (
+        <View
+          style={{
+            position: "absolute",
+            left: Space.xl,
+            right: Space.xl,
+            bottom: Space.xl + 70,
+          }}
+        >
+          <Button
+            label={`Text ${selectedIds.length} client${selectedIds.length === 1 ? "" : "s"}`}
+            variant="primary"
+            onPress={() => setShowTextSheet(true)}
+          />
+        </View>
+      )}
+
+      <Sheet visible={showTextSheet} onClose={() => !drafting && setShowTextSheet(false)} title="What's the text about?">
+        <View style={{ gap: Space.sm }}>
+          {([
+            { key: "check_in", label: "Check in", hint: "A friendly personal hello that invites a reply." },
+            { key: "market_update", label: "Offer a market update", hint: "Offers to send what homes near them are selling for." },
+            { key: "custom", label: "My own message", hint: "Tell Flight Crew what to say; it writes it in your voice." },
+          ] as const).map((opt) => {
+            const active = textPurpose === opt.key;
+            return (
+              <Pressable
+                key={opt.key}
+                onPress={() => setTextPurpose(opt.key)}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: active }}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: Space.md,
+                  padding: Space.md,
+                  borderRadius: Radius.md,
+                  borderWidth: 1,
+                  borderColor: active ? c.primary : c.cardBorder,
+                  backgroundColor: active ? c.primaryDim : c.card,
+                }}
+              >
+                {active ? <CheckCircle2 size={18} color={c.primary} /> : <Circle size={18} color={c.textDim} />}
+                <View style={{ flex: 1 }}>
+                  <Text style={[Type.bodyBold, { color: c.text }]}>{opt.label}</Text>
+                  <Text style={[Type.caption, { color: c.textDim }]}>{opt.hint}</Text>
+                </View>
+              </Pressable>
+            );
+          })}
+          <TextInput
+            value={textNote}
+            onChangeText={setTextNote}
+            placeholder={textPurpose === "custom" ? "What would you like to say?" : "Anything to mention? (optional)"}
+            placeholderTextColor={c.textFaint}
+            multiline
+            maxLength={500}
+            style={[
+              Type.body,
+              {
+                color: c.text,
+                minHeight: 70,
+                padding: Space.md,
+                borderRadius: Radius.md,
+                borderWidth: 1,
+                borderColor: c.cardBorder,
+                backgroundColor: c.card,
+                textAlignVertical: "top",
+              },
+            ]}
+          />
+          <Text style={[Type.caption, { color: c.textDim }]}>
+            {"Each text ends with your name and \u201cReply STOP to opt out.\u201d You review every one before it goes out."}
+          </Text>
+          <Button
+            label={drafting ? "Drafting…" : `Draft ${selectedIds.length} text${selectedIds.length === 1 ? "" : "s"}`}
+            variant="primary"
+            loading={drafting}
+            disabled={drafting}
+            onPress={handleDraftTexts}
+          />
+        </View>
+      </Sheet>
 
       {/* ── Client Detail Sheet ── */}
       {selectedClient && (
@@ -610,10 +779,15 @@ function ClientRow({
   client,
   onPress,
   onCall,
+  selecting = false,
+  selected = false,
 }: {
   client: Client;
   onPress: () => void;
   onCall: (c: Client) => void;
+  /** Text queue: rows toggle a check instead of opening the client. */
+  selecting?: boolean;
+  selected?: boolean;
 }) {
   const c = useColors();
   const { mode } = useTheme();
@@ -630,6 +804,11 @@ function ClientRow({
   return (
     <Card onPress={onPress}>
       <View style={styles.rowInner}>
+        {selecting && (
+          selected
+            ? <CheckCircle2 size={22} color={c.primary} />
+            : <Circle size={22} color={c.textDim} />
+        )}
         {/* Avatar */}
         <Avatar name={client.name} size="md" color={statusColor} />
 
@@ -688,7 +867,7 @@ function ClientRow({
         </View>
 
         {/* Inline call button */}
-        {client.phone ? (
+        {client.phone && !selecting ? (
           <Pressable
             onPress={(e) => {
               e.stopPropagation?.();
