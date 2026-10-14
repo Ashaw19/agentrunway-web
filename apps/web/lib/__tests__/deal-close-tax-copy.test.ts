@@ -276,18 +276,30 @@ describe("where the tax portion is worked out", () => {
     expect(page).toContain("expensesYTD={expenseTotals.expensesYTD}");
     expect(page).toContain("expensesRemaining={expenseTotals.expensesRemaining}");
   });
+});
 
-  it("no screen on the web or the phone still prints an income tax reserve", () => {
-    const SKIP = new Set(["node_modules", "__tests__", ".next", ".expo", ".turbo", "ios", "android", "dist", "build"]);
-    const walk = (dir: string): string[] =>
-      readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
-        const full = path.join(dir, e.name);
-        if (e.isDirectory()) return SKIP.has(e.name) ? [] : walk(full);
-        return /\.tsx?$/.test(e.name) ? [full] : [];
-      });
-    const files = ["apps/web/app", "apps/web/components", "apps/mobile"].flatMap((root) => walk(path.join(REPO, root)));
+describe("no screen on the web or the phone still prints an income tax reserve", () => {
+  // Read here and not inside the test: a walk over a thousand files ran past
+  // the 5-second test timeout while sibling suites were running.
+  const SKIP = new Set(["node_modules", "__tests__", ".next", ".expo", ".turbo", "ios", "android", "dist", "build"]);
+  const walk = (dir: string): string[] =>
+    readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
+      const full = path.join(dir, e.name);
+      if (e.isDirectory()) return SKIP.has(e.name) ? [] : walk(full);
+      return /\.tsx?$/.test(e.name) ? [full] : [];
+    });
+  const files = ["apps/web/app", "apps/web/components", "apps/mobile"].flatMap((root) => walk(path.join(REPO, root)));
+  const hits = files.filter((f) => /income tax reserve/i.test(readFileSync(f, "utf8"))).map((f) => path.relative(REPO, f));
+
+  it("the scan reads the web app's screens and the mobile app", () => {
+    const rels = files.map((f) => path.relative(REPO, f));
+    expect(rels).toContain("apps/web/app/(app)/dashboard/closing-day-prompt.tsx");
+    expect(rels).toContain("apps/web/app/(app)/transactions/deal-close-celebration.tsx");
+    expect(rels.some((r) => r.startsWith("apps/mobile/") && r.endsWith(".tsx"))).toBe(true);
     expect(files.length).toBeGreaterThan(300);
-    const hits = files.filter((f) => /income tax reserve/i.test(readFileSync(f, "utf8"))).map((f) => path.relative(REPO, f));
+  });
+
+  it("finds none", () => {
     expect(hits).toEqual([]);
   });
 });
