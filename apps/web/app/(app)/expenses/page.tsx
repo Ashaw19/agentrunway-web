@@ -1,4 +1,6 @@
+import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
+import { EXPENSES_COLLAPSED_COOKIE, EXPENSES_SECTIONS, parseCollapsedSections } from "@/lib/collapsed-sections";
 import { redirect } from "next/navigation";
 import { RECEIPT_LIST_COLUMNS, receiptListDateFilter } from "@/lib/expenses/receipt-list";
 import { ExpensesContent } from "./expenses-content";
@@ -350,6 +352,12 @@ export default async function ExpensesPage() {
     .filter((item) => !shownCategoryIds.has(item.category_id))
     .map((item) => ({ key: item.key, monthly_recurring: item.monthly_recurring }));
 
+  // Sections this browser minimized, so they render closed with no flicker.
+  const collapsedSections = parseCollapsedSections(
+    (await cookies()).get(EXPENSES_COLLAPSED_COOKIE)?.value,
+    EXPENSES_SECTIONS,
+  );
+
   return (
     <ExpensesContent
       initialCategories={categories}
@@ -370,6 +378,7 @@ export default async function ExpensesPage() {
       pipelineDeals={(pipelineResult.data ?? []) as PipelineDeal[]}
       historyItems={(fullHistoryResult.data ?? []) as HistoryItem[]}
       recurringExpenses={(recurringExpResult.data ?? []) as RecurringExpense[]}
+      initialCollapsedSections={collapsedSections}
     />
   );
 }

@@ -21,6 +21,7 @@ import { cn }                  from "@/lib/utils";
 import { CRA_MILEAGE_RATES }   from "@/lib/types/database";
 import type { MileageLog }     from "@/lib/types/database";
 import Link                    from "next/link";
+import { CollapsibleCard }     from "@/components/collapsible-card";
 import { localISODate } from "@agent-runway/core/lib/local-date";
 
 // ── CRA 2025 rates ────────────────────────────────────────────────────────────
@@ -46,9 +47,11 @@ interface Props {
   mileageLogs: MileageLog[];
   year: number;
   settings: { display_name?: string; province?: string; vehicle_business_use_pct?: number } | null;
+  /** The Trip Log's minimized state, kept with the rest of the Expenses page's sections. */
+  tripLogSection?: { id: string; collapsed: boolean; onToggle: () => void };
 }
 
-export function ExpensesMileageTab({ mileageLogs, year, settings }: Props) {
+export function ExpensesMileageTab({ mileageLogs, year, settings, tripLogSection }: Props) {
   const [logs,     setLogs]     = useState<MileageLog[]>(mileageLogs);
   const [adding,   setAdding]   = useState(false);
   const [saving,   setSaving]   = useState(false);
@@ -507,22 +510,27 @@ export function ExpensesMileageTab({ mileageLogs, year, settings }: Props) {
 
       {/* Trip log table */}
       {logs.length > 0 && (
-        <Card className="rounded-2xl shadow-sm">
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Car className="h-4 w-4 text-muted-foreground" />
-                <CardTitle className="text-base font-semibold">Trip Log</CardTitle>
-                <Badge variant="secondary" className="text-xs">{year}</Badge>
-              </div>
-              <span className="text-xs text-muted-foreground">
-                {logs.length} trip{logs.length !== 1 ? "s" : ""} · {totalKm.toFixed(1)} km
-              </span>
-            </div>
-            <CardDescription className="mt-0.5 text-xs">
-              Click &ldquo;Log Trip&rdquo; above to add. Export CSV for your accountant.
-            </CardDescription>
-          </CardHeader>
+        <CollapsibleCard
+          id={tripLogSection?.id ?? "expenses-trip-log"}
+          collapsed={tripLogSection?.collapsed ?? false}
+          onToggle={tripLogSection?.onToggle ?? (() => {})}
+          className="rounded-2xl shadow-sm"
+          headerClassName="pb-3"
+          icon={<Car className="h-4 w-4 text-muted-foreground" />}
+          title={
+            <span className="flex items-center gap-2">
+              Trip Log
+              <Badge variant="secondary" className="text-xs">{year}</Badge>
+            </span>
+          }
+          titleClassName="font-semibold"
+          description={<>Click &ldquo;Log Trip&rdquo; above to add. Export CSV for your accountant.</>}
+          aside={
+            <span className="text-xs text-muted-foreground">
+              {logs.length} trip{logs.length !== 1 ? "s" : ""} · {totalKm.toFixed(1)} km
+            </span>
+          }
+        >
           <CardContent className="p-0">
             <div className="overflow-x-auto">
               <Table>
@@ -605,7 +613,7 @@ export function ExpensesMileageTab({ mileageLogs, year, settings }: Props) {
               </div>
             </div>
           </CardContent>
-        </Card>
+        </CollapsibleCard>
       )}
 
       {/* CRA disclaimer */}
