@@ -59,14 +59,18 @@ export interface EffectiveCashInputs {
   /** YTD gross commission income (before split) — sum of closed transactions this year. */
   ytdGCI: number;
   /**
-   * This calendar year's closed transactions, `{ id, date, gci: computeGCI(tx) }`:
-   * the rows `ytdGCI` sums, as the dashboard reads them (its `planDeals`).
-   * Under `comp_plan = 'real'` the year-to-date agent net runs the per-deal
-   * waterfall over them, as the dashboard's cash position does; an empty list
-   * falls back to the analytic simulation on `ytdGCI`. `simple_split` ignores
-   * them. Required since 2026-10-14: Forecast, Reports, Altimeter, Expenses,
-   * the weekly digest and Flight Crew's diagnostics left them out, so a REAL
-   * agent's cash runway there was the simulation's, not the dashboard's.
+   * The waterfall's deals, the dashboard's `planDeals`:
+   * `toPlanDeals(carryOverTx, ytdTx)` (real-compensation-engine), where
+   * `ytdTx` is the rows `ytdGCI` sums and `carryOverTx` the closed rows from
+   * the start of the REAL anniversary year that contains January 1
+   * (`capYearCarryOver` / the web's `loadCapYearCarryOver`). Under
+   * `comp_plan = 'real'` the year-to-date agent net runs the per-deal
+   * waterfall over them and sums this calendar year's: the carry-over only
+   * moves the cap, so a cap year that spans January 1 is priced as REAL
+   * charges it. An empty list falls back to the analytic simulation on
+   * `ytdGCI`. `simple_split` ignores them. Required since 2026-10-14
+   * (Forecast, Reports, Altimeter, Expenses, the weekly digest and Flight
+   * Crew's diagnostics left them out); the carry-over since the same day.
    */
   transactions: RealDealInput[];
   /**
@@ -270,9 +274,10 @@ export function computeEffectiveCashForSurvival(
   }
 
   // ── YTD agent net (used as the "take-home before tax" starting point) ───
-  // Plan-aware: under 'real' this is the per-deal waterfall over the year's
-  // closed deals in the calendar YTD window (the dashboard's planDeals);
-  // simple_split is the byte-identical legacy chain (agentGross − txFees).
+  // Plan-aware: under 'real' this is the per-deal waterfall over the
+  // dashboard's planDeals (the cap year's carry-over + this year's deals),
+  // summed over the calendar YTD window; simple_split is the byte-identical
+  // legacy chain (agentGross − txFees).
   const asOf = localISODate(now);
   const yearStart = `${now.getFullYear()}-01-01`;
   const yearEnd = `${now.getFullYear() + 1}-01-01`;

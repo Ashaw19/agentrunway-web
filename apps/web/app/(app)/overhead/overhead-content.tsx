@@ -50,7 +50,7 @@ import {
   type HistoryItem,
   type ListingAppointment,
 } from "@/lib/types/database";
-import { computePlanGross } from "@/lib/engines/real-compensation-engine";
+import { computePlanGross, toPlanDeals } from "@/lib/engines/real-compensation-engine";
 import {
   seasonalFractionElapsed,
   projectedYearEndGCI,
@@ -507,6 +507,8 @@ function MetricInfo({ tip }: { tip: string }) {
 
 interface Props {
   transactions: Transaction[];
+  /** A REAL agent's closed deals before January 1 in the cap year (loadCapYearCarryOver); the plan waterfall's only. */
+  carryOverTx: Transaction[];
   settings: UserSettings | null;
   /** Year-to-date expenses: ytdExpenseTotals(...).expensesYTD (t2125-expenses-engine), the Expenses page's total. */
   expensesYTD?: number;
@@ -578,6 +580,7 @@ function OverheadBanner() {
 
 export function OverheadContent({
   transactions,
+  carryOverTx,
   settings,
   expensesYTD = 0,
   deductionTracking,
@@ -647,9 +650,10 @@ export function OverheadContent({
   const annualExpenses = expensesYTD + expensesRemaining;
 
   // ── Agent net (after split/fees) — plan-aware (REAL waterfall or legacy) ──
+  // The dashboard's planDeals: the cap year's carry-over + the deals ytdGCI sums.
   const ytdPlan = settings
     ? computePlanGross(settings, ytdGCI, {
-        deals: transactions.map((tx) => ({ date: tx.date, gci: computeGCI(tx) })),
+        deals: toPlanDeals(carryOverTx, transactions),
         windowStart: `${now.getFullYear()}-01-01`,
         windowEnd: `${now.getFullYear() + 1}-01-01`,
         asOf: localISODate(now),

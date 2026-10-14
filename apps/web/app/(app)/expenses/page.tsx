@@ -8,6 +8,7 @@ import { computeIsPro } from "@/lib/compute-is-pro";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { PlaidItem, PlaidTransaction, PipelineDeal, HistoryItem, RecurringExpense } from "@/lib/types/database";
 import { atlanticYear } from "@agent-runway/core/lib/local-date";
+import { loadCapYearCarryOver } from "@/lib/cap-year-carry-over";
 
 // ── Default expense categories ───────────────────────────────────────────────
 const DEFAULT_CATEGORIES = [
@@ -335,6 +336,10 @@ export default async function ExpensesPage() {
   // based on user's business structure flags so they don't appear until enabled.
   const settings = settingsResult.data;
   const isPro = await computeIsPro(supabase, user.id, settings);
+  // A REAL agent's closed deals before January 1 in the anniversary year that
+  // contains it: the plan waterfall's cap carries across January 1 (the
+  // dashboard's carry-over, cap-year-carry-over.ts). No query otherwise.
+  const carryOverTx = await loadCapYearCarryOver(supabase, user.id, settings, year);
   const categories = cats
     .map((cat) => ({
       ...cat,
@@ -365,6 +370,7 @@ export default async function ExpensesPage() {
       settings={settings}
       isPro={isPro}
       transactions={txResult.data ?? []}
+      carryOverTx={carryOverTx}
       initialReceipts={receiptsResult.data ?? []}
       receiptTotalRows={receiptTotalsResult.data ?? []}
       priorYearHistory={historyResult.data ?? []}

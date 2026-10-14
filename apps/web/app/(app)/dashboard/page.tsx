@@ -10,6 +10,7 @@ import type { RecurringExpense } from "@/lib/types/database";
 import { computeIsPro } from "@/lib/compute-is-pro";
 import type { IncomeGoalRow } from "@/lib/income-goals";
 import { addDaysISO, atlanticISODate, atlanticNoon } from "@agent-runway/core/lib/local-date";
+import { loadCapYearCarryOver } from "@/lib/cap-year-carry-over";
 
 
 export default async function DashboardPage({
@@ -32,6 +33,12 @@ export default async function DashboardPage({
     .select("*")
     .eq("user_id", user.id)
     .maybeSingle();
+
+  // A REAL agent's closed deals from the start of the anniversary year that
+  // contains January 1: the cap carries across it, so the plan waterfall
+  // prices this year's deals from there (cap-year-carry-over.ts). They move
+  // the cap only; `transactions` below stays this year's. Never rejects.
+  const carryOverPromise = loadCapYearCarryOver(supabase, user.id, settingsRow, dashYear);
 
   // ── Live Supabase queries ──────────────────────────────────────────────
   // Use Promise.allSettled so one failed query doesn't crash the entire dashboard
@@ -162,6 +169,8 @@ export default async function DashboardPage({
     unwrap(settledResults[18]),
   ];
 
+  const carryOverTx = await carryOverPromise;
+
   // null when the lookup failed: the prompt then asks about nothing this load
   // rather than risk recording a deal a second time.
   const recordedPipelineDealIds = recordedDealsResult.error || !recordedDealsResult.data
@@ -289,6 +298,7 @@ export default async function DashboardPage({
   return (
     <DashboardContent
       transactions={txResult.data ?? []}
+      carryOverTx={carryOverTx}
       pipelineDeals={pipelineResult.data ?? []}
       recordedPipelineDealIds={recordedPipelineDealIds}
       settings={settingsRow}

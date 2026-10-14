@@ -20,7 +20,7 @@ import {
 import { AGENT_RUNWAY_VOICE } from "@/lib/outreach-prompts";
 import { requirePro } from "@/lib/require-pro";
 import { computeGCI, computeWeightedGCI, activePipelineDeals } from "@/lib/types/database";
-import { computePlanGross, describeSplit } from "@/lib/engines/real-compensation-engine";
+import { capYearCarryOver, computePlanGross, describeSplit, toPlanDeals, type PlanDealRow } from "@/lib/engines/real-compensation-engine";
 import { fmtCurrency } from "@/lib/formatters";
 import { describeIncomeGoals, incomeGoalCurrentYear, goalForYear, hasGoalRow } from "@/lib/income-goals";
 import { pipelineLinedUpForYear } from "@agent-runway/core/engines/year-plan-engine";
@@ -356,6 +356,10 @@ export async function POST(req: NextRequest) {
       const ytdTx = transactions.filter((tx: any) => tx.date.startsWith(String(currentYear)));
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const ytdGCI = ytdTx.reduce((sum: number, tx: any) => sum + computeGCI(tx), 0);
+      // A REAL agent's deals from the start of the anniversary year that
+      // contains January 1, before it: the cap carries across January 1, so
+      // the plan waterfall needs them (the dashboard's carry-over). Cap state only.
+      const carryOverTx = capYearCarryOver<PlanDealRow>(settings, transactions, currentYear);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const livePipeline = activePipelineDeals(pipeline ?? []);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -673,10 +677,10 @@ export async function POST(req: NextRequest) {
         // Lockstep with dashboard-content.tsx and effective-cash.ts.
         const ytdHstOnExpenses = 0;
         // Plan-aware (REAL waterfall or legacy split) — must stay in lockstep
-        // with dashboard-content.tsx's cash-position block (the 53/61 pair).
+        // with dashboard-content.tsx's cash-position block (the 53/61 pair):
+        // its planDeals, the cap year's carry-over + the deals ytdGCI sums.
         const { grossAfterPlan: cpGrossAfterPlan } = computePlanGross(settings, ytdGCI, {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          deals: ytdTx.map((tx: any) => ({ date: tx.date, gci: computeGCI(tx) })),
+          deals: toPlanDeals(carryOverTx, ytdTx),
           windowStart: `${currentYear}-01-01`,
           windowEnd: `${currentYear + 1}-01-01`,
           asOf: todayISO,

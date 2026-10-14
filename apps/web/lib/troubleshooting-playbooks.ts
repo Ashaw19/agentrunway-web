@@ -1259,6 +1259,8 @@ Canonical engine: packages/core/engines/real-compensation-engine.ts. Never quote
 
 **The cap year is the ANNIVERSARY year, not the calendar year** — anchored on real_join_date. No join date → falls back to the calendar year and no deal is excluded as pre-join.
 
+**The cap carries across January 1** (since 2026-10-14). Year-to-date figures (YTD take-home, cash position, cash runway, Runway Score) price this calendar year's deals with the cap state of the anniversary year each deal falls in: deals closed before January 1 in that anniversary year count toward the cap, the Elite threshold, BEOP's first three deals and the year-1 sign-up fee. They do not count toward this year's GCI, deal count or take-home. The same rule runs on the dashboard, Forecast, Reports, Overhead, Altimeter, Expenses, Scenarios, the weekly digest, Flight Crew's chat and the diagnostic data (real-compensation-engine.ts: planDealsStart, capYearCarryOver, toPlanDeals).
+
 | Setting | Meaning | Default |
 |---------|---------|---------|
 | real_join_date | Anchors the anniversary year; deals before it stay on the legacy split | Not set |
@@ -1286,10 +1288,11 @@ All figures are a snapshot of the REAL income deck and are user-editable — if 
 **REAL-specific problems & diagnostics:**
 
 **"I hit my cap but Agent Runway says I haven't"**
-→ The cap counts REAL's 15% company dollar, not GCI. Confirm which number they are tracking. Then check real_cap_paid_seed — a mid-year switcher whose earlier REAL deals were never entered starts from zero unless the seed is set.
+→ The cap counts REAL's 15% company dollar, not GCI. Confirm which number they are tracking. Then check real_cap_paid_seed — a mid-year switcher whose earlier REAL deals were never entered starts from zero unless the seed is set. The seed is for deals NOT in Agent Runway: closed deals entered in the app already count toward the cap, including ones closed before January 1 in the same anniversary year, so the same company dollar in the seed as well counts twice.
 
 **"My cap reset at the wrong time"**
 → The cap year runs on the anniversary of real_join_date, not Jan 1. If real_join_date is blank the engine falls back to the calendar year, which is the usual cause.
+→ Changed 2026-10-14: every screen, the dashboard included, handed the waterfall this calendar year's deals only, so for a REAL agent whose anniversary year spans January 1 the cap restarted on January 1 in every year-to-date figure. From January 1 until they re-capped, their deals were priced pre-cap, BEOP's first three deals started over, and in the first REAL year the first deal after January 1 paid the sign-up fee a second time, so YTD take-home, cash position, cash runway and Runway Score read lower than REAL pays. The cap now carries across January 1. No data changed; YTD GCI and deal counts were and are this calendar year's.
 
 **"My net on this deal looks too low"**
 → Walk the fee stack: post-cap fee (or elite fee) + CBR + BEOP amortization + sign-up. A first deal of the anniversary year carries BEOP and possibly sign-up, so it nets visibly less than later deals.
@@ -1399,6 +1402,7 @@ All figures are a snapshot of the REAL income deck and are user-editable — if 
 - If agent has closed deals this year: max(0, Implied Cash + Manual Cash Reserve)
   - Implied Cash = YTD Agent Net − YTD Expenses − YTD Estimated Tax − YTD HST Owing
   - YTD Agent Net = this year's GCI after the split and plan fees, less the monthly brokerage fee for the months so far. On the REAL plan it is the plan's waterfall run deal by deal over this year's closed deals (REAL's 15% until the cap, post-cap and Elite fees, CBR, BEOP, the year-1 sign-up fee), on every screen and in the diagnostic data (effective-cash.ts with the year's deals; the dashboard's planDeals)
+  - REAL's cap year runs from the anniversary of real_join_date, so the waterfall also gets the deals closed before January 1 in the anniversary year that contains it (the carry-over). They set where the cap stands; only this year's deals are summed. Changed 2026-10-14: until then every screen restarted the cap on January 1, which understated a REAL agent's YTD Agent Net, Effective Cash, cash runway and Runway Score from January 1 until they re-capped, when their anniversary year spans January 1
   - YTD Expenses are net of ITCs for a registrant, so the ITCs are already counted there
   - HST Owing = $0 if brokerage withholds HST; otherwise HST collected on commissions (no second ITC offset: that would count the same GST/HST twice)
   - This is what should be in the account if the agent has been disciplined

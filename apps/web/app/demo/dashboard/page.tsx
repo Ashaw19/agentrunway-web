@@ -568,6 +568,7 @@ export default function DemoDashboardPage() {
           <div className="mx-auto max-w-screen-xl">
             <DashboardContent
               transactions={DEMO_TRANSACTIONS}
+              carryOverTx={[]}
               pipelineDeals={DEMO_PIPELINE}
               recordedPipelineDealIds={DEMO_TRANSACTIONS.flatMap((t) => (t.pipeline_deal_id ? [t.pipeline_deal_id] : []))}
               settings={DEMO_SETTINGS}

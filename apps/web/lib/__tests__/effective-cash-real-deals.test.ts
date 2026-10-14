@@ -11,12 +11,26 @@
  * out, so for a REAL agent their cash, cash runway and Runway Score could
  * differ from the dashboard's. `transactions` is now a required input.
  *
- * 1. The engine, given the year's deals, is the dashboard's cash position
- *    (restated below as dashboard-content.tsx writes it), on a fixture the
- *    simulation gets wrong: a deal before the anniversary and a cap straddle.
- * 2. Flight Crew's diagnostics, run over made-up rows, quote that cash.
- * 3. Every call in the apps passes deals built through `computeGCI` from the
- *    array its `ytdGCI` sums, so the next caller cannot pass a different set.
+ * The same day: REAL's cap resets on the anniversary of `real_join_date`, not
+ * on January 1, and every surface (the dashboard too) handed the waterfall
+ * this calendar year's deals only. From January 1 a REAL agent whose
+ * anniversary is not January 1 had their YTD take-home, cash position, cash
+ * runway and Runway Score priced as if the cap had restarted. Every surface
+ * now hands it `toPlanDeals(carryOverTx, ytdTx)`: the closed deals from the
+ * start of the anniversary year that contains January 1, then the year's own.
+ * ytdGCI and every "year to date" figure stay the calendar year's.
+ *
+ * 1. The engine, given the dashboard's deals, is the dashboard's cash
+ *    position (restated below as dashboard-content.tsx writes it), on a
+ *    fixture the simulation gets wrong: a deal before the anniversary and a
+ *    cap straddle.
+ * 2. A cap year that spans January 1: the dashboard restated with its
+ *    carry-over, and the engine (Forecast, Reports, Altimeter, Expenses, the
+ *    weekly digest), Flight Crew's diagnostics and the Scenario Engine's seed
+ *    held to it; the page loader fetches exactly the carry-over.
+ * 3. Every call in the apps builds its deals with `toPlanDeals(carryOverTx,
+ *    <rows>)`, `<rows>` the array its `ytdGCI` sums, sums over the calendar
+ *    year, and gets `carryOverTx` from the one helper.
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -28,7 +42,12 @@ vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
 
 import { createClient } from "@/lib/supabase/server";
 import { buildDiagnostics } from "../chat-diagnostics";
+import { loadCapYearCarryOver } from "../cap-year-carry-over";
+import { buildScenarioSeed } from "../scenario-seed";
 import { fmtCurrency } from "../formatters";
+import { KNOWLEDGE_BASE } from "../knowledge-base";
+import { getPlaybook } from "../troubleshooting-playbooks";
+import { classifyTopicMulti } from "../troubleshooting-classifier";
 import { fakeSupabase, type Row } from "../ai/__tests__/helpers/fake-supabase";
 import { createTestSettings } from "@agent-runway/core/engines/__tests__/test-data";
 import { computeGCI, type Transaction, type UserSettings } from "@agent-runway/core/types/database";
@@ -38,7 +57,11 @@ import {
   seasonalFractionElapsed,
 } from "@agent-runway/core/engines/projection-engine";
 import { computeEffectiveCashForSurvival } from "@agent-runway/core/engines/effective-cash";
-import { computePlanGross } from "@agent-runway/core/engines/real-compensation-engine";
+import {
+  capYearCarryOver,
+  computePlanGross,
+  toPlanDeals,
+} from "@agent-runway/core/engines/real-compensation-engine";
 import { computeCashPosition } from "@agent-runway/core/engines/cash-position-engine";
 import { calculate as calculateTax, gstHstRate } from "@agent-runway/core/engines/canadian-tax-engine";
 import { computeHSTCollected } from "@agent-runway/core/engines/hst-engine";
@@ -96,17 +119,21 @@ const CLOSINGS: Row[] = [
   closed("t3", "2026-06-01", 2_800_000), // $70,000
 ];
 
+const asTx = (rows: Row[]) => rows as unknown as Transaction[];
+
 // ── The dashboard's chain, restated from dashboard-content.tsx ──────────────
 //
 // "YTD calculations" → "Survival prep" → "Tax estimate" → "Cash Position".
-// No pipeline, no listing appointments, no history, no expenses: the cash is
-// the only thing these tests compare.
+// `rows` is the page's `transactions` (this year's closed rows), `carryOver`
+// its `carryOverTx`. No pipeline, no listing appointments, no history, no
+// expenses: the cash is the only thing these tests compare.
 
-function dashboard(s: UserSettings, rows: Row[]) {
+function dashboard(s: UserSettings, rows: Row[], carryOver: Row[] = []) {
   const now = new Date();
-  const transactions = rows as unknown as Transaction[];
+  const transactions = asTx(rows);
+  const carryOverTx = asTx(carryOver);
   const ytdGCI = transactions.reduce((sum, tx) => sum + computeGCI(tx), 0);
-  const planDeals = transactions.map((tx) => ({ id: tx.id, date: tx.date, gci: computeGCI(tx) }));
+  const planDeals = toPlanDeals(carryOverTx, transactions);
   const fraction = seasonalFractionElapsed([0.25, 0.25, 0.25, 0.25]);
   const projectedGCI = projectedYearEndGCI(ytdGCI, 0, fraction, s.goal_gci);
   const projectedDealCount = projectedYearEndTransactions(transactions.length, 0, fraction);
@@ -123,7 +150,7 @@ function dashboard(s: UserSettings, rows: Row[]) {
     isRegistered: s.gst_hst_registered ?? false,
     brokerageWithholdsHst: s.brokerage_withholds_hst ?? false,
   });
-  const { grossAfterPlan } = computePlanGross(s, ytdGCI, {
+  const ytdPlanGross = computePlanGross(s, ytdGCI, {
     deals: planDeals,
     windowStart: `${now.getFullYear()}-01-01`,
     windowEnd: `${now.getFullYear() + 1}-01-01`,
@@ -131,7 +158,7 @@ function dashboard(s: UserSettings, rows: Row[]) {
   });
   const cashPosition = computeCashPosition({
     ytdGCI,
-    ytdAgentNet: Math.max(0, grossAfterPlan - s.monthly_brokerage_fee * (now.getMonth() + 1)),
+    ytdAgentNet: Math.max(0, ytdPlanGross.grossAfterPlan - s.monthly_brokerage_fee * (now.getMonth() + 1)),
     ytdExpenses: 0,
     ytdTaxSetAside: taxResult.totalBurden * Math.min(fraction, 1),
     ytdHstCollected,
@@ -140,7 +167,15 @@ function dashboard(s: UserSettings, rows: Row[]) {
     manualCashReserve: s.cash_reserve ?? 0,
     fractionElapsed: fraction,
   });
-  return { ytdGCI, planDeals, fraction, projectedGCI, projectedDealCount, effectiveCash: cashPosition.effectiveCash };
+  return {
+    ytdGCI,
+    planDeals,
+    fraction,
+    projectedGCI,
+    projectedDealCount,
+    ytdPlanGross,
+    effectiveCash: cashPosition.effectiveCash,
+  };
 }
 
 /** The engine on the dashboard's inputs, with these deals for the waterfall. */
@@ -167,7 +202,7 @@ describe("a REAL agent with a deal before the anniversary and a cap straddle aft
     expect(Math.abs(simulated - d.effectiveCash)).toBeGreaterThan(500);
   });
 
-  it("the engine, given the year's deals, is the dashboard's cash position", () => {
+  it("the engine, given the dashboard's deals, is the dashboard's cash position", () => {
     const d = dashboard(settings(), CLOSINGS);
     expect(engineCash(settings(), CLOSINGS, d.planDeals)).toBeCloseTo(d.effectiveCash, 6);
   });
@@ -197,29 +232,115 @@ function tables(s: UserSettings, rows: Row[]): Record<string, Row[]> {
   };
 }
 
-/** One `Label: value` line of the [SURVIVAL DIAGNOSTIC] block. */
-async function survivalLine(s: UserSettings, rows: Row[], label: string): Promise<string> {
+/** One `Label: value` line of the diagnostics for `topic`. */
+async function diagLine(s: UserSettings, rows: Row[], label: string, topic: "survival" | "forecast" = "survival"): Promise<string> {
   vi.mocked(createClient).mockResolvedValue(fakeSupabase(tables(s, rows)).client as never);
-  const text = await buildDiagnostics(USER, ["survival"]);
+  const text = await buildDiagnostics(USER, [topic]);
   const found = text.split("\n").find((l) => l.replace(/^├─ /, "").startsWith(label));
   if (found === undefined) throw new Error(`no "${label}" line in:\n${text}`);
   return found.replace(/^├─ /, "");
 }
 
+const cashLine = (cash: number) => `Effective Cash (implied position — what Survival actually uses): ${fmtCurrency(cash)}`;
+
 describe("Flight Crew's survival diagnostic for a REAL agent", () => {
   it("quotes the dashboard's effective cash, not the simulation's", async () => {
     const d = dashboard(settings(), CLOSINGS);
-    const quoted = await survivalLine(settings(), CLOSINGS, "Effective Cash");
-    expect(quoted).toBe(`Effective Cash (implied position — what Survival actually uses): ${fmtCurrency(d.effectiveCash)}`);
+    const quoted = await diagLine(settings(), CLOSINGS, "Effective Cash");
+    expect(quoted).toBe(cashLine(d.effectiveCash));
     expect(quoted).not.toContain(fmtCurrency(engineCash(settings(), CLOSINGS, [])));
   });
 
-  it("leaves last year's closings out of the year's deals, as the dashboard's query does", async () => {
-    const withLastYear = [...CLOSINGS, closed("t0", "2025-11-20", 2_000_000)];
-    const d = dashboard(settings(), CLOSINGS);
-    expect(await survivalLine(settings(), withLastYear, "Effective Cash")).toBe(
-      `Effective Cash (implied position — what Survival actually uses): ${fmtCurrency(d.effectiveCash)}`,
-    );
+  it("carries last year's closings in the anniversary year that contains January 1, and no earlier ones", async () => {
+    // 2025-11-20 is in the cap year 2025-03-01 → 2026-03-01 (it pays the
+    // sign-up fee the February deal paid without it); 2025-02-15 closed
+    // before the agent joined REAL and moves nothing.
+    const november = closed("t0", "2025-11-20", 2_000_000);
+    const withLastYear = [...CLOSINGS, november, closed("tp", "2025-02-15", 2_000_000)];
+    const d = dashboard(settings(), CLOSINGS, [november]);
+    expect(d.effectiveCash).not.toBeCloseTo(dashboard(settings(), CLOSINGS).effectiveCash, 0);
+    expect(await diagLine(settings(), withLastYear, "Effective Cash")).toBe(cashLine(d.effectiveCash));
+  });
+});
+
+// ── A cap year that spans January 1 ─────────────────────────────────────────
+//
+// Joined 2026-07-01, so the anniversary year runs to 2027-07-01. $50,000 in
+// August and $60,000 on 2026-10-20 cross the $15,000 cap; the $20,000 deal on
+// 2027-01-20 is post-cap. Before joining REAL: a May 2026 deal (legacy split,
+// moves no cap). Not closed: a September row.
+
+const SPAN_JOIN = "2026-07-01";
+const SPAN_ROWS: Row[] = [
+  closed("s0", "2026-05-01", 1_000_000), // $25,000, before joining REAL
+  closed("s1", "2026-08-15", 2_000_000), // $50,000
+  { ...closed("sx", "2026-09-10", 4_000_000), status: "pending" },
+  closed("s2", "2026-10-20", 2_400_000), // $60,000: caps
+  closed("s3", "2027-01-20", 800_000), // $20,000
+];
+const SPAN_YTD = SPAN_ROWS.filter((r) => r.status === "closed" && String(r.date).startsWith("2027"));
+const SPAN_CARRY = SPAN_ROWS.filter((r) => r.id === "s1" || r.id === "s2");
+
+describe("a REAL agent whose cap year spans January 1, on 2027-02-01", () => {
+  const s = () => settings({ real_join_date: SPAN_JOIN });
+
+  beforeEach(() => {
+    vi.setSystemTime(new Date("2027-02-01T15:00:00Z")); // 11:00 Atlantic
+  });
+
+  it("the dashboard's year-to-date figures are 2027's; its take-home is priced post-cap", () => {
+    const d = dashboard(s(), SPAN_YTD, SPAN_CARRY);
+    expect(d.ytdGCI).toBe(20_000);
+    // $20,000 × 100% − (post-cap $375 + CBR $40 + BEOP $400)
+    expect(d.ytdPlanGross.grossAfterPlan).toBeCloseTo(19_185, 6);
+    expect(d.ytdPlanGross.capState?.cappedOnDate).toBe("2026-10-20");
+  });
+
+  it("without the carry-over the cap restarts on January 1 (the old figure, sanity)", () => {
+    const before = dashboard(s(), SPAN_YTD);
+    // $20,000 × 85% − (CBR $40 + BEOP $400 + a second sign-up fee $249)
+    expect(before.ytdPlanGross.grossAfterPlan).toBeCloseTo(16_311, 6);
+    expect(dashboard(s(), SPAN_YTD, SPAN_CARRY).effectiveCash - before.effectiveCash).toBeGreaterThan(2_000);
+  });
+
+  it("the page loader fetches exactly the carry-over: closed, from the anniversary to January 1", async () => {
+    const { client } = fakeSupabase({ transactions: SPAN_ROWS });
+    const rows = await loadCapYearCarryOver(client, USER, s(), 2027);
+    expect(rows.map((r) => r.id)).toEqual(["s1", "s2"]);
+    expect(capYearCarryOver(s(), asTx(SPAN_ROWS.filter((r) => r.status === "closed")), 2027).map((r) => r.id)).toEqual(["s1", "s2"]);
+  });
+
+  it("the page loader makes no query when nothing carries over", async () => {
+    const { client } = fakeSupabase({}, { unreachable: ["transactions"] });
+    expect(await loadCapYearCarryOver(client, USER, s(), 2026)).toEqual([]); // joined during 2026
+    expect(await loadCapYearCarryOver(client, USER, settings({ comp_plan: "simple_split", real_join_date: SPAN_JOIN }), 2027)).toEqual([]);
+    expect(await loadCapYearCarryOver(client, USER, null, 2027)).toEqual([]);
+  });
+
+  it("the engine (Forecast, Reports, Altimeter, Expenses, the weekly digest) is the dashboard's cash", () => {
+    const d = dashboard(s(), SPAN_YTD, SPAN_CARRY);
+    expect(engineCash(s(), SPAN_YTD, toPlanDeals(asTx(SPAN_CARRY), asTx(SPAN_YTD)))).toBeCloseTo(d.effectiveCash, 6);
+  });
+
+  it("Flight Crew's diagnostics quote the dashboard's cash and 2027's YTD GCI", async () => {
+    const d = dashboard(s(), SPAN_YTD, SPAN_CARRY);
+    expect(await diagLine(s(), SPAN_ROWS, "Effective Cash")).toBe(cashLine(d.effectiveCash));
+    expect(await diagLine(s(), SPAN_ROWS, "YTD Closed GCI", "forecast")).toBe(`YTD Closed GCI: ${fmtCurrency(20_000)} (1 deals)`);
+  });
+
+  it("the Scenario Engine's seed starts from the dashboard's cash", async () => {
+    const d = dashboard(s(), SPAN_YTD, SPAN_CARRY);
+    const carryOverTx = await loadCapYearCarryOver(fakeSupabase({ transactions: SPAN_ROWS }).client, USER, s(), 2027);
+    const seed = buildScenarioSeed({
+      settings: s(),
+      transactions: asTx(SPAN_YTD),
+      carryOverTx,
+      pipelineDeals: [],
+      listings: [],
+      historyItems: [],
+      expenses: { expensesYTD: 0, monthlyRecurring: 0, expensesRemaining: 0 },
+    });
+    expect(seed.cashReserve).toBeCloseTo(d.effectiveCash, 6);
   });
 });
 
@@ -243,7 +364,7 @@ const ROOTS = [
  * Every file that calls the engine. A new caller fails here until it is added,
  * after the scan below has checked it passes the dashboard's deals.
  */
-const CALLERS = [
+const ENGINE_CALLERS = [
   "apps/web/app/(app)/altimeter/altimeter-content.tsx",
   "apps/web/app/(app)/expenses/expenses-content.tsx",
   "apps/web/app/(app)/forecast/forecast-content.tsx",
@@ -253,11 +374,30 @@ const CALLERS = [
   "apps/web/lib/scenario-seed.ts",
 ];
 
-const ENGINE_CALL = /\bcomputeEffectiveCashForSurvival\s*\(\s*\{/g;
+/** Every file that prices closed deals with computePlanGross's `deals` (the YTD take-home and cash position). */
+const PLAN_GROSS_DEAL_CALLERS = [
+  "apps/web/app/(app)/dashboard/dashboard-content.tsx",
+  "apps/web/app/(app)/overhead/overhead-content.tsx",
+  "apps/web/app/(app)/reports/reports-content.tsx",
+  "apps/web/app/api/chat/route.ts",
+];
 
-/** `<rows>.map((tx) => ({ id: tx.id, date: tx.date, gci: computeGCI(tx…) }))` */
-const DEALS_FROM_ROWS =
-  /^(\w+)\.map\(\((\w+)\)\s*=>\s*\(\{\s*id:\s*\2\.id,\s*date:\s*\2\.date,\s*gci:\s*computeGCI\(\2\b[^)]*\)\s*\}\)\)$/;
+/** Loaders whose rows reach back past January 1 and that cut the carry-over from them with capYearCarryOver. */
+const ALL_ROWS_PAGES = ["apps/web/app/(app)/forecast/page.tsx", "apps/web/app/(app)/reports/page.tsx"];
+
+/** The demo dashboard's made-up agent is on a simple split: it passes an empty carry-over. */
+const DEMO = "apps/web/app/demo/";
+
+const ENGINE_CALL = /\bcomputeEffectiveCashForSurvival\s*\(\s*\{/g;
+const PLAN_GROSS_CALL = /\bcomputePlanGross\s*\(/g;
+
+/** `toPlanDeals(carryOverTx, <rows>)` */
+const DEALS_RULE = /^toPlanDeals\(carryOverTx, (\w+)\)$/;
+
+/** Where a file's `carryOverTx` may come from: the one helper. */
+const CARRY_SOURCE =
+  /\bconst carryOverTx = (?:await loadCapYearCarryOver\(|capYearCarryOver(?:<\w+>)?\(|await carryOverPromise;)/;
+const CARRY_PROMISE = /\bconst carryOverPromise = loadCapYearCarryOver\(/;
 
 function sourceFiles(dir: string): string[] {
   const out: string[] = [];
@@ -281,7 +421,7 @@ function withoutComments(src: string): string {
   return src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
 }
 
-/** The object literal whose `{` is at `open`, braces and brackets balanced. */
+/** The bracketed text whose opening `{`, `(` or `[` is at `open`, brackets balanced. */
 function objectAt(src: string, open: number): string {
   let depth = 0;
   for (let i = open; i < src.length; i++) {
@@ -293,6 +433,25 @@ function objectAt(src: string, open: number): string {
     }
   }
   throw new Error("unbalanced object literal");
+}
+
+/** The top-level comma-separated parts between a bracketed text's outer brackets. */
+function parts(bracketed: string): string[] {
+  const out: string[] = [];
+  let depth = 0;
+  let start = 1;
+  for (let i = 1; i < bracketed.length - 1; i++) {
+    const ch = bracketed[i];
+    if (ch === "{" || ch === "(" || ch === "[") depth++;
+    else if (ch === "}" || ch === ")" || ch === "]") depth--;
+    else if (ch === "," && depth === 0) {
+      out.push(bracketed.slice(start, i).trim());
+      start = i + 1;
+    }
+  }
+  const last = bracketed.slice(start, bracketed.length - 1).trim();
+  if (last) out.push(last);
+  return out;
 }
 
 /** The value of one top-level property of an object literal, or null. */
@@ -312,42 +471,166 @@ function property(obj: string, key: string): string | null {
   return start >= 0 ? obj.slice(start, obj.length - 1).trim() : null;
 }
 
-describe("every computeEffectiveCashForSurvival call passes the dashboard's deals", () => {
-  const calls: { file: string; src: string; obj: string }[] = [];
+/** An identifier resolved one step through `const <name> = <expr>;` in the same file. */
+function resolve(src: string, value: string): string {
+  if (!/^\w+$/.test(value)) return value;
+  const m = new RegExp(`\\bconst ${value} = ([^;]+);`).exec(src);
+  return m ? m[1].trim() : value;
+}
+
+type Call = { file: string; src: string; obj: string; deals: string | null; gci: string | null };
+
+function scan(): { engine: Call[]; planGross: Call[] } {
+  const engine: Call[] = [];
+  const planGross: Call[] = [];
   for (const root of ROOTS) {
     for (const full of sourceFiles(path.join(REPO_ROOT, root))) {
+      const file = path.relative(REPO_ROOT, full);
       const src = withoutComments(readFileSync(full, "utf8"));
       for (const m of src.matchAll(ENGINE_CALL)) {
-        calls.push({ file: path.relative(REPO_ROOT, full), src, obj: objectAt(src, m.index + m[0].length - 1) });
+        const obj = objectAt(src, m.index + m[0].length - 1);
+        engine.push({ file, src, obj, deals: property(obj, "transactions"), gci: null });
+      }
+      for (const m of src.matchAll(PLAN_GROSS_CALL)) {
+        const args = parts(objectAt(src, m.index + m[0].length - 1));
+        const opts = args[2]?.startsWith("{") ? args[2] : null;
+        const deals = opts ? property(opts, "deals") : null;
+        if (opts && deals !== null) planGross.push({ file, src, obj: opts, deals, gci: args[1] });
       }
     }
   }
+  return { engine, planGross };
+}
 
-  it("finds every caller, and only the ones on the list", () => {
-    expect([...new Set(calls.map((c) => c.file))].sort()).toEqual(CALLERS);
+/** The deals are toPlanDeals(carryOverTx, <rows>), and ytdGCI sums computeGCI over <rows>. */
+function expectDashboardDeals(c: Call) {
+  expect(c.deals, `${c.file} passes no deals`).not.toBeNull();
+  const deals = resolve(c.src, c.deals!).replace(/\s+/g, " ");
+  const m = DEALS_RULE.exec(deals);
+  expect(m, `${c.file} builds its deals another way: ${deals}`).not.toBeNull();
+  const rows = m![1];
+  const sum = new RegExp(
+    `const ytdGCI = ${rows}\\.reduce\\(\\s*\\(sum(?:: \\w+)?, (\\w+)(?:: \\w+)?\\) => sum \\+ computeGCI\\(\\1\\b`,
+  );
+  expect(sum.test(c.src), `${c.file}: ytdGCI is not ${rows}.reduce(… computeGCI …)`).toBe(true);
+  return rows;
+}
+
+describe("every surface prices the year's deals the way the dashboard does", () => {
+  const { engine, planGross } = scan();
+
+  it("finds every caller, and only the ones on the lists", () => {
+    expect([...new Set(engine.map((c) => c.file))].sort()).toEqual(ENGINE_CALLERS);
+    expect([...new Set(planGross.map((c) => c.file))].sort()).toEqual(PLAN_GROSS_DEAL_CALLERS);
   });
 
-  it.each(CALLERS)("%s: the deals are the rows its ytdGCI sums, through computeGCI", (file) => {
-    const mine = calls.filter((c) => c.file === file);
+  it.each(ENGINE_CALLERS)("%s: the engine gets toPlanDeals(carryOverTx, the rows its ytdGCI sums)", (file) => {
+    const mine = engine.filter((c) => c.file === file);
     expect(mine.length).toBeGreaterThan(0);
     for (const c of mine) {
       // `ytdGCI` goes in as the variable of that name.
       expect(/(^|[{,\s])ytdGCI\s*[,}]/.test(c.obj) || property(c.obj, "ytdGCI") === "ytdGCI").toBe(true);
-      const deals = property(c.obj, "transactions");
-      expect(deals, `${file} passes no transactions`).not.toBeNull();
-      const m = DEALS_FROM_ROWS.exec(deals!.replace(/\s+/g, " "));
-      expect(m, `${file} builds its deals another way: ${deals}`).not.toBeNull();
-      const rows = m![1];
-      // …and ytdGCI is the sum of computeGCI over that same array.
-      const sum = new RegExp(`const ytdGCI = ${rows}\\.reduce\\(\\s*\\(sum, (\\w+)\\) => sum \\+ computeGCI\\(\\1\\b`);
-      expect(sum.test(c.src), `${file}: ytdGCI is not ${rows}.reduce(… computeGCI …)`).toBe(true);
+      expectDashboardDeals(c);
+    }
+  });
+
+  it.each(PLAN_GROSS_DEAL_CALLERS)("%s: computePlanGross sums toPlanDeals(carryOverTx, …) over the calendar year", (file) => {
+    const mine = planGross.filter((c) => c.file === file);
+    expect(mine.length).toBeGreaterThan(0);
+    for (const c of mine) {
+      expect(c.gci).toBe("ytdGCI");
+      expectDashboardDeals(c);
+      // The calendar window is what keeps the carry-over out of every sum.
+      expect(property(c.obj, "windowStart")).toMatch(/^`\$\{[^}]+\}-01-01`$/);
+      expect(property(c.obj, "windowEnd")).toMatch(/^`\$\{[^}]+ \+ 1\}-01-01`$/);
+    }
+  });
+
+  it("every carryOverTx comes from the one helper, or is a required prop a page fills from it", () => {
+    const files: { file: string; src: string }[] = [];
+    for (const root of ROOTS) {
+      for (const full of sourceFiles(path.join(REPO_ROOT, root))) {
+        const src = withoutComments(readFileSync(full, "utf8"));
+        if (/\bcarryOverTx\b/.test(src)) files.push({ file: path.relative(REPO_ROOT, full), src });
+      }
+    }
+    const users = [...new Set([...engine, ...planGross].map((c) => c.file))];
+    for (const u of users) expect(files.map((f) => f.file), u).toContain(u);
+
+    for (const { file, src } of files) {
+      const sourced = CARRY_SOURCE.test(src);
+      if (/\bconst carryOverTx = await carryOverPromise;/.test(src)) {
+        expect(CARRY_PROMISE.test(src), `${file}: carryOverPromise is not loadCapYearCarryOver(…)`).toBe(true);
+      }
+      // A file that does not source it receives it as a required input, typed.
+      if (!sourced && !file.startsWith(DEMO)) {
+        expect(/\bcarryOverTx: Transaction\[\];/.test(src), `${file} uses carryOverTx it neither loads nor receives`).toBe(true);
+      }
+      // A const may only be the helper's result.
+      for (const m of src.matchAll(/\bconst carryOverTx = ([^;]+);/g)) {
+        expect(CARRY_SOURCE.test(m[0]), `${file}: const carryOverTx = ${m[1]}`).toBe(true);
+      }
+      // Props pass the loaded value on; only the simple-split demo passes none.
+      for (const m of src.matchAll(/\bcarryOverTx=\{([^}]*)\}/g)) {
+        expect(m[1] === "carryOverTx" || (file.startsWith(DEMO) && m[1] === "[]"), `${file}: carryOverTx={${m[1]}}`).toBe(true);
+      }
+      expect(/\bcarryOverTx:\s*\[\]/.test(src), `${file} passes an empty carry-over`).toBe(false);
+    }
+  });
+
+  it("capYearCarryOver cuts from rows that reach back past January 1, never from the year's own", () => {
+    for (const c of [...engine, ...planGross]) {
+      for (const m of c.src.matchAll(/\bcapYearCarryOver(?:<\w+>)?\(/g)) {
+        const args = parts(objectAt(c.src, m.index + m[0].length - 1));
+        const rows = args[1].replace(/\s+/g, " ");
+        const ytdRows = DEALS_RULE.exec(resolve(c.src, c.deals!).replace(/\s+/g, " "))?.[1];
+        expect(rows, `${c.file} cuts the carry-over from the year's rows`).not.toBe(ytdRows);
+      }
+    }
+    // The loaders that hand those components their rows put no lower bound on the date.
+    for (const page of ALL_ROWS_PAGES) {
+      const src = readFileSync(path.join(REPO_ROOT, page), "utf8");
+      const start = src.indexOf('.from("transactions")');
+      expect(start, page).toBeGreaterThan(-1);
+      expect(src.slice(start, src.indexOf(".limit(", start)), page).not.toMatch(/\.gte?\("date"/);
     }
   });
 
   it("the property reader handles nesting and shorthand", () => {
-    const obj = "{ settings, ytdGCI, transactions: rows.map((tx) => ({ id: tx.id, date: tx.date, gci: computeGCI(tx) })), now }";
-    expect(property(obj, "transactions")).toBe("rows.map((tx) => ({ id: tx.id, date: tx.date, gci: computeGCI(tx) }))");
+    const obj = "{ settings, ytdGCI, transactions: toPlanDeals(carryOverTx, rows), now }";
+    expect(property(obj, "transactions")).toBe("toPlanDeals(carryOverTx, rows)");
     expect(property(obj, "now")).toBeNull();
     expect(property("{ a: f(b, c), d: 1 }", "d")).toBe("1");
+    expect(parts("(s, ytdGCI, { deals: f(a, b) })")).toEqual(["s", "ytdGCI", "{ deals: f(a, b) }"]);
+  });
+});
+
+// ── Flight Crew knows ────────────────────────────────────────────────────────
+
+describe("Flight Crew: the REAL cap carries across January 1", () => {
+  const kbReal = KNOWLEDGE_BASE.split("\n").find((l) => l.startsWith("**real** (REAL Brokerage")) ?? "";
+  const kbSurvival = KNOWLEDGE_BASE.split("\n").find((l) => l.startsWith("**Survival Runway**")) ?? "";
+
+  it("the knowledge base says so under COMMISSION STRUCTURE and Survival Runway, dated", () => {
+    for (const [name, line] of [["real", kbReal], ["survival", kbSurvival]] as const) {
+      expect(line, name).toMatch(/January 1/);
+      expect(line, name).toMatch(/[Cc]hanged 2026-10-14/);
+      expect(line, name).toMatch(/re-capped/);
+    }
+    expect(kbReal).toMatch(/not toward this year's GCI/);
+  });
+
+  it("the survival and settings playbooks state the rule and what changed", () => {
+    expect(getPlaybook("survival")).toMatch(/before January 1 in the anniversary year that contains it \(the carry-over\)/);
+    const settingsPlaybook = getPlaybook("settings");
+    expect(settingsPlaybook).toMatch(/The cap carries across January 1/);
+    expect(settingsPlaybook).toMatch(/Changed 2026-10-14: every screen, the dashboard included/);
+    // The seed is for deals the app does not have: entered deals already count.
+    expect(settingsPlaybook).toMatch(/counts twice/);
+  });
+
+  it("a question about the cap resetting in January reaches those playbooks", () => {
+    const topics = classifyTopicMulti("I'm on REAL and my cash runway dropped on January 1, did my cap reset?").map((t) => t.topic);
+    expect(topics.some((t) => t === "survival" || t === "settings")).toBe(true);
   });
 });

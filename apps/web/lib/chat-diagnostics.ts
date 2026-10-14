@@ -38,6 +38,7 @@ import {
   computeProjectedNetForTax,
   pipelineIncomeMonthsLeft,
 } from "@agent-runway/core/engines/effective-cash";
+import { capYearCarryOver, toPlanDeals } from "@agent-runway/core/engines/real-compensation-engine";
 import { expenseTaxContext } from "@agent-runway/core/engines/expense-totals-engine";
 import { ytdExpenseTotals, ytdExpensesGstHstIncluded } from "@agent-runway/core/engines/t2125-expenses-engine";
 import { expenseCategoryBreakdown, expenseItemsOf, type ExpenseCategoryYtd } from "@/lib/ai/expense-tax-intel";
@@ -65,6 +66,8 @@ interface UserSettings {
   /** Compensation plan (REAL Brokerage — migration 00161). Optional: this is
    *  a partial diagnostic slice; absent → simple_split. */
   comp_plan?: string | null;
+  /** REAL anniversary anchor: the cap year's carry-over starts from it. */
+  real_join_date?: string | null;
   real_pre_cap_agent_pct?: number | null;
   monthly_brokerage_fee: number;
   tx_fee_rate_pct: number;
@@ -132,6 +135,8 @@ interface ListingRow {
 interface DiagContext {
   settings: UserSettings;
   closedTx: Transaction[];
+  /** A REAL agent's closed deals before January 1 in the cap year (capYearCarryOver); the plan waterfall's only. */
+  carryOverTx: Transaction[];
   pipelineDeals: PipelineDeal[];
   clients: { id: string; status: string; last_contact_at: string | null; created_at: string }[];
   referrals: ReferralRow[];
@@ -250,6 +255,14 @@ export async function buildDiagnostics(
   const closedTx = (allTransactions ?? []).filter(
     (tx) => tx.status === "closed" && tx.date?.startsWith(String(currentYear)),
   ) as Transaction[];
+  // A REAL agent's closed deals from the start of the anniversary year that
+  // contains January 1, before it: the cap carries across January 1, so the
+  // plan waterfall needs them (the dashboard's carry-over). Cap state only.
+  const carryOverTx = capYearCarryOver(
+    s,
+    (allTransactions ?? []).filter((tx) => tx.status === "closed") as Transaction[],
+    currentYear,
+  );
   // Filtered at the source: every consumer of ctx.pipelineDeals wants ACTIVE
   // deals — the weighted reduce, the projected deal counts (4 sites), the
   // by-stage breakdown, and "Total Pipeline Deals". #258 filtered only the
@@ -314,6 +327,7 @@ export async function buildDiagnostics(
   const ctx: DiagContext = {
     settings: s,
     closedTx,
+    carryOverTx,
     pipelineDeals,
     clients: clients ?? [],
     referrals: (referralRows ?? []) as ReferralRow[],
@@ -389,7 +403,7 @@ function buildTopicDiagnostic(
  * estimate.
  */
 function diagCashRunway(ctx: DiagContext): { survival: SurvivalResult; effectiveCash: number; projGCI: number } {
-  const { settings: s, ytdGCI, pipelineWeighted, listingWeighted, engineFraction, monthlyRecurring, expensesYTD, closedTx, pipelineDeals } = ctx;
+  const { settings: s, ytdGCI, pipelineWeighted, listingWeighted, engineFraction, monthlyRecurring, expensesYTD, closedTx, carryOverTx, pipelineDeals } = ctx;
 
   // Projection input is pipeline + listing weighted GCI (matches dashboard).
   const projGCI = projectedYearEndGCI(
@@ -405,10 +419,10 @@ function diagCashRunway(ctx: DiagContext): { survival: SurvivalResult; effective
   const { cashPosition } = computeEffectiveCashForSurvival({
     settings: s as unknown as CanonicalUserSettings,
     ytdGCI,
-    // The deals ytdGCI sums, for the plan's per-deal waterfall (the dashboard's
-    // planDeals). Until 2026-10-14 they were left out, so a REAL agent's
-    // diagnostic cash was the analytic simulation's, not the dashboard's.
-    transactions: closedTx.map((tx) => ({ id: tx.id, date: tx.date, gci: computeGCI(tx as Parameters<typeof computeGCI>[0]) })),
+    // The dashboard's planDeals: the cap year's carry-over + the deals ytdGCI
+    // sums. Until 2026-10-14 they were left out, so a REAL agent's diagnostic
+    // cash was the analytic simulation's, not the dashboard's.
+    transactions: toPlanDeals(carryOverTx, closedTx),
     expensesYTD,
     expensesRemaining: ctx.expensesRemaining,
     projectedGCI: projGCI,

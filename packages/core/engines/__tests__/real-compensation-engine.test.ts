@@ -10,8 +10,13 @@ import { describe, expect, it } from "vitest";
 import {
   aggregateRealComp,
   anniversaryWindow,
+  capYearCarryOver,
+  computePlanGross,
   computeRealCompensation,
+  planDealsStart,
   simulateRealCompensation,
+  toPlanDeals,
+  type PlanDealRow,
   type RealCompSettings,
 } from "../real-compensation-engine";
 import { createTestSettings } from "./test-data";
@@ -381,5 +386,125 @@ describe("simulateRealCompensation — parity guard vs the MCP Deno mirror", () 
     expect(sim.agentShare).toBeCloseTo(57_000, 2);
     expect(sim.fees).toBeCloseTo(3_529, 2);
     expect(sim.agentNet).toBeCloseTo(53_471, 2);
+  });
+});
+
+// ── The cap year across January 1 (2026-10-14) ───────────────────────────────
+//
+// REAL's cap resets on the anniversary of real_join_date. Every surface prices
+// this calendar year's deals through computePlanGross over a calendar window;
+// handed only this year's deals, the waterfall restarted the cap on January 1.
+
+/** A closed row whose GCI is exactly `gci` (through computeGCI's override). */
+function row(id: string, date: string, gci: number): PlanDealRow {
+  return { id, date, sale_price: 0, commission_pct: 0, team_split_pct: null, gci_override: gci };
+}
+
+describe("planDealsStart", () => {
+  const real = (real_join_date: string | null) => ({ comp_plan: "real", real_join_date });
+
+  it("is the start of the anniversary year that contains January 1", () => {
+    expect(planDealsStart(real("2026-07-01"), 2027)).toBe("2026-07-01");
+    expect(planDealsStart(real("2025-03-01"), 2026)).toBe("2025-03-01");
+    // Second and later anniversaries walk forward from the join date.
+    expect(planDealsStart(real("2023-10-15"), 2027)).toBe("2026-10-15");
+  });
+
+  it("is January 1 when no earlier deal can move the cap", () => {
+    expect(planDealsStart(real("2026-07-01"), 2026)).toBe("2026-01-01"); // joined this year
+    expect(planDealsStart(real("2025-01-01"), 2027)).toBe("2027-01-01"); // anniversary is Jan 1
+    expect(planDealsStart(real(null), 2027)).toBe("2027-01-01"); // calendar-year cap
+    expect(planDealsStart({ comp_plan: "simple_split", real_join_date: "2026-07-01" }, 2027)).toBe("2027-01-01");
+    expect(planDealsStart(null, 2027)).toBe("2027-01-01");
+  });
+
+  it("clamps a Feb-29 join date like anniversaryWindow does", () => {
+    expect(planDealsStart(real("2024-02-29"), 2026)).toBe("2025-02-28");
+  });
+});
+
+describe("capYearCarryOver", () => {
+  const rows = [
+    row("a", "2026-06-30", 10_000), // previous anniversary year: cannot move the cap
+    row("b", "2026-07-01", 10_000),
+    row("c", "2026-12-31", 10_000),
+    row("d", "2027-01-01", 10_000), // this year's own row, not carry-over
+  ];
+
+  it("keeps the rows from the anniversary start up to January 1", () => {
+    const s = { comp_plan: "real", real_join_date: "2026-07-01" };
+    expect(capYearCarryOver(s, rows, 2027).map((r) => r.id)).toEqual(["b", "c"]);
+  });
+
+  it("is empty when the cap year starts on or after January 1", () => {
+    expect(capYearCarryOver({ comp_plan: "real", real_join_date: "2026-07-01" }, rows, 2026)).toEqual([]);
+    expect(capYearCarryOver({ comp_plan: "simple_split", real_join_date: "2026-07-01" }, rows, 2027)).toEqual([]);
+  });
+});
+
+describe("a cap year that spans January 1, priced over the calendar year", () => {
+  // Joined 2026-07-01: $50,000 in August and $60,000 on 2026-10-20 cross the
+  // $15,000 cap ($100,000 of GCI). The $20,000 deal on 2027-01-20 is in the
+  // same anniversary year (to 2027-07-01), so REAL pays it post-cap.
+  const settings = createTestSettings({ comp_plan: "real", real_join_date: "2026-07-01" });
+  const closed = [
+    row("t1", "2026-08-15", 50_000),
+    row("t2", "2026-10-20", 60_000),
+    row("t3", "2027-01-20", 20_000),
+  ];
+  const ytdTx = closed.filter((r) => r.date.startsWith("2027"));
+  const window = { windowStart: "2027-01-01", windowEnd: "2028-01-01", asOf: "2027-02-01" };
+
+  it("this year's deals alone restart the cap on January 1 (the bug)", () => {
+    const res = computePlanGross(settings, 20_000, { deals: toPlanDeals([], ytdTx), ...window });
+    // $20,000 × 85% − (CBR $40 + BEOP $400 + a second sign-up fee $249)
+    expect(res.grossAfterPlan).toBeCloseTo(16_311, 6);
+    expect(res.capState?.capped).toBe(false);
+  });
+
+  it("with the cap year's carry-over the deal is post-cap, as REAL pays it", () => {
+    const carryOverTx = capYearCarryOver(settings, closed, 2027);
+    expect(carryOverTx.map((r) => r.id)).toEqual(["t1", "t2"]);
+    const res = computePlanGross(settings, 20_000, { deals: toPlanDeals(carryOverTx, ytdTx), ...window });
+    // $20,000 × 100% − (post-cap $375 + CBR $40 + BEOP $400, its 3rd deal)
+    expect(res.grossAfterPlan).toBeCloseTo(19_185, 6);
+    expect(res.shareBeforePlanFees).toBeCloseTo(20_000, 6);
+    expect(res.planFees).toBeCloseTo(815, 6);
+    expect(res.capState?.capped).toBe(true);
+    expect(res.capState?.cappedOnDate).toBe("2026-10-20");
+    expect(res.capState?.anniversaryStart).toBe("2026-07-01");
+  });
+
+  it("every closed row the agent has gives the same year (callers that load them all)", () => {
+    const older = [row("t0", "2025-05-01", 400_000), ...closed]; // before joining REAL
+    const all = computePlanGross(settings, 20_000, { deals: toPlanDeals(older, []), ...window });
+    const carried = computePlanGross(settings, 20_000, {
+      deals: toPlanDeals(capYearCarryOver(settings, closed, 2027), ytdTx),
+      ...window,
+    });
+    expect(all.grossAfterPlan).toBeCloseTo(carried.grossAfterPlan, 6);
+  });
+
+  it("the carry-over sums into none of the year's figures", () => {
+    const carryOverTx = capYearCarryOver(settings, closed, 2027);
+    const res = computeRealCompensation(settings, toPlanDeals(carryOverTx, ytdTx), "2027-02-01");
+    const year = aggregateRealComp(settings, res, "2027-01-01", "2028-01-01");
+    expect(year.gci).toBe(20_000);
+    expect(year.dealCount).toBe(1);
+  });
+
+  it("a January deal in the PREVIOUS anniversary year needs that year's deals too", () => {
+    // Joined 2025-03-01: the cap year that contains 2026-01-01 started
+    // 2025-03-01, so a 2026-02-10 close is priced against the deals since then.
+    const s = createTestSettings({ comp_plan: "real", real_join_date: "2025-03-01" });
+    const rows = [row("n", "2025-11-20", 100_000), row("f", "2026-02-10", 30_000)];
+    const feb = rows.filter((r) => r.date.startsWith("2026"));
+    const asOf = { windowStart: "2026-01-01", windowEnd: "2027-01-01", asOf: "2026-07-15" };
+    expect(capYearCarryOver(s, rows, 2026).map((r) => r.id)).toEqual(["n"]);
+    const carried = computePlanGross(s, 30_000, { deals: toPlanDeals(capYearCarryOver(s, rows, 2026), feb), ...asOf });
+    // Capped by the November deal: $30,000 × 100% − (post-cap $375 + CBR $40 + BEOP $400).
+    expect(carried.grossAfterPlan).toBeCloseTo(30_000 - 815, 6);
+    const alone = computePlanGross(s, 30_000, { deals: toPlanDeals([], feb), ...asOf });
+    expect(alone.grossAfterPlan).toBeLessThan(carried.grossAfterPlan - 4_000);
   });
 });

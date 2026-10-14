@@ -1459,8 +1459,13 @@ export interface MileageLog {
  *
  * Note: gci_override bypasses the team split intentionally — if a user
  * types in their GCI directly they already know their share of the deal.
+ *
+ * Takes only the fields it reads (structurally, like the pipeline helpers
+ * below), so a partial row select can call it without a cast.
  */
-export function computeGCI(tx: Transaction): number {
+export function computeGCI(
+  tx: Pick<Transaction, "sale_price" | "commission_pct" | "team_split_pct" | "gci_override">,
+): number {
   if (tx.gci_override != null) return tx.gci_override;
   const raw = tx.sale_price * tx.commission_pct;
   return (tx.team_split_pct != null && tx.team_split_pct > 0)

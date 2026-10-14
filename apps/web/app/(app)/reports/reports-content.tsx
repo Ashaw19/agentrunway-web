@@ -64,7 +64,7 @@ import {
   type HistoryItem,
   type ListingAppointment,
 } from "@/lib/types/database";
-import { computePlanGross } from "@/lib/engines/real-compensation-engine";
+import { capYearCarryOver, computePlanGross, toPlanDeals } from "@/lib/engines/real-compensation-engine";
 import { localISODate } from "@agent-runway/core/lib/local-date";
 import dynamic from "next/dynamic";
 import type { YoYDataPoint } from "@/components/year-over-year-chart";
@@ -284,6 +284,10 @@ export function ReportsContent({
   // ── YTD ──────────────────────────────────────────────────────────────────────
   const ytdTx = transactions.filter((tx) => tx.date.startsWith(String(currentYear)));
   const ytdGCI = ytdTx.reduce((sum, tx) => sum + computeGCI(tx), 0);
+  // A REAL agent's deals from the start of the anniversary year that contains
+  // January 1, before it: the cap carries across January 1, so the plan
+  // waterfall needs them (the dashboard's carry-over). Cap state only.
+  const carryOverTx = capYearCarryOver(settings, transactions, currentYear);
   const avgDealSize = ytdTx.length > 0 ? ytdGCI / ytdTx.length : 0;
   const buyerDeals = ytdTx.filter((tx) => tx.side === "buyer" || tx.side === "both").length;
   const sellerDeals = ytdTx.filter((tx) => tx.side === "seller" || tx.side === "both").length;
@@ -335,10 +339,11 @@ export function ReportsContent({
     : null;
 
   // ── Financial waterfall ───────────────────────────────────────────────────────
-  // Plan-aware waterfall (REAL per-deal or legacy split) — same deal source
-  // as ytdGCI so the report can never disagree with the dashboard.
+  // Plan-aware waterfall (REAL per-deal or legacy split) — the dashboard's
+  // planDeals (the cap year's carry-over + the deals ytdGCI sums), so the
+  // report can never disagree with the dashboard.
   const planYtd = computePlanGross(settings, ytdGCI, {
-    deals: ytdTx.map((tx) => ({ date: tx.date, gci: computeGCI(tx) })),
+    deals: toPlanDeals(carryOverTx, ytdTx),
     windowStart: `${currentYear}-01-01`,
     windowEnd: `${currentYear + 1}-01-01`,
     asOf: localISODate(now),
@@ -401,8 +406,8 @@ export function ReportsContent({
   const { cashPosition: reportsCashPosition } = computeEffectiveCashForSurvival({
     settings,
     ytdGCI,
-    // The deals ytdGCI sums, for the plan's per-deal waterfall (the dashboard's planDeals).
-    transactions: ytdTx.map((tx) => ({ id: tx.id, date: tx.date, gci: computeGCI(tx) })),
+    // The dashboard's planDeals: the cap year's carry-over + the deals ytdGCI sums.
+    transactions: toPlanDeals(carryOverTx, ytdTx),
     expensesYTD,
     expensesRemaining,
     projectedGCI,

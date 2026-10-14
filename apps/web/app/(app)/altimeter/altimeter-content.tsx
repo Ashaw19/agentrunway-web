@@ -70,6 +70,7 @@ import { generateInsights, type Insight } from "@/lib/engines/insights-engine";
 import { compute as computeRunwayScore } from "@/lib/engines/runway-score-engine";
 import { survivalResult } from "@/lib/engines/survival-engine";
 import { computeEffectiveCashForSurvival, computePipelineMonthlyIncome } from "@/lib/engines/effective-cash";
+import { toPlanDeals } from "@/lib/engines/real-compensation-engine";
 import { buildHealthReport } from "@/lib/engines/health-report";
 import {
   Tooltip,
@@ -298,6 +299,8 @@ function buildMonthlyChartData(
 
 interface Props {
   transactions: Transaction[];
+  /** A REAL agent's closed deals before January 1 in the cap year (loadCapYearCarryOver); the plan waterfall's only. */
+  carryOverTx: Transaction[];
   pipelineDeals: PipelineDeal[];
   settings: UserSettings | null;
   historyItems?: HistoryItem[];
@@ -356,6 +359,7 @@ function AltimeterBanner() {
 
 export function AltimeterContent({
   transactions,
+  carryOverTx,
   pipelineDeals,
   settings,
   historyItems = [],
@@ -486,8 +490,8 @@ export function AltimeterContent({
         computeEffectiveCashForSurvival({
           settings,
           ytdGCI,
-          // The deals ytdGCI sums, for the plan's per-deal waterfall (the dashboard's planDeals).
-          transactions: transactions.map((tx) => ({ id: tx.id, date: tx.date, gci: computeGCI(tx) })),
+          // The dashboard's planDeals: the cap year's carry-over + the deals ytdGCI sums.
+          transactions: toPlanDeals(carryOverTx, transactions),
           expensesYTD,
           expensesRemaining,
           projectedGCI,

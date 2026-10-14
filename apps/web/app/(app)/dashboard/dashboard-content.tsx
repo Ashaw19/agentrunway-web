@@ -105,7 +105,7 @@ import { fmtCurrency, fmtCompact, fmtPct } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 import { CANONICAL_TAX_DISCLAIMER, CANONICAL_TAX_DISCLAIMER_SHORT } from "@/lib/flight-crew/constants";
 import type { MonthlyDataPoint } from "@/components/monthly-chart";
-import { computePlanGross } from "@/lib/engines/real-compensation-engine";
+import { computePlanGross, toPlanDeals } from "@/lib/engines/real-compensation-engine";
 import {
   computeGCI,
   computeWeightedGCI,
@@ -220,6 +220,12 @@ function MetricInfo({ tip }: { tip: string }) {
 
 interface Props {
   transactions: Transaction[];
+  /**
+   * A REAL agent's closed deals from the start of the anniversary year that
+   * contains January 1, before January 1 (loadCapYearCarryOver). Only the
+   * plan waterfall reads them; empty on a simple split.
+   */
+  carryOverTx: Transaction[];
   pipelineDeals: PipelineDeal[];
   /** Pipeline ids some transaction carries in pipeline_deal_id (any year); null if the lookup failed. */
   recordedPipelineDealIds: string[] | null;
@@ -346,6 +352,7 @@ const INSIGHT_ICONS: Record<string, React.ElementType> = {
 
 export function DashboardContent({
   transactions,
+  carryOverTx,
   pipelineDeals,
   recordedPipelineDealIds,
   settings,
@@ -588,9 +595,12 @@ export function DashboardContent({
   const avgDealSize = ytdDealCount > 0 ? ytdGCI / ytdDealCount : 0;
 
   // Per-deal inputs for the plan-aware compensation chain (the REAL waterfall
-  // needs deal-level GCI + dates; simple_split ignores them). Derived from the
-  // SAME array as ytdGCI so the two can never diverge.
-  const planDeals = transactions.map((tx) => ({ id: tx.id, date: tx.date, gci: computeGCI(tx) }));
+  // needs deal-level GCI + dates; simple_split ignores them). This year's are
+  // the SAME array as ytdGCI, so the two can never diverge; the cap year's
+  // carry-over from before January 1 moves the cap only (the calendar window
+  // below leaves it out of every sum). Until 2026-10-14 the waterfall restarted
+  // the cap on January 1.
+  const planDeals = toPlanDeals(carryOverTx, transactions);
 
   // ── Zero-data gate ────────────────────────────────────────────────────
   // The Runway Score, pace percentile, and behind-goal % are only meaningful
