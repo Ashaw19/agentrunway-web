@@ -112,3 +112,46 @@ export function taxEstimateSpreadSentence(netIncome: number): TaxCopy {
     `For the ${taxYear} tax year, on ${fmtCurrency(netIncome)} of net business income, the engine's estimate runs from ${fmtTaxEstimateRate(low.rate)} of that income in ${low.label} to ${fmtTaxEstimateRate(high.rate)} in ${high.label}.`,
   );
 }
+
+export interface TaxEstimateBreakdown {
+  netIncome: number;
+  province: Province;
+  /** `PROVINCE_LABELS[province]` */
+  label: string;
+  /** The engine's `taxYear`. */
+  taxYear: number;
+  /** `federalTax` */
+  federalTax: number;
+  /** `provincialTax` */
+  provincialTax: number;
+  /** `totalCPP`: both halves of CPP (QPP in Quebec), first and second tier. */
+  cpp: number;
+  /** `totalBurden`: the three figures above. */
+  total: number;
+  /** `totalBurden` / net income, before any rounding (see `TaxEstimateAt.rate`). */
+  rate: number;
+  /** Net income less `totalBurden`. */
+  afterTax: number;
+}
+
+/**
+ * The engine's estimate at one net business income in one province, line by
+ * line, for a worked example on a public page. The articles used to type
+ * these lines ("runs approximately $28,000–$32,000", "CPP ... a further
+ * $6,000–$7,000"), with no tax year and a CPP figure under CRA's maximum.
+ */
+export function taxEstimateBreakdown(netIncome: number, province: Province): TaxEstimateBreakdown {
+  const result = calculate(netIncome, province, 0);
+  return {
+    netIncome,
+    province,
+    label: PROVINCE_LABELS[province],
+    taxYear: result.taxYear,
+    federalTax: result.federalTax,
+    provincialTax: result.provincialTax,
+    cpp: result.totalCPP,
+    total: result.totalBurden,
+    rate: netIncome > 0 ? result.totalBurden / netIncome : 0,
+    afterTax: netIncome - result.totalBurden,
+  };
+}

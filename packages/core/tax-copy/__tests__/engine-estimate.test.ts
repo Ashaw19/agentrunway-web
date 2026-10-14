@@ -11,6 +11,10 @@
  *      and territories, checked against every one of them.
  *   3. The wording describes the engine (what it counts, what it moves with,
  *      how the per-deal figure is made) and passes the info-not-advice lint.
+ *   4. The line-by-line breakdown a worked example prints (federal tax,
+ *      provincial tax, CPP, the total, what is left) is `calculate`'s for
+ *      that income and province. The articles used to type these ("runs
+ *      approximately $28,000–$32,000", "CPP ... a further $6,000–$7,000").
  */
 
 import { describe, it, expect } from "vitest";
@@ -18,6 +22,7 @@ import {
   TAX_ENGINE_ESTIMATE,
   TAX_ESTIMATE_EXAMPLE_INCOMES,
   fmtTaxEstimateRate,
+  taxEstimateBreakdown,
   taxEstimateSpread,
   taxEstimateSpreadSentence,
 } from "../engine-estimate";
@@ -102,5 +107,56 @@ describe("the wording", () => {
     const result = calculate(100_000, high.province, 0);
     const exact = (result.totalBurden / 100_000) * 100;
     expect(fmtTaxEstimateRate(high.rate)).toBe(`${(Math.round(exact * 10) / 10).toFixed(1)}%`);
+  });
+});
+
+describe.each([
+  [110_000, "ontario"],
+  [112_200, "ontario"],
+  [130_200, "ontario"],
+  [85_000, "newBrunswick"],
+  [150_000, "quebec"],
+] as const)("the engine's breakdown at $%i in %s", (netIncome, province) => {
+  const breakdown = taxEstimateBreakdown(netIncome, province);
+  const result = calculate(netIncome, province, 0);
+
+  it("every line is the engine's, for the engine's tax year", () => {
+    expect(breakdown.federalTax).toBe(result.federalTax);
+    expect(breakdown.provincialTax).toBe(result.provincialTax);
+    expect(breakdown.cpp).toBe(result.totalCPP);
+    expect(breakdown.total).toBe(result.totalBurden);
+    expect(breakdown.taxYear).toBe(result.taxYear);
+    expect(breakdown.label).toBe(PROVINCE_LABELS[province]);
+  });
+
+  it("the total is the three lines, to the cent", () => {
+    expect(breakdown.federalTax + breakdown.provincialTax + breakdown.cpp).toBeCloseTo(breakdown.total, 2);
+  });
+
+  it("what is left is the income less the total, and the rate is the total over the income", () => {
+    expect(breakdown.afterTax).toBe(netIncome - result.totalBurden);
+    expect(breakdown.rate).toBe(result.totalBurden / netIncome);
+    expect(breakdown.rate).toBeCloseTo(result.effectiveRate, 4);
+  });
+});
+
+describe("the engine's breakdown, edge cases", () => {
+  it("CPP is both halves: the engine's first and second tier together", () => {
+    const result = calculate(110_000, "ontario", 0);
+    expect(taxEstimateBreakdown(110_000, "ontario").cpp).toBe(result.totalCPP);
+    expect(result.totalCPP).toBeCloseTo(result.cpp1Contribution + result.cpp2Contribution, 2);
+  });
+
+  it("a rate is rounded once: Ontario at $110,000 prints 28.0%, where the engine's four-decimal rate would print 28.1%", () => {
+    const breakdown = taxEstimateBreakdown(110_000, "ontario");
+    const exact = (breakdown.total / 110_000) * 100;
+    expect(fmtTaxEstimateRate(breakdown.rate)).toBe(`${(Math.round(exact * 10) / 10).toFixed(1)}%`);
+  });
+
+  it("no income gives zeros, not a divide by zero", () => {
+    const breakdown = taxEstimateBreakdown(0, "ontario");
+    expect(breakdown.total).toBe(0);
+    expect(breakdown.rate).toBe(0);
+    expect(breakdown.afterTax).toBe(0);
   });
 });

@@ -4,6 +4,7 @@ import { ArrowRight, BookOpen } from "lucide-react";
 import { MarketingNav } from "@/components/marketing-nav";
 import { MarketingFooter } from "@/components/marketing-footer";
 import { articleSchema, breadcrumbSchema } from "@/lib/schema";
+import { fmtCurrency } from "@/lib/formatters";
 import {
   CANONICAL_TAX_DISCLAIMER,
   CRA_INSTALMENT_SOURCES,
@@ -12,6 +13,9 @@ import {
   INSTALMENT_REQUIREMENT_RULE,
   INSTALMENT_WITHHOLDING_RULE,
   TAX_ENGINE_ESTIMATE,
+  fmtTaxEstimateRate,
+  taxEstimateBreakdown,
+  taxEstimateSpreadSentence,
 } from "@agent-runway/core/tax-copy";
 
 export const metadata: Metadata = {
@@ -69,6 +73,18 @@ function CRACite({ id }: { id: number }) {
     </a>
   );
 }
+
+// ── The worked example ───────────────────────────────────────────────────────
+//
+// Steps 1 to 3 are illustration inputs, typed in the article: $200,000 of GCI,
+// a 70/30 split, 20 deals at a $400 fee and $22,000 of business expenses,
+// which leave $110,000 of net business income. Step 4 is not typed. The tax
+// engine works the tax and CPP out for that income when the page is built, so
+// the figures and the tax year on the page are the engine's.
+
+const EXAMPLE_GCI = 200_000;
+const EXAMPLE_NET_BUSINESS_INCOME = 110_000;
+const EXAMPLE_TAX = taxEstimateBreakdown(EXAMPLE_NET_BUSINESS_INCOME, "ontario");
 
 // ── Table of contents entries ─────────────────────────────────────────────────
 
@@ -209,12 +225,13 @@ export default function HowRealEstateAgentsCalculateNetIncomePage() {
               </ul>
 
               <p>
-                Each step in that formula can meaningfully reduce your take-home pay.
-                An agent with $200,000 in GCI might realistically net somewhere between
-                $65,000 and $90,000 depending on their brokerage structure, expense
-                discipline, province of residence, and how proactively they manage their
-                tax obligations. The gap between the headline GCI number and the net
-                reality is almost always larger than agents expect.
+                Each step in that formula takes something off the top-line figure.
+                In the worked example below, an agent in {EXAMPLE_TAX.label} with{" "}
+                {fmtCurrency(EXAMPLE_GCI)} in GCI is left with{" "}
+                {fmtCurrency(EXAMPLE_TAX.afterTax)} after the brokerage split, fees,
+                business expenses and the tax engine&apos;s {EXAMPLE_TAX.taxYear}{" "}
+                estimate of income tax and CPP. That figure moves with the brokerage
+                agreement, the expenses for the year and the province.
               </p>
 
               <h3>Why the distinction matters</h3>
@@ -251,7 +268,7 @@ export default function HowRealEstateAgentsCalculateNetIncomePage() {
               <h3>Step 1: Apply the brokerage commission split</h3>
 
               <p>
-                On a standard 70/30 split, the agent retains 70% of GCI and the brokerage
+                On a 70/30 split, the agent retains 70% of GCI and the brokerage
                 keeps 30%.
               </p>
 
@@ -285,12 +302,11 @@ export default function HowRealEstateAgentsCalculateNetIncomePage() {
               <h3>Step 3: Subtract annual business expenses</h3>
 
               <p>
-                A well-run real estate practice incurs significant operating costs. A
-                reasonable annual expense total for an agent at this income level might
-                include MLS and board fees, E&O insurance premiums, marketing and
-                advertising spend, technology subscriptions, a portion of vehicle costs,
-                and professional development. A combined total of $22,000 is realistic
-                and, in many cases, conservative.
+                A real estate practice has operating costs: MLS and board fees, E&O
+                insurance premiums, marketing and advertising, technology
+                subscriptions, a portion of vehicle costs, and professional
+                development. This example uses a combined total of $22,000 for the
+                year. It is an illustration figure, not a benchmark.
               </p>
 
               <ul>
@@ -302,27 +318,60 @@ export default function HowRealEstateAgentsCalculateNetIncomePage() {
               <h3>Step 4: Estimate federal and provincial income tax plus CPP</h3>
 
               <p>
-                A self-employed agent in Ontario with $110,000 in net business income
-                faces a meaningful combined tax obligation. Federal and Ontario provincial
-                income tax on this amount — after the basic personal amount and other
-                standard deductions — runs approximately $28,000–$32,000 depending on
-                filing specifics. CPP contributions at the self-employed rate add a further
-                $6,000–$7,000 (self-employed agents pay both the employee and employer
-                share). A combined tax and CPP estimate of $35,000 is a reasonable
-                planning figure.
+                The figures in this step are not typed into the article. Agent
+                Runway&apos;s tax engine works them out for {EXAMPLE_TAX.label}, for
+                the {EXAMPLE_TAX.taxYear} tax year, on{" "}
+                {fmtCurrency(EXAMPLE_TAX.netIncome)} of net business income. The CPP
+                figure is both the employee and the employer share of the
+                contribution, which is what the engine counts on self-employment
+                income. The{" "}
+                <Link href="/self-employed-cpp-real-estate-agents-canada">
+                  self-employed CPP guide
+                </Link>{" "}
+                covers how CPP is worked out.
               </p>
 
               <ul>
-                <li>Net business income before tax: $110,000</li>
-                <li>Estimated federal + provincial tax + CPP: &minus;$35,000</li>
-                <li><strong>Approximate net income: $75,000</strong></li>
+                <li>Estimated federal income tax: {fmtCurrency(EXAMPLE_TAX.federalTax)}</li>
+                <li>
+                  Estimated {EXAMPLE_TAX.label} income tax:{" "}
+                  {fmtCurrency(EXAMPLE_TAX.provincialTax)}
+                </li>
+                <li>Estimated CPP contributions: {fmtCurrency(EXAMPLE_TAX.cpp)}</li>
+                <li>
+                  <strong>
+                    Estimated tax and CPP for {EXAMPLE_TAX.taxYear}:{" "}
+                    {fmtCurrency(EXAMPLE_TAX.total)}
+                  </strong>
+                  , which is {fmtTaxEstimateRate(EXAMPLE_TAX.rate)} of net business
+                  income
+                </li>
               </ul>
 
+              <ul>
+                <li>Net business income before tax: {fmtCurrency(EXAMPLE_TAX.netIncome)}</li>
+                <li>
+                  Estimated federal + provincial tax + CPP: &minus;
+                  {fmtCurrency(EXAMPLE_TAX.total)}
+                </li>
+                <li>
+                  <strong>
+                    Approximate net income: {fmtCurrency(EXAMPLE_TAX.afterTax)}
+                  </strong>
+                </li>
+              </ul>
+
+              <p className="text-sm text-slate-500">
+                {TAX_ENGINE_ESTIMATE.assumptions} Amounts are rounded to the nearest
+                dollar. {CANONICAL_TAX_DISCLAIMER}
+              </p>
+
               <p>
-                From $200,000 in GCI, the actual take-home figure in this scenario is
-                approximately $75,000 — just 37.5% of the headline number. This is not
-                unusual. Many Canadian real estate agents are surprised to discover how
-                far the real net figure sits below their GCI.
+                From {fmtCurrency(EXAMPLE_GCI)} in GCI, the amount left in this
+                example is {fmtCurrency(EXAMPLE_TAX.afterTax)}, which is{" "}
+                {fmtTaxEstimateRate(EXAMPLE_TAX.afterTax / EXAMPLE_GCI)} of GCI. The
+                same net business income gives a different estimate in another
+                province. {taxEstimateSpreadSentence(EXAMPLE_TAX.netIncome)}
               </p>
 
               <h3>How brokerage structure changes the outcome</h3>

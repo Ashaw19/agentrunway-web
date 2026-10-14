@@ -57,7 +57,9 @@ export {
   TAX_ESTIMATE_EXAMPLE_INCOMES,
   taxEstimateSpread,
   taxEstimateSpreadSentence,
+  taxEstimateBreakdown,
   fmtTaxEstimateRate,
   type TaxEstimateAt,
   type TaxEstimateSpread,
+  type TaxEstimateBreakdown,
 } from "./engine-estimate";

@@ -4,6 +4,13 @@ import { ArrowRight, TrendingUp, Building2, CreditCard, Receipt, Wrench, Landmar
 import { MarketingNav } from "@/components/marketing-nav";
 import { MarketingFooter } from "@/components/marketing-footer";
 import { definedTermSchema, breadcrumbSchema } from "@/lib/schema";
+import { fmtCurrency } from "@/lib/formatters";
+import {
+  CANONICAL_TAX_DISCLAIMER,
+  TAX_ENGINE_ESTIMATE,
+  fmtTaxEstimateRate,
+  taxEstimateBreakdown,
+} from "@agent-runway/core/tax-copy";
 
 export const metadata: Metadata = {
   title: "Net Income for Real Estate Agents Explained",
@@ -31,6 +38,18 @@ const breadcrumb = breadcrumbSchema([
   { name: "Real Estate Metrics", url: "/real-estate-metrics" },
   { name: "Net Income", url: "/metrics/net-income" },
 ]);
+
+// ── The waterfall's tax row ──────────────────────────────────────────────────
+//
+// The waterfall is an illustration: its GCI, split, fees and expenses are
+// typed, and they leave $112,200 before tax. The tax row is not typed. The tax
+// engine works the tax and CPP out for that income when the page is built, so
+// the amount and the tax year on the page are the engine's.
+
+const WATERFALL_GCI = 210_000;
+const WATERFALL_PRE_TAX = 112_200;
+const WATERFALL_TAX = taxEstimateBreakdown(WATERFALL_PRE_TAX, "ontario");
+const WATERFALL_SHARE_LEFT = fmtTaxEstimateRate(WATERFALL_TAX.afterTax / WATERFALL_GCI);
 
 export default function NetIncomeMetricPage() {
   return (
@@ -69,7 +88,7 @@ export default function NetIncomeMetricPage() {
             {/* Key stat pills */}
             <div className="mt-10 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
               {[
-                { value: "~37%", label: "of GCI left after tax in the worked example below (Ontario)" },
+                { value: WATERFALL_SHARE_LEFT, label: `of GCI left after estimated tax in the worked example below (${WATERFALL_TAX.label})` },
                 { value: "5 layers", label: "of deductions between GCI and take-home" },
                 { value: "$0", label: "tax owed on money you don't realise you earned" },
               ].map((s) => (
@@ -126,7 +145,7 @@ export default function NetIncomeMetricPage() {
                   <div className="bg-white px-5 py-4 text-center">
                     <div className="text-xs font-semibold uppercase tracking-wide text-amber-600">Net Income</div>
                     <div className="mt-2 text-xl font-bold text-amber-700">$68,000</div>
-                    <div className="mt-1 text-xs text-slate-400">After 38% net cost ratio</div>
+                    <div className="mt-1 text-xs text-slate-400">After 62% net cost ratio</div>
                   </div>
                   <div className="bg-white px-5 py-4 text-center">
                     <div className="text-xs font-semibold uppercase tracking-wide text-emerald-600">Net Income</div>
@@ -148,7 +167,8 @@ export default function NetIncomeMetricPage() {
               <h2 className="text-2xl font-bold tracking-tight text-slate-900">How to calculate net income — step by step</h2>
               <p className="mt-4 leading-relaxed text-slate-600">
                 Net income is calculated by working down through each layer of deduction from GCI.
-                Here is the full waterfall for an Ontario agent earning $210,000 GCI:
+                Here is the full waterfall for an agent in {WATERFALL_TAX.label} earning{" "}
+                {fmtCurrency(WATERFALL_GCI)} GCI:
               </p>
 
               {/* Waterfall */}
@@ -158,7 +178,7 @@ export default function NetIncomeMetricPage() {
                     <div className="h-3 w-3 rounded-full bg-emerald-500 ring-2 ring-emerald-200" />
                     <span className="font-semibold text-slate-900">Gross Commission Income</span>
                   </div>
-                  <span className="font-bold text-emerald-700">$210,000</span>
+                  <span className="font-bold text-emerald-700">{fmtCurrency(WATERFALL_GCI)}</span>
                 </div>
                 {[
                   { icon: Building2, label: "Brokerage split (20%)", amount: "−$42,000", sub: "paid to brokerage" },
@@ -185,29 +205,35 @@ export default function NetIncomeMetricPage() {
                     <div className="h-3 w-3 rounded-full bg-blue-500 ring-2 ring-blue-200" />
                     <span className="font-semibold text-slate-900">Pre-Tax Net Income</span>
                   </div>
-                  <span className="font-bold text-blue-700">$112,200</span>
+                  <span className="font-bold text-blue-700">{fmtCurrency(WATERFALL_PRE_TAX)}</span>
                 </div>
                 <div className="flex items-center justify-between border-t border-slate-200 bg-white px-5 py-3">
                   <div className="flex items-center gap-3">
                     <Landmark className="h-4 w-4 shrink-0 text-slate-400" />
                     <div>
-                      <div className="text-sm text-slate-700">Federal + provincial tax + CPP</div>
-                      <div className="text-xs text-slate-400">Ontario rates, 2025</div>
+                      <div className="text-sm text-slate-700">Estimated federal + provincial tax + CPP</div>
+                      <div className="text-xs text-slate-400">
+                        Agent Runway tax engine, {WATERFALL_TAX.label}, {WATERFALL_TAX.taxYear} tax year
+                      </div>
                     </div>
                   </div>
-                  <span className="text-sm font-medium text-red-600">−$34,000</span>
+                  <span className="text-sm font-medium text-red-600">−{fmtCurrency(WATERFALL_TAX.total)}</span>
                 </div>
                 <div className="flex items-center justify-between border-t-2 border-emerald-200 bg-emerald-50 px-5 py-4">
                   <div className="flex items-center gap-3">
                     <div className="h-3 w-3 rounded-full bg-emerald-500 ring-2 ring-emerald-200" />
-                    <span className="font-semibold text-slate-900">After-Tax Net Income</span>
+                    <span className="font-semibold text-slate-900">Estimated After-Tax Net Income</span>
                   </div>
-                  <span className="font-bold text-emerald-700">~$78,200</span>
+                  <span className="font-bold text-emerald-700">{fmtCurrency(WATERFALL_TAX.afterTax)}</span>
                 </div>
                 <div className="border-t border-slate-200 bg-slate-50 px-5 py-2 text-center">
-                  <span className="text-xs text-slate-500">37% of original GCI — the true bottom line.</span>
+                  <span className="text-xs text-slate-500">{WATERFALL_SHARE_LEFT} of GCI in this example.</span>
                 </div>
               </div>
+              <p className="mt-3 text-xs leading-relaxed text-slate-500">
+                {TAX_ENGINE_ESTIMATE.assumptions} Amounts are rounded to the nearest dollar.{" "}
+                {CANONICAL_TAX_DISCLAIMER}
+              </p>
             </div>
 
             {/* 3. Why net income matters more */}

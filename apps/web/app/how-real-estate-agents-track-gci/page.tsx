@@ -18,6 +18,12 @@ import {
 } from "lucide-react";
 import { MarketingNav } from "@/components/marketing-nav";
 import { MarketingFooter } from "@/components/marketing-footer";
+import { fmtCurrency } from "@/lib/formatters";
+import {
+  CANONICAL_TAX_DISCLAIMER,
+  TAX_ENGINE_ESTIMATE,
+  taxEstimateBreakdown,
+} from "@agent-runway/core/tax-copy";
 import { articleSchema, breadcrumbSchema } from "@/lib/schema";
 
 export const metadata: Metadata = {
@@ -47,6 +53,16 @@ const breadcrumb = breadcrumbSchema([
   { name: "Home", url: "/" },
   { name: "How Agents Track GCI", url: "/how-real-estate-agents-track-gci" },
 ]);
+
+// ── The income waterfall's tax row ───────────────────────────────────────────
+//
+// The waterfall is an illustration: its GCI, split, fees and expenses are
+// typed, and they leave $130,200 before tax. The tax row is not typed. The tax
+// engine works the tax and CPP out for that income when the page is built, so
+// the amount and the tax year on the page are the engine's.
+
+const WATERFALL_PRE_TAX = 130_200;
+const WATERFALL_TAX = taxEstimateBreakdown(WATERFALL_PRE_TAX, "ontario");
 
 // ── Table of contents ─────────────────────────────────────────────────────────
 
@@ -197,9 +213,9 @@ export default function HowRealEstateAgentsTrackGCIPage() {
                     { label: "Transaction fees", value: "−$3,000", note: "Per-deal fees", color: "text-red-600", bg: "bg-red-50/40", bold: false },
                     { label: "Monthly desk fees", value: "−$4,800", note: "$400/month × 12", color: "text-red-600", bg: "bg-red-50/40", bold: false },
                     { label: "Business expenses", value: "−$22,000", note: "Marketing, MLS, E&O, tech, vehicle", color: "text-red-600", bg: "bg-red-50/40", bold: false },
-                    { label: "Net before tax", value: "$130,200", note: "After all business costs", color: "text-amber-600", bg: "bg-amber-50/40", bold: true },
-                    { label: "Federal + provincial tax + CPP", value: "−$38,000", note: "Approx. — varies by province", color: "text-red-600", bg: "bg-red-50/40", bold: false },
-                    { label: "Take-home income", value: "≈ $92,000", note: "What actually lands in your account", color: "text-emerald-600", bg: "bg-emerald-50/40", bold: true },
+                    { label: "Net before tax", value: fmtCurrency(WATERFALL_PRE_TAX), note: "After all business costs", color: "text-amber-600", bg: "bg-amber-50/40", bold: true },
+                    { label: "Estimated federal + provincial tax + CPP", value: `−${fmtCurrency(WATERFALL_TAX.total)}`, note: `Agent Runway tax engine, ${WATERFALL_TAX.label}, ${WATERFALL_TAX.taxYear} tax year`, color: "text-red-600", bg: "bg-red-50/40", bold: false },
+                    { label: "Estimated take-home income", value: fmtCurrency(WATERFALL_TAX.afterTax), note: "After the estimated tax and CPP", color: "text-emerald-600", bg: "bg-emerald-50/40", bold: true },
                   ].map(({ label, value, note, color, bg, bold }) => (
                     <div key={label} className={`flex items-center justify-between px-6 py-3.5 ${bg}`}>
                       <div>
@@ -212,6 +228,9 @@ export default function HowRealEstateAgentsTrackGCIPage() {
                     </div>
                   ))}
                 </div>
+                <p className="border-t border-slate-100 bg-slate-50 px-6 py-3 text-xs leading-relaxed text-slate-500">
+                  {TAX_ENGINE_ESTIMATE.assumptions} Amounts are rounded to the nearest dollar. {CANONICAL_TAX_DISCLAIMER}
+                </p>
                 <p className="border-t border-slate-100 bg-slate-50 px-6 py-3 text-xs text-slate-500">
                   Tracking GCI alone — without understanding what flows through to net — is one of the most common financial blind spots in the industry.
                 </p>
