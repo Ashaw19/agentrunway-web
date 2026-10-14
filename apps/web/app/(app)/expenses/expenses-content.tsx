@@ -984,7 +984,7 @@ export function ExpensesContent({
         // Pipeline monthly income via canonical helper (D-1, Audit 1 2026-04-22).
         computePipelineMonthlyIncome(expensesPipelineWeighted, expensesFraction),
       )
-    : survivalResult(0, monthlyTotal, 0, 0);
+    : survivalResult(0, monthlyTotal, 0, computePipelineMonthlyIncome(expensesPipelineWeighted, expensesFraction));
 
   // Cash-runway color via the engine's single semantic contract (§9.1/§9.5):
   // healthy (4–<6mo) reads amber/watch, not emerald.

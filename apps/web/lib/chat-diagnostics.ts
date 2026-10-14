@@ -26,10 +26,17 @@ import { buildHealthReport, expenseSubScore } from "@agent-runway/core/engines/h
 import { EXPENSE_RATIO_COPY, expenseRatioBand, expenseRatioBandRange } from "@agent-runway/core/engines/expense-ratio-bands";
 import {
   survivalResult as computeSurvivalResult,
+  netMonthlyBurn,
+  runwayBasisSentence,
+  RISK_BAND_RANGE,
+  RISK_LEVEL_LABEL,
+  type SurvivalResult,
 } from "@agent-runway/core/engines/survival-engine";
 import {
   computeEffectiveCashForSurvival,
+  computePipelineMonthlyIncome,
   computeProjectedNetForTax,
+  pipelineIncomeMonthsLeft,
 } from "@agent-runway/core/engines/effective-cash";
 import { expenseTaxContext } from "@agent-runway/core/engines/expense-totals-engine";
 import { ytdExpenseTotals, ytdExpensesGstHstIncluded } from "@agent-runway/core/engines/t2125-expenses-engine";
@@ -373,35 +380,28 @@ function buildTopicDiagnostic(
 // ─── Individual Diagnostic Builders ───────────────────────────────────────────
 
 /**
- * diagRunwayScore: delegates to buildHealthReport → benchmarkCompare →
- * computeSurvivalResult → computeRunwayScore, then formats results.
+ * The cash runway as the dashboard computes it (dashboard-content.tsx,
+ * "Survival"): effective cash against the burn less the pipeline income
+ * estimate. The Runway Score breakdown and the survival diagnostic both read
+ * this one result, so they quote the months, band and Survival sub-score the
+ * screens show. Until 2026-10-13 each built its own and passed 0 for the
+ * estimate.
  */
-function diagRunwayScore(ctx: DiagContext): string {
+function diagCashRunway(ctx: DiagContext): { survival: SurvivalResult; effectiveCash: number; projGCI: number } {
   const { settings: s, ytdGCI, pipelineWeighted, listingWeighted, engineFraction, monthlyRecurring, expensesYTD, closedTx, pipelineDeals } = ctx;
 
-  // 1. Health Report (pace, pipeline, expense sub-scores)
-  // Pipeline sub-score uses pipeline-only weighted GCI (matches dashboard's
-  // buildHealthReport 4th arg — pipelineWeightedGCI, not the listing total).
-  const healthReport = buildHealthReport(
-    ytdGCI, s.goal_gci ?? 0, engineFraction, pipelineWeighted, expensesYTD,
-  );
-
-  // 2. Projection for benchmark — pipeline + listing weighted (matches dashboard)
+  // Projection input is pipeline + listing weighted GCI (matches dashboard).
   const projGCI = projectedYearEndGCI(
     ytdGCI, pipelineWeighted + listingWeighted, engineFraction, s.goal_gci ?? 0,
   );
-
-  // 3. Benchmark (actual industry-cohort percentile, not hardcoded 50)
-  const benchmark = benchmarkCompare(projGCI, s.experience_years ?? null);
-
-  // 4. Survival — cash input MUST be cashPosition.effectiveCash (not raw
-  //    cash_reserve) to match dashboard + chat. Diagnostic runs through
-  //    the AI; a wrong number here puts Captain back in the 2026-04-17
-  //    failure mode. See memory/feedback_data_consistency_protocol.md.
   const projDeals = projectedYearEndTransactions(
     closedTx.length, pipelineDeals.length, engineFraction,
   );
-  const { cashPosition: diagCashPos } = computeEffectiveCashForSurvival({
+  // Cash input MUST be cashPosition.effectiveCash (not raw cash_reserve) to
+  // match dashboard + chat. Diagnostic runs through the AI; a wrong number
+  // here puts Captain back in the 2026-04-17 failure mode. See
+  // memory/feedback_data_consistency_protocol.md.
+  const { cashPosition } = computeEffectiveCashForSurvival({
     settings: s as unknown as CanonicalUserSettings,
     ytdGCI,
     expensesYTD,
@@ -411,14 +411,42 @@ function diagRunwayScore(ctx: DiagContext): string {
     fraction: engineFraction,
     now: ctx.today,
   });
+  // Pipeline-only weighted GCI, no listings: the dashboard's pipelineMonthlyEst.
+  const pipelineMonthlyEst = computePipelineMonthlyIncome(pipelineWeighted, engineFraction);
   const survival = computeSurvivalResult(
     s.monthly_brokerage_fee ?? 0,
     monthlyRecurring,
-    diagCashPos.effectiveCash,
-    0,
+    cashPosition.effectiveCash,
+    pipelineMonthlyEst,
+  );
+  return { survival, effectiveCash: cashPosition.effectiveCash, projGCI };
+}
+
+/** What the badge says when no reserve or costs are entered, and why. */
+const RUNWAY_NOT_SET = `${RISK_LEVEL_LABEL.notConfigured} (no cash reserve and no monthly costs entered)`;
+
+/**
+ * diagRunwayScore: delegates to buildHealthReport → benchmarkCompare →
+ * computeSurvivalResult → computeRunwayScore, then formats results.
+ */
+function diagRunwayScore(ctx: DiagContext): string {
+  const { settings: s, ytdGCI, pipelineWeighted, engineFraction, expensesYTD } = ctx;
+
+  // 1. Health Report (pace, pipeline, expense sub-scores)
+  // Pipeline sub-score uses pipeline-only weighted GCI (matches dashboard's
+  // buildHealthReport 4th arg — pipelineWeightedGCI, not the listing total).
+  const healthReport = buildHealthReport(
+    ytdGCI, s.goal_gci ?? 0, engineFraction, pipelineWeighted, expensesYTD,
   );
 
-  // 5. Composite Runway Score
+  // 2. Survival, and the projection the benchmark reads (pipeline + listing
+  //    weighted, matches dashboard)
+  const { survival, projGCI } = diagCashRunway(ctx);
+
+  // 3. Benchmark (actual industry-cohort percentile, not hardcoded 50)
+  const benchmark = benchmarkCompare(projGCI, s.experience_years ?? null);
+
+  // 4. Composite Runway Score
   const runwayScore = computeRunwayScore(
     healthReport, benchmark.percentile, survival.months,
   );
@@ -434,13 +462,23 @@ function diagRunwayScore(ctx: DiagContext): string {
     runwayScore.components[0],
   );
 
+  const survivalDetail = survival.riskLevel === "notConfigured"
+    ? RUNWAY_NOT_SET
+    : [
+        `${survival.label} (${RISK_LEVEL_LABEL[survival.riskLevel]}, ${RISK_BAND_RANGE[survival.riskLevel]})`,
+        survival.monthlyBurn > 0 ? `burn: ${fmtCurrency(survival.monthlyBurn)}/mo` : null,
+        survival.monthlyBurn > 0 && survival.monthlyIncome > 0
+          ? `pipeline income estimate: ${fmtCurrency(survival.monthlyIncome)}/mo, net burn: ${fmtCurrency(netMonthlyBurn(survival))}/mo`
+          : null,
+      ].filter(Boolean).join(", ");
+
   return `[RUNWAY SCORE BREAKDOWN]
 Score: ${runwayScore.score} — ${runwayScore.stateLabel} (grade ${runwayScore.grade}) — v${runwayScore.version}
 ├─ ${runwayScore.components.map((c) => `${c.label} (${c.weight}): ${c.score}/100`).join("\n├─ ")}
 Pace detail: ${pacePercent >= 0 ? "+" : ""}${Math.round(pacePercent)}% vs goal, seasonal fraction: ${(engineFraction * 100).toFixed(1)}%
 Pipeline detail: ${fmtCurrency(pipelineWeighted)} weighted vs ${fmtCurrency(remainingGoal)} remaining goal
 Expense detail: ratio ${(expenseRatio * 100).toFixed(1)}% (${fmtCurrency(expensesYTD)} / ${fmtCurrency(ytdGCI)})
-Survival detail: ${survival.label} (risk: ${survival.riskLevel})${survival.monthlyBurn > 0 ? `, burn: ${fmtCurrency(survival.monthlyBurn)}/mo` : ""}
+Survival detail: ${survivalDetail}
 Benchmark detail: ${benchmark.percentile}th percentile in ${COHORT_LABELS[benchmark.cohort]} cohort
 Weakest: ${weakest.label} (${weakest.score}/100, contributing ${(weakest.score * weakest.weightValue).toFixed(1)} points)`;
 }
@@ -764,46 +802,40 @@ Seasonal Weights: ${s.seasonal_weights ? `Custom [${s.seasonal_weights.join(", "
  * Uses recurring expenses only for burn (not total YTD / months).
  */
 function diagSurvival(ctx: DiagContext): string {
-  const { settings: s, monthlyRecurring, ytdGCI, pipelineWeighted, listingWeighted, engineFraction, expensesYTD, closedTx, pipelineDeals } = ctx;
+  const { settings: s, monthlyRecurring, ytdGCI, pipelineWeighted, engineFraction } = ctx;
 
-  // Cash input MUST be cashPosition.effectiveCash (not raw cash_reserve) to
-  // match dashboard + chat. See memory/feedback_data_consistency_protocol.md.
-  // Projection input is pipeline + listing weighted GCI (matches dashboard).
-  const projGCIforSurvival = projectedYearEndGCI(
-    ytdGCI, pipelineWeighted + listingWeighted, engineFraction, s.goal_gci ?? 0,
-  );
-  const projDealsForSurvival = projectedYearEndTransactions(
-    closedTx.length, pipelineDeals.length, engineFraction,
-  );
-  const { cashPosition: diagSurvivalCashPos } = computeEffectiveCashForSurvival({
-    settings: s as unknown as CanonicalUserSettings,
-    ytdGCI,
-    expensesYTD,
-    expensesRemaining: ctx.expensesRemaining,
-    projectedGCI: projGCIforSurvival,
-    projectedDealCount: projDealsForSurvival,
-    fraction: engineFraction,
-    now: ctx.today,
-  });
-  const survival = computeSurvivalResult(
-    s.monthly_brokerage_fee ?? 0,
-    monthlyRecurring,
-    diagSurvivalCashPos.effectiveCash,
-    0, // conservative: no pipeline income estimate
-  );
+  const { survival, effectiveCash } = diagCashRunway(ctx);
+  const configured = survival.riskLevel !== "notConfigured";
+  const netBurn = netMonthlyBurn(survival);
+
+  // The estimate's own division, printed so Flight Crew never works the
+  // divisor out from the calendar month (it comes from the seasonal fraction).
+  const monthsLeft = pipelineIncomeMonthsLeft(engineFraction);
+  const estimateFrom = survival.monthlyIncome > 0
+    ? ` (pipeline weighted GCI ${fmtCurrency(pipelineWeighted)} ÷ ${monthsLeft} month${monthsLeft === 1 ? "" : "s"} left in the year; listing appointments are not counted)`
+    : pipelineWeighted > 0 ? "" : " (the active pipeline has no weighted GCI)";
 
   const monthsElapsed = Math.max(1, ctx.today.getMonth() + 1);
   const monthlyAvgIncome = ytdGCI / monthsElapsed;
 
-  return `[SURVIVAL DIAGNOSTIC]
-Manual Cash Reserve (raw settings field): ${fmtCurrency(s.cash_reserve ?? 0)}
-Effective Cash (implied position — what Survival actually uses): ${fmtCurrency(diagSurvivalCashPos.effectiveCash)}
-Monthly Brokerage Fee: ${fmtCurrency(s.monthly_brokerage_fee ?? 0)}
-Monthly Recurring Expenses: ${fmtCurrency(monthlyRecurring)}
-Total Monthly Burn: ${fmtCurrency(survival.monthlyBurn)}
-Monthly Avg Income (for context): ${fmtCurrency(monthlyAvgIncome)}
-Runway: ${survival.label}
-Risk Level: ${survival.riskLevel === "notConfigured" ? "Not Configured" : survival.riskLevel.charAt(0).toUpperCase() + survival.riskLevel.slice(1)}`;
+  const lines = [
+    "[SURVIVAL DIAGNOSTIC]",
+    `Manual Cash Reserve (raw settings field): ${fmtCurrency(s.cash_reserve ?? 0)}`,
+    `Effective Cash (implied position — what Survival actually uses): ${fmtCurrency(effectiveCash)}`,
+    `Monthly Brokerage Fee: ${fmtCurrency(s.monthly_brokerage_fee ?? 0)}`,
+    `Monthly Recurring Expenses: ${fmtCurrency(monthlyRecurring)}`,
+    `Total Monthly Burn: ${fmtCurrency(survival.monthlyBurn)}`,
+    `Pipeline Income Estimate: ${fmtCurrency(survival.monthlyIncome)}/mo${estimateFrom}`,
+    `Net Monthly Burn (burn − pipeline income estimate, never below $0): ${fmtCurrency(netBurn)}`,
+    `Runway (effective cash ÷ net monthly burn, capped at 24 months): ${configured ? survival.label : RISK_LEVEL_LABEL.notConfigured}`,
+    configured && survival.monthlyBurn > 0 && netBurn === 0
+      ? `Net monthly burn is $0 because the pipeline income estimate covers the whole burn, so nothing is divided: the survival engine returns ${survival.label}.`
+      : null,
+    `Risk Level: ${survival.riskLevel === "notConfigured" ? RUNWAY_NOT_SET : `${RISK_LEVEL_LABEL[survival.riskLevel]} (${RISK_BAND_RANGE[survival.riskLevel]})`}`,
+    configured ? `What the Reports page prints under the figure: ${runwayBasisSentence(survival)}` : null,
+    `Monthly Avg Income YTD (context only, not part of the runway): ${fmtCurrency(monthlyAvgIncome)}`,
+  ];
+  return lines.filter((l): l is string => l !== null).join("\n");
 }
 
 function diagReferrals(referrals: ReferralRow[]): string {

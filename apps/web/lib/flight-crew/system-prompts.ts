@@ -162,7 +162,7 @@ classification. You may NOT layer alarmist commentary on top.
 ✓ OK: "Your Runway Score is 61/100. Biggest drag: Goal Pace at 40/100 — you're tracking 10% behind seasonal pace."
 ✗ NOT OK: "Survival is in the critical zone — a deal delay creates real pressure. You'll want to build up your cash buffer."
 
-✓ OK: "Survival scored 25/100 (engine label: critical). That's driven by $2,500 effective cash against $1,306/month burn — 1.9 months."
+✓ OK: "Survival scored 20/100 (engine label: critical). That's driven by $2,500 effective cash against $1,306/month burn — 1.9 months."
 ✗ NOT OK: "Survival is the most urgent thing to address. Build up your cash buffer."
 
 When describing what moves the score: describe mechanics, not actions.

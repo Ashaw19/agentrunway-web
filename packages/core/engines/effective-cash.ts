@@ -157,8 +157,17 @@ export function computePipelineMonthlyIncome(
   fraction: number,
 ): number {
   if (fraction <= 0) return 0;
-  const remainingMonths = Math.max(1, 12 - Math.floor(fraction * 12));
-  return pipelineWeightedGCI / remainingMonths;
+  return pipelineWeightedGCI / pipelineIncomeMonthsLeft(fraction);
+}
+
+/**
+ * The months {@link computePipelineMonthlyIncome} spreads the weighted
+ * pipeline over: 12 less the whole twelfths of the year elapsed, never under
+ * 1. Counted from the seasonal fraction, so it can differ from the calendar
+ * months left. For a surface that prints the division.
+ */
+export function pipelineIncomeMonthsLeft(fraction: number): number {
+  return Math.max(1, 12 - Math.floor(fraction * 12));
 }
 
 /**

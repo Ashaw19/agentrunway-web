@@ -16,7 +16,65 @@
 import { EXPENSE_RATIO_COPY, expenseRatioBandsList } from "@agent-runway/core/engines/expense-ratio-bands";
 import { TAX_YEAR } from "@agent-runway/core/engines/canadian-tax-engine";
 import { TAX_ENGINE_TABLES } from "@agent-runway/core/tax-copy";
+import {
+  SCORE_VERSION,
+  SURVIVAL_SCORE_STEPS,
+  stateLabel,
+  survivalSubScore,
+} from "@agent-runway/core/engines/runway-score-engine";
+import {
+  RISK_BAND_FLOOR_MONTHS,
+  RISK_BAND_LADDER,
+  RISK_BAND_LEVELS,
+  RISK_BAND_RANGE,
+  RISK_LEVEL_LABEL,
+  riskBandPhrase,
+  riskColorBand,
+  type RiskColorBand,
+} from "@agent-runway/core/engines/survival-engine";
 import type { TroubleshootingTopic } from "./troubleshooting-classifier";
+
+// The cash runway bands as Flight Crew's table, highest first, built from the
+// survival engine so the table cannot state an edge, a word or a colour the
+// screens do not use.
+const RUNWAY_COLOUR_WORD: Record<RiskColorBand, string> = { red: "Red", amber: "Amber", emerald: "Green", slate: "Gray" };
+const RUNWAY_BAND_ROWS = [...RISK_BAND_LEVELS]
+  .reverse()
+  .map((level) => {
+    const range = RISK_BAND_RANGE[level];
+    return `| ${range[0].toUpperCase()}${range.slice(1)} | ${RISK_LEVEL_LABEL[level]} | ${RUNWAY_COLOUR_WORD[riskColorBand(level)]} |`;
+  })
+  .join("\n");
+
+// The Runway Score's Survival sub-score as Flight Crew's table, highest first,
+// built from the score engine's ladder so it cannot state a step, a score or a
+// band the engine does not use. The last column is the colour of the Survival
+// bar and of the Cash Runway number beside it: the ladder keeps them the same.
+const monthCount = (months: number) => (months === 1 ? "1 month" : `${months} months`);
+const SURVIVAL_SCORE_ROWS = SURVIVAL_SCORE_STEPS.map((step, i) => {
+  const next = SURVIVAL_SCORE_STEPS[i + 1];
+  const range = !next
+    ? `${step.fromMonths}+ months`
+    : step.fromMonths === 0
+      ? `Under ${monthCount(next.fromMonths)}`
+      : `${step.fromMonths} to under ${monthCount(next.fromMonths)}`;
+  return `| ${range} | ${RISK_LEVEL_LABEL[step.level]} | ${step.score} | ${stateLabel(step.score)} | ${RUNWAY_COLOUR_WORD[riskColorBand(step.level)]} |`;
+})
+  .reverse()
+  .join("\n");
+
+// "a Critical runway scores At Risk (red), a Warning runway scores Building (amber), ..."
+const SURVIVAL_SCORE_BAND_BY_RUNWAY_BAND = RISK_BAND_LEVELS.map((level) => {
+  const first = SURVIVAL_SCORE_STEPS.find((step) => step.level === level);
+  const scoreBand = first ? stateLabel(first.score) : "";
+  return `a ${RISK_LEVEL_LABEL[level]} runway scores ${scoreBand} (${RUNWAY_COLOUR_WORD[riskColorBand(level)].toLowerCase()})`;
+}).join(", ");
+
+const SURVIVAL_SCORE_NOT_SET = survivalSubScore(-1);
+
+// What v1.4 moved, for both playbooks a question about the Survival bar can
+// reach. A dated fact: its figures are what was true that day, typed here.
+const SURVIVAL_SCORE_CHANGED_V14 = `Changed 2026-10-13 (v1.4): a cash runway from 2 to under 3 months scored 30 on Survival (At Risk, a red bar) beside a Cash Runway number in the ${RISK_LEVEL_LABEL.warning} range, in amber. It now scores 41 (Building, amber). No other step moved. Survival is 15% of the Runway Score, so an account with a runway in that range shows a Runway Score 1 or 2 points higher than the day before with nothing else changed, and its Survival bar went from red to amber.`;
 
 export function getPlaybook(topic: TroubleshootingTopic): string {
   return PLAYBOOKS[topic] ?? "";
@@ -72,15 +130,13 @@ The Runway Score is a weighted composite of 5 sub-scores, each 0–100:
 - If no GCI yet: 50 (neutral — agent hasn't started)
 - If has GCI but zero expenses logged: 35 (incomplete data penalty — no real estate agent has zero expenses, so this signals missing data)
 
-**Survival Score** (15%) — v1.3, anchored to the published "6+ months is strong" standard:
-- ≥6 months → 95 (Strong)
-- ≥5 months → 58 (Building / watch)
-- ≥4 months → 50 (Building / watch — a 4.2-month account lands here)
-- ≥3 months → 42 (Building / watch)
-- ≥2 months → 30 (At Risk)
-- ≥1 month → 20 (At Risk)
-- <1 month → 10 (At Risk)
-- Not configured (no cash reserve set) → 35 (incomplete data penalty — previously 50 in v1.1)
+**Survival Score** (15%), v${SCORE_VERSION}. The score follows the cash runway's band (survival-engine.ts; the bands are in the Survival playbook), a step per month inside a band, so the Survival bar is the colour of the Cash Runway number beside it: ${SURVIVAL_SCORE_BAND_BY_RUNWAY_BAND}. The ladder (runway-score-engine.ts, survivalSubScore):
+| Cash runway | Runway band | Survival score | Score band | Colour of both |
+|-------------|-------------|----------------|------------|----------------|
+${SURVIVAL_SCORE_ROWS}
+- Not configured (no cash reserve or costs entered) → ${SURVIVAL_SCORE_NOT_SET} (incomplete data penalty — previously 50 in v1.1). This one is not a band: the Cash Runway number reads "Not set" in gray while the Survival bar is red, because ${SURVIVAL_SCORE_NOT_SET} is an ${stateLabel(SURVIVAL_SCORE_NOT_SET)} score. Entering a cash reserve in Settings replaces the penalty with the runway's own score.
+
+${SURVIVAL_SCORE_CHANGED_V14}
 
 **Benchmark Score** (5%):
 - Direct percentile from industry-cohort comparison
@@ -120,7 +176,7 @@ Walk through each component:
 - Is their pace negative? (35% of total — biggest contributor)
 - Is pipeline empty or thin? (30% — second biggest)
 - Is expense ratio above Agent Runway's target of ${EXPENSE_RATIO_COPY.target}? (15%)
-- Is cash reserve not set? (survival score defaults to 35 → only 5.25 of 15 points)
+- Is cash reserve not set? (survival score defaults to ${SURVIVAL_SCORE_NOT_SET} → only ${SURVIVAL_SCORE_NOT_SET * 0.15} of 15 points)
 - Has GCI but no expenses logged? (expense score defaults to 35 → only 5.25 of 15 points)
 - Are they a newer agent with low benchmark percentile? (5%)
 
@@ -140,7 +196,7 @@ Identify the weakest component and prioritize:
 **"How do I set my goal for next year?"**
 → Settings → Annual Goal → choose the calendar year → enter the GCI target → Save. Or ask me ("set my 2027 goal to $80,000"). Setting a future year doesn't change this year's pace or projections; it takes over on January 1. Each year is separate: a year nobody set has no goal (nothing carries forward), so from October 1 the dashboard prompts for next year's goal. The dashboard's year switch (this year | next year) shows next year as a plan: goal, pipeline already expected to close that year, deals still needed, monthly targets, and estimated take-home at goal. The take-home deducts the business expenses expected that year: each Recurring Expenses entry by its charge dates in that year, plus 12 months of the "/mo" figures on expense items.
 - Zero GCI: Expense score defaults to 50 (neutral)
-- Cash reserve = $0 or not set: Survival score = 35 (incomplete data penalty — not 50)
+- Cash reserve = $0 or not set: Survival score = ${SURVIVAL_SCORE_NOT_SET} (incomplete data penalty — not 50)
 `,
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -1285,10 +1341,12 @@ All figures are a snapshot of the REAL income deck and are user-editable — if 
 - monthlyRecurring: sum of all active recurring expense amounts (monthly + prorated quarterly/annual), net of ITCs for a GST/HST registrant
 - NOTE: This does NOT use YTD expenses ÷ months elapsed — it uses the configured recurring amounts only
 
-**Income Offset** = Pipeline Weighted GCI ÷ max(1, 12 − months elapsed)
+**Income Offset** = Pipeline Weighted GCI ÷ months left in the year (minimum 1)
 - This is the pipeline monthly estimate used to offset burn
 - NOT YTD Agent Net ÷ months elapsed — it is forward-looking (pipeline-based)
-- Divisor is remaining months of the year (minimum 1): late-year pipeline is spread across fewer months, so the monthly offset is larger
+- Pipeline Weighted GCI is the active pipeline only: closed and lost deals are not in it, and neither are listing appointments
+- Months left = 12 − the whole twelfths of the year elapsed, counted from the seasonal fraction of the year elapsed (the agent's seasonal weights), so it can differ from the calendar months left. Late-year pipeline is spread across fewer months, so the monthly offset is larger
+- In troubleshooting mode the [SURVIVAL DIAGNOSTIC] block prints the estimate, the weighted GCI and the months left it was divided by, and the net burn. Quote those figures; do not work the divisor out from the calendar month. They are the dashboard's inputs, so the months, band, Survival sub-score and Runway Score in the diagnostic data are the ones on the user's screens (until 2026-10-13 the diagnostic blocks left the Income Offset out and could show fewer months than the dashboard)
 
 **Net Burn** = Monthly Burn − Income Offset
 
@@ -1300,18 +1358,25 @@ All figures are a snapshot of the REAL income deck and are user-editable — if 
   - This is what should be in the account if the agent has been disciplined
 - If no closed deals yet: Manual Cash Reserve only (from Settings)
 
-**Risk Levels**:
+**Risk Levels** (survival-engine.ts; every screen, the report PDFs and the public page agentrunway.ca/metrics/financial-runway read these):
 | Months | Level | Color |
 |--------|-------|-------|
-| ≥6 | Strong | Green |
-| 4–6 | Healthy | Amber |
-| 2–4 | Warning | Amber |
-| <2 | Critical | Red |
-| Not configured | Not Set | Gray |
+${RUNWAY_BAND_ROWS}
+| Not configured | ${RISK_LEVEL_LABEL.notConfigured} | ${RUNWAY_COLOUR_WORD[riskColorBand("notConfigured")]} |
 
-Each band runs from its lower figure up to, not including, the next one (exactly 4.0 months is Healthy, exactly 6.0 is Strong). Healthy and Warning share amber on every screen and in the business report PDF (survival-engine.ts, riskColorBand): only Strong is green. The word on the badge tells them apart.
+In one sentence, as the screens print it: "${RISK_BAND_LADDER}" Each band runs from its lower figure up to, not including, the next one (exactly ${RISK_BAND_FLOOR_MONTHS.healthy}.0 months is ${RISK_LEVEL_LABEL.healthy}, exactly ${RISK_BAND_FLOOR_MONTHS.strong}.0 is ${RISK_LEVEL_LABEL.strong}). ${RISK_LEVEL_LABEL.healthy} and ${RISK_LEVEL_LABEL.warning} share amber on every screen and in the business report PDF (survival-engine.ts, riskColorBand): only ${RISK_LEVEL_LABEL.strong} is green. The word on the badge tells them apart.
 
-**What the business report PDF says about cash runway** (changed 2026-10-13). The Cash Runway box on its Expenses page is headed with the months and the band ("3.0 months of cash runway · Warning"; "24+ months of cash runway · Strong" at the cap; "Not Set" when no reserve or costs are entered). Under that it gives the cash reserve and monthly burn, then the four bands in one sentence: "Under 2 months is critical, 2–4 is warning, 4–6 is healthy, 6+ is strong." The Assessment paragraph on the last page says which range the runway is in ("Your cash runway of 3.0 months is in the Warning range (2–4 months)."). The PDF states where the runway sits and gives no instruction. A PDF downloaded before that date said "Immediate action required", "Consider increasing your reserve to 4+ months" or "You are within the recommended 4–6+ month safety buffer" (also printed for a Strong runway), and showed "-1.0 Months" when nothing was set. The months and the band were calculated the same way then; only the wording changed.
+**Which runways are flagged** (one rule: survival-engine.ts, isFlaggedRiskLevel). A runway is flagged when it is ${RISK_LEVEL_LABEL.critical} or ${RISK_LEVEL_LABEL.warning} (under ${RISK_BAND_FLOOR_MONTHS.healthy} months). ${RISK_LEVEL_LABEL.healthy} and ${RISK_LEVEL_LABEL.strong} runways are not flagged, and nothing is flagged before a reserve or costs are entered. The same rule drives:
+- **Dashboard alert** (above the Daily Briefing): red for ${RISK_LEVEL_LABEL.critical}, amber for ${RISK_LEVEL_LABEL.warning}. Its title is "Cash runway is ${riskBandPhrase("warning")}" or "Cash runway is ${riskBandPhrase("critical")}". Its body gives the months the cash covers, adds "after the income estimated from your pipeline" when pipeline income is netted, then lists the four bands.
+- **Daily Briefing "Runway" row**: red for ${RISK_LEVEL_LABEL.critical}, amber for ${RISK_LEVEL_LABEL.warning} and ${RISK_LEVEL_LABEL.healthy}, plain for ${RISK_LEVEL_LABEL.strong}.
+- **Business Health card** (dashboard): a ${RISK_LEVEL_LABEL.critical} runway makes the card's status Critical and a ${RISK_LEVEL_LABEL.warning} runway makes it At Risk (the Runway Score grade and pace can set those too). Its sentences state the months, the band and its range, and what the band above takes in cash at the current burn.
+- **Advisor card "Low Cash Runway"** (Reports, category "Cash Runway"): lists the current runway, its band's range and where the next band starts.
+- **Scenarios page**: the note under the current column says which range the runway is in.
+- **Reports page, Cash Runway card**: the badge carries the band's word. Under the cash reserve and monthly burn it shows "Pipeline income (estimate)" and "Net monthly burn" rows when pipeline income is netted, then the four bands in one sentence. It gives no instruction.
+
+Changed 2026-10-13: until then these screens used cut-offs of their own, so they could disagree with the badge. The dashboard alert was red ("Cash runway is critically low") under 3 months and amber ("Runway is getting thin") from 3 to under 5; the Daily Briefing row used the same 3 and 5; the Business Health card was Critical under 1 month and At Risk under 3; the advisor card (then in a category called "Survival Warning", with "Recommended minimum: 3–6 months of fixed costs") and the Scenarios note appeared under 3 months; the Reports card showed "Consider building your reserve to at least 4 months of operating costs" in a red box under 4 months; the public page listed Critical under 1 month, Warning 1–3, Healthy 3–6 and Strong 6+. So on that date, with no change in the user's data: a runway of 2 to under 3 months went from a red alert to an amber one; a runway of 4 to under 5 months lost its amber alert; a runway of 3 to under 4 months gained the advisor card and the Scenarios note; a runway of 1 to under 2 months turned the Business Health card Critical. The months and the band on the badge were calculated the same way before and after: only which screens flag a runway, and their wording, changed.
+
+**What the business report PDF says about cash runway** (changed 2026-10-13). The Cash Runway box on its Expenses page is headed with the months and the band ("3.0 months of cash runway · Warning"; "24+ months of cash runway · Strong" at the cap; "Not Set" when no reserve or costs are entered). Under that it gives the cash reserve and monthly burn ("Based on your cash reserve of $7,500 and a monthly burn rate of $2,500."; when pipeline income is netted the sentence continues ", less an estimated $1,000 a month of pipeline income."), then the four bands in one sentence: "${RISK_BAND_LADDER}" The Assessment paragraph on the last page says which range the runway is in ("Your cash runway of 3.0 months is ${riskBandPhrase("warning")}."). The PDF states where the runway sits and gives no instruction. A PDF downloaded before that date said "Immediate action required", "Consider increasing your reserve to 4+ months" or "You are within the recommended 4–6+ month safety buffer" (also printed for a Strong runway), and showed "-1.0 Months" when nothing was set. The months and the band were calculated the same way then; only the wording changed.
 
 **Cap**: Runway is capped at 24 months maximum (to avoid infinity when burn ≤ 0).
 
@@ -1323,10 +1388,9 @@ Each band runs from its lower figure up to, not including, the next one (exactly
 - Cash reserve $0 with positive net burn: Runway = 0 (critical).
 
 ### Survival Impact on Other Metrics
-1. **Runway Score**: Survival is 15% of composite score
-2. **Advisor Cards**: Flags when <3 months
-3. **Insights Engine**: "Survival warning" insight
-4. **Dashboard**: Survival status indicator card
+1. **Runway Score**: Survival is 15% of composite score. The Survival sub-score follows these bands, so the Survival bar in the score breakdown is the colour of the Cash Runway number: ${SURVIVAL_SCORE_BAND_BY_RUNWAY_BAND}. The score for each month is in the Runway Score playbook. With no cash reserve or costs entered the score is ${SURVIVAL_SCORE_NOT_SET}, a missing-data penalty: a red bar beside a gray "Not set". ${SURVIVAL_SCORE_CHANGED_V14}
+2. **Advisor Cards**: "Low Cash Runway" appears for a flagged runway (${RISK_LEVEL_LABEL.critical} or ${RISK_LEVEL_LABEL.warning})
+3. **Dashboard**: the Cash Runway number beside the Runway Score, the alert, the Daily Briefing row and the Business Health card (see "Which runways are flagged")
 
 ### Common Problems & Diagnostics
 
@@ -1334,7 +1398,7 @@ Each band runs from its lower figure up to, not including, the next one (exactly
 → Cash reserve is $0 or not set. Go to Settings → Cash Reserve and enter current business savings.
 
 **"Survival shows 24 months — is that right?"**
-→ Yes, if monthly income exceeds monthly expenses (net burn ≤ 0), runway caps at 24 months. This means you're cash-flow positive.
+→ The runway reads 24+ months when the cash covers 24 months or more of net burn, or when the Income Offset is at or above the monthly burn (net burn $0; the diagnostic says so when that is the case). The Income Offset is an estimate from deals that have not closed, weighted by stage: it is not money received, so 24+ months on this basis does not mean the account holds that much cash.
 
 **"Survival seems too low"**
 1. Check cash reserve amount in Settings — is it current?
@@ -1345,8 +1409,8 @@ Each band runs from its lower figure up to, not including, the next one (exactly
 **"How do I improve survival?"**
 1. Increase cash reserve (Settings)
 2. Reduce expenses
-3. Close more deals (increases monthly income average)
-4. Both income and expenses are averaged — more months of data = smoother calculation
+3. A deal that closes raises Effective Cash (through YTD Agent Net) and leaves the pipeline, so the Income Offset no longer counts it
+4. Nothing in the runway is an average of past months: the burn is the current monthly figure and the income is the pipeline estimate
 
 **Edge Cases:**
 - January 1: Only 1 month of data — burn rate is based on that single month
