@@ -103,10 +103,10 @@ Platform for Canadian real estate agents: income, expenses, pipeline, clients, t
 **Benchmark** = Industry cohort estimates: Rookie(0-2yr,$42K/4deals), Growth(3-5yr,$78K/7), Established(6-10yr,$96K/8), TopProducer(>10yr,$145K/12). National median $96K/8.
 **Where You Stand** = Launching(0-10%ile)/Climbing(10-25)/Competitive(25-50)/Advancing(50-75)/Leading(75+). Momentum: gaining/holding/losing.
 **P-Bands** = P10/25/50/75/90 via CV. CV clamped 5-50%.
-**Client Tiers** = Platinum(top10%)/Gold(10-25%)/Silver(25-50%)/Bronze(50%+). Composite: LGV(40%)+Health(20%)+Impact(15%)+Velocity(15%)+Tax(10%).
+**Client Tiers** (Clients page, Portfolio tab) = Platinum(top10%)/Gold(10-25%)/Silver(25-50%)/Bronze(50%+), by rank of the composite score. Composite: LGV(40%)+Health(20%)+Runway(15%)+Velocity(15%)+After Tax(10%). "After Tax" = cents left of each $1 of GCI after the estimated marginal rate on projected net income for tax (the dashboard's net income for tax, the figure its Tax Readiness card is worked out on), the same for every client of one agent. "Runway" = the client's lifetime GCI in months of the dashboard's monthly burn (brokerage fee + the monthly expenses, Recurring Expenses list included, net of ITCs for a GST/HST registrant). Changed 2026-10-14: the rate was looked up at a settings column nothing fills (0 on almost every account), so After Tax read 100¢; it is now the agent's estimated rate, so every client's composite is a few points lower and After Tax reads below 100¢. That change lowers every client by the same points, so the order holds, except that two clients within a point of each other can swap. The burn used to leave out the Recurring Expenses list; where an agent's only monthly costs are on that list, Runway read 0.0mo for every client and now reads months, which can move clients between tiers.
 **Speed to Lead** = Hours from client creation to first contact activity.
 **Stale Lead** = Active client (Boarding/In-Flight), no contact 14+ days (dashboard) or 30+ days (CRM). Scheduled/Cruising exempt.
-**Deviation Detection** = >=20% from 12-month baseline, requires 3+ months data.
+**Deviation Detection** = >=20% from 12-month baseline, requires 3 or more months of data.
 
 ---
 

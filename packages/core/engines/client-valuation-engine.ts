@@ -22,9 +22,15 @@ export interface ClientGroupInput {
 export interface ClientValuationInput {
   clients: ClientGroupInput[];
   totalGCI: number;
-  monthlyBurn: number; // from survivalResult
+  /** `survivalResult(...).monthlyBurn`: brokerage fee + the dashboard's monthly expenses. */
+  monthlyBurn: number;
   province: Province;
-  netIncome: number; // for marginalRate()
+  /**
+   * Projected net income for tax, the dashboard's `netForTax`
+   * (`yearTaxEstimate(...).netForTax`). The marginal rate for the After Tax
+   * factor is looked up here; a GCI figure gives a rate the agent is not at.
+   */
+  netIncome: number;
   agentExperienceYears: number | null;
 }
 

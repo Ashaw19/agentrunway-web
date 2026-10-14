@@ -130,7 +130,6 @@ import type {
   ActivityType,
   TaskPriority,
   UserSettings,
-  ExpenseItem,
   ClientRelationship,
   ClientRecordCoParty,
   ClientStatus,
@@ -228,7 +227,14 @@ interface Props {
   activities: ContactActivity[];
   tasks: ContactTask[];
   settings: UserSettings | null;
-  expenseItems: ExpenseItem[];
+  /**
+   * Projected net income for tax, the dashboard's: `yearTaxEstimate(...).netForTax`
+   * (core/engines/deal-tax-portion). The client tiers' After Tax factor is the
+   * marginal rate at this figure.
+   */
+  netForTax: number;
+  /** Expected each month: `ytdExpenseTotals(...).monthlyRecurring`, the dashboard's monthly expenses. */
+  monthlyRecurring: number;
   relationships: ClientRelationship[];
   coParties: ClientRecordCoParty[];
   flightPlans: FlightPlan[];
@@ -1023,7 +1029,8 @@ export function ClientsContent({
   activities: initialActivities,
   tasks: initialTasks,
   settings,
-  expenseItems,
+  netForTax,
+  monthlyRecurring,
   relationships: initialRelationships,
   coParties: initialCoParties,
   flightPlans: initialFlightPlans,
@@ -1314,8 +1321,8 @@ export function ClientsContent({
   const valuationResult: ClientValuationResult | null = useMemo(() => {
     if (!settings || grouped.length === 0 || totalGCI <= 0) return null;
 
-    const monthlyRecurring = expenseItems
-      .reduce((s, e) => s + (e.monthly_recurring ?? 0), 0);
+    // The dashboard's monthly burn: brokerage fee + the monthly expenses
+    // (Recurring Expenses list included, net of ITCs for a registrant).
     const survival = survivalResult(
       settings.monthly_brokerage_fee,
       monthlyRecurring,
@@ -1342,12 +1349,15 @@ export function ClientsContent({
         totalGCI,
         monthlyBurn: survival.monthlyBurn,
         province: settings.province,
-        netIncome: settings.ytd_gci,
+        // The marginal rate is looked up at the dashboard's net income for
+        // tax, never at GCI. (It was user_settings.ytd_gci, which nothing
+        // writes: 0 or a stale figure.)
+        netIncome: netForTax,
         agentExperienceYears: null,
       },
       metaMap,
     );
-  }, [grouped, totalGCI, settings, expenseItems, localClients]);
+  }, [grouped, totalGCI, settings, monthlyRecurring, netForTax, localClients]);
 
   // Quick lookup: clientId/name → valuation
   const _valuationMap = useMemo(() => {

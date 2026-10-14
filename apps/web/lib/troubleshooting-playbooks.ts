@@ -828,7 +828,13 @@ Clients are ranked by a composite value score:
 - **Silver** (25–50%): Moderate value
 - **Bronze** (bottom 50%): Lower engagement/value
 
-**Composite Score** = LGV (40%) + Health (20%) + Runway Impact (15%) + Velocity (15%) + Tax Efficiency (10%)
+**Composite Score** = LGV (40%) + Health (20%) + Runway Impact (15%) + Velocity (15%) + Tax Efficiency (10%). The tiers are by rank of this score among the agent's own clients. On each card (Clients page, Portfolio tab) the five factors are labelled LGV, Health, Runway, Velocity and After Tax.
+
+**After Tax** (Tax Efficiency): cents left of each $1 of GCI after the estimated marginal rate (federal + provincial) on projected net income for tax. That income is the dashboard's: projected year-end GCI after the split, plan fees and brokerage fees, less the year's expenses (\`yearTaxEstimate(...).netForTax\`, the figure the dashboard's Tax Readiness card is worked out on). It is the same for every client of one agent, so it moves every composite by the same points; the order holds, except that two clients within a point of each other can swap when the scores are rounded. It is an estimate from the tax engine, not tax owing on a client's deals.
+
+**Runway Impact** (Runway): the client's lifetime GCI as months of the dashboard's monthly burn: brokerage fee + the monthly expenses (\`ytdExpenseTotals(...).monthlyRecurring\`: the per-item monthly figures and the Recurring Expenses list, net of ITCs for a GST/HST registrant). With no brokerage fee and no monthly expenses entered, it reads 0.0mo for every client.
+
+**Changed 2026-10-14**: After Tax was looked up at \`user_settings.ytd_gci\`, a column nothing in the app fills, so it was 0 on almost every account and After Tax read 100¢ for every client. It now uses the dashboard's net income for tax, so After Tax reads below 100¢ and every composite is a few points lower; that part keeps the order, except that two clients within a point of each other can swap. Runway left out the Recurring Expenses list: where an agent's monthly costs are only on that list, Runway read 0.0mo for every client and now reads months, which can move clients between tiers.
 
 **LGV (Lifetime GCI Value)**:
 - Repeat probability: 60% (multi-deal), 30% (recent 1-deal), 10% (old/no deals)
@@ -919,6 +925,9 @@ Each contact has a decayed engagement score based on recent activity history.
 
 **"Client tiers don't seem accurate"**
 → Tiers recalculate based on all clients with transaction history. New clients with no deals start as Bronze. Tiers shift as deal data changes. Collapsed deals don't count toward a client's tier.
+
+**"Why did my clients' composite scores drop?" / "Why is After Tax below 100¢ now?"**
+→ Since 2026-10-14 After Tax uses the estimated marginal rate on the dashboard's projected net income for tax. Before, it used a settings figure that was 0 on almost every account, so it read 100¢. The change takes the same points off every client, so the order holds, except that two clients within a point of each other can swap. If Runway changed from 0.0mo to months, the agent's monthly costs are on the Recurring Expenses list, which the burn now counts the way the dashboard does; that part can move clients between tiers. After Tax changes when the dashboard's net income for tax changes: closed deals, pipeline, listing appointments, split and fees, or expenses.
 
 **"How do relationships work?"**
 → Link clients together (spouse, referral source, etc.). Relationships are bidirectional. Useful for tracking referral chains.
