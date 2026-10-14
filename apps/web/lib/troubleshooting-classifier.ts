@@ -244,6 +244,7 @@ const TOPIC_RULES: TopicRule[] = [
       "conversion funnel",
       "listing appointment",
       "buyer client pipeline",
+      "closing day",
     ],
   },
   {

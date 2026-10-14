@@ -11,6 +11,8 @@ import { fmtCurrency } from "@/lib/formatters";
 import { computeEstimatedGCI } from "@/lib/types/database";
 import { dealCloseTaxPortion, type DealTaxPortion, type YearTaxEstimateInputs } from "@agent-runway/core/engines/deal-tax-portion";
 import { dealCloseBreakdown, type DealCloseBreakdownRowKey } from "@/lib/deal-close-breakdown";
+import { recordPipelineDealClose } from "@/lib/record-pipeline-deal-close";
+import { validateTransaction } from "@agent-runway/core/validation/input-guards";
 import { useConfetti } from "@/hooks/use-confetti";
 import { CountUp } from "@/components/count-up";
 import { toast } from "sonner";
@@ -140,27 +142,40 @@ export function ClosingDayPrompt({ dealsClosingToday, settings, ytdTransactions 
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { savingRef.current = false; setSaving(false); return; }
 
-    const salePrice = parseFloat(confirmForm.sale_price) || 0;
-    const commPct   = (parseFloat(confirmForm.commission_pct) || 0) / 100;
+    // Same checks as Transactions → Pipeline → Close.
+    const validation = validateTransaction({
+      sale_price: confirmForm.sale_price,
+      commission_pct: confirmForm.commission_pct,
+    });
+    if (!validation.valid || !validation.parsed) {
+      validation.errors.forEach((msg) => toast.error(msg));
+      savingRef.current = false;
+      setSaving(false);
+      return;
+    }
+    const salePrice = validation.parsed.sale_price;
+    const commPct   = validation.parsed.commission_pct;
     const gci       = salePrice * commPct;
 
-    // INSERT transaction
-    const { error: txErr } = await supabase.from("transactions").insert({
-      user_id: user.id,
-      address: current.address,
-      client_name: confirmForm.client_name || "",
-      sale_price: salePrice,
-      commission_pct: commPct,
+    // The same write as Transactions → Pipeline → Close: a linked transaction,
+    // and the row kept at stage='closed', so this deal never prompts again.
+    const closed = await recordPipelineDealClose(supabase, {
+      userId: user.id,
+      deal: current,
+      clientName: confirmForm.client_name || "",
+      salePrice,
+      commissionPct: commPct,
       side: confirmForm.side,
-      status: "closed",
       date: confirmForm.date,
-      source: "manual",
     });
-    if (txErr) { toast.error("Failed to register close — please try again."); savingRef.current = false; setSaving(false); return; }
-
-    // DELETE pipeline deal
-    const { error: delErr } = await supabase.from("pipeline_deals").delete().eq("id", current.id).eq("user_id", user.id);
-    if (delErr) console.error("[closing-day] pipeline deal delete failed:", delErr);
+    if (!closed.ok) {
+      toast.error(closed.failedAt === "transaction"
+        ? "Failed to register close — please try again."
+        : "Failed to close deal — changes rolled back");
+      savingRef.current = false;
+      setSaving(false);
+      return;
+    }
 
     // Compute celebration data
     const province   = settings?.province ?? "ontario";

@@ -110,6 +110,7 @@ import {
   computeGCI,
   computeWeightedGCI,
   activePipelineDeals,
+  dealsAwaitingCloseConfirmation,
   PROVINCE_LABELS,
   type Transaction,
   type PipelineDeal,
@@ -220,6 +221,8 @@ function MetricInfo({ tip }: { tip: string }) {
 interface Props {
   transactions: Transaction[];
   pipelineDeals: PipelineDeal[];
+  /** Pipeline ids some transaction carries in pipeline_deal_id (any year); null if the lookup failed. */
+  recordedPipelineDealIds: string[] | null;
   settings: UserSettings | null;
   /** Year-to-date expenses: ytdExpenseTotals(...).expensesYTD (t2125-expenses-engine), the Expenses page's total. */
   expensesYTD?: number;
@@ -344,6 +347,7 @@ const INSIGHT_ICONS: Record<string, React.ElementType> = {
 export function DashboardContent({
   transactions,
   pipelineDeals,
+  recordedPipelineDealIds,
   settings,
   expensesYTD = 0,
   monthlyRecurring = 0,
@@ -437,15 +441,14 @@ export function DashboardContent({
 
   // Memoized so ClosingDayPrompt's useEffect doesn't reset on every re-render.
   // Bulletproof local date — no locale dependency, no UTC offset issues.
+  // A deal already recorded as a transaction is never asked about again; if
+  // that lookup failed, ask about nothing rather than risk recording it twice.
   const dealsClosingToday = useMemo(() => {
+    if (!recordedPipelineDealIds) return [];
     const now = new Date();
     const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-    return pipelineDeals.filter((d) => {
-      if (!d.expected_close_date) return false;
-      if (d.stage !== "firm" && d.stage !== "closed") return false;
-      return d.expected_close_date <= today;
-    });
-  }, [pipelineDeals]);
+    return dealsAwaitingCloseConfirmation(pipelineDeals, new Set(recordedPipelineDealIds), today);
+  }, [pipelineDeals, recordedPipelineDealIds]);
 
   const [tourComplete, setTourComplete] = useState(hasSeenTour);
   const [bannerDismissed, setBannerDismissed] = useState(false);

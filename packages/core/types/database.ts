@@ -1535,6 +1535,29 @@ export function activePipelineDeals<T extends { stage: string }>(deals: readonly
 }
 
 /**
+ * The pipeline rows the dashboard's Closing Day prompt asks about: due today
+ * or earlier (`today` is the agent's local YYYY-MM-DD), at stage 'firm' or
+ * 'closed', and not yet recorded, i.e. no `transactions` row carries the id
+ * in `pipeline_deal_id` (`recordedDealIds`).
+ *
+ * Closing a deal keeps its row at stage='closed' and links the transaction to
+ * it, so a 'closed' row with a linked transaction is done and never prompts.
+ * A 'closed' row with none was moved to closed without being recorded (Flight
+ * Crew stage update, mobile Deals): the prompt is where it gets recorded.
+ */
+export function dealsAwaitingCloseConfirmation<
+  T extends { id: string; stage: string; expected_close_date: string | null },
+>(deals: readonly T[], recordedDealIds: ReadonlySet<string>, today: string): T[] {
+  return deals.filter(
+    (d) =>
+      (d.stage === "firm" || d.stage === "closed") &&
+      d.expected_close_date != null &&
+      d.expected_close_date <= today &&
+      !recordedDealIds.has(d.id),
+  );
+}
+
+/**
  * Drop collapsed client_records deals. A collapsed deal never closed (nobody
  * moved in, nothing sold), yet it can still carry a close_date: the date it
  * was due to close. So `close_date` alone does not mean "closed". Anything

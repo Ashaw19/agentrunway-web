@@ -569,6 +569,7 @@ export default function DemoDashboardPage() {
             <DashboardContent
               transactions={DEMO_TRANSACTIONS}
               pipelineDeals={DEMO_PIPELINE}
+              recordedPipelineDealIds={DEMO_TRANSACTIONS.flatMap((t) => (t.pipeline_deal_id ? [t.pipeline_deal_id] : []))}
               settings={DEMO_SETTINGS}
               expensesYTD={demoExpenses.expensesYTD}
               monthlyRecurring={demoExpenses.monthlyRecurring}

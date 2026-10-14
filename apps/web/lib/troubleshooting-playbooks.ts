@@ -342,11 +342,21 @@ Two stages are terminal: **closed** and **lost** (TERMINAL_PIPELINE_STAGES in da
 ### Converting Pipeline Deals
 
 When a deal closes: Pipeline deal → Closed transaction
-- User clicks "Convert to Closed" on a pipeline deal
-- This creates a new closed transaction with the pipeline data pre-filled
-- The pipeline row is kept at stage='closed' (terminal) — it disappears from the Pipeline tab and from all active-pipeline totals, but the row itself is not deleted
+- Two places record it, and both do exactly the same thing (record-pipeline-deal-close.ts): Transactions → Pipeline → the green check ("Mark as Closed") → Close Deal ✓, or the dashboard's "Closing Day" prompt → Yes, it's closed → Register & Close
+- This creates a new closed transaction with the pipeline data pre-filled, linked to the pipeline row (pipeline_deal_id)
+- The pipeline row is kept at stage='closed' (terminal) — it disappears from the Pipeline tab and from all active-pipeline totals, but the row itself is not deleted (Forecast accuracy compares its original estimate with the sale price)
 - ALL downstream metrics recalculate: GCI, pace, tax, score, etc.
 - A celebration opens with a "Commission breakdown" (GST/HST collected, "Income tax and CPP (estimate)", Fun money, Rest of this commission). See the Transactions playbook for how each row is worked out.
+- Moving a deal to the Closed stage some other way (the Flight Crew's stage change, the mobile Deals screen) does NOT record a transaction. The Closing Day prompt then asks about it on its expected close date.
+
+### Closing Day Prompt (dashboard)
+A pop-up on the dashboard for each pipeline deal that is due and not yet recorded (dealsAwaitingCloseConfirmation in database.ts):
+- Listed: stage Firm or Closed, expected close date today or earlier, and no transaction linked to the row
+- Never listed: a deal already recorded from either close screen (it has a linked transaction), a deal with no expected close date, a deal due after today, or a deal at an earlier stage
+- "Yes, it's closed" → confirm the final numbers → Register & Close: the same write as Transactions → Pipeline → Close Deal ✓ (above). The deal does not come back.
+- "It's been delayed — update date" → sets a new expected close date; the prompt asks again on that date
+- "Check back tomorrow morning" → hides that deal for the rest of today, on this browser only
+Changed 2026-10-14: a deal closed from Transactions → Pipeline came back to this prompt every day, and Register & Close recorded it a second time (a new unlinked transaction) and deleted the pipeline row. No agent's data had been affected.
 
 ### Listing & Buyer Sub-Stages (pipeline-forecast-engine.ts)
 
@@ -408,6 +418,11 @@ Conversion rate = count at stage N ÷ count at stage N−1. Null for the first s
 
 **"Pipeline is empty but I have deals"**
 → Check if all deals are in the "Deals" tab (closed) vs "Pipeline" tab (in-progress). Pipeline only shows active deals, not closed ones.
+
+**"The Closing Day prompt keeps asking about a deal I already closed"**
+1. A deal recorded from Transactions → Pipeline or from the prompt itself is linked to its pipeline row and is not asked about again (since 2026-10-14).
+2. If they added the closed deal by hand (Transactions → Deals → add) instead, nothing links it to the pipeline row, so the prompt still asks. Pressing Register & Close would record the deal a second time. Instead, remove the pipeline deal: Transactions → Pipeline → delete, or ask the Flight Crew to remove it.
+3. If they think a deal was recorded twice, have them compare Transactions → Deals for two rows with the same address and close date, and delete the extra one there.
 
 **"How many deals do I need?"**
 → (Annual Goal − YTD GCI − Pipeline Weighted GCI) ÷ Average Deal GCI. Show them the Goal Gap analysis on the Forecast page.
@@ -1128,7 +1143,7 @@ Adding/changing a closed deal triggers recalculation of:
 12. Client tier recalculation
 
 ### Deal-Close Celebration: "Commission breakdown"
-Where: closing a pipeline deal, from the dashboard's "Closing Day" prompt (Yes, it's closed → Register & Close) or from Transactions → Pipeline → close. Both screens show the same rows, figures and words, with the short tax disclaimer under them:
+Where: closing a pipeline deal, from the dashboard's "Closing Day" prompt (Yes, it's closed → Register & Close) or from Transactions → Pipeline → close. Both screens record the deal the same way (one closed transaction linked to the pipeline row, the row kept at stage Closed; see the Pipeline playbook) and show the same rows, figures and words, with the short tax disclaimer under them:
 1. **GST/HST collected (estimate)** (labelled HST, GST or GST + QST by province): provincial rate × the commission for a GST/HST registrant. $0 with a note when Settings say the agent is not registered, or that the brokerage holds back and remits the tax.
 2. **Income tax and CPP (estimate)**: the tax portion of this commission = this year's tax estimate × this commission ÷ projected year-end GCI, worked out with the deal already counted as closed (its GCI in the year to date, its row out of the pipeline). The note under the row prints the estimate and the projected GCI used. The year's estimate is the dashboard Tax Readiness card's total. No percentage is shown beside this row.
 3. **Fun money (10%)**: 10% of the commission.
