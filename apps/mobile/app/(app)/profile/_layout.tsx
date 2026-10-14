@@ -22,6 +22,7 @@ export default function ProfileLayout() {
       <Stack.Screen name="settings" options={{ title: "Goals & Settings" }} />
       <Stack.Screen name="notification-settings" options={{ title: "Notifications" }} />
       <Stack.Screen name="briefing" options={{ title: "Today's Briefing" }} />
+      <Stack.Screen name="checklist" options={{ title: "Checklist" }} />
       <Stack.Screen name="chat" options={{ title: "Flight Crew" }} />
       <Stack.Screen name="legal" options={{ title: "Legal & Privacy" }} />
       <Stack.Screen name="voice-quiz" options={{ title: "AI Voice Quiz" }} />

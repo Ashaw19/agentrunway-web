@@ -9,6 +9,7 @@ import { create } from "zustand";
 import { storage } from "../lib/mmkv";
 import { supabase } from "../lib/supabase";
 import { useToastStore } from "./toast-store";
+import { activityRow, clientRow, transactionRow } from "../lib/write-rows";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -81,6 +82,9 @@ function saveFailed(failed: QueuedMutation[]) {
 }
 
 // ── Mutation Executors ───────────────────────────────────────────────────────
+// Rows go through lib/write-rows, as the store's own writes do: a payload
+// queued before 2026-10-14 can carry a null in a NOT NULL text column, or a
+// client without name_search, which failed on every replay.
 
 async function executeMutation(mutation: QueuedMutation): Promise<boolean> {
   const {
@@ -92,19 +96,19 @@ async function executeMutation(mutation: QueuedMutation): Promise<boolean> {
     case "addTransaction": {
       const { error } = await supabase
         .from("transactions")
-        .insert({ ...mutation.payload, user_id: user.id });
+        .insert(transactionRow({ ...mutation.payload, user_id: user.id }, { insert: true }));
       return !error;
     }
     case "addClient": {
       const { error } = await supabase
         .from("clients")
-        .insert({ ...mutation.payload, user_id: user.id });
+        .insert(clientRow({ ...mutation.payload, user_id: user.id }));
       return !error;
     }
     case "addActivity": {
       const { error } = await supabase
         .from("contact_activities")
-        .insert({ ...mutation.payload, user_id: user.id });
+        .insert(activityRow({ ...mutation.payload, user_id: user.id }));
       return !error;
     }
     case "advanceStage": {

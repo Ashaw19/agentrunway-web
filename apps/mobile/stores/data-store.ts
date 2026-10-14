@@ -13,6 +13,23 @@ import { useOfflineQueueStore } from "./offline-queue";
 import { safeDateMs, safeParseDate } from "../lib/safe-date";
 import { isExpectedAuthBootstrapError } from "../lib/auth-context";
 import { addDaysISO, localISODate, nextYearlyDate } from "@agent-runway/core/lib/local-date";
+import {
+  activePipelineDeals,
+  getClientStatusLabel,
+  computeGCI,
+  type ContactTask as CoreContactTask,
+} from "@agent-runway/core/types/database";
+import { recordPipelineDealClose } from "@agent-runway/core/lib/record-pipeline-deal-close";
+import {
+  completeWithContact,
+  logAttemptAndReschedule,
+  markItemDone,
+  reopenItem,
+} from "@agent-runway/core/lib/checklist-actions";
+import type { ChecklistContactMethod } from "@agent-runway/core/lib/checklist";
+import { markMemoryStale } from "@agent-runway/core/lib/client-memory-stale";
+import type { OpportunityLossReason } from "@agent-runway/core/lib/opportunity-loss-reasons";
+import { activityRow, clientRow, pipelineDealRow, transactionRow } from "../lib/write-rows";
 // Score is read directly from the web dashboard's snapshot in user_settings.
 // No local recomputation needed — guarantees exact parity.
 
@@ -30,7 +47,38 @@ export interface Transaction {
   status: "closed" | "pending" | "fallen";
   client_name: string | null;
   notes: string | null;
+  /** When the commission was paid (00178). Null = not entered. */
+  commission_paid_date: string | null;
+  /** The pipeline deal this closing recorded (recordPipelineDealClose). Null for one added by hand. */
+  pipeline_deal_id: string | null;
   created_at: string;
+}
+
+/** What Add Deal and Edit Deal write (web's Transactions → Deals form, the same fields). */
+export type TransactionInput = Pick<
+  Transaction,
+  | "date"
+  | "address"
+  | "client_name"
+  | "sale_price"
+  | "commission_pct"
+  | "gci_override"
+  | "team_split_pct"
+  | "side"
+  | "status"
+  | "notes"
+  | "commission_paid_date"
+>;
+
+/** Close deal form: what recordPipelineDealClose writes. */
+export interface PipelineDealCloseInput {
+  clientName: string;
+  salePrice: number;
+  /** Fraction, e.g. 0.025. */
+  commissionPct: number;
+  side: "buyer" | "seller" | "both";
+  /** Closing date, YYYY-MM-DD. */
+  date: string;
 }
 
 export interface PipelineDeal {
@@ -38,15 +86,18 @@ export interface PipelineDeal {
   address: string | null;
   estimated_price: number;
   estimated_commission_pct: number;
-  // NOTE: canonical PipelineStage also has "lost" (migration 00154); this union
-  // predates it, and mobile's stage label/colour maps do too. Widening it here
-  // cascades into those maps, so it is tracked as separate mobile-lane work.
-  // The runtime is unaffected for forecasting: activePipelineDeals() filters on
-  // the raw string, so a 'lost' row is still excluded from mobile aggregates.
+  side: "buyer" | "seller" | "both";
+  // The store holds active deals only (activePipelineDeals at fetch): a
+  // closed deal keeps its row at 'closed' and a lost one at 'lost', and
+  // neither belongs in the Deals list or any pipeline total. 'closed' stays
+  // in the union because the deal editor and older caches still name it.
   stage: "lead" | "showing" | "offer" | "conditional" | "firm" | "closed";
   probability_override: number | null;
   expected_close_date: string | null;
   client_name: string | null;
+  client_id: string | null;
+  /** Estimate when the deal was created; kept on close for forecast accuracy. */
+  original_estimated_price: number | null;
   notes: string | null;
   created_at: string;
 }
@@ -134,15 +185,8 @@ export interface ContactActivity {
   created_at: string;
 }
 
-export interface ContactTask {
-  id: string;
-  client_id: string | null;
-  title: string;
-  due_date: string | null;
-  priority: "low" | "normal" | "high";
-  notes: string | null;
-  completed_at: string | null;
-}
+/** A Checklist item (contact_tasks): the canonical row shape, read with select("*"). */
+export type ContactTask = CoreContactTask;
 
 /**
  * Mobile UserSettings — superset of what the dashboard needs PLUS the
@@ -336,8 +380,29 @@ interface DataStore {
   fetchClients: () => Promise<void>;
   fetchOutreach: () => Promise<void>;
   fetchReceipts: () => Promise<void>;
-  addTransaction: (tx: Omit<Transaction, "id" | "created_at">) => Promise<boolean>;
+  /** Add Deal. True when saved, or queued to sync because the phone is offline. */
+  addTransaction: (tx: TransactionInput) => Promise<boolean>;
+  /** Edit Deal: web's Transactions → Deals edit (stamps edited_at so a re-import keeps it). */
+  updateTransaction: (id: string, tx: TransactionInput) => Promise<boolean>;
+  /** Remove a deal, as web's Transactions → Deals delete. */
+  deleteTransaction: (id: string) => Promise<boolean>;
+  /** Moves a deal one stage along. Never to 'closed': closing records the sale (closePipelineDeal). */
   advancePipelineStage: (dealId: string, newStage: PipelineDeal["stage"]) => Promise<boolean>;
+  /**
+   * Close deal: the closed transaction (linked by pipeline_deal_id, so GCI
+   * counts it) and the row kept at stage 'closed', through the same writer
+   * as web (core recordPipelineDealClose). Needs a connection.
+   */
+  closePipelineDeal: (deal: PipelineDeal, close: PipelineDealCloseInput) => Promise<boolean>;
+  /** Mark lost: web's Lost dialog, the fn_mark_opportunity_lost RPC (buyer prospects). */
+  markPipelineDealLost: (dealId: string, reason: OpportunityLossReason, notes: string) => Promise<boolean>;
+  /** Checklist "Save to their profile": the contact logged on the client, then the item done. */
+  completeTaskWithContact: (task: ContactTask, method: ChecklistContactMethod, note: string) => Promise<boolean>;
+  /** Checklist "Couldn't reach them": a note on the client (not contact), the item moves to tomorrow. */
+  rescheduleTaskAfterAttempt: (task: ContactTask, method: ChecklistContactMethod, note: string) => Promise<boolean>;
+  /** Checklist "Just mark done" (any item); reopenTask undoes it. */
+  markTaskDone: (task: ContactTask) => Promise<boolean>;
+  reopenTask: (task: ContactTask) => Promise<boolean>;
   /**
    * Field-by-field edit for a pipeline deal. Mirrors `updateClient`'s
    * contract — optimistic update, Supabase round-trip, rollback + toast on
@@ -457,7 +522,10 @@ interface DataStore {
 //   `settings` so expense totals are net of ITCs for registrants, as on web.
 // v6 (2026-10-13): added `home_office_business_use_pct` on `settings` so a
 //   Home Office bill counts at the workspace share, as on web.
-const CACHE_VERSION = 6;
+// v7 (2026-10-14): `pipeline` holds active deals only (a cached closed or
+//   lost row would show in the Deals list), every client instead of the
+//   first 200, and up to 500 open Checklist items.
+const CACHE_VERSION = 7;
 const CACHE_KEY = "data_store_cache";
 const CACHE_VERSION_KEY = "data_store_cache_version";
 
@@ -490,6 +558,83 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
 }
 
 const FETCH_TIMEOUT_MS = 15_000; // 15-second network timeout
+
+/** Wait before fetchAll's one retry: a resume can drop the first request on a stale connection. */
+const FETCH_RETRY_DELAY_MS = 1_500;
+
+/**
+ * The last fetchAll failure, kept on the phone for diagnosis (no crash
+ * reporter on mobile). Read it from the app's data container:
+ *   xcrun devicectl device copy from --domain-type appDataContainer
+ *     --domain-identifier com.agentrunway.app ...
+ */
+const LAST_FETCH_ERROR_KEY = "data_store_last_fetch_error";
+
+function recordFetchError(err: unknown, failedQueries: string[]) {
+  try {
+    const e = err instanceof Error ? err : new Error(String(err));
+    storage.set(
+      LAST_FETCH_ERROR_KEY,
+      JSON.stringify({
+        at: new Date().toISOString(),
+        name: e.name,
+        message: e.message,
+        stack: (e.stack ?? "").split("\n").slice(0, 6).join("\n"),
+        failedQueries,
+      }),
+    );
+  } catch {
+    // never let diagnostics break the fetch
+  }
+}
+
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+/**
+ * A write that failed because the request never reached the database (no
+ * connection). PostgREST answers every other failure with a code (23502 a
+ * NOT NULL column, 23505 a duplicate, 23514 a range check), and retrying
+ * those from the offline queue would fail forever, so only these are queued.
+ */
+function isNetworkError(error: { code?: string; message?: string } | null): boolean {
+  if (!error) return false;
+  if (error.code) return false;
+  return /network|fetch|timed? ?out|offline/i.test(error.message ?? "");
+}
+
+/** The message for a write PostgREST refused. */
+function writeErrorDetail(error: { code?: string }): string {
+  if (error.code === "23514") return "a value is out of the allowed range";
+  if (error.code === "23505") return "it is already in your list";
+  return "something went wrong";
+}
+
+/** Clients come back 1,000 at a time (PostgREST's row cap); read pages until all are in. */
+const CLIENT_PAGE = 1000;
+
+async function fetchAllClientRows(
+  userId: string,
+): Promise<{ data: Client[] | null; error: { message: string } | null }> {
+  const rows: Client[] = [];
+  let total: number | null = null;
+  for (let from = 0; ; from += CLIENT_PAGE) {
+    const { data, error, count } = await supabase
+      .from("clients")
+      .select("*", { count: from === 0 ? "exact" : undefined })
+      .eq("user_id", userId)
+      .order("last_contact_at", { ascending: false, nullsFirst: false })
+      .order("id", { ascending: true }) // stable order across pages
+      .range(from, from + CLIENT_PAGE - 1);
+    if (error) return { data: null, error };
+    if (from === 0) total = count ?? null;
+    const page = (data ?? []) as Client[];
+    rows.push(...page);
+    // Stop on an empty page, or once the exact count is reached. A short
+    // page alone is not the end: the server's row cap may be under 1,000.
+    if (page.length === 0 || (total !== null && rows.length >= total)) break;
+  }
+  return { data: rows, error: null };
+}
 
 /**
  * Maps a briefing item type → the action-button CTA. Engine items don't
@@ -580,6 +725,38 @@ function saveCache(state: Partial<DataStore>) {
 export const useDataStore = create<DataStore>((set, get) => {
   const cached = loadCache();
 
+  /** A ticked-off Checklist item leaves the open list. */
+  const removeTask = (taskId: string) => {
+    const tasks = get().tasks.filter((t) => t.id !== taskId);
+    set({ tasks, nextTask: tasks[0] ?? null });
+    saveCache(get());
+  };
+
+  /**
+   * After a contact or note is logged on a client: their memory profile
+   * (what Flight Crew knows about them) is marked outdated, as web does, and
+   * their row and activity list are re-read (the trigger moves
+   * last_contact_at and may promote their status).
+   */
+  const afterClientContact = async (clientId: string) => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return;
+    void markMemoryStale(supabase, user.id, clientId);
+    set({ _clientActivitiesFetchedAt: { ...get()._clientActivitiesFetchedAt, [clientId]: 0 } });
+    const { data } = await supabase
+      .from("clients")
+      .select("*")
+      .eq("id", clientId)
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (data) {
+      set({ clients: get().clients.map((c) => (c.id === clientId ? (data as Client) : c)) });
+      saveCache(get());
+    }
+  };
+
   return {
     transactions: (cached.transactions as Transaction[]) ?? [],
     pipeline: (cached.pipeline as PipelineDeal[]) ?? [],
@@ -600,22 +777,30 @@ export const useDataStore = create<DataStore>((set, get) => {
 
     fetchAll: async () => {
       set({ loading: true, isLoading: true });
-      try {
+
+      type Loaded = {
+        transactions?: Transaction[];
+        pipeline?: PipelineDeal[];
+        clients?: Client[];
+        tasks?: ContactTask[];
+        settings?: UserSettings | null;
+      };
+
+      // One pass over the five reads. A read that errors is left out of
+      // `loaded` and named in `failed`: postgrest-js returns a network
+      // failure as { error } instead of throwing, and writing its `[]` over
+      // the store and the cache blanked the dashboard and wiped the offline
+      // copy on a flaky connection. Returns null when there is no session.
+      const loadOnce = async (): Promise<{ loaded: Loaded; failed: string[] } | null> => {
         // Guard against running pre-login: getSession() never throws on
         // missing session, but getUser() can throw AuthApiError on stale
         // tokens. Bail early when there's no session at all.
         const { data: sess } = await supabase.auth.getSession();
-        if (!sess.session) {
-          set({ loading: false, isLoading: false });
-          return;
-        }
+        if (!sess.session) return null;
         const {
           data: { user },
         } = await supabase.auth.getUser();
-        if (!user) {
-          set({ loading: false, isLoading: false });
-          return;
-        }
+        if (!user) return null;
 
         const currentYear = new Date().getFullYear();
 
@@ -633,19 +818,17 @@ export const useDataStore = create<DataStore>((set, get) => {
                 .select("*")
                 .eq("user_id", user.id)
                 .order("created_at", { ascending: false }),
-              supabase
-                .from("clients")
-                .select("*")
-                .eq("user_id", user.id)
-                .order("last_contact_at", { ascending: false, nullsFirst: false })
-                .limit(200),
+              // Every client, not the first 200: search and the briefing
+              // fallback read this list (found 2026-10-14 at 186 clients).
+              fetchAllClientRows(user.id),
+              // Open Checklist items, as many as web's Checklist page reads.
               supabase
                 .from("contact_tasks")
                 .select("*")
                 .eq("user_id", user.id)
                 .is("completed_at", null)
                 .order("due_date", { ascending: true })
-                .limit(50),
+                .limit(500),
               supabase
                 .from("user_settings")
                 .select(
@@ -665,44 +848,88 @@ export const useDataStore = create<DataStore>((set, get) => {
             FETCH_TIMEOUT_MS,
           );
 
-        const tasks = (taskRes.data ?? []) as ContactTask[];
-        const newState = {
-          transactions: (txRes.data ?? []) as Transaction[],
-          pipeline: (pipeRes.data ?? []) as PipelineDeal[],
-          clients: (clientRes.data ?? []) as Client[],
-          tasks,
-          settings: (settingsRes.data as UserSettings) ?? null,
+        const loaded: Loaded = {};
+        const failed: string[] = [];
+        if (txRes.error) failed.push("transactions");
+        else loaded.transactions = (txRes.data ?? []) as Transaction[];
+        // Active deals only: a closed deal keeps its row at 'closed' (with
+        // its transaction) and a lost one at 'lost' (canonical filter).
+        if (pipeRes.error) failed.push("pipeline_deals");
+        else loaded.pipeline = activePipelineDeals((pipeRes.data ?? []) as PipelineDeal[]);
+        if (clientRes.error) failed.push("clients");
+        else loaded.clients = clientRes.data ?? [];
+        if (taskRes.error) failed.push("contact_tasks");
+        else loaded.tasks = (taskRes.data ?? []) as ContactTask[];
+        // .single() errors with PGRST116 when a new user has no settings row
+        // yet: that is "no settings", not a failed read.
+        if (settingsRes.error && settingsRes.error.code !== "PGRST116") failed.push("user_settings");
+        else loaded.settings = (settingsRes.data as UserSettings) ?? null;
+        return { loaded, failed };
+      };
+
+      let result: { loaded: Loaded; failed: string[] } | null = null;
+      let lastError: unknown = null;
+      // One retry after a short wait, for anything but a timeout (that has
+      // already waited 15 s) or an expected auth bootstrap error.
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          result = await loadOnce();
+          if (!result) {
+            set({ loading: false, isLoading: false });
+            return;
+          }
+          if (result.failed.length === 0) {
+            lastError = null;
+            break;
+          }
+          lastError = new Error(`Query failed: ${result.failed.join(", ")}`);
+        } catch (err) {
+          // Stale-refresh-token / no-session bootstrap errors are expected
+          // on first launch (and after a server-side rotation). Don't show
+          // a scary toast — auth-context will silently sign-out + redirect
+          // to /login. Just bail out of the fetch.
+          if (isExpectedAuthBootstrapError(err)) {
+            set({ loading: false, isLoading: false });
+            return;
+          }
+          lastError = err;
+          if (err instanceof Error && err.message === "Network timeout") break;
+        }
+        if (attempt === 0) await sleep(FETCH_RETRY_DELAY_MS);
+      }
+
+      // Apply what loaded; anything that failed keeps its previous value in
+      // the store and in the cache.
+      if (result) {
+        const loaded = result.loaded;
+        const newState: Partial<DataStore> = {
+          ...loaded,
           loading: false,
           isLoading: false,
-          lastFetched: Date.now(),
-          // Derived values — computed eagerly so screens can read them without calling methods
-          nextTask: tasks[0] ?? null,
+          ...(loaded.tasks ? { nextTask: loaded.tasks[0] ?? null } : {}),
+          ...(result.failed.length === 0 ? { lastFetched: Date.now() } : {}),
         };
-
         set(newState);
-        saveCache(newState);
+        saveCache(get());
+      } else {
+        set({ loading: false, isLoading: false });
+      }
 
-        // Kick off the engine briefing fetch in the background — don't
-        // await it, the main UI doesn't block on Today's Focus.
-        // (audit red flag #3)
-        void get().fetchBriefing();
-      } catch (err) {
-        // Stale-refresh-token / no-session bootstrap errors are expected
-        // on first launch (and after a server-side rotation). Don't show
-        // a scary toast — auth-context will silently sign-out + redirect
-        // to /login. Just bail out of the fetch.
-        if (isExpectedAuthBootstrapError(err)) {
-          set({ loading: false, isLoading: false });
-          return;
-        }
-        console.error("fetchAll error:", err);
+      if (lastError) {
+        console.error("fetchAll error:", lastError);
+        recordFetchError(lastError, result?.failed ?? []);
         const toast = useToastStore.getState();
-        const msg = err instanceof Error && err.message === "Network timeout"
+        const msg = lastError instanceof Error && lastError.message === "Network timeout"
           ? "Connection timed out — showing cached data"
           : "Couldn't reach server — showing cached data";
         toast.show(msg, "error");
-        set({ loading: false, isLoading: false });
+        return;
       }
+
+      // Kick off the engine briefing fetch in the background — don't
+      // await it, the main UI doesn't block on Today's Focus.
+      // (audit red flag #3)
+      void get().fetchBriefing();
     },
 
     fetch: async () => get().fetchAll(),
@@ -769,15 +996,13 @@ export const useDataStore = create<DataStore>((set, get) => {
       } = await supabase.auth.getUser();
       if (!user) return;
 
-      const { data } = await supabase
-        .from("clients")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("last_contact_at", { ascending: false, nullsFirst: false })
-        .limit(200);
+      // Every client (paged), the same read as fetchAll. On an error the
+      // list on screen and in the cache stays as it was.
+      const { data } = await fetchAllClientRows(user.id);
 
       if (data) {
-        set({ clients: data as Client[] });
+        set({ clients: data });
+        saveCache(get());
       }
     },
 
@@ -838,10 +1063,14 @@ export const useDataStore = create<DataStore>((set, get) => {
       } = await supabase.auth.getUser();
       if (!user) return false;
 
+      // address, client_name and notes are NOT NULL: a blank one goes as ''.
+      const row = transactionRow({ ...tx }, { insert: true });
+
       // Optimistic insert
       const tempId = `temp_${Date.now()}`;
       const tempTx: Transaction = {
         ...tx,
+        pipeline_deal_id: null,
         id: tempId,
         created_at: new Date().toISOString(),
       };
@@ -849,17 +1078,23 @@ export const useDataStore = create<DataStore>((set, get) => {
       set({ transactions: [tempTx, ...prevTransactions] });
       saveCache(get());
 
-      // Fire Supabase insert in background
       const { error } = await supabase
         .from("transactions")
-        .insert({ ...tx, user_id: user.id });
+        .insert({ ...row, user_id: user.id });
 
       if (error) {
-        console.error("addTransaction error:", error);
-        // Keep optimistic data — enqueue for retry when online
-        useOfflineQueueStore.getState().enqueue("addTransaction", tx);
-        toast.show("Saved locally \u2014 will sync when online", "info");
-        return false; // Signal failure so caller knows sync is pending
+        console.error("addTransaction error:", error.code ?? "", error.message);
+        if (isNetworkError(error)) {
+          // Keep optimistic data — enqueue for retry when online
+          useOfflineQueueStore.getState().enqueue("addTransaction", row);
+          toast.show("Saved locally \u2014 will sync when online", "info");
+          return true; // saved on the phone; the queue syncs it
+        }
+        // The database refused it: a retry would fail the same way.
+        set({ transactions: prevTransactions });
+        saveCache(get());
+        toast.show(`Couldn't save the deal: ${writeErrorDetail(error)}`, "error");
+        return false;
       }
 
       // Refresh with real server data
@@ -868,8 +1103,75 @@ export const useDataStore = create<DataStore>((set, get) => {
       return true;
     }, false),
 
+    updateTransaction: (id, tx) => withMutationGuard(`updateTransaction_${id}`, async () => {
+      const toast = useToastStore.getState();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return false;
+
+      const prevTransactions = get().transactions;
+      set({
+        transactions: prevTransactions.map((t) => (t.id === id ? { ...t, ...tx } : t)),
+      });
+      saveCache(get());
+
+      // Stamp edited_at, as web does, so a future re-import won't overwrite
+      // this manual edit (00121).
+      const { error } = await supabase
+        .from("transactions")
+        .update({ ...transactionRow({ ...tx }), edited_at: new Date().toISOString() })
+        .eq("id", id)
+        .eq("user_id", user.id);
+
+      if (error) {
+        console.error("updateTransaction error:", error.code ?? "", error.message);
+        set({ transactions: prevTransactions });
+        saveCache(get());
+        toast.show(
+          isNetworkError(error)
+            ? "Couldn't save the change. Check your connection."
+            : `Couldn't save the change: ${writeErrorDetail(error)}`,
+          "error",
+        );
+        return false;
+      }
+
+      await get().fetchAll();
+      toast.show("Deal updated \u2713", "success");
+      return true;
+    }, false),
+
+    deleteTransaction: (id) => withMutationGuard(`deleteTransaction_${id}`, async () => {
+      const toast = useToastStore.getState();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return false;
+
+      const { error } = await supabase
+        .from("transactions")
+        .delete()
+        .eq("id", id)
+        .eq("user_id", user.id);
+
+      if (error) {
+        console.error("deleteTransaction error:", error.code ?? "", error.message);
+        toast.show("Couldn't remove the deal. Try again.", "error");
+        return false;
+      }
+
+      set({ transactions: get().transactions.filter((t) => t.id !== id) });
+      saveCache(get());
+      toast.show("Deal removed", "success");
+      return true;
+    }, false),
+
     advancePipelineStage: (dealId, newStage) => withMutationGuard(`advanceStage_${dealId}`, async () => {
       const toast = useToastStore.getState();
+      // Closing records the sale (a linked transaction): closePipelineDeal.
+      // A bare stage write to 'closed' left GCI without the deal.
+      if (newStage === "closed") return false;
       const {
         data: { user },
       } = await supabase.auth.getUser();
@@ -892,14 +1194,157 @@ export const useDataStore = create<DataStore>((set, get) => {
         .eq("user_id", user.id);
 
       if (error) {
-        console.error("advancePipelineStage error:", error);
-        // Keep optimistic data — enqueue for retry when online
-        useOfflineQueueStore.getState().enqueue("advanceStage", { dealId, newStage });
-        toast.show("Saved locally \u2014 will sync when online", "info");
-        return false; // Signal failure so caller knows sync is pending
+        console.error("advancePipelineStage error:", error.code ?? "", error.message);
+        if (isNetworkError(error)) {
+          // Keep optimistic data — enqueue for retry when online
+          useOfflineQueueStore.getState().enqueue("advanceStage", { dealId, newStage });
+          toast.show("Saved locally \u2014 will sync when online", "info");
+          return false; // Signal failure so caller knows sync is pending
+        }
+        set({ pipeline: prevPipeline });
+        saveCache(get());
+        toast.show(`Couldn't update the stage: ${writeErrorDetail(error)}`, "error");
+        return false;
       }
 
       toast.show("Stage updated \u2713", "success");
+      return true;
+    }, false),
+
+    closePipelineDeal: (deal, close) => withMutationGuard(`closeDeal_${deal.id}`, async () => {
+      const toast = useToastStore.getState();
+      // Two writes that must land together (the writer undoes the first if
+      // the second fails), so this is never queued for later.
+      if (!useOfflineQueueStore.getState().isOnline) {
+        toast.show("You're offline. Close the deal when you're back online.", "error");
+        return false;
+      }
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return false;
+
+      const closed = await recordPipelineDealClose(supabase, {
+        userId: user.id,
+        deal: {
+          id: deal.id,
+          address: deal.address ?? "",
+          estimated_price: deal.estimated_price,
+          original_estimated_price: deal.original_estimated_price ?? null,
+        },
+        clientName: close.clientName,
+        salePrice: close.salePrice,
+        commissionPct: close.commissionPct,
+        side: close.side,
+        date: close.date,
+      });
+      if (!closed.ok) {
+        console.error("closePipelineDeal error:", closed.failedAt, closed.code ?? "");
+        toast.show(
+          closed.failedAt === "transaction" && closed.code === "23514"
+            ? "Couldn't close the deal: a value is out of the allowed range"
+            : "Couldn't close the deal. Nothing was saved, so try again.",
+          "error",
+        );
+        return false;
+      }
+
+      // The row stays at 'closed' in the database; it leaves the active list.
+      set({ pipeline: get().pipeline.filter((d) => d.id !== deal.id) });
+      saveCache(get());
+      // Pull the new transaction so YTD GCI and the deal count include it.
+      await get().fetchAll();
+      toast.show("Deal closed and recorded \u2713", "success");
+      return true;
+    }, false),
+
+    markPipelineDealLost: (dealId, reason, notes) => withMutationGuard(`lostDeal_${dealId}`, async () => {
+      const toast = useToastStore.getState();
+      // Web's Lost dialog (pipeline/components/lost-opportunity-dialog.tsx):
+      // the same RPC sets stage 'lost', lost_reason and lost_at in one write.
+      const { error } = await supabase.rpc("fn_mark_opportunity_lost", {
+        p_id: dealId,
+        p_source: "buyer_prospect",
+        p_lost_reason: reason,
+        p_notes: notes.trim() || null,
+      });
+      if (error) {
+        console.error("markPipelineDealLost error:", error.code ?? "", error.message);
+        toast.show(
+          isNetworkError(error)
+            ? "Couldn't mark it lost. Check your connection."
+            : "Couldn't mark it lost. Try again.",
+          "error",
+        );
+        return false;
+      }
+      set({ pipeline: get().pipeline.filter((d) => d.id !== dealId) });
+      saveCache(get());
+      toast.show("Marked lost", "success");
+      return true;
+    }, false),
+
+    completeTaskWithContact: (task, method, note) => withMutationGuard(`task_${task.id}`, async () => {
+      const toast = useToastStore.getState();
+      const res = await completeWithContact(supabase, task, method, note);
+      if (res.status === "failed") {
+        toast.show("That didn't save. Try again.", "error");
+        return false;
+      }
+      if (task.client_id) await afterClientContact(task.client_id);
+      if (res.status === "logged_not_done") {
+        toast.show("Logged on their profile, but the item is still on your list. Tap it and choose Just mark done.", "error");
+        return false;
+      }
+      removeTask(task.id);
+      const promoted = res.newStatus && res.newStatus !== res.priorStatus;
+      toast.show(
+        promoted
+          ? `Saved to their profile and ticked off. Moved to ${getClientStatusLabel(res.newStatus)} because you were in touch.`
+          : "Saved to their profile and ticked off.",
+        "success",
+      );
+      return true;
+    }, false),
+
+    rescheduleTaskAfterAttempt: (task, method, note) => withMutationGuard(`task_${task.id}`, async () => {
+      const toast = useToastStore.getState();
+      const res = await logAttemptAndReschedule(supabase, task, method, note);
+      if (!res.ok) {
+        toast.show("That didn't save. Try again.", "error");
+        return false;
+      }
+      if (task.client_id) await afterClientContact(task.client_id);
+      const tasks = get()
+        .tasks.map((t) => (t.id === task.id ? { ...t, due_date: res.dueDate } : t))
+        .sort((a, b) => a.due_date.localeCompare(b.due_date));
+      set({ tasks, nextTask: tasks[0] ?? null });
+      saveCache(get());
+      toast.show("Noted on their profile. Moved to tomorrow.", "success");
+      return true;
+    }, false),
+
+    markTaskDone: (task) => withMutationGuard(`task_${task.id}`, async () => {
+      const toast = useToastStore.getState();
+      const done = await markItemDone(supabase, task.id, "done");
+      if (!done) {
+        toast.show("That didn't save. Try again.", "error");
+        return false;
+      }
+      removeTask(task.id);
+      return true;
+    }, false),
+
+    reopenTask: (task) => withMutationGuard(`task_${task.id}`, async () => {
+      const toast = useToastStore.getState();
+      if (!(await reopenItem(supabase, task.id))) {
+        toast.show("Couldn't undo. Try again.", "error");
+        return false;
+      }
+      const tasks = [...get().tasks.filter((t) => t.id !== task.id), { ...task, completed_at: null, completed_via: null }]
+        .sort((a, b) => a.due_date.localeCompare(b.due_date));
+      set({ tasks, nextTask: tasks[0] ?? null });
+      saveCache(get());
       return true;
     }, false),
 
@@ -919,9 +1364,10 @@ export const useDataStore = create<DataStore>((set, get) => {
       });
       saveCache(get());
 
+      // A blank address / client / notes goes as '' (NOT NULL columns).
       const { error } = await supabase
         .from("pipeline_deals")
-        .update(updates)
+        .update(pipelineDealRow({ ...updates }))
         .eq("id", dealId)
         .eq("user_id", user.id);
 
@@ -998,17 +1444,28 @@ export const useDataStore = create<DataStore>((set, get) => {
       set({ clients: [tempClient, ...prevClients] });
       saveCache(get());
 
-      // Fire Supabase insert in background
+      // name_search (NOT NULL, no default) follows name, as web's add does.
       const { error } = await supabase
         .from("clients")
-        .insert({ ...merged, user_id: user.id });
+        .insert(clientRow({ ...merged, user_id: user.id }));
 
       if (error) {
-        console.error("addClient error:", error);
-        // Keep optimistic data — enqueue for retry when online
-        useOfflineQueueStore.getState().enqueue("addClient", client);
-        toast.show("Saved locally \u2014 will sync when online", "info");
-        return false; // Signal failure so caller knows sync is pending
+        console.error("addClient error:", error.code ?? "", error.message);
+        if (isNetworkError(error)) {
+          // Keep optimistic data — enqueue for retry when online
+          useOfflineQueueStore.getState().enqueue("addClient", client);
+          toast.show("Saved locally \u2014 will sync when online", "info");
+          return false; // Signal failure so caller knows sync is pending
+        }
+        set({ clients: prevClients });
+        saveCache(get());
+        toast.show(
+          error.code === "23505"
+            ? `${client.name} is already in your clients`
+            : `Couldn't add the client: ${writeErrorDetail(error)}`,
+          "error",
+        );
+        return false;
       }
 
       // Refresh with real server data
@@ -1030,18 +1487,25 @@ export const useDataStore = create<DataStore>((set, get) => {
       const priorClient = get().clients.find((c) => c.id === activity.client_id);
       const priorStatus = priorClient?.status;
 
-      // Fire Supabase insert
+      // A blank description goes as '' (NOT NULL column).
       const { error } = await supabase
         .from("contact_activities")
-        .insert({ ...activity, user_id: user.id });
+        .insert(activityRow({ ...activity, user_id: user.id }));
 
       if (error) {
-        console.error("addActivity error:", error);
-        // Enqueue for retry when online
-        useOfflineQueueStore.getState().enqueue("addActivity", activity);
-        toast.show("Saved locally \u2014 will sync when online", "info");
-        return false; // Signal failure so caller knows sync is pending
+        console.error("addActivity error:", error.code ?? "", error.message);
+        if (isNetworkError(error)) {
+          // Enqueue for retry when online
+          useOfflineQueueStore.getState().enqueue("addActivity", activity);
+          toast.show("Saved locally \u2014 will sync when online", "info");
+          return false; // Signal failure so caller knows sync is pending
+        }
+        toast.show(`Couldn't log the activity: ${writeErrorDetail(error)}`, "error");
+        return false;
       }
+
+      // What Flight Crew remembers about the client is now out of date.
+      void markMemoryStale(supabase, user.id, activity.client_id);
 
       // Invalidate activity cache for this client
       const prev = get()._clientActivitiesFetchedAt;
@@ -1096,10 +1560,11 @@ export const useDataStore = create<DataStore>((set, get) => {
       });
       saveCache(get());
 
-      // Fire Supabase update
+      // A rename recomputes name_search, as web's does, or duplicate
+      // detection and imports miss the corrected name.
       const { error } = await supabase
         .from("clients")
-        .update(updates)
+        .update(clientRow({ ...updates }))
         .eq("id", clientId)
         .eq("user_id", user.id);
 
@@ -1254,12 +1719,10 @@ export const useDataStore = create<DataStore>((set, get) => {
 
     ytdGci: () => {
       const txs = get().transactions;
+      // Canonical GCI per deal (core computeGCI), as web's Transactions tab.
       return txs
         .filter((t) => t.status === "closed")
-        .reduce((sum, t) => {
-          if (t.gci_override) return sum + t.gci_override;
-          return sum + t.sale_price * t.commission_pct * (t.team_split_pct ?? 1);
-        }, 0);
+        .reduce((sum, t) => sum + computeGCI(t), 0);
     },
 
     ytdDealCount: () => {
@@ -1339,8 +1802,8 @@ export const useDataStore = create<DataStore>((set, get) => {
             id: `hot_${deal.id}`,
             type: "hot_pipeline",
             severity: "attention",
-            clientName: deal.client_name ?? "Pipeline Deal",
-            title: deal.address ?? deal.client_name ?? "Pipeline Deal",
+            clientName: deal.client_name || "Pipeline Deal",
+            title: deal.address || deal.client_name || "Pipeline Deal",
             detail: `${deal.stage.charAt(0).toUpperCase() + deal.stage.slice(1)} · ${priceStr}`,
             actionLabel: "View",
           });
@@ -1459,8 +1922,8 @@ export const useDataStore = create<DataStore>((set, get) => {
           id: `hot_${deal.id}`,
           type: "hot_pipeline",
           severity: "attention",
-          clientName: deal.client_name ?? "Pipeline Deal",
-          title: deal.address ?? deal.client_name ?? "Pipeline Deal",
+          clientName: deal.client_name || "Pipeline Deal",
+          title: deal.address || deal.client_name || "Pipeline Deal",
           detail: `${deal.stage.charAt(0).toUpperCase() + deal.stage.slice(1)} · ${priceStr}`,
           actionLabel: "View",
         });
@@ -1649,12 +2112,13 @@ export const useDataStore = create<DataStore>((set, get) => {
       } = await supabase.auth.getUser();
       if (!user) return false;
 
+      // contact_activities.description is NOT NULL: '' for a plain call or text.
       const description =
         type === "voicemail"
           ? "Left voicemail"
           : type === "email"
             ? "Sent email"
-            : null;
+            : "";
       const actType = type === "voicemail" ? "call" : type;
 
       // Capture prior status for Phase 3 promotion detection.
@@ -1672,7 +2136,11 @@ export const useDataStore = create<DataStore>((set, get) => {
         });
 
       if (error) {
-        console.error("quickLogActivity error:", error);
+        console.error("quickLogActivity error:", error.code ?? "", error.message);
+        if (!isNetworkError(error)) {
+          toast.show(`Couldn't log it: ${writeErrorDetail(error)}`, "error");
+          return false;
+        }
         useOfflineQueueStore.getState().enqueue("addActivity", {
           client_id: clientId,
           type: actType,
@@ -1682,6 +2150,9 @@ export const useDataStore = create<DataStore>((set, get) => {
         toast.show("Saved locally — will sync when online", "info");
         return false;
       }
+
+      // What Flight Crew remembers about the client is now out of date.
+      void markMemoryStale(supabase, user.id, clientId);
 
       // Invalidate activity cache for this client
       const prev = get()._clientActivitiesFetchedAt;

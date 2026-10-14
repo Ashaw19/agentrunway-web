@@ -37,6 +37,7 @@ import {
   Shield,
   Sparkles,
   Briefcase,
+  ListChecks,
 } from "lucide-react-native";
 import { getLocaleName, type SupportedLocale } from "@agent-runway/i18n";
 import { useT } from "@/lib/useT";
@@ -350,6 +351,15 @@ export default function ProfileScreen() {
               label={t("tools.briefing")}
               description={t("tools.briefingDesc")}
               onPress={() => router.push("/profile/briefing")}
+              c={c}
+            />
+            <Divider c={c} />
+            <MenuItem
+              icon={<ListChecks size={18} color={c.primary} />}
+              iconBg={c.primaryDim}
+              label={t("tools.checklist")}
+              description={t("tools.checklistDesc")}
+              onPress={() => router.push("/profile/checklist")}
               c={c}
             />
             <Divider c={c} />

@@ -71,6 +71,7 @@ import {
   clientToFormState,
   type ClientFormState,
 } from "@/components/ClientFormFields";
+import { computeGCI } from "@agent-runway/core/types/database";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -1340,7 +1341,7 @@ function ClientDetailSheet({
       )}
 
       {/* ── Notes ── */}
-      {client.notes && (
+      {!!client.notes && (
         <View
           style={[
             styles.notesCard,
@@ -1468,7 +1469,7 @@ function ClientDetailSheet({
                       style={[Type.caption, { color: c.text }]}
                       numberOfLines={1}
                     >
-                      {deal.address ?? t("detail.noAddress")}
+                      {deal.address || t("detail.noAddress")}
                     </Text>
                     <Text style={[Type.micro, { color: c.textDim }]}>
                       {t("detail.estimated", { amount: fmtCurrency(deal.estimated_price) })}
@@ -1481,7 +1482,7 @@ function ClientDetailSheet({
             {/* Transactions */}
             {deals.transactions.map((tx) => {
               const txColor = TX_STATUS_COLORS[tx.status] ?? c.textDim;
-              const gci = tx.gci_override ?? (tx.sale_price * tx.commission_pct * (tx.team_split_pct ?? 1));
+              const gci = computeGCI(tx);
               return (
                 <View
                   key={tx.id}
@@ -1503,7 +1504,7 @@ function ClientDetailSheet({
                       style={[Type.caption, { color: c.text }]}
                       numberOfLines={1}
                     >
-                      {tx.address ?? t("detail.noAddress")}
+                      {tx.address || t("detail.noAddress")}
                     </Text>
                     <Text style={[Type.micro, { color: c.textDim }]}>
                       {t("detail.gciAmount", { amount: fmtCurrency(gci) })}

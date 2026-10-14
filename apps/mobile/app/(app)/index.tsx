@@ -15,7 +15,9 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useRouter, useFocusEffect } from "expo-router";
 import { useAuth } from "@/lib/auth-context";
 import { useDataStore } from "@/stores/data-store";
-import type { Client, BriefingItem } from "@/stores/data-store";
+import type { Client, BriefingItem, ContactTask } from "@/stores/data-store";
+import { useToastStore } from "@/stores/toast-store";
+import { CompleteTaskSheet } from "@/components/CompleteTaskSheet";
 import {
   RUNWAY_SCORE_BANDS,
   bandColorHexForScore,
@@ -69,6 +71,7 @@ import { FadeIn } from "@/components/ui/FadeIn";
 import { Sparkline } from "@/components/ui/Sparkline";
 import * as Haptics from "expo-haptics";
 import { useTranslation } from "react-i18next";
+import { computeGCI } from "@agent-runway/core/types/database";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -653,7 +656,7 @@ export default function DashboardScreen() {
     fetchAll, fetchOutreach, fetchReceipts, isLoading, lastFetched,
     settings, transactions, pipeline, tasks, clients, briefings,
     outreachReadyCount, ytdGci, ytdDealCount, pipelineValue, runwayScore,
-    todayBriefing, todayActivityCount, contactStreak,
+    todayBriefing, todayActivityCount, contactStreak, markTaskDone,
   } = useDataStore();
   const [refreshing, setRefreshing] = useState(false);
   const [, setTick] = useState(0);
@@ -707,6 +710,17 @@ export default function DashboardScreen() {
   const nextTask = tasks[0] ?? null;
   const overdueTasks = tasks.filter((t) => t.due_date && isOverdue(t.due_date));
 
+  // Tick off the next Checklist item: a client item opens the tick-off sheet
+  // (contact logged on their profile); a general one is done in one tap.
+  const [tickingTask, setTickingTask] = useState<ContactTask | null>(null);
+  const tickNextTask = async (task: ContactTask) => {
+    if (task.client_id) {
+      setTickingTask(task);
+      return;
+    }
+    if (await markTaskDone(task)) useToastStore.getState().show(t("nextUp.ticked"), "success");
+  };
+
   const followUpsDue = useMemo(() => {
     const cutoff = Date.now() - 14 * 24 * 60 * 60 * 1000;
     return clients.filter((cl) => {
@@ -717,7 +731,7 @@ export default function DashboardScreen() {
 
   const actionItems = useMemo(() => {
     const items: { key: string; count: number; label: string; color: string; icon: typeof AlertCircle; route: string }[] = [];
-    if (overdueTasks.length > 0) items.push({ key: "overdue", count: overdueTasks.length, label: t("actions.overdue"), color: "#EF4444", icon: AlertCircle, route: "/deals" });
+    if (overdueTasks.length > 0) items.push({ key: "overdue", count: overdueTasks.length, label: t("actions.overdue"), color: "#EF4444", icon: AlertCircle, route: "/profile/checklist" });
     if (outreachCount > 0) items.push({ key: "messages", count: outreachCount, label: t("actions.ready"), color: "#6366F1", icon: Mail, route: "/profile/outreach" });
     if (pending > 0) items.push({ key: "pending", count: pending, label: t("actions.pending"), color: "#F59E0B", icon: Handshake, route: "/deals" });
     if (followUpsDue > 0) items.push({ key: "followups", count: followUpsDue, label: t("actions.followUps"), color: "#06B6D4", icon: UserCheck, route: "/clients" });
@@ -747,7 +761,7 @@ export default function DashboardScreen() {
       // wrong bucket. Web anchors the same way (dashboard-content.tsx:243).
       const d = new Date(t.date + "T12:00:00");
       if (d.getFullYear() === year) {
-        const gci = t.gci_override ?? (t.sale_price * t.commission_pct * (t.team_split_pct ?? 1));
+        const gci = computeGCI(t);
         months[d.getMonth()] += gci;
       }
     }
@@ -775,7 +789,7 @@ export default function DashboardScreen() {
       } else if (item.clientId) {
         router.push("/clients");
       } else if (item.type === "task_due_today") {
-        router.push("/deals");
+        router.push("/profile/checklist");
       }
     },
     [router]
@@ -1148,11 +1162,24 @@ export default function DashboardScreen() {
           </Pressable>
         )}
 
-        {/* ── 7. Next Task Card ── */}
+        {/* ── 7. Next Task Card ── (tap to tick it off; See all opens the Checklist) */}
         {nextTask && (
           <View style={{ marginBottom: Space.xl }}>
-            <Text style={{ ...Type.label, color: c.textMuted, marginBottom: Space.sm }}>{t("nextUp.title")}</Text>
-            <View style={[{
+            <Pressable
+              onPress={() => router.push("/profile/checklist")}
+              style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: Space.sm }}
+            >
+              <Text style={{ ...Type.label, color: c.textMuted }}>{t("nextUp.title")}</Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: Space.xs }}>
+                <Text style={{ ...Type.micro, color: c.primary }}>{t("nextUp.seeAll", { count: tasks.length })}</Text>
+                <ArrowRight size={10} color={c.primary} />
+              </View>
+            </Pressable>
+            <Pressable
+              onPress={() => tickNextTask(nextTask)}
+              accessibilityRole="button"
+              accessibilityLabel={`${nextTask.title}. ${t("nextUp.tickOff")}`}
+              style={[{
               backgroundColor: c.card, borderRadius: Radius.xl, padding: Space.lg,
               borderWidth: 1, borderColor: c.cardBorder,
               flexDirection: "row", alignItems: "center", gap: Space.md,
@@ -1174,7 +1201,8 @@ export default function DashboardScreen() {
                   <Text style={{ color: c.danger, fontSize: 10, fontWeight: "700" }}>{t("nextUp.high")}</Text>
                 </View>
               )}
-            </View>
+              <CheckCircle2 size={24} color={c.primary} />
+            </Pressable>
           </View>
         )}
 
@@ -1212,7 +1240,7 @@ export default function DashboardScreen() {
                 }} />
                 <View style={{ flex: 1 }}>
                   <Text style={{ ...Type.bodyBold, color: c.text }} numberOfLines={1}>
-                    {deal.address ?? deal.client_name ?? t("pipelinePreview.pipelineDeal")}
+                    {deal.address || deal.client_name || t("pipelinePreview.pipelineDeal")}
                   </Text>
                   <Text style={{ ...Type.micro, color: c.textDim, marginTop: 2, textTransform: "capitalize" }}>
                     {deal.stage} {deal.client_name ? `\u00B7 ${deal.client_name}` : ""}
@@ -1254,6 +1282,11 @@ export default function DashboardScreen() {
       </Pressable>
 
       <QuickCaptureSheet visible={showCapture} onClose={() => setShowCapture(false)} />
+      <CompleteTaskSheet
+        task={tickingTask}
+        clientName={clients.find((cl) => cl.id === tickingTask?.client_id)?.name ?? ""}
+        onClose={() => setTickingTask(null)}
+      />
       <ScoreBreakdownSheet
         visible={showScoreBreakdown}
         onClose={() => setShowScoreBreakdown(false)}

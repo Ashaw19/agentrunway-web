@@ -5,11 +5,14 @@
  * pre-computed briefing when fresh, or generates on-demand and caches
  * when stale/missing.
  *
- * Auth required — uses the session cookie.
+ * Auth required — the web session cookie, or the phone app's Bearer token
+ * (lib/supabase/request-user.ts). The phone's AI Morning Briefing card reads
+ * this route; until 2026-10-14 it accepted only the cookie and the card never
+ * loaded on the phone.
  */
 
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { getRequestUser } from "@/lib/supabase/request-user";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { generateMorningBriefing } from "@/lib/ai/precompute";
 import {
@@ -21,16 +24,13 @@ import { requirePro } from "@/lib/require-pro";
 
 export const maxDuration = 30;
 
-export async function GET() {
+export async function GET(req: Request) {
   // ── Auth guard ──────────────────────────────────────────────────────────
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
+  const auth = await getRequestUser(req);
+  if (!auth) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  const { user, supabase } = auth;
 
   // ── Pro gate ───────────────────────────────────────────────────────────
   const proCheck = await requirePro(supabase, user.id);

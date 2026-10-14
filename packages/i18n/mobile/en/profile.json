@@ -24,7 +24,9 @@
     "forecast": "Income Forecast",
     "forecastDesc": "Year-end projections and pacing",
     "scanReceipt": "Scan Receipt",
-    "scanReceiptDesc": "Capture and log business expenses"
+    "scanReceiptDesc": "Capture and log business expenses",
+    "checklist": "Checklist",
+    "checklistDesc": "Your to-dos. Tick them off as you go."
   },
   "account": {
     "title": "Account",
@@ -322,5 +324,25 @@
     "errorBody": "Could not save. Please try again.",
     "infoBanner": "Advanced settings like brokerage fees, seasonal weights, and tax configuration are managed on the web dashboard.",
     "cashReserveNote": "Your cash reserve is one input the Runway Score estimate may use. It is not a target."
+  },
+  "checklist": {
+    "overdue": "Overdue",
+    "today": "Today",
+    "upcoming": "Upcoming",
+    "highPriority": "High priority",
+    "tickOff": "Tap to tick it off",
+    "justDoneTitle": "Just done",
+    "undo": "Undo",
+    "emptyTitle": "All clear",
+    "emptySubtitle": "Nothing on your checklist. Add items on the web or ask Flight Crew.",
+    "thisClient": "this client",
+    "howDidItGo": "How did it go with {{name}}?",
+    "methodLabel": "How you reached them, or tried to",
+    "notePlaceholder": "What did you talk about? (optional)",
+    "saveToProfile": "Save to their profile",
+    "saving": "Saving...",
+    "couldntReach": "Couldn't reach them",
+    "justDone": "Just mark done",
+    "footnote": "Saving logs it on their profile and takes them off Flight Control for 14 days. Couldn't reach them adds a note and moves this to tomorrow."
   }
 }

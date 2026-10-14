@@ -99,45 +99,78 @@ const SEVERITY_META = {
 
 // ── Session-level cache for AI briefing (survives re-renders, resets on app restart) ──
 let _aiBriefingCache: AIBriefingContent | null = null;
-let _aiBriefingFetched = false;
 
-function useAIBriefing() {
+/**
+ * The AI briefing as the card renders it, or null when the body isn't one.
+ * The route serves a cached row (precomputed_insights.content) or a fresh
+ * one; either way the card needs the four fields, and a missing list must
+ * not crash it.
+ */
+function toBriefing(body: unknown): AIBriefingContent | null {
+  const b = (body as Partial<AIBriefingResponse> | null)?.briefing as Partial<AIBriefingContent> | undefined;
+  if (!b || typeof b.greeting !== "string") return null;
+  const strings = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []);
+  return {
+    greeting: b.greeting,
+    priorities: strings(b.priorities),
+    alerts: strings(b.alerts),
+    encouragement: typeof b.encouragement === "string" ? b.encouragement : "",
+  };
+}
+
+/**
+ * `/api/briefing` (the web dashboard's AI morning briefing). It takes the
+ * phone's Bearer token since 2026-10-14; before that it read only the web
+ * session cookie, answered the phone 401, and this card never showed.
+ * `/api/mobile/briefing` is a different thing (the CRM items list below).
+ */
+function useAIBriefing(reloadKey: number) {
   const [data, setData] = useState<AIBriefingContent | null>(_aiBriefingCache);
-  const [loading, setLoading] = useState(!_aiBriefingFetched);
+  const [loading, setLoading] = useState(_aiBriefingCache === null);
 
   useEffect(() => {
-    if (_aiBriefingFetched) return;
-    _aiBriefingFetched = true;
+    // Loaded once per app session; a pull-to-refresh retries after a miss.
+    if (_aiBriefingCache) return;
+    let cancelled = false;
+    setLoading(true);
 
     (async () => {
       try {
         const session = (await supabase.auth.getSession()).data.session;
-        if (!session) { setLoading(false); return; }
+        if (!session) return;
 
         const res = await fetch(`${API_URL}/api/briefing`, {
           headers: { Authorization: `Bearer ${session.access_token}` },
         });
+        if (!res.ok) {
+          console.warn("AI briefing:", res.status);
+          return;
+        }
 
-        if (!res.ok) { setLoading(false); return; }
-
-        const json: AIBriefingResponse = await res.json();
-        _aiBriefingCache = json.briefing;
-        setData(json.briefing);
-      } catch {
-        // Silently fail — card just won't show
+        const briefing = toBriefing(await res.json());
+        if (briefing && !cancelled) {
+          _aiBriefingCache = briefing;
+          setData(briefing);
+        }
+      } catch (err) {
+        // Card just won't show; the CRM briefing below still does.
+        console.warn("AI briefing error:", err);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     })();
-  }, []);
+    return () => {
+      cancelled = true;
+    };
+  }, [reloadKey]);
 
   return { data, loading };
 }
 
 // ── AI Briefing Card ──────────────────────────────────────────────────────────
 
-function AIBriefingCard({ c }: { c: ReturnType<typeof useColors> }) {
-  const { data, loading } = useAIBriefing();
+function AIBriefingCard({ c, reloadKey }: { c: ReturnType<typeof useColors>; reloadKey: number }) {
+  const { data, loading } = useAIBriefing(reloadKey);
   const [collapsed, setCollapsed] = useState(false);
   const animHeight = useRef(new Animated.Value(1)).current;
 
@@ -330,6 +363,8 @@ export default function BriefingScreen() {
   } = useDataStore();
 
   const [refreshing, setRefreshing] = useState(false);
+  // Bumped by pull-to-refresh so the AI card retries if it didn't load.
+  const [aiReloadKey, setAiReloadKey] = useState(0);
 
   const briefing = useMemo(
     () => todayBriefing(),
@@ -349,6 +384,7 @@ export default function BriefingScreen() {
     // Refresh both the local data and the engine-emitted briefing in
     // parallel — the engine fetch is fire-and-forget on cold start but
     // explicit on pull-to-refresh. See audit red flag #3.
+    setAiReloadKey((k) => k + 1);
     await Promise.all([fetchAll(), fetchBriefing()]);
     setRefreshing(false);
   };
@@ -360,7 +396,7 @@ export default function BriefingScreen() {
       } else if (item.clientId) {
         router.push("/clients");
       } else if (item.type === "task_due_today") {
-        router.push("/deals");
+        router.push("/profile/checklist");
       }
     },
     [router]
@@ -418,7 +454,7 @@ export default function BriefingScreen() {
       </View>
 
       {/* ── AI Morning Briefing ── */}
-      <AIBriefingCard c={c} />
+      <AIBriefingCard c={c} reloadKey={aiReloadKey} />
 
       {/* ── Quick Stats Row ── */}
       <View
