@@ -65,7 +65,8 @@ describe("matchContactsToClients — matching", () => {
       [client("c1", "John Smith")],
     );
     expect(r.matches).toEqual([]);
-    expect(r.ambiguous).toEqual([{ clientId: "c1", clientName: "John Smith", contactNames: ["John Smith", "John Smith"] }]);
+    expect(r.ambiguous).toMatchObject([{ clientId: "c1", clientName: "John Smith", contactNames: ["John Smith", "John Smith"] }]);
+    expect(r.ambiguous[0].options.map((o) => [o.contactId, o.summary])).toEqual([["k1", "a@x.ca"], ["k2", "b@x.ca"]]);
   });
 
   it("never fills two clients from the one contact matched by name", () => {
@@ -265,5 +266,60 @@ describe("realEstateAgentReason", () => {
       ["Jane Smith", "Company: Royal LePage"],
       ["Pat Ng", null],
     ]);
+  });
+});
+
+describe("matchContactsToClients — one person saved twice", () => {
+  it("merges two same-name contacts that don't contradict (one has the phone, the other the email)", () => {
+    const r = matchContactsToClients(
+      [
+        contact("k1", "Bill Shaw", { phones: [{ number: "506-555-0101", label: "mobile" }] }),
+        contact("k2", "Bill Shaw", { emails: [{ email: "bill@x.ca" }], birthday: { month: 4, day: 2 } }),
+      ],
+      [client("c1", "Bill Shaw")],
+    );
+    expect(r.ambiguous).toEqual([]);
+    expect(r.matches[0].contactId).toBe("k1+k2");
+    expect(r.matches[0].updates.map((u) => [u.field, u.value])).toEqual([
+      ["phone", "506-555-0101"], ["email", "bill@x.ca"], ["birthdate", "1604-04-02"],
+    ]);
+  });
+
+  it("merges duplicates that share a number", () => {
+    const r = matchContactsToClients(
+      [
+        contact("k1", "Bill Shaw", { phones: [{ number: "506-555-0101" }] }),
+        contact("k2", "Bill Shaw", { phones: [{ number: "+1 (506) 555-0101" }], emails: [{ email: "bill@x.ca" }] }),
+      ],
+      [client("c1", "Bill Shaw")],
+    );
+    expect(r.matches).toHaveLength(1);
+    expect(r.ambiguous).toEqual([]);
+  });
+
+  it("asks when the two have different numbers, offering each with what it would fill in", () => {
+    const r = matchContactsToClients(
+      [
+        contact("k1", "Bob Shaw", { phones: [{ number: "506-555-0101" }] }),
+        contact("k2", "Bob Shaw", { phones: [{ number: "506-555-0202" }], emails: [{ email: "bob@x.ca" }] }),
+      ],
+      [client("c1", "Bob Shaw")],
+    );
+    expect(r.matches).toEqual([]);
+    const opts = r.ambiguous[0].options;
+    expect(opts.map((o) => o.summary)).toEqual(["506-555-0101", "506-555-0202 · bob@x.ca"]);
+    expect(opts[1].updates.map((u) => u.field)).toEqual(["phone", "email"]);
+  });
+
+  it("asks when the birthdays differ", () => {
+    const r = matchContactsToClients(
+      [
+        contact("k1", "Pat Ng", { birthday: { month: 1, day: 5 } }),
+        contact("k2", "Pat Ng", { birthday: { month: 7, day: 9 } }),
+      ],
+      [client("c1", "Pat Ng")],
+    );
+    expect(r.ambiguous).toHaveLength(1);
+    expect(r.ambiguous[0].options.map((o) => o.summary)).toEqual(["Jan 5", "Jul 9"]);
   });
 });

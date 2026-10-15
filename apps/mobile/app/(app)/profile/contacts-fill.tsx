@@ -15,8 +15,10 @@ import { View, Text, ScrollView, Pressable, Alert, ActivityIndicator } from "rea
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
-import { CheckCircle2, Circle, Contact, Info } from "lucide-react-native";
+import { CheckCircle2, Circle, Contact, Info, UserPlus } from "lucide-react-native";
 import {
+  type AmbiguousMatch,
+  type AmbiguousOption,
   type ContactMatchResult,
   type FieldUpdate,
   matchContactsToClients,
@@ -82,6 +84,30 @@ export default function ContactsFillScreen() {
       else next.add(k);
       return next;
     });
+  }, []);
+
+  // The agent says which of two same-name contacts is the client's: it joins
+  // the list like any match, its changes ticked.
+  const pickContact = useCallback((a: AmbiguousMatch, o: AmbiguousOption) => {
+    Haptics.selectionAsync();
+    setResult((prev) => {
+      if (!prev) return prev;
+      const ambiguous = prev.ambiguous.filter((x) => x.clientId !== a.clientId);
+      if (o.updates.length === 0) return { ...prev, ambiguous, upToDate: prev.upToDate + 1 };
+      const match = {
+        clientId: a.clientId,
+        clientName: a.clientName,
+        contactId: o.contactId,
+        contactName: o.contactName,
+        matchedBy: "name" as const,
+        updates: o.updates,
+        differences: o.differences,
+      };
+      return { ...prev, ambiguous, matches: [...prev.matches, match].sort((x, y) => x.clientName.localeCompare(y.clientName)) };
+    });
+    if (o.updates.length) {
+      setTicked((prev) => new Set([...prev, ...o.updates.map((u) => key(a.clientId, u.field))]));
+    }
   }, []);
 
   const tickedCount = ticked.size;
@@ -254,19 +280,54 @@ export default function ContactsFillScreen() {
         ))}
 
         {ambiguous.length > 0 && (
-          <View style={[card, { gap: 4 }]}>
-            <Text style={[Type.bodyBold, { color: c.text }]}>Not filled in: more than one possible contact</Text>
+          <View style={[card, { gap: Space.sm }]}>
+            <Text style={[Type.bodyBold, { color: c.text }]}>Which contact is theirs?</Text>
             <Text style={[Type.caption, { color: c.textDim, lineHeight: 18 }]}>
-              Add a phone number or email to these clients in Agent Runway, then run this again so it can tell which
-              contact is theirs.
+              Your iPhone has more than one contact with these names, and their details don&apos;t match. Tap the one
+              that belongs to your client.
             </Text>
             {ambiguous.map((a) => (
-              <Text key={a.clientId} style={[Type.caption, { color: c.textMuted }]}>
-                {a.clientName}: {a.contactNames.length} possible contacts
-              </Text>
+              <View key={a.clientId} style={{ gap: 6, marginTop: Space.sm }}>
+                <Text style={[Type.bodyBold, { color: c.text }]}>{a.clientName}</Text>
+                {a.options.map((o) => (
+                  <Pressable
+                    key={o.contactId}
+                    onPress={() => pickContact(a, o)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Use ${o.contactName}: ${o.summary}`}
+                    style={({ pressed }) => ({
+                      padding: Space.md,
+                      borderRadius: Radius.md,
+                      borderWidth: 1,
+                      borderColor: c.cardBorder,
+                      backgroundColor: c.bg,
+                      opacity: pressed ? 0.7 : 1,
+                      gap: 2,
+                    })}
+                  >
+                    <Text style={[Type.body, { color: c.text }]} numberOfLines={2}>{o.summary}</Text>
+                    <Text style={[Type.micro, { color: o.updates.length ? c.primary : c.textDim }]}>
+                      {o.updates.length
+                        ? `Use this one · adds ${o.updates.map((u) => FIELD_LABEL[u.field].toLowerCase()).join(", ")}`
+                        : "Use this one · nothing new to add"}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
             ))}
           </View>
         )}
+
+        <Pressable
+          onPress={() => router.push("/profile/contacts-import")}
+          accessibilityRole="link"
+          style={{ flexDirection: "row", alignItems: "center", gap: Space.sm, paddingVertical: Space.md }}
+        >
+          <UserPlus size={16} color={c.primary} />
+          <Text style={[Type.body, { color: c.primary, flex: 1 }]}>
+            Adding contacts who aren&apos;t clients yet? Use Import from Contacts
+          </Text>
+        </Pressable>
       </ScrollView>
 
       {matches.length > 0 && (

@@ -93,10 +93,22 @@ export interface ContactMatch {
   differences: string[];
 }
 
+export interface AmbiguousOption {
+  contactId: string;
+  contactName: string;
+  /** What tells the contacts apart: "506-555-0101 · sam@x.ca · Mar 21". */
+  summary: string;
+  /** What choosing this contact would fill in (may be empty). */
+  updates: FieldUpdate[];
+  differences: string[];
+}
+
 export interface AmbiguousMatch {
   clientId: string;
   clientName: string;
   contactNames: string[];
+  /** One per possible contact, for the agent to pick from. */
+  options: AmbiguousOption[];
 }
 
 export interface ContactMatchResult {
@@ -175,6 +187,75 @@ function proposeUpdates(client: MatchableClient, contact: DeviceContact): { upda
   return { updates, differences };
 }
 
+function birthdayKey(b: DeviceContact["birthday"]): string | null {
+  return b ? `${b.month}-${b.day}` : null;
+}
+
+/**
+ * Two or more contacts that are probably one person saved twice (iCloud and
+ * Gmail copies, say): merged into one when nothing contradicts. A conflict is
+ * two contacts that both have phone numbers with none in common, both have
+ * emails with none in common, or birthdays on different days (or the same
+ * day in different years). Anything else (one has the phone, the other the
+ * email; a shared number) is the same person.
+ */
+export function mergeIfSamePerson(group: readonly DeviceContact[]): DeviceContact | null {
+  if (group.length < 2) return group[0] ?? null;
+  const phoneSets = group.map((c) => new Set(c.phones.map((p) => normalizePhone(p.number)).filter((k): k is string => !!k)));
+  const emailSets = group.map((c) => new Set(c.emails.map((e) => normalizeEmail(e.email)).filter((k): k is string => !!k)));
+  const disjoint = (a: Set<string>, b: Set<string>) => a.size > 0 && b.size > 0 && ![...a].some((k) => b.has(k));
+  for (let i = 0; i < group.length; i++) {
+    for (let j = i + 1; j < group.length; j++) {
+      if (disjoint(phoneSets[i], phoneSets[j]) || disjoint(emailSets[i], emailSets[j])) return null;
+      const bi = group[i].birthday, bj = group[j].birthday;
+      if (bi && bj) {
+        if (birthdayKey(bi) !== birthdayKey(bj)) return null;
+        if (bi.year && bj.year && bi.year !== bj.year) return null;
+      }
+    }
+  }
+  const phones: DeviceContact["phones"] = [];
+  const emails: DeviceContact["emails"] = [];
+  for (const c of group) {
+    for (const p of c.phones) {
+      const k = normalizePhone(p.number);
+      if (k && !phones.some((x) => normalizePhone(x.number) === k)) phones.push(p);
+    }
+    for (const e of c.emails) {
+      const k = normalizeEmail(e.email);
+      if (k && !emails.some((x) => normalizeEmail(x.email) === k)) emails.push(e);
+    }
+  }
+  const birthday = group.map((c) => c.birthday).find((b) => b?.year) ?? group.map((c) => c.birthday).find((b) => b) ?? null;
+  const first = group[0];
+  return {
+    ...first,
+    id: group.map((c) => c.id).join("+"),
+    company: group.map((c) => c.company).find((x) => x && x.trim()) ?? first.company ?? null,
+    jobTitle: group.map((c) => c.jobTitle).find((x) => x && x.trim()) ?? first.jobTitle ?? null,
+    phones,
+    emails,
+    birthday,
+  };
+}
+
+function contactSummary(c: DeviceContact): string {
+  const bits = [
+    c.phones[0]?.number?.trim(),
+    c.emails[0]?.email?.trim(),
+    c.birthday ? formatBirthdate(isoBirthdate(c.birthday) ?? "") : null,
+    c.company?.trim(),
+  ].filter((b): b is string => !!b);
+  return bits.length ? bits.join(" · ") : "No phone, email or birthday";
+}
+
+function optionsFor(client: MatchableClient, contacts: readonly DeviceContact[]): AmbiguousOption[] {
+  return contacts.map((c) => {
+    const { updates, differences } = proposeUpdates(client, c);
+    return { contactId: c.id, contactName: c.name, summary: contactSummary(c), updates, differences };
+  });
+}
+
 export function matchContactsToClients(
   contacts: readonly DeviceContact[],
   clients: readonly MatchableClient[],
@@ -212,7 +293,13 @@ export function matchContactsToClients(
       continue;
     }
     if (strong.size > 1) {
-      ambiguous.push({ clientId: client.id, clientName: client.name, contactNames: [...strong.values()].map((s) => s.contact.name) });
+      const group = [...strong.values()].map((s) => s.contact);
+      const merged = mergeIfSamePerson(group);
+      if (merged) {
+        picks.push({ client, contact: merged, matchedBy: [...strong.values()][0].by });
+      } else {
+        ambiguous.push({ clientId: client.id, clientName: client.name, contactNames: group.map((c) => c.name), options: optionsFor(client, group) });
+      }
       continue;
     }
     const named = new Map<string, DeviceContact>();
@@ -220,7 +307,13 @@ export function matchContactsToClients(
     if (named.size === 1) {
       picks.push({ client, contact: [...named.values()][0], matchedBy: "name" });
     } else if (named.size > 1) {
-      ambiguous.push({ clientId: client.id, clientName: client.name, contactNames: [...named.values()].map((c) => c.name) });
+      const group = [...named.values()];
+      const merged = mergeIfSamePerson(group);
+      if (merged) {
+        picks.push({ client, contact: merged, matchedBy: "name" });
+      } else {
+        ambiguous.push({ clientId: client.id, clientName: client.name, contactNames: group.map((c) => c.name), options: optionsFor(client, group) });
+      }
     }
   }
 
@@ -232,7 +325,8 @@ export function matchContactsToClients(
   let upToDate = 0;
   for (const p of picks) {
     if (p.matchedBy === "name" && (nameClaims.get(p.contact.id) ?? 0) > 1) {
-      ambiguous.push({ clientId: p.client.id, clientName: p.client.name, contactNames: [p.contact.name] });
+      // The agent can still say which client this contact belongs to.
+      ambiguous.push({ clientId: p.client.id, clientName: p.client.name, contactNames: [p.contact.name], options: optionsFor(p.client, [p.contact]) });
       continue;
     }
     const { updates, differences } = proposeUpdates(p.client, p.contact);
