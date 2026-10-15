@@ -15,7 +15,8 @@ export default function ProfileLayout() {
         animation: "slide_from_right",
       }}
     >
-      <Stack.Screen name="index" options={{ headerShown: false }} />
+      {/* title: the back button on every screen below reads "More", not "index". */}
+      <Stack.Screen name="index" options={{ headerShown: false, title: "More" }} />
       <Stack.Screen name="outreach" options={{ title: "Flight Control" }} />
       <Stack.Screen name="contacts-fill" options={{ title: "Fill in from Contacts" }} />
       <Stack.Screen name="contacts-import" options={{ title: "Import from Contacts" }} />
