@@ -131,11 +131,18 @@ export function receiptCategoryFullLabel(key: string | null | undefined): string
 }
 
 /** Raw fields returned by the Groq OCR extraction */
+/** One GST/HST line as printed on a receipt, e.g. { label: "HST(F)", amount: 2.52 }. */
+export interface OcrTaxLine {
+  label:  string;
+  amount: number;
+}
+
 export interface OcrExtraction {
   vendor:               string | null;
   expense_date:         string | null;   // YYYY-MM-DD or null
   total_amount:         number | null;
-  tax_amount:           number | null;
+  tax_amount:           number | null;   // GST/HST only
+  tax_lines?:           OcrTaxLine[] | null;
   subtotal:             number | null;
   currency:             string;          // ISO-4217, default "CAD"
   suggested_category:   string | null;   // one of RECEIPT_CATEGORIES[].key or null
