@@ -91,7 +91,7 @@ import {
 import { selectModelTier, personaEffort } from "@/lib/ai/router";
 import { buildPromptParts, injectCanary, validateNavigatorOutput } from "@/lib/ai/security";
 import { fetchMemories, addMemory } from "@/lib/ai/memory";
-import { createPersonaAgentTools, NEEDS_APPROVAL_TOOLS, APPROVAL_DESCRIPTIONS } from "@/lib/ai/tools";
+import { createPersonaAgentTools, NEEDS_APPROVAL_TOOLS, describeApproval } from "@/lib/ai/tools";
 import { seasonalCommissionPatternLine } from "@/lib/ai/seasonal-tax-intel";
 import { paychequeAllocationLines } from "@/lib/ai/paycheque-allocation-intel";
 import type { Province, Transaction as CoreTransaction, ContactActivity } from "@agent-runway/core/types/database";
@@ -1699,8 +1699,8 @@ Be the expert — explain metrics, suggest features, direct to pages. Think abou
               if (NEEDS_APPROVAL_TOOLS.has(chunk.toolName)) {
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const toolArgs = (chunk as any).args ?? (chunk as any).input ?? {};
-                const descFn = APPROVAL_DESCRIPTIONS[chunk.toolName];
-                const description = descFn ? descFn(toolArgs as Record<string, unknown>) : `Execute ${chunk.toolName}`;
+                // The consent tools name the client from the database (describeApproval).
+                const description = await describeApproval(chunk.toolName, toolArgs as Record<string, unknown>, supabase, user.id);
                 log.info({ requestId, toolName: chunk.toolName }, "[chat] Tool call (approval required)");
                 controller.enqueue(encoder.encode(`b:${JSON.stringify({
                   toolCallId: chunk.toolCallId,

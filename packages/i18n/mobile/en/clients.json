@@ -199,5 +199,46 @@
     "buyerTargetAreaPlaceholder": "City or neighbourhood",
     "notes": "Notes",
     "notesPlaceholder": "Anything else worth remembering..."
+  },
+  "consent": {
+    "title": "Consent (CASL)",
+    "email": "Email",
+    "texts": "Texts",
+    "state": {
+      "express": "Express",
+      "implied": "Implied until {{date}}",
+      "lapsed": "Lapsed: call only",
+      "opted_out": "Unsubscribed: call only",
+      "no_record": "No record"
+    },
+    "record": "Record consent",
+    "recordStop": "They asked to stop",
+    "saidYes": "They said yes",
+    "saidStop": "They asked to stop",
+    "rule": "Under CASL, implied consent from a purchase lasts 2 years and from an inquiry 6 months. Express consent lasts until they withdraw it. Record only what the client told you.",
+    "stopRule": "Agent Runway won't draft emails or texts on the channels you pick, and drafts waiting for them are skipped.",
+    "basisExpress": "Express consent",
+    "basisInquiry": "An inquiry (6 months)",
+    "channels": "Channels",
+    "how": "How (required)",
+    "when": "When (required)",
+    "pickDate": "Pick the day",
+    "wording": "What they agreed to, in their words",
+    "inquiryWording": "What they asked about",
+    "note": "Note: where the proof is",
+    "stopNote": "Note (optional)",
+    "save": "Save",
+    "saving": "Saving…",
+    "cancel": "Cancel",
+    "required": "How and when are both required.",
+    "loadFailed": "Couldn't load consent. Tap to try again.",
+    "methods": {
+      "in_person": "In person",
+      "verbal": "Phone call",
+      "written": "In writing",
+      "email_reply": "Email reply",
+      "text_reply": "Text reply",
+      "web_form": "Web form"
+    }
   }
 }

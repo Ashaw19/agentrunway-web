@@ -497,11 +497,12 @@ function NewsletterReviewDrawer({
               <div className="rounded-md border border-amber-500/30 bg-amber-500/5 px-2.5 py-2 space-y-1">
                 <p className="text-[11px] text-amber-700 dark:text-amber-400">
                   {lapsedPastClientNames.length === 1
-                    ? "1 past client had their last deal close"
-                    : `${lapsedPastClientNames.length} past clients had their last deal close`}{" "}
-                  more than 2 years ago. Under CASL, implied consent to email from a
-                  purchase lasts 2 years, so it no longer covers them. Agent Runway
-                  doesn&apos;t record express consent.
+                    ? "1 client's implied consent has ended"
+                    : `${lapsedPastClientNames.length} clients' implied consent has ended`}{" "}
+                  and no express consent is on record. Under CASL, implied consent to
+                  email lasts 2 years from a purchase and 6 months from an inquiry, so
+                  it no longer covers them. Express consent you record on a
+                  client&apos;s profile (Consent section) takes them off this list.
                 </p>
                 <details className="text-[11px] text-muted-foreground">
                   <summary className="cursor-pointer select-none">

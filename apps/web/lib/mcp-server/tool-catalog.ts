@@ -87,6 +87,15 @@ export const MCP_TOOL_CATALOG: McpCatalogGroup[] = [
       { name: "get_server_info", desc: "Server version and the list of available tools", access: "read" },
     ],
   },
+  {
+    category: "Consent (CASL)",
+    tools: [
+      { name: "get_client_consent", desc: "One client's consent per channel: express, implied until a date, lapsed or unsubscribed", access: "read" },
+      { name: "list_consent_lapsing", desc: "Past clients whose implied consent from their purchase ends soon", access: "read" },
+      { name: "record_consent", desc: "Record consent a client gave you, with how and when", access: "write" },
+      { name: "withdraw_consent", desc: "Record that a client asked you to stop emailing or texting", access: "write" },
+    ],
+  },
 ];
 
 const allTools = MCP_TOOL_CATALOG.flatMap((g) => g.tools);

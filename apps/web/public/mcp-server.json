@@ -3,7 +3,7 @@
   "server_name": "Agent Runway",
   "server_version": "1.0.0",
   "display_name": "Agent Runway: Canadian Real Estate Analytics",
-  "description": "Connect your AI assistant to your Agent Runway real estate business data. 18 read tools cover transactions, pipeline deals, CRM clients, expenses, mileage, tax estimates and forecasts, and read a pasted call or showing note into proposed changes. 5 write tools create and update pipeline opportunities and save the note items the agent approves.",
+  "description": "Connect your AI assistant to your Agent Runway real estate business data. 20 read tools cover transactions, pipeline deals, CRM clients, CASL consent, expenses, mileage, tax estimates and forecasts, and read a pasted call or showing note into proposed changes. 7 write tools create and update pipeline opportunities, save the note items the agent approves, and record CASL consent and withdrawals.",
   "homepage": "https://agentrunway.ca",
   "documentation_url": "https://agentrunway.ca/mcp",
   "logo_url": "https://agentrunway.ca/logo.png",
@@ -34,9 +34,9 @@
     "forecast"
   ],
   "tool_counts": {
-    "total": 23,
-    "read_only": 18,
-    "write": 5
+    "total": 27,
+    "read_only": 20,
+    "write": 7
   },
   "tools": [
     {
@@ -155,6 +155,26 @@
       "description": "Saves the note items the agent approved, through the same writers the Agent Runway app uses.",
       "read_only": false,
       "destructive": false
+    },
+    {
+      "name": "get_client_consent",
+      "description": "One client's CASL consent per channel (email, texts): express, implied until a date, lapsed, unsubscribed or no record, with the records behind it.",
+      "read_only": true
+    },
+    {
+      "name": "list_consent_lapsing",
+      "description": "Past clients whose implied consent from their purchase ends soon or just ended.",
+      "read_only": true
+    },
+    {
+      "name": "record_consent",
+      "description": "Record consent a client gave the agent (express, or an inquiry), with how and when.",
+      "read_only": false
+    },
+    {
+      "name": "withdraw_consent",
+      "description": "Record that a client asked the agent to stop emailing or texting them.",
+      "read_only": false
     }
   ],
   "requirements": {

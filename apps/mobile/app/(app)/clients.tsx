@@ -81,6 +81,7 @@ import type { CaptureProposal } from "@agent-runway/core/lib/capture/types";
 import { VoiceCaptureButton } from "@/components/voice/VoiceCaptureButton";
 import { VoiceCaptureCard } from "@/components/voice/VoiceCaptureCard";
 import { VoiceCaptureSheet } from "@/components/voice/VoiceCaptureSheet";
+import { ConsentCard } from "@/components/ConsentCard";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -671,6 +672,7 @@ export default function ClientsScreen() {
             { key: "check_in", label: "Check in", hint: "A friendly personal hello that invites a reply." },
             { key: "market_update", label: "Offer a market update", hint: "Offers to send what homes near them are selling for." },
             { key: "custom", label: "My own message", hint: "Tell Flight Crew what to say; it writes it in your voice." },
+            { key: "consent_request", label: "Ask to keep in touch", hint: "Asks a past client if they'd like the odd text from you, while their implied consent still holds." },
           ] as const).map((opt) => {
             const active = textPurpose === opt.key;
             return (
@@ -1539,6 +1541,8 @@ function ClientDetailSheet({
           onProposal={setVoiceProposal}
         />
       </View>
+      {/* ── Consent (CASL consent ledger, 00183): badge + Record consent ── */}
+      <ConsentCard clientId={client.id} />
 
       {/* ── Tags ── */}
       {client.tags.length > 0 && (

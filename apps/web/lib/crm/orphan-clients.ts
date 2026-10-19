@@ -12,7 +12,9 @@
  *   - no deal record of theirs remains (client_records);
  *   - no pipeline deal is linked to them;
  *   - they're not a co-buyer on a remaining deal (client_record_co_parties);
- *   - they haven't unsubscribed (deleting would erase the opt-out, CASL).
+ *   - they haven't unsubscribed from email or texts, and have no consent
+ *     ledger record (deleting cascades those away, which loses the
+ *     opt-out or the proof of consent: CASL, 00173 / 00183).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { fetchAllIn } from "@/lib/supabase/fetch-all";
@@ -37,7 +39,7 @@ export async function deleteOrphanedImportedClients(
 
   const importedNoOptOut = await fetchAllIn<string, { id: string }>(orphaned, (chunk, from, to) =>
     supabase.from("clients").select("id").eq("user_id", userId).in("id", chunk)
-      .not("imported_at", "is", null).is("email_opt_out_at", null)
+      .not("imported_at", "is", null).is("email_opt_out_at", null).is("sms_opt_out_at", null)
       .order("id").range(from, to) as unknown as Rows<{ id: string }>);
   if (importedNoOptOut.error) return { deleted: [], error: importedNoOptOut.error.message };
   const safe = importedNoOptOut.data.map((c) => c.id);
@@ -53,9 +55,15 @@ export async function deleteOrphanedImportedClients(
       .order("id").range(from, to) as unknown as Rows<{ co_client_id: string | null }>);
   if (coParty.error) return { deleted: [], error: coParty.error.message };
 
+  const consents = await fetchAllIn<string, { client_id: string | null }>(safe, (chunk, from, to) =>
+    supabase.from("client_email_consents").select("id, client_id").eq("user_id", userId).in("client_id", chunk)
+      .order("id").range(from, to) as unknown as Rows<{ client_id: string | null }>);
+  if (consents.error) return { deleted: [], error: consents.error.message };
+
   const linked = new Set<string | null>([
     ...pipeline.data.map((d) => d.client_id),
     ...coParty.data.map((d) => d.co_client_id),
+    ...consents.data.map((d) => d.client_id),
   ]);
   const finalIds = safe.filter((id) => !linked.has(id));
   const deleted: string[] = [];

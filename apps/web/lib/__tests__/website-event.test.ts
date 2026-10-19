@@ -115,6 +115,29 @@ describe("someone already in the CRM", () => {
     expect(p.patch).toMatchObject({ email_opt_out_at: null, email_opt_out_source: null });
   });
 
+  it("never lifts an unsubscribe the agent recorded (00183), nor the text one", () => {
+    const optedOut = known({ email_opt_out_at: "2026-09-01T12:00:00+00:00", email_opt_out_source: "agent", sms_opt_out_at: "2026-09-01T12:00:00+00:00" });
+    const p = planWebsiteEvent(lead({
+      source: "alerts", topic: undefined, message: undefined,
+      consent: { kind: "alerts", text: "Yes, email me when a home matching this search is listed.", at: "2026-10-09T14:00:00Z" },
+    }), optedOut, NOW);
+    expect(p.patch?.email_opt_out_at).toBeUndefined();
+    expect(p.patch?.sms_opt_out_at).toBeUndefined();
+  });
+
+  it("a newer unsubscribe replaces an older one (the latest stands), and one the agent recorded stays the agent's", () => {
+    const again = (over: Parameters<typeof known>[0]) => planWebsiteEvent(websiteEventSchema.parse({
+      type: "unsubscribe", event_id: "evt-0003-abc", occurred_at: "2026-10-09T14:30:00Z",
+      scope: "all", contact: { email: "sam.porter@example.com" },
+    }), known(over), NOW);
+    expect(again({ email_opt_out_at: "2026-09-01T12:00:00+00:00", email_opt_out_source: "agent", sms_opt_out_at: "2026-09-01T12:00:00+00:00" }).patch).toEqual({
+      email_opt_out_at: "2026-10-09T14:30:00Z", email_opt_out_source: "agent",
+      sms_opt_out_at: "2026-10-09T14:30:00Z", sms_opt_out_source: "website",
+    });
+    // An opt-out on file that is newer than this event stays as it is.
+    expect(again({ email_opt_out_at: "2026-10-10T12:00:00+00:00", sms_opt_out_at: "2026-10-10T12:00:00+00:00" }).patch).toBeUndefined();
+  });
+
   it("an older consent doesn't lift a newer opt-out", () => {
     const optedOut = known({ email_opt_out_at: "2026-10-09T16:00:00+00:00" });
     const p = planWebsiteEvent(lead({
@@ -131,9 +154,12 @@ describe("unsubscribes", () => {
     scope, contact: { email: "sam.porter@example.com" },
   });
 
-  it("from everything: opt out of email, withdraw every consent, note it", () => {
+  it("from everything: opt out of email and texts, withdraw every consent, note it", () => {
     const p = planWebsiteEvent(unsub("all"), known(), NOW);
-    expect(p.patch).toEqual({ email_opt_out_at: "2026-10-09T14:30:00Z", email_opt_out_source: "website" });
+    expect(p.patch).toEqual({
+      email_opt_out_at: "2026-10-09T14:30:00Z", email_opt_out_source: "website",
+      sms_opt_out_at: "2026-10-09T14:30:00Z", sms_opt_out_source: "website",
+    });
     expect(p.withdraw).toBe("all");
     expect(p.note).toContain("unsubscribed from all your website emails");
   });

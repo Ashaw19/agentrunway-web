@@ -40,23 +40,28 @@ function fake(tables: Record<string, Row[]>, failOn?: string) {
 }
 
 const U = "u1";
-const client = (id: string, extra: Row = {}) => ({ id, user_id: U, imported_at: "2026-01-01", email_opt_out_at: null, ...extra });
+const client = (id: string, extra: Row = {}) => ({ id, user_id: U, imported_at: "2026-01-01", email_opt_out_at: null, sms_opt_out_at: null, ...extra });
 
 describe("deleteOrphanedImportedClients", () => {
   it("deletes an imported client with nothing left, and only that one", async () => {
     const { client: sb, deletes } = fake({
       client_records: [{ id: "r9", user_id: U, client_id: "keeps-a-deal" }],
-      clients: [client("orphan"), client("keeps-a-deal"), client("typed-in", { imported_at: null }), client("unsubscribed", { email_opt_out_at: "2026-05-01" }), client("in-pipeline"), client("co-buyer")],
+      clients: [
+        client("orphan"), client("keeps-a-deal"), client("typed-in", { imported_at: null }),
+        client("unsubscribed", { email_opt_out_at: "2026-05-01" }), client("no-texts", { sms_opt_out_at: "2026-05-01" }),
+        client("in-pipeline"), client("co-buyer"), client("gave-consent"),
+      ],
       pipeline_deals: [{ id: "p1", user_id: U, client_id: "in-pipeline" }],
       client_record_co_parties: [{ id: "cp1", user_id: U, co_client_id: "co-buyer" }],
+      client_email_consents: [{ id: "ce1", user_id: U, client_id: "gave-consent" }],
     });
-    const r = await deleteOrphanedImportedClients(sb, U, ["orphan", "keeps-a-deal", "typed-in", "unsubscribed", "in-pipeline", "co-buyer", "orphan"]);
+    const r = await deleteOrphanedImportedClients(sb, U, ["orphan", "keeps-a-deal", "typed-in", "unsubscribed", "no-texts", "in-pipeline", "co-buyer", "gave-consent", "orphan"]);
     expect(r).toEqual({ deleted: ["orphan"], error: null });
     expect(deletes).toEqual([{ table: "clients", ids: ["orphan"] }]);
   });
 
   it("deletes nothing when a check fails", async () => {
-    for (const table of ["client_records", "clients", "pipeline_deals", "client_record_co_parties"]) {
+    for (const table of ["client_records", "clients", "pipeline_deals", "client_record_co_parties", "client_email_consents"]) {
       const { client: sb, deletes } = fake({ clients: [client("orphan")] }, table);
       const r = await deleteOrphanedImportedClients(sb, U, ["orphan"]);
       expect(r.deleted).toEqual([]);

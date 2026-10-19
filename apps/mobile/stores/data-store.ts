@@ -312,7 +312,7 @@ export interface DraftTextResult {
   reason?: string;
 }
 
-export type TextPurpose = "check_in" | "market_update" | "custom";
+export type TextPurpose = "check_in" | "market_update" | "custom" | "consent_request";
 
 // ── Briefing Types ───────────────────────────────────────────────────────────
 //

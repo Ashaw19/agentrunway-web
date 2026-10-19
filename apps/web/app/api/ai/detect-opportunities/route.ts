@@ -28,7 +28,31 @@ import { POST_CLOSE_OPPORTUNITY_CONFIGS as POST_CLOSE_CONFIGS } from "@agent-run
 import type { SupabaseClient }    from "@supabase/supabase-js";
 import type { ClientMemoryFacts } from "@/lib/ai/client-memory-engine";
 import { contactableRecords, excludeCollapsedDeals } from "@/lib/crm/contactable-records";
-import { lastClosedDealByClient, outreachChannel, withCoBuyerDeals } from "@/lib/crm/outreach-consent";
+import {
+  consentInputsFor,
+  emailChannelFor,
+  fetchConsentLedger,
+  lastClosedDealByClient,
+  withCoBuyerDeals,
+} from "@/lib/crm/outreach-consent";
+import {
+  CONSENT_SENDER_GAP_LABEL,
+  consentBlockReason,
+  consentRequestEmailFooter,
+  readClientConsent,
+  type ConsentSender,
+  type ConsentSenderGap,
+} from "@/lib/crm/consent-gate";
+import {
+  CONSENT_LAPSING_TYPE,
+  consentLapsingCandidates,
+  consentLapsingCopy,
+  consentLapsingScore,
+  sentKey,
+  type LatestDeal,
+} from "@/lib/crm/consent-lapsing";
+import { consentStatus } from "@agent-runway/core/engines/casl-consent-engine";
+import type { ConsentLedgerRow } from "@agent-runway/core/types/database";
 import { recentlyContactedClientIds, outreachSuppressionCutoff } from "@/lib/crm/recently-contacted";
 import { selectTopCandidates, clientLifetimeGci } from "@/lib/crm/top-opportunity-selection";
 import { withoutDismissed, type OpportunityKeyParts } from "@/lib/crm/dismissed-opportunities";
@@ -77,6 +101,7 @@ import {
   buildSellerTimingHesitationPrompt,
   buildMortgageRenewalFinancePrompt,
   buildEducationalValuePrompt,
+  buildConsentRequestPrompt,
 } from "@/lib/outreach-prompts";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -137,6 +162,8 @@ const STRONG_TIMING_TYPES = new Set([
   "post_close_90", "mortgage_renewal_due", "timeframe_approaching",
   "property_value_milestone", "new_client_welcome", "condition_firming",
   "scheduled_date_approaching", "lead_going_quiet",
+  // CASL consent ledger (00183): the ask has a deadline (the lapse day).
+  "consent_lapsing",
 ]);
 
 /** Types that are relationship-maintenance (weaker signal, need support from data). */
@@ -490,6 +517,19 @@ const BANNED_PHRASES = [
 ];
 
 /** Draft a single queue item. Returns true if successfully drafted, false on failure. */
+/** The agent's Settings a consent request's sender identification comes from (with the signature). */
+type AgentIdentity = Omit<ConsentSender, "emailSignature">;
+
+function agentIdentity(row: Record<string, unknown> | null | undefined): AgentIdentity {
+  const str = (v: unknown) => (typeof v === "string" ? v : null);
+  return {
+    displayName:    str(row?.display_name),
+    brokerage:      str(row?.brokerage_name),
+    phone:          str(row?.phone),
+    mailingAddress: str(row?.mailing_address),
+  };
+}
+
 async function draftItem(
   item:           OutreachQueueItem & { clients: { name: string; city: string | null; province_region: string | null; communication_tone?: string; tags?: string[]; notes?: string | null } | null },
   agentFirst:     string,
@@ -497,6 +537,7 @@ async function draftItem(
   agentStyleGuide: string | null,
   userId:         string,
   supabase:       SupabaseClient,
+  identity:       AgentIdentity = {},
 ): Promise<boolean> {
   const clientName = item.clients?.name ?? "your client";
   const ctx        = item.context as Record<string, string | number>;
@@ -520,8 +561,24 @@ async function draftItem(
       ].filter(Boolean).join("\n")
     : null;
 
+  // Never an ask without the sender's name, mailing address and contact.
+  if (item.opportunity_type === "consent_lapsing" && !consentRequestEmailFooter({ emailSignature, ...identity }).ok) {
+    await supabase.from("outreach_queue").update({ status: "skipped" }).eq("id", item.id).eq("user_id", userId);
+    return false;
+  }
+
   let prompt: string;
   switch (item.opportunity_type) {
+    // ── CASL consent ledger (00183) ────────────────────────────────────────
+    case "consent_lapsing":
+      prompt = buildConsentRequestPrompt(
+        agentFirst, clientName,
+        (ctx.address as string | null) ?? null,
+        (ctx.close_date as string | null) ?? null,
+        tone,
+        (ctx.side as "buyer" | "seller" | "both" | null) ?? null,
+      );
+      break;
     // ── Phase A (live) ─────────────────────────────────────────────────────
     case "closing_anniversary":
       prompt = buildAnniversaryPrompt(agentFirst, clientName, Number(ctx.anniversary_year ?? 1), address, province, tone, (ctx.side as "buyer" | "seller" | "both" | null) ?? null);
@@ -792,8 +849,18 @@ async function draftItem(
       ai_body    = lines.slice(0, realSubjIdx).join("\n").trim();
     }
 
-    // Append custom email signature if the agent has one configured
-    if (emailSignature) {
+    if (item.opportunity_type === "consent_lapsing") {
+      // CASL s.6(2) + Regs s.2, s.4: identification and the withdrawal /
+      // unsubscribe line come from the code, never the model. Checked
+      // before the AI call too; this catches a signature changed since.
+      const sender = consentRequestEmailFooter({ emailSignature, ...identity });
+      if (!sender.ok) {
+        await supabase.from("outreach_queue").update({ status: "skipped" }).eq("id", item.id).eq("user_id", userId);
+        return false;
+      }
+      ai_body += `\n\n${sender.footer}`;
+    } else if (emailSignature) {
+      // Append custom email signature if the agent has one configured
       ai_body += `\n\n${emailSignature}`;
     }
 
@@ -852,6 +919,36 @@ function firstContactOptions(
   return { windowDays: WINDOW_DAYS, suppressed, recorded: recordedOccurrences(onFile.data, dismissals) };
 }
 
+// ── CASL consent ledger helpers ──────────────────────────────────────────────
+
+/** Each client's most recent closed deal (address and side for the consent request). */
+function latestDealByClient(
+  records: readonly { id?: string | null; client_id?: string | null; address?: string | null; close_date?: string | null; side?: string | null }[],
+): Map<string, LatestDeal> {
+  const out = new Map<string, LatestDeal>();
+  for (const r of records) {
+    if (!r.client_id || !r.close_date) continue;
+    const prev = out.get(r.client_id);
+    if (!prev || (prev.close_date ?? "") < r.close_date) {
+      out.set(r.client_id, { id: r.id ?? null, address: r.address ?? null, close_date: r.close_date, side: r.side ?? null });
+    }
+  }
+  return out;
+}
+
+/** Queue rows the consent check now refuses: skipped, so they are never drafted or sent. */
+async function skipQueueRows(supabase: SupabaseClient, userId: string, ids: string[]): Promise<void> {
+  if (ids.length === 0) return;
+  const { error } = await supabase
+    .from("outreach_queue")
+    .update({ status: "skipped" })
+    .eq("user_id", userId)
+    .in("id", ids)
+    .in("status", ["draft", "ready"]);
+  if (error) console.error("[detect-opportunities] consent-refused rows not skipped:", error.message);
+  else console.log(`[detect-opportunities] CASL gate: ${ids.length} queued row(s) skipped (unsubscribed or consent lapsed)`);
+}
+
 // ── Core detection + drafting logic (exported for cron wrapper) ───────────────
 
 /** One opportunity the agent clicked "Draft" on in Flight Control. */
@@ -871,14 +968,14 @@ export async function detectAndDraftForUser(
   const [settingsRes, clientsRes, recordsRes, memoryRes, sentRes, coPartiesRes, dismissedRes, firstContactRes] = await Promise.all([
     supabase
       .from("user_settings")
-      .select("display_name, email_signature, ai_voice_guide")
+      .select("display_name, email_signature, ai_voice_guide, brokerage_name, phone, mailing_address")
       .eq("user_id", userId)
       .single(),
     // Per-user lists below are read in pages: one request stops at 1,000 rows.
     fetchAllRows((from, to) =>
       supabase
         .from("clients")
-        .select("id, name, city, province_region, birthdate, communication_tone, first_contacted_at, last_contact_at, tags, notes, status, scheduled_for, scheduled_phrase, email_opt_out_at")
+        .select("id, name, city, province_region, birthdate, communication_tone, first_contacted_at, last_contact_at, tags, notes, status, scheduled_for, scheduled_phrase, email_opt_out_at, sms_opt_out_at")
         .eq("user_id", userId)
         .is("archived_at", null)
         .order("id")
@@ -933,6 +1030,17 @@ export async function detectAndDraftForUser(
   const agentFirst      = extractFirstName(settingsRes.data?.display_name ?? null, "");
   const emailSignature  = (settingsRes.data?.email_signature as string) ?? "";
   const agentStyleGuide = (settingsRes.data?.ai_voice_guide as string | null) ?? null;
+  const identity = agentIdentity(settingsRes.data);
+
+  // CASL consent ledger (00183). Without it an unsubscribe the agent
+  // recorded could go unseen, so a failed read drafts nothing this run.
+  let ledger: ConsentLedgerRow[];
+  try {
+    ledger = await fetchConsentLedger(supabase, userId);
+  } catch (err) {
+    console.error("[detect-opportunities] consent ledger read failed; nothing drafted:", err instanceof Error ? err.message : err);
+    return { detected: 0, drafted: 0, pinned: false };
+  }
 
   const clients    = clientsRes.data ?? [];
   const _clientMap = new Map(clients.map((c) => [c.id, c]));
@@ -1269,6 +1377,24 @@ export async function detectAndDraftForUser(
     }
   }
 
+  // ── CASL consent ledger (00183) ───────────────────────────────────────────
+  // consent_lapsing: a past client's implied consent from their purchase
+  // lapses within CONSENT_LAPSING_WARNING_DAYS, so draft the ask now (the
+  // request is itself a CEM, s.1(3)). Only the "ask" phase is drafted; the
+  // call card after the lapse is Scan-only. Not held back by recent contact.
+  // Inputs are built from the unfiltered deal rows plus co-buyers: a
+  // co-buyer's shared deal still counts when the spouse holding it is
+  // archived.
+  if (coPartiesRes.error) console.error("[detect-opportunities] co-party fetch failed:", coPartiesRes.error.message);
+  const consentInputs = consentInputsFor(clients, recordsRes.data ?? [], coPartiesRes.data ?? [], ledger);
+  // Only with the sender's name, mailing address and contact on file
+  // (SOR/2012-36 s.2, s.4): Scan says what's missing instead.
+  if (consentRequestEmailFooter({ emailSignature, ...identity }).ok) {
+    for (const c of consentLapsingCandidates(consentInputs, atlanticISODate(), latestDealByClient(records), new Set(), new Set(["ask"]))) {
+      inserts.push({ user_id: userId, ...c, status: "draft" });
+    }
+  }
+
   // ── Dismissed in Flight Control: never draft them ─────────────────────────
   const notDismissed = withoutDismissed(
     inserts as { client_id: string; opportunity_type: string; trigger_date: string }[],
@@ -1277,26 +1403,14 @@ export async function detectAndDraftForUser(
   inserts.length = 0;
   inserts.push(...notDismissed);
 
-  // ── CASL gate: no email drafts once implied consent has lapsed ────────────
-  // A past client whose last deal closed two or more years before the send
-  // date shows in Scan as a call card and is never drafted as an email. Same
-  // helper as getTopOpportunities — see lib/crm/outreach-consent.ts.
-  // Built from the unfiltered deal rows plus co-buyers: a co-buyer's shared
-  // deal still counts when the spouse holding it is archived.
-  if (coPartiesRes.error) console.error("[detect-opportunities] co-party fetch failed:", coPartiesRes.error.message);
-  const lastCloseByClient = lastClosedDealByClient(
-    withCoBuyerDeals(recordsRes.data ?? [], coPartiesRes.data ?? []),
-  );
-  // Unsubscribed from all email (00173): never drafted, whatever their deals say.
-  const optedOut = new Set(
-    ((clientsRes.data ?? []) as { id: string; email_opt_out_at?: string | null }[])
-      .filter((c) => c.email_opt_out_at)
-      .map((c) => c.id),
-  );
+  // ── CASL gate (core consentStatus, on the send day) ───────────────────────
+  // Unsubscribed from email, or implied consent lapsed by the send date with
+  // no express consent on record: Scan shows a call card and nothing is
+  // drafted. Express consent the agent recorded lets a lapsed past client
+  // through. Same inputs and rule as getTopOpportunities.
   const emailable = inserts.filter((ins) => {
     const i = ins as { client_id: string; trigger_date: string };
-    if (optedOut.has(i.client_id)) return false;
-    return outreachChannel(lastCloseByClient.get(i.client_id), i.trigger_date, atlanticNoon()) === "email";
+    return emailChannelFor(consentInputs.get(i.client_id), i.trigger_date) === "email";
   });
   if (emailable.length < inserts.length) {
     console.log(`[detect-opportunities] CASL gate: ${inserts.length - emailable.length} opportunities left as call-only (implied consent lapsed or unsubscribed)`);
@@ -1486,12 +1600,22 @@ export async function detectAndDraftForUser(
     if (pinnedItem) undrafted.unshift(pinnedItem);
   }
 
-  if (!undrafted.length) return { detected, drafted: 0, pinned };
+  // Rows queued on an earlier run are checked again before drafting: the
+  // client may have unsubscribed, or their implied consent lapsed, since.
+  // A refused row is skipped so it can't be drafted or sent later.
+  const refused = undrafted.filter((item) => {
+    const i = item as { client_id: string; trigger_date: string };
+    return !consentInputs.has(i.client_id) || emailChannelFor(consentInputs.get(i.client_id), i.trigger_date) !== "email";
+  });
+  await skipQueueRows(supabase, userId, refused.map((r) => r.id as string));
+  const draftable = undrafted.filter((item) => !refused.includes(item));
+
+  if (!draftable.length) return { detected, drafted: 0, pinned };
 
   // Draft all items in parallel — each draftItem has its own timeout + error handling,
   // so one slow/failed item never blocks the others.
   const results = await Promise.allSettled(
-    undrafted.map((item) =>
+    draftable.map((item) =>
       draftItem(
         item as OutreachQueueItem & { clients: { name: string; city: string | null; province_region: string | null; communication_tone?: string; tags?: string[]; notes?: string | null } | null },
         agentFirst,
@@ -1499,6 +1623,7 @@ export async function detectAndDraftForUser(
         agentStyleGuide,
         userId,
         supabase,
+        identity,
       ),
     ),
   );
@@ -1511,7 +1636,7 @@ export async function detectAndDraftForUser(
   }
 
   if (failed > 0) {
-    console.warn(`[flight-control] Drafting complete: ${drafted} succeeded, ${failed} failed out of ${undrafted.length}`);
+    console.warn(`[flight-control] Drafting complete: ${drafted} succeeded, ${failed} failed out of ${draftable.length}`);
   }
 
   return { detected, drafted, pinned };
@@ -2233,12 +2358,12 @@ export async function getTopOpportunities(
   supabase: SupabaseClient,
 ): Promise<TopOpportunity[]> {
   // ── Fetch data (same as detectAndDraftForUser) ─────────────────────────────
-  const [clientsRes, recordsRes, memoryRes, sentRes, coPartiesRes, dismissedRes, firstContactRes] = await Promise.all([
+  const [clientsRes, recordsRes, memoryRes, sentRes, coPartiesRes, dismissedRes, firstContactRes, ledger, consentSentRes, senderRes] = await Promise.all([
     // Per-user lists below are read in pages: one request stops at 1,000 rows.
     fetchAllRows((from, to) =>
       supabase
         .from("clients")
-        .select("id, name, city, province_region, birthdate, communication_tone, first_contacted_at, last_contact_at, created_at, tags, notes, status, scheduled_for, scheduled_phrase, email_opt_out_at")
+        .select("id, name, city, province_region, birthdate, communication_tone, first_contacted_at, last_contact_at, created_at, tags, notes, status, scheduled_for, scheduled_phrase, email_opt_out_at, sms_opt_out_at")
         .eq("user_id", userId)
         .is("archived_at", null)
         .order("id")
@@ -2283,6 +2408,26 @@ export async function getTopOpportunities(
         .order("id")
         .range(from, to)),
     firstContactOccurrences(supabase, userId),
+    // CASL consent ledger (00183). Throws on failure: Scan errors rather
+    // than show email cards for someone whose unsubscribe it couldn't read.
+    fetchConsentLedger(supabase, userId),
+    // Consent requests already marked sent: their card is done. In pages:
+    // one request stops at 1,000 rows.
+    fetchAllRows<{ client_id: string; trigger_date: string }>((from, to) =>
+      supabase
+        .from("outreach_queue")
+        .select("id, client_id, trigger_date")
+        .eq("user_id", userId)
+        .eq("opportunity_type", CONSENT_LAPSING_TYPE)
+        .eq("status", "sent")
+        .order("id")
+        .range(from, to)),
+    // What a consent request's sender identification comes from.
+    supabase
+      .from("user_settings")
+      .select("display_name, email_signature, brokerage_name, phone, mailing_address")
+      .eq("user_id", userId)
+      .maybeSingle(),
   ]);
 
   // A failed clients fetch would otherwise read as "no clients" and render
@@ -2500,12 +2645,31 @@ export async function getTopOpportunities(
     }
   }
 
-  // CASL channel + "has ever bought" — same inputs as the write path
-  // (unfiltered deals + co-buyers).
+  // CASL consent + "has ever bought": same inputs as the write path
+  // (unfiltered deals + co-buyers, the consent ledger).
   if (coPartiesRes.error) console.error("[detect-opportunities] co-party fetch failed:", coPartiesRes.error.message);
   const lastCloseByClient = lastClosedDealByClient(
     withCoBuyerDeals(recordsRes.data ?? [], coPartiesRes.data ?? []),
   );
+  const consentInputs = consentInputsFor(clients, recordsRes.data ?? [], coPartiesRes.data ?? [], ledger);
+
+  // consent_lapsing (00183): the ask before the lapse, then a call card for
+  // CONSENT_LAPSED_CALL_DAYS. Sent requests are done; not held by recent contact.
+  if (consentSentRes.error) console.error("[detect-opportunities] sent consent requests fetch failed:", consentSentRes.error.message);
+  const consentSent = new Set((consentSentRes.data ?? []).map((r) => sentKey(r.client_id, r.trigger_date)));
+  // Without the sender's name, mailing address and contact (SOR/2012-36
+  // s.2, s.4) the ask can't be drafted: the card says what to add.
+  const sender = consentRequestEmailFooter({
+    emailSignature: (senderRes.data?.email_signature as string | null) ?? null,
+    ...agentIdentity(senderRes.data),
+  });
+  inserts.push(...consentLapsingCandidates(consentInputs, atlanticISODate(), latestDealByClient(records), consentSent).map((c) => ({
+    user_id: userId,
+    ...c,
+    context: sender.ok || c.context.phase !== "ask"
+      ? c.context
+      : { ...c.context, identity_missing: sender.reason, identity_missing_label: CONSENT_SENDER_GAP_LABEL[sender.missing as ConsentSenderGap] ?? "Needs your sender details" },
+  })));
 
   // Call cards (2026-10-07): active leads going quiet, and a capped sphere
   // rotation for contacts Scan otherwise can't see. Scan-only, call-first;
@@ -2525,6 +2689,7 @@ export async function getTopOpportunities(
     const clientTags = (clientData?.tags as string[] | null) ?? [];
     const clientNotes = (clientData?.notes as string | null) ?? null;
     const score = scanCallCardScore(ins.opportunity_type, ins.context)
+      ?? (ins.opportunity_type === CONSENT_LAPSING_TYPE ? consentLapsingScore(ins.context) : null)
       ?? scoreCandidate(ins.opportunity_type, facts, ins.context, clientTags, clientNotes);
     ins.context = { ...ins.context, outreach_score: score };
   }
@@ -2588,12 +2753,18 @@ export async function getTopOpportunities(
     const clientTags = (client?.tags as string[] | null) ?? [];
     const clientNotes = (client?.notes as string | null) ?? null;
     const contextLevel = classifyClientContext(clientTags, clientNotes, typed.context);
-    const callCopy = callCardCopy(typed.opportunity_type, typed.context);
-    // Unsubscribed from all email (00173): a call card, whatever the type.
-    const optedOut = Boolean((client as { email_opt_out_at?: string | null } | undefined)?.email_opt_out_at);
-    const channel: "email" | "call" = optedOut || CALL_FIRST_TYPES.has(typed.opportunity_type)
+    const callCopy = callCardCopy(typed.opportunity_type, typed.context)
+      ?? (typed.opportunity_type === CONSENT_LAPSING_TYPE ? consentLapsingCopy(typed.context) : null);
+    // CASL (core consentStatus on the send day): unsubscribed from email, or
+    // implied consent lapsed with no express consent on record → a call card.
+    const emailConsent = consentStatus({
+      ...(consentInputs.get(typed.client_id) ?? { client: {}, closedDeals: [], consents: [] }),
+      today: atlanticISODate(),
+    }).email;
+    const optedOut = emailConsent.state === "opted_out";
+    const channel: "email" | "call" = CALL_FIRST_TYPES.has(typed.opportunity_type)
       ? "call"
-      : outreachChannel(lastCloseByClient.get(typed.client_id), typed.trigger_date, atlanticNoon());
+      : emailChannelFor(consentInputs.get(typed.client_id), typed.trigger_date);
 
     return {
       client_id:        typed.client_id,
@@ -2608,7 +2779,9 @@ export async function getTopOpportunities(
       suggested_angle:  callCopy?.angle ?? suggestAngle(typed.opportunity_type, facts, typed.context),
       context_level:    contextLevel,
       contact_channel:  channel,
-      call_reason:      callReasonFor(typed.opportunity_type, channel, optedOut),
+      call_reason:      typed.opportunity_type === CONSENT_LAPSING_TYPE && channel === "call" && !optedOut
+        ? "consent_lapsed" as const
+        : callReasonFor(typed.opportunity_type, channel, optedOut),
       client_record_id: typed.client_record_id ?? null,
       context:          typed.context,
       financial_impact: callCopy?.impact ?? buildFinancialImpact(
@@ -3047,7 +3220,7 @@ export async function POST(req: NextRequest) {
       const aiKey = process.env.ANTHROPIC_API_KEY || process.env.GROQ_API_KEY;
       if (aiKey) {
         const [settingsRes, undraftedRes] = await Promise.all([
-          supabase.from("user_settings").select("display_name, email_signature, ai_voice_guide").eq("user_id", userId).single(),
+          supabase.from("user_settings").select("display_name, email_signature, ai_voice_guide, brokerage_name, phone, mailing_address").eq("user_id", userId).single(),
           supabase.from("outreach_queue").select("*, clients(name, city, province_region, communication_tone, tags, notes)")
             .eq("user_id", userId).eq("status", "draft").is("ai_subject", null)
             .order("created_at", { ascending: true }).limit(MAX_DRAFTS_PER_RUN),
@@ -3056,11 +3229,21 @@ export async function POST(req: NextRequest) {
           const agentFirst     = extractFirstName(settingsRes.data?.display_name ?? null, "");
           const emailSignature = (settingsRes.data?.email_signature as string) ?? "";
           const agentStyleGuide = (settingsRes.data?.ai_voice_guide as string | null) ?? null;
+          const identity = agentIdentity(settingsRes.data);
+          // CASL: each queued row is checked again before it is drafted
+          // (core consentStatus on its send day). Refused rows are skipped;
+          // a row whose consent can't be read is left for the next run.
+          const verdicts = await Promise.all(undraftedRes.data.map(async (item) => {
+            const read = await readClientConsent(supabase, userId, item.client_id as string);
+            if (!read.ok) return read.notFound ? "refused" : "unknown";
+            return consentBlockReason(read.inputs, "email", item.trigger_date as string, "") ? "refused" : "ok";
+          }));
+          await skipQueueRows(supabase, userId, undraftedRes.data.filter((_, i) => verdicts[i] === "refused").map((r) => r.id as string));
           const results = await Promise.allSettled(
-            undraftedRes.data.map((item) =>
+            undraftedRes.data.filter((_, i) => verdicts[i] === "ok").map((item) =>
               draftItem(
                 item as Parameters<typeof draftItem>[0],
-                agentFirst, emailSignature, agentStyleGuide, userId, supabase,
+                agentFirst, emailSignature, agentStyleGuide, userId, supabase, identity,
               ),
             ),
           );

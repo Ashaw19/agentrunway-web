@@ -50,7 +50,7 @@ Add Agent Runway — Canadian Real Estate Business Analytics MCP Server
 Agent Runway
 
 ## Description
-MCP server for Canadian real estate agents. It has 23 tools. 18 read tools cover transactions, pipeline deals, CRM clients, expenses, mileage tracking, income forecasts, Runway Score (business health grade), GST/HST status and Canadian income tax estimates (all 13 provinces/territories), and read a pasted call or showing note into proposed changes. 5 write tools create and update pipeline opportunities and save the approved note items; mark_opportunity_lost is flagged destructive.
+MCP server for Canadian real estate agents. It has 27 tools. 20 read tools cover transactions, pipeline deals, CRM clients, CASL consent, expenses, mileage tracking, income forecasts, Runway Score (business health grade), GST/HST status and Canadian income tax estimates (all 13 provinces/territories), and read a pasted call or showing note into proposed changes. 7 write tools create and update pipeline opportunities, save the approved note items, and record CASL consent and withdrawals; mark_opportunity_lost is flagged destructive.
 
 ## Server URL
 https://wlxkvnbncfzkmxzexgxt.supabase.co/functions/v1/mcp-server
@@ -61,7 +61,7 @@ Streamable HTTP (JSON-RPC 2.0 over HTTPS)
 ## Authentication
 Bearer token: the Supabase access token (JWT) from a signed-in Agent Runway session. It expires after about an hour. There are no API keys, and OAuth is not available. Requires Agent Runway Pro access.
 
-## Tools (23 total: 18 read, 5 write)
+## Tools (27 total: 20 read, 7 write)
 - **Analytics:** get_dashboard_kpis, get_runway_score, get_forecast, get_tax_estimate, get_hst_status
 - **Transactions:** get_transactions, get_transaction_summary
 - **Pipeline:** get_pipeline, get_pipeline_forecast
@@ -71,6 +71,7 @@ Bearer token: the Supabase access token (JWT) from a signed-in Agent Runway sess
 - **Outreach:** get_flight_control_priorities
 - **Settings:** get_user_settings
 - **Note capture:** capture_note (read); save_captured_note (write)
+- **Consent (CASL):** get_client_consent, list_consent_lapsing (read); record_consent, withdraw_consent (write)
 - **Meta:** get_server_info
 
 ## Links
@@ -104,7 +105,7 @@ https://github.com/Ashaw19/agentrunway-web
 apps/web/supabase/functions/mcp-server/
 
 ## What does this server do?
-Agent Runway is a business analytics platform for Canadian real estate agents. The MCP server has 23 tools. 18 read tools let AI assistants query an agent's:
+Agent Runway is a business analytics platform for Canadian real estate agents. The MCP server has 27 tools. 20 read tools let AI assistants query an agent's:
 - Transaction history and GCI (gross commission income)
 - Pipeline deals with probability-weighted forecasts
 - CRM client database with flight status tracking
@@ -112,7 +113,7 @@ Agent Runway is a business analytics platform for Canadian real estate agents. T
 - Canadian income tax estimates for all 13 provinces/territories
 - Runway Score (composite business health grade, 0-100)
 
-5 write tools create and update pre-transactional pipeline opportunities (listing appointments, buyer prospects, referrals) and save the items from a pasted call or showing note that the agent approved (capture_note reads the note first). mark_opportunity_lost is flagged destructive.
+7 write tools create and update pre-transactional pipeline opportunities (listing appointments, buyer prospects, referrals), save the items from a pasted call or showing note that the agent approved (capture_note reads the note first), and record CASL consent and withdrawals. mark_opportunity_lost is flagged destructive.
 
 ## Why is this useful for Cline users?
 Real estate agents using Cline can query their entire business state through natural language — "How's my pipeline looking?", "What's my tax estimate?", "Which clients need follow-up?" — without switching to the Agent Runway dashboard.

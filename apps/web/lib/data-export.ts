@@ -43,6 +43,7 @@ const EXPORT_TABLES: readonly ExportTable[] = [
   { table: "business_settings", filename: "business-settings.csv", description: "Business identity and configuration" },
   { table: "notification_preferences", filename: "notification-preferences.csv", description: "Email/push notification preferences" },
   { table: "consent_records", filename: "consent-records.csv", description: "Consent grants (privacy law artifact)" },
+  { table: "client_email_consents", filename: "client-consent-ledger.csv", description: "CASL consent ledger: consent your clients gave you, by email or text, and withdrawals" },
 
   // ── Money & transactions ──────────────────────────────────────────────────
   { table: "transactions", filename: "transactions.csv", description: "Closed and pending real estate transactions" },

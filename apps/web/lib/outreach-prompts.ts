@@ -1294,15 +1294,60 @@ On the very last line, write exactly:
 SUBJECT: [your subject line]`;
 }
 
+// ── Consent request (CASL consent ledger, 00183) ───────────────────────────────
+
+/**
+ * Flight Control's consent_lapsing draft: a past client's implied consent
+ * from their purchase lapses soon (CASL s.10(10)(a), 2 years), so the agent
+ * asks whether they'd like to keep hearing from them. The request is itself
+ * a commercial message (s.1(3)), so it only goes out before the lapse.
+ * The code appends the sender identification, the withdrawal statement and
+ * the unsubscribe line (s.6(2), Regs SOR/2012-36 s.4); the model writes the
+ * ask only, and never claims a legal reason for it.
+ */
+export function buildConsentRequestPrompt(
+  agentFirst: string,
+  clientName: string,
+  address:    string | null,
+  closeDate:  string | null,
+  tone:       Tone = "friendly",
+  side:       "buyer" | "seller" | "both" | null = null,
+): string {
+  const did = side === "seller" ? "sell" : side === "both" ? "buy and sell" : "buy";
+  const when = closeDate ? ` (closed ${closeDate.slice(0, 7)})` : "";
+  return `You are ghostwriting a short, warm note from a Canadian real estate agent named ${agentFirst} to their past client ${clientName}.
+
+Context:
+- ${agentFirst} helped ${clientName} ${did} a home${address ? ` at ${address}` : ""}${when}.
+- The note asks one thing: whether ${clientName} would like to keep hearing from ${agentFirst} by email now and then (the odd check-in, news about their neighbourhood, a home value update if they ever want one).
+
+${TONE_INSTRUCTIONS[tone]}
+
+Write 2 short paragraphs (under 110 words) that:
+- Open with a genuine, specific line about them or their home. DO NOT open with "I hope this email finds you well".
+- Ask plainly whether they'd like to keep getting the occasional email, and make it easy: "just reply yes" works.
+- Make it clear that no is a fine answer too.
+- Mention no law, rule, regulation, "CASL", "consent" or "compliance". It is a personal ask, not a legal notice.
+- Pitch nothing, state no prices, rates or market figures.
+- No em dashes.
+- Sign off with just "${agentFirst}". Do NOT add an unsubscribe line or contact details: the app adds them.
+- DO NOT start with "Subject:".
+
+${SUBJECT_LINE_RULES}
+On the very last line, write exactly:
+SUBJECT: [your subject line]`;
+}
+
 // ── Text messages (text queue, 00179) ─────────────────────────────────────────
 
-export const TEXT_PURPOSES = ["check_in", "market_update", "custom"] as const;
+export const TEXT_PURPOSES = ["check_in", "market_update", "custom", "consent_request"] as const;
 export type TextPurpose = (typeof TEXT_PURPOSES)[number];
 
 export const TEXT_PURPOSE_LABELS: Record<TextPurpose, string> = {
   check_in: "Check in",
   market_update: "Offer a market update",
   custom: "Your own message",
+  consent_request: "Ask to keep in touch",
 };
 
 /**
@@ -1337,7 +1382,9 @@ export function buildTextMessagePrompt(input: {
       ? `A friendly personal check-in. Ask how they're doing in a way that invites a reply. No sales pitch.`
       : purpose === "market_update"
         ? `Offer to send them a quick picture of what's happening with homes in their area (what nearby homes are selling for, or what their home might be worth today). Make it an easy yes/no offer. Do NOT state any prices, numbers, rates or market trends yourself.`
-        : `The agent wants to say this (keep its meaning, put it in the agent's words): "${note ?? ""}"`;
+        : purpose === "consent_request"
+          ? `Ask whether they'd like to keep getting the odd text from you (a check-in now and then, news about their area). Make it an easy yes or no: "just reply YES" works. Mention no law, rule or "consent": it is a personal ask. Don't add an opt-out line: the app adds what it needs.`
+          : `The agent wants to say this (keep its meaning, put it in the agent's words): "${note ?? ""}"`;
 
   return `You are writing ONE text message (SMS) from ${agentFirst}, a Canadian real estate agent, to their client ${clientFirst}.
 

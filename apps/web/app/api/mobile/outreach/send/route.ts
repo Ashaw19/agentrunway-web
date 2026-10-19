@@ -13,6 +13,7 @@ import { createAdminClient }         from "@/lib/supabase/admin";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 import { sendEmail } from "@/lib/email-sender";
 import { markMemoryStale } from "@/lib/ai/client-memory-engine";
+import { checkQueuedMessage } from "@/lib/crm/queued-message-check";
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
   try {
@@ -79,6 +80,14 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         { ok: false, error: "No email address on file for this client" },
         { status: 422 },
       );
+    }
+
+    // ── CASL (core consentStatus on its send day): a draft written before an
+    // unsubscribe, a lapse or an archive can't go out after it. Refused
+    // drafts are skipped; unreadable consent refuses the send.
+    const check = await checkQueuedMessage(admin, user.id, outreachId, "email");
+    if (!check.ok) {
+      return NextResponse.json({ ok: false, error: check.error, code: check.code }, { status: check.status });
     }
 
     const subject = item.final_subject || item.ai_subject || "Hello";
