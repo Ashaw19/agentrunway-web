@@ -8,7 +8,7 @@
  * Atlantic hour). Calendar days stay YYYY-MM-DD strings, compared as text or
  * with daysBetweenISO; none is ever made into a Date.
  *
- * The stack, in order:
+ * The stack, in order (both read from the constants):
  *   1 always on top (ALWAYS_ON_TOP): new leads newest first, deal deadlines
  *     soonest first, then one card for every overdue task
  *   2 the current band's cards (BAND_KINDS); nothing from another band
@@ -17,16 +17,20 @@
  * (progress.done >= target), or when its client already has an earlier card.
  * Then at most STACK_LIMIT cards.
  *
+ * Later on a card keyed by the day lasts past midnight: a "tomorrow" chosen
+ * at 21:00 is saved on yesterday's key, and still hides today's card until
+ * 08:00.
+ *
  * One client, one card. A card carries a client when everything on it is
  * that client's: a new lead, a handful pick, a condition deadline, or a task
  * or schedule card whose every item is theirs. The first such card claims
- * the client. A later card for them is dropped, and its items ride on the
- * first card (appended to its itemIds, after the card's own, so itemIds[0]
- * stays the card's own first item), so no row counts them either. A deal
- * deadline never rides on another card: the client's card doesn't show it,
- * so a dropped one waits in the Deals row. A card on Later still claims its
- * client: Later on a client keeps all their cards away, and their items
- * wait in the rows.
+ * the client, and a later card for them is dropped. A lead and a handful
+ * pick for the same person are one card: both cover the client's own id, so
+ * whichever comes first covers the other's item. Any other dropped card's
+ * items wait in their own row (a task in the Checklist row, a deadline in
+ * the Deals row, a pick in the handful row), since the first card can't act
+ * on them. A card on Later still claims its client: Later on a client keeps
+ * all their cards away, and their items wait in the rows.
  *
  * Rows count, per section, the items no card on the stack covers (by id),
  * so an item is never on a card and in a row, and nothing waiting is left
@@ -38,7 +42,7 @@
  */
 
 import { isArchivedClient } from "../client-groups";
-import { daysBetweenISO } from "../local-date";
+import { addDaysISO, daysBetweenISO } from "../local-date";
 import {
   conditionDeadlineDays,
   dealDeadlineDays,
@@ -58,7 +62,11 @@ export type NextUpAction = "call" | "text" | "later" | "dismiss" | "open_client"
   | "open_briefing" | "open_deals" | "open_messages" | "open_receipts" | "open_mileage" | "record_voice_note";
 
 export interface NextUpCard {
-  /** `${kind}:${id or day}`; local snoozes key on it. A card about many items keys on the day, so tomorrow's is new. */
+  /**
+   * `${kind}:${id or day}`; local snoozes key on it. A card about many items
+   * keys on the day, so tomorrow's is new; a Later saved on yesterday's key
+   * still hides it until that Later's time.
+   */
   key: string;
   kind: NextUpKind;
   /** The one client everything on the card belongs to, else null. */
@@ -216,12 +224,15 @@ export function buildNextUp(input: NextUpInput): NextUpView {
 
   // The cached handful is sticky: yesterday's picks stay until the refresh.
   // A client archived since is never suggested; one on Later is back once
-  // its time has come.
+  // its time has come. A client on Later is only ever their snoozed entry,
+  // even if a stale payload also lists them as a pick: an active hold never
+  // shows, and no one is counted twice.
+  const onLater = new Set((payload?.snoozed ?? []).map((s) => s.client_id));
   const returning: HandfulEntry[] = (payload?.snoozed ?? [])
     .filter((s) => !archived(s.client_id) && Date.parse(s.until) <= nowMs)
     .map((s) => ({ clientId: s.client_id, clientName: s.client_name, phone: s.phone }));
   const picks: HandfulEntry[] = (payload?.handful ?? [])
-    .filter((h) => !archived(h.client_id))
+    .filter((h) => !archived(h.client_id) && !onLater.has(h.client_id))
     .map((h) => ({ clientId: h.client_id, clientName: h.client_name, phone: h.phone, item: h }));
   const handful = [...returning, ...picks];
   const handfulClientIds = new Set(
@@ -294,49 +305,49 @@ export function buildNextUp(input: NextUpInput): NextUpView {
       : { detail: { returning: true } }),
   }));
 
-  const bandCards: Record<TimeBand, () => NextUpCard[]> = {
-    morning: () => [
-      ...(input.briefingCount > 0 ? [make("briefing", today, { count: input.briefingCount })] : []),
-      ...(hadSchedule
-        ? [make("schedule", today, {
-            ...forClient(soleClient(todaySchedule.map((s) => s.client_id))),
-            count: todaySchedule.length, detail: scheduleDetail,
-          })]
-        : []),
-      ...taskCard("tasks_today", dueToday),
-    ],
-    midday: () => [
-      ...handfulCards,
-      ...(messages > 0 ? [make("messages_ready", today, { count: messages })] : []),
-    ],
-    evening: () => [
-      ...(hadSchedule && input.voiceNoteDoneOn !== today ? [make("voice_note", today, { detail: scheduleDetail })] : []),
-      ...(input.undatedReceipts > 0 ? [make("undated_receipts", today, { count: input.undatedReceipts })] : []),
-      ...(hadSchedule && input.tripsLoggedToday === 0 ? [make("trips", today, { detail: scheduleDetail })] : []),
-    ],
+  // Each kind's cards, made only when its kind is in today's order.
+  const cardsOf: Record<NextUpKind, () => NextUpCard[]> = {
+    new_lead:       () => newLeadCards,
+    deal_deadline:  () => deadlineCards,
+    overdue_tasks:  () => taskCard("overdue_tasks", overdue),
+    briefing:       () => (input.briefingCount > 0 ? [make("briefing", today, { count: input.briefingCount })] : []),
+    schedule:       () => (hadSchedule
+      ? [make("schedule", today, {
+          ...forClient(soleClient(todaySchedule.map((s) => s.client_id))),
+          count: todaySchedule.length, detail: scheduleDetail,
+        })]
+      : []),
+    tasks_today:    () => taskCard("tasks_today", dueToday),
+    handful_client: () => handfulCards,
+    messages_ready: () => (messages > 0 ? [make("messages_ready", today, { count: messages })] : []),
+    voice_note:     () => (hadSchedule && input.voiceNoteDoneOn !== today ? [make("voice_note", today, { detail: scheduleDetail })] : []),
+    undated_receipts: () => (input.undatedReceipts > 0 ? [make("undated_receipts", today, { count: input.undatedReceipts })] : []),
+    trips:          () => (hadSchedule && input.tripsLoggedToday === 0 ? [make("trips", today, { detail: scheduleDetail })] : []),
   };
-
-  const candidates = [...newLeadCards, ...deadlineCards, ...taskCard("overdue_tasks", overdue), ...bandCards[band]()];
+  const order = [...new Set<NextUpKind>([...ALWAYS_ON_TOP, ...BAND_KINDS[band]])];
+  const candidates = order.flatMap((kind) => cardsOf[kind]());
 
   // ── The stack ───────────────────────────────────────────────────────────
-  // An unreadable time hides nothing.
-  const snoozed = (card: NextUpCard) => {
-    const until = input.localSnoozes[card.key];
-    return !!until && Date.parse(until) > nowMs;
-  };
-  // The client's first card: the one shown, or null when that card is away.
-  const claimed = new Map<string, NextUpCard | null>();
+  // A Later on a card keyed by the day is saved on that day's key;
+  // yesterday's still counts until its time ("tomorrow" at 21:00 lasts
+  // until 08:00). An unreadable time hides nothing.
+  const yesterday = addDaysISO(today, -1);
+  const snoozed = (card: NextUpCard) =>
+    (card.key === `${card.kind}:${today}` ? [card.key, `${card.kind}:${yesterday}`] : [card.key]).some((key) => {
+      const until = input.localSnoozes[key];
+      return !!until && Date.parse(until) > nowMs;
+    });
+  // A client's first card claims them, shown or away; a later card for them
+  // is dropped and its items wait in their row, unless the first card covers
+  // them (a lead and a handful pick share the client's id).
+  const claimed = new Set<string>();
   const shown: NextUpCard[] = [];
   for (const card of candidates) {
-    const away = snoozed(card) || (card.kind === "handful_client" && handfulDone);
     if (card.clientId) {
-      if (claimed.has(card.clientId)) {
-        const first = claimed.get(card.clientId);
-        if (first && card.kind !== "deal_deadline") first.itemIds = [...new Set([...first.itemIds, ...card.itemIds])];
-        continue;
-      }
-      claimed.set(card.clientId, away ? null : card);
+      if (claimed.has(card.clientId)) continue;
+      claimed.add(card.clientId);
     }
+    const away = snoozed(card) || (card.kind === "handful_client" && handfulDone);
     if (!away) shown.push(card);
   }
   const stack = shown.slice(0, STACK_LIMIT);

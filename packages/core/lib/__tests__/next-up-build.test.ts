@@ -162,6 +162,34 @@ describe("buildNextUp: the stack by time of day", () => {
     expect(kinds(buildNextUp(tomorrowOnly))).toEqual(["undated_receipts"]);
     expect(kinds(buildNextUp({ ...tomorrowOnly, band: "morning" }))).toEqual(["briefing", "tasks_today"]);
   });
+
+  it("the order comes from ALWAYS_ON_TOP and BAND_KINDS: changing them changes the stack", () => {
+    const busy = (band: TimeBand) => day({
+      band,
+      clients: [lead("l-1", "Lia Lead", 2), client("c-1", "Riley Stone"), client("c-show", "Sam Reed")],
+      pipeline: [{ id: "d-1", address: "1 A St", client_name: null, expected_close_date: "2026-10-22" }],
+      tasks: [task("t-o", "2026-10-10"), task("t-1", TODAY)],
+      payload: payload({ handful: [item("c-1", "Riley Stone")] }),
+    });
+    const kindOrder = (v: NextUpView) => [...new Set(kinds(v))];
+    for (const band of ["morning", "midday", "evening"] as TimeBand[]) {
+      expect(kindOrder(buildNextUp(busy(band)))).toEqual([...ALWAYS_ON_TOP, ...BAND_KINDS[band]]);
+    }
+
+    // Reorder the constants in place (restored after): the stack follows.
+    const top = ALWAYS_ON_TOP as NextUpCard["kind"][];
+    const midday = BAND_KINDS.midday as NextUpCard["kind"][];
+    top.reverse();
+    midday.reverse();
+    try {
+      expect(kindOrder(buildNextUp(busy("midday"))))
+        .toEqual(["overdue_tasks", "deal_deadline", "new_lead", "messages_ready", "handful_client"]);
+    } finally {
+      top.reverse();
+      midday.reverse();
+    }
+    expect(ALWAYS_ON_TOP).toEqual(["new_lead", "deal_deadline", "overdue_tasks"]);
+  });
 });
 
 describe("buildNextUp: always on top", () => {
@@ -264,12 +292,47 @@ describe("buildNextUp: one client, one card", () => {
       tasks: [task("t-x", "2026-10-15", { client_id: "x" })],
       payload: payload({ handful: [item("x", "Xena Lead"), item("y", "Yuri Pick")] }),
     }));
-    // X has the lead card only; its handful pick and task ride on it.
+    // X has the lead card only; her handful pick merges into it.
     expect(v.stack.filter((c) => c.clientId === "x")).toHaveLength(1);
     expect(v.stack.map((c) => c.key)).toEqual(["new_lead:x", "handful_client:y"]);
-    expect(card(v, "new_lead:x").itemIds).toEqual(expect.arrayContaining(["x", "t-x"]));
-    // And X is in no row.
-    expect(v.alsoWaiting).toEqual([]);
+    expect(card(v, "new_lead:x").itemIds).toEqual(["x"]);
+    // Her overdue task can't be done from a lead card: it waits in the Checklist row.
+    expect(v.alsoWaiting).toEqual([{ section: "checklist", count: 1, swipeTaskId: "t-x", firstName: "Xena", days: 4 }]);
+  });
+
+  // A dropped card's item is either on a card that can act on it or in its own row.
+  it("a schedule card doesn't take the client's task due today: it waits in the Checklist row", () => {
+    const v = buildNextUp(input({
+      band: "morning",
+      clients: [client("x", "Xan Seller")],
+      schedule: [{ kind: "showing", client_id: "x", date: TODAY }],
+      tasks: [task("t-x", TODAY, { client_id: "x" })],
+    }));
+    expect(v.stack.map((c) => c.key)).toEqual([`schedule:${TODAY}`]);
+    expect(card(v, `schedule:${TODAY}`).itemIds).toEqual([]);
+    expect(row(v, "checklist")).toMatchObject({ count: 1, swipeTaskId: "t-x" });
+  });
+
+  it("a deal deadline card doesn't take the client's overdue task: it waits in the Checklist row", () => {
+    const v = buildNextUp(input({
+      clients: [client("x", "Xan Buyer")],
+      clientRecords: [{ id: "r-x", client_id: "x", address: "1 X St", condition_date: "2026-10-21", condition_status: "pending" }],
+      tasks: [task("t-x", "2026-10-15", { client_id: "x" })],
+    }));
+    expect(v.stack.map((c) => c.key)).toEqual(["deal_deadline:r-x"]);
+    expect(card(v, "deal_deadline:r-x").itemIds).toEqual(["r-x"]);
+    expect(row(v, "checklist")).toMatchObject({ count: 1, swipeTaskId: "t-x" });
+  });
+
+  it("an overdue card doesn't take the client's handful pick: it waits in the handful row", () => {
+    const v = buildNextUp(input({
+      clients: [client("x", "Xan Pick")],
+      tasks: [task("t-x", "2026-10-15", { client_id: "x" })],
+      payload: payload({ handful: [item("x", "Xan Pick")] }),
+    }));
+    expect(v.stack.map((c) => c.key)).toEqual([`overdue_tasks:${TODAY}`]);
+    expect(card(v, `overdue_tasks:${TODAY}`).itemIds).toEqual(["t-x"]);
+    expect(row(v, "handful")).toMatchObject({ count: 1, firstName: "Xan" });
   });
 
   it("an overdue card over several clients' tasks has no client and stays", () => {
@@ -554,6 +617,24 @@ describe("buildNextUp: the handful", () => {
     expect(noon.progress).toEqual({ done: 0, target: 5 });
   });
 
+  it("a client both picked and on Later is only their Later: hidden while it holds, once when back", () => {
+    // A stale payload lists Hy and Bea as picks and on Later.
+    const both = payload({
+      handful: [item("h-1", "Ann One"), item("h-held", "Hy Held"), item("h-back", "Bea Back")],
+      snoozed: [
+        { client_id: "h-held", client_name: "Hy Held", until: "2026-10-19T22:00:00Z", phone: null },
+        { client_id: "h-back", client_name: "Bea Back", until: hoursAgo(1), phone: "506-555-0150" },
+      ],
+    });
+    const v = buildNextUp(input({ payload: both }));
+    expect(v.stack.map((c) => c.key)).toEqual(["handful_client:h-back", "handful_client:h-1"]);
+    expect(card(v, "handful_client:h-back").detail.returning).toBe(true);
+    expect(v.alsoWaiting).toEqual([]);
+
+    // In the morning they wait in the row: Ann and Bea, once each; Hy is still away.
+    expect(row(buildNextUp(input({ band: "morning", payload: both })), "handful")).toMatchObject({ count: 2 });
+  });
+
   it("an archived client from a cached payload is never suggested", () => {
     const v = buildNextUp(input({
       clients: [client("h-1", "Ann One", { archived_at: hoursAgo(1) }), client("h-2", "Bo Two")],
@@ -618,13 +699,49 @@ describe("buildNextUp: Later on the phone", () => {
     const later = buildNextUp({ ...base, now: at("2026-10-19T18:00:00Z") });
     expect(later.stack.map((c) => c.key)).toEqual(["new_lead:x", `overdue_tasks:${TODAY}`, "handful_client:y"]);
 
-    // Yesterday's snooze of the overdue card doesn't hide today's.
-    const stale = buildNextUp({ ...base, localSnoozes: { [`overdue_tasks:${YESTERDAY}`]: "2026-10-20T11:00:00Z" } });
+    // Yesterday's snooze whose time has passed doesn't hide today's card.
+    const stale = buildNextUp({ ...base, localSnoozes: { [`overdue_tasks:${YESTERDAY}`]: "2026-10-19T11:00:00Z" } });
     expect(kinds(stale)).toContain("overdue_tasks");
 
     // An unreadable time hides nothing.
     const junk = buildNextUp({ ...base, localSnoozes: { [`overdue_tasks:${TODAY}`]: "soon" } });
     expect(kinds(junk)).toContain("overdue_tasks");
+  });
+
+  it("Later \"tomorrow\" chosen at 21:00 hides the day's card until 08:00, past midnight", () => {
+    // 21:00 ADT on Oct 18: the overdue card is overdue_tasks:2026-10-18, and
+    // "tomorrow" is 08:00 ADT on Oct 19 (11:00 UTC).
+    const snoozes = { [`overdue_tasks:${YESTERDAY}`]: "2026-10-19T11:00:00Z" };
+    const open = (iso: string) => buildNextUp(input({
+      now: at(iso), band: "morning",
+      tasks: [task("t-1", "2026-10-15"), task("t-2", "2026-10-16")],
+      localSnoozes: snoozes,
+    }));
+    // The evening it was chosen.
+    const evening = buildNextUp(input({
+      now: at("2026-10-19T00:30:00Z"), today: YESTERDAY, band: "evening",
+      tasks: [task("t-1", "2026-10-15"), task("t-2", "2026-10-16")], localSnoozes: snoozes,
+    }));
+    expect(kinds(evening)).not.toContain("overdue_tasks");
+
+    // 06:00 on Oct 19: a new day's key, still hidden; the tasks wait in the Checklist row.
+    const six = open("2026-10-19T09:00:00Z");
+    expect(kinds(six)).not.toContain("overdue_tasks");
+    expect(row(six, "checklist")).toMatchObject({ count: 2 });
+
+    // 08:00: back.
+    expect(card(open("2026-10-19T11:00:00Z"), `overdue_tasks:${TODAY}`).count).toBe(2);
+
+    // A Later from two days ago never reaches today.
+    const old = buildNextUp(input({
+      tasks: [task("t-1", "2026-10-15")],
+      localSnoozes: { "overdue_tasks:2026-10-17": "2026-10-20T11:00:00Z" },
+    }));
+    expect(kinds(old)).toContain("overdue_tasks");
+
+    // A card keyed on a client isn't day-keyed: only its own key counts.
+    const lead1 = lead("x", "Xena Lead", 3);
+    expect(kinds(buildNextUp(input({ clients: [lead1], localSnoozes: { "new_lead:x": "2026-10-20T11:00:00Z" } })))).toEqual([]);
   });
 });
 
