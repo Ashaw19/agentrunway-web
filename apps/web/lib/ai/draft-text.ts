@@ -235,6 +235,16 @@ export async function draftTextForClient(input: {
       reason: existing.status === "sent" ? `You already texted ${clientName} today.` : undefined,
     };
   }
+  // A background draft for the Next up handful never replaces today's text
+  // once there is one in any other state (skipped in Messages, failed).
+  // Tapping Text drafts on request (no source), which may.
+  if (existing && input.source === "next_up") {
+    return {
+      status: "skipped", clientId, clientName, phone,
+      queueItemId: existing.id as string,
+      reason: `There's already a text for ${clientName} today.`,
+    };
+  }
 
   const aiKey = process.env.ANTHROPIC_API_KEY || process.env.GROQ_API_KEY;
   if (!aiKey) {

@@ -54,6 +54,7 @@ vi.mock("@/lib/ai/draft-text", async (importOriginal) => ({
   draftTextForClient,
 }));
 
+import { generateText } from "ai";
 import { GET } from "@/app/api/next-up/route";
 import { buildNextUpPayload } from "@/lib/crm/next-up-payload";
 import { CONSENT_READ_FAILED } from "@/lib/crm/consent-gate";
@@ -334,6 +335,20 @@ describe("GET /api/next-up: the payload", () => {
     expect(item(p, "c-draft").text).toEqual({ status: "call_only", reason: "You already texted Dana Draft today." });
   });
 
+  it("today's texts that can't be read make the textable cards call_only", async () => {
+    const user = fakeSupabase(fiveTables(), { readError: ["outreach_queue"] });
+    setup(fiveTables());
+    state.client = user.client;
+    const p = await payloadOf("?persist=0");
+    await Promise.all(pending);
+    expect(item(p, "c-ready").text).toEqual({ status: "call_only", reason: "Couldn't check today's texts." });
+    expect(item(p, "c-draft").text).toEqual({ status: "call_only", reason: "Couldn't check today's texts." });
+    // The other cards keep their own answer.
+    expect(item(p, "c-optout").text).toMatchObject({ status: "call_only", reason: expect.stringMatching(/unsubscribed/) });
+    expect(item(p, "c-nophone").text).toEqual({ status: "no_phone" });
+    expect(draftTextForClient).not.toHaveBeenCalled();
+  });
+
   it("consent that can't be read is call_only: it fails closed", async () => {
     const user = fakeSupabase(fiveTables(), { readError: ["client_email_consents"] });
     setup(fiveTables());
@@ -488,6 +503,30 @@ describe("GET /api/next-up: drafting the handful's texts", () => {
     const res2 = await get("?persist=0");
     expect(res2.status).toBe(200);
     pending.length = 0; // the hung draft is never awaited
+  });
+
+  it("a text skipped today isn't redrafted in the background", async () => {
+    // The real drafter, against the same fake database.
+    const real = await vi.importActual<typeof import("@/lib/ai/draft-text")>("@/lib/ai/draft-text");
+    draftTextForClient.mockImplementation(real.draftTextForClient);
+    vi.stubEnv("ANTHROPIC_API_KEY", "test-key");
+    vi.mocked(generateText).mockClear();
+    vi.mocked(generateText).mockResolvedValue({ text: "Hi Dana, hope you're well." } as Awaited<ReturnType<typeof generateText>>);
+    // Andrew skipped today's text for Dana in Messages (Riley's is still waiting).
+    const user = setup(fiveTables({
+      outreach_queue: [smsRow("c-ready"), smsRow("c-draft", { status: "skipped", ai_body: "Hi Dana" })],
+    }));
+
+    const p = await payloadOf("?persist=0");
+    await Promise.all(pending);
+
+    // The card still offers Text (tapping it drafts on demand)...
+    expect(item(p, "c-draft").text).toEqual({ status: "draftable" });
+    // ...but nothing ran in the background: no AI call, and the skipped row stands.
+    expect(draftTextForClient).toHaveBeenCalledTimes(1);
+    expect(generateText).not.toHaveBeenCalled();
+    expect(user.writes.filter((w) => w.table === "outreach_queue")).toEqual([]);
+    vi.unstubAllEnvs();
   });
 
   describe("at most 2 draft attempts a client per Atlantic day", () => {

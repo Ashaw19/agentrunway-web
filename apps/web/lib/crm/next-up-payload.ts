@@ -75,6 +75,7 @@ function callNumber(row: PhoneRow | undefined): string | null {
  *   consent can't be read, or refuses a text today        call_only
  *   a consent request outside its window or unsignable    call_only
  *   no number with at least 10 digits                     no_phone
+ *   today's texts couldn't be read                        call_only
  *   already texted today                                  call_only
  *   today's text drafted and waiting                      ready
  *   otherwise                                             draftable
@@ -84,7 +85,7 @@ async function textStatusFor(
   userId:   string,
   pick:     TopOpportunity,
   row:      PhoneRow | undefined,
-  queued:   QueuedText | undefined,
+  queued:   QueuedText | undefined | "unread",
   today:    string,
   sender:   () => Promise<TextSender>,
 ): Promise<HandfulTextStatus> {
@@ -104,6 +105,8 @@ async function textStatusFor(
 
   if (!row || !pickTextPhone(row)) return { status: "no_phone" };
 
+  // Unread, a text already sent today can't be ruled out.
+  if (queued === "unread") return { status: "call_only", reason: "Couldn't check today's texts." };
   if (queued?.status === "sent") return { status: "call_only", reason: `You already texted ${name} today.` };
   const body = queued?.status === "ready" ? (queued.final_body ?? queued.ai_body ?? "") : "";
   if (queued && body.trim()) return { status: "ready", queue_id: queued.id, body };
@@ -226,8 +229,7 @@ export async function buildNextUpPayload(
           .in("client_id", pickIds),
   ]);
   if (phonesRes.error) console.error(`[next-up] phone numbers not read: ${phonesRes.error.message}`);
-  // Unread, a waiting text shows as draftable; the drafter then finds it
-  // and returns it instead of writing another.
+  // Unread, the textable cards are call_only (textStatusFor).
   if (queuedRes.error) console.error(`[next-up] today's texts not read: ${queuedRes.error.message}`);
 
   const rows = new Map(phonesRes.data.map((r) => [r.id, r]));
@@ -258,7 +260,11 @@ export async function buildNextUpPayload(
   })());
 
   const statuses = await Promise.all(picks.map((p) =>
-    textStatusFor(supabase, userId, p, rows.get(p.client_id), queued.get(p.client_id), day, sender)));
+    textStatusFor(
+      supabase, userId, p, rows.get(p.client_id),
+      queuedRes.error ? "unread" : queued.get(p.client_id),
+      day, sender,
+    )));
 
   const items: HandfulItem[] = picks.map((p, i) => ({
     client_id:        p.client_id,

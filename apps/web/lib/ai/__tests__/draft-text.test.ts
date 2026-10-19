@@ -220,6 +220,24 @@ describe("draftTextForClient — the queued text", () => {
     });
   });
 
+  it("a Next up draft never replaces today's text the agent skipped; drafting on request still does", async () => {
+    const skipped = {
+      id: "q-7", user_id: USER, client_id: CLIENT, opportunity_type: "text_message", trigger_date: "2026-10-14",
+      status: "skipped", ai_body: "Hi Sam, quick hello.", final_body: null,
+    };
+    const background = fakeSupabase(tables({ outreach_queue: [skipped] }));
+    const r = await draftTextForClient({ supabase: background.client, userId: USER, clientId: CLIENT, purpose: "check_in", source: "next_up" });
+    expect(r).toMatchObject({ status: "skipped", queueItemId: "q-7" });
+    expect(mockGenerate).not.toHaveBeenCalled();
+    expect(background.writes).toEqual([]);
+
+    // Tapping Text (draft-texts, no source) drafts a new one over it.
+    const onRequest = fakeSupabase(tables({ outreach_queue: [skipped] }));
+    const again = await draftTextForClient({ supabase: onRequest.client, userId: USER, clientId: CLIENT, purpose: "check_in" });
+    expect(again.status).toBe("created");
+    expect(onRequest.writes.filter((w) => w.table === "outreach_queue" && w.op === "upsert")).toHaveLength(1);
+  });
+
   it("leaves off the name, brokerage and opt-out line when the agent turned the footer off", async () => {
     const { client, writes } = fakeSupabase(tables({
       user_settings: [{ user_id: USER, display_name: "Andrew Shaw", brokerage_name: "REAL Broker", ai_voice_guide: null, text_footer: false }],
