@@ -233,14 +233,18 @@ export function parseIntent(
       const gci = cleanNumber(o.gci);
       if (!address && salePrice === null && gci === null) return { dropped: `Skipped ${LABEL[kind]} with no address or price.` };
       const pct = cleanNumber(o.commission_pct);
+      // A percentage from 1 to 10 (2.5 for 2.5%). 0.025 is a fraction and 25
+      // is no commission an agent is paid: neither is guessed at. A fraction
+      // read as a percentage made GCI about $100 on a $450,000 sale.
+      const pctOk = pct !== null && pct >= 1 && pct <= 10;
       const side: CaptureSide | null = oneOf(o.side, CAPTURE_SIDES);
       return {
         intent: {
           intent: kind, address, clientName: name("client_name"), side,
           closeDate: spokenDate(o, "close_date_spoken", "close_date"),
           salePrice: salePrice !== null && salePrice > 0 ? salePrice : null,
-          // A percentage between 0 and 10, as the recordTransaction tool takes it.
-          commissionPct: pct !== null && pct > 0 && pct <= 10 ? pct : null,
+          commissionPct: pctOk ? pct : null,
+          commissionUnclear: pct !== null && pct !== 0 && !pctOk ? pct : null,
           gci: gci !== null && gci > 0 ? gci : null,
           notes: cleanText(o.notes, FIELD_LIMITS.notes),
         },

@@ -48,7 +48,7 @@ vi.mock("openai", () => ({
 /** A query that finds nothing: the name search has no clients to match here. */
 function emptyQuery() {
   const q: Record<string, unknown> = {};
-  for (const m of ["select", "eq", "is", "in", "ilike", "limit", "order"]) q[m] = () => q;
+  for (const m of ["select", "eq", "is", "in", "ilike", "filter", "limit", "order"]) q[m] = () => q;
   q.maybeSingle = async () => ({ data: null, error: null });
   q.single = async () => ({ data: null, error: null });
   q.then = (resolve: (v: unknown) => unknown) => Promise.resolve({ data: [], error: null }).then(resolve);
@@ -153,10 +153,10 @@ describe("/api/voice-transcribe auth", () => {
     expect(transcribe).toHaveBeenCalledWith(expect.objectContaining({ model: "whisper-large-v3-turbo", language: "en" }));
   });
 
-  it("refuses audio over 10 MB", async () => {
+  it("refuses audio over 4 MB (Vercel stops bodies at 4.5 MB before the route runs)", async () => {
     cookieUser.current = { id: "user-web" };
     const form = new FormData();
-    form.append("audio", new File([new Uint8Array(10 * 1024 * 1024 + 1)], "long.m4a", { type: "audio/m4a" }));
+    form.append("audio", new File([new Uint8Array(4 * 1024 * 1024 + 1)], "long.m4a", { type: "audio/m4a" }));
     const res = await transcribePOST(new NextRequest("http://localhost/api/voice-transcribe", { method: "POST", body: form }));
     expect(res.status).toBe(413);
   });

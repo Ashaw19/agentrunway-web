@@ -17,7 +17,15 @@ import { useMemo, useState, type ReactNode } from "react";
 import { Pressable, Text, TextInput, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { checkWrite, pickClient, pickDeal, summarizeSave, type SaveResult } from "@agent-runway/core/lib/capture/proposals";
+import {
+  checkWrite,
+  isSettled,
+  pickClient,
+  pickDeal,
+  settleSavedClients,
+  summarizeSave,
+  type SaveResult,
+} from "@agent-runway/core/lib/capture/proposals";
 import { shortDayLabel } from "@agent-runway/core/lib/capture/dates";
 import { nameScore } from "@agent-runway/core/lib/capture/resolve";
 import {
@@ -33,6 +41,7 @@ import { Input } from "@/components/ui/Input";
 import { DateField } from "@/components/ui/DateField";
 import { EXPENSE_CATEGORY_LABELS, isExpenseCategoryKey } from "@/lib/expense-categories";
 import { saveCapture } from "@/lib/voice-capture";
+import { useAuth } from "@/lib/auth-context";
 import { useDataStore } from "@/stores/data-store";
 import { useToastStore } from "@/stores/toast-store";
 import { useColors, Space, Radius, Type } from "@/lib/theme";
@@ -63,12 +72,16 @@ interface Props {
 
 export function VoiceCaptureCard({ proposal, onClose }: Props) {
   const c = useColors();
+  // The signed-in user from the app's session, known with no connection, so
+  // a save offline queues instead of failing.
+  const { user } = useAuth();
   const [writes, setWrites] = useState<ProposedWrite[]>(proposal.writes);
   const [results, setResults] = useState<Record<string, SaveResult>>({});
   const [saving, setSaving] = useState(false);
   const [showTranscript, setShowTranscript] = useState(false);
 
-  const done = (id: string) => results[id]?.status === "saved" || results[id]?.status === "queued";
+  // Saved, waiting to sync, or a new client already on file (the note went on them).
+  const done = (id: string) => isSettled(results[id]);
   const pending = writes.filter((w) => w.include && !done(w.id));
   const problems = useMemo(
     () => Object.fromEntries(writes.map((w) => [w.id, checkWrite(w, { isExpenseCategoryKey })])),
@@ -83,8 +96,14 @@ export function VoiceCaptureCard({ proposal, onClose }: Props) {
     if (saving || pending.length === 0 || blocked > 0) return;
     setSaving(true);
     try {
-      const out = await saveCapture(pending);
+      // Row ids from the last try, so an item that did reach the database is saved once.
+      const rowIds = Object.fromEntries(
+        Object.values(results).filter((r) => r.rowId).map((r) => [r.writeId, r.rowId!]),
+      );
+      const out = await saveCapture(pending, { userId: user?.id, today: proposal.today, rowIds });
       setResults((r) => ({ ...r, ...Object.fromEntries(out.map((x) => [x.writeId, x])) }));
+      // Items about a new client that saved now point at that client, so "Save the rest" lands on them.
+      setWrites((ws) => settleSavedClients(ws, out));
       const s = summarizeSave(out);
       useToastStore.getState().show(s.text, s.failed > 0 ? "error" : s.queued > 0 ? "info" : "success");
       void Haptics.notificationAsync(s.failed > 0 ? Haptics.NotificationFeedbackType.Warning : Haptics.NotificationFeedbackType.Success);
@@ -281,6 +300,7 @@ function Fields({ w, all, today, onChange, onSetAll }: { w: ProposedWrite; all: 
       return (
         <>
           <NumberField label="Kilometres" value={w.args.km || undefined} onChange={(km) => set({ km: km ?? 0 })} />
+          {w.args.km > 1000 && <Hint>That&apos;s a long trip. Check the kilometres.</Hint>}
           <Input label="Purpose" value={w.args.description} onChange={(description) => set({ description })} />
           <Input label="From (optional)" value={w.args.fromLocation ?? ""} onChange={(v) => set({ fromLocation: v || undefined })} />
           <Input label="To (optional)" value={w.args.toLocation ?? ""} onChange={(v) => set({ toLocation: v || undefined })} />
@@ -465,6 +485,9 @@ function ClientPicker({ w, all, onSetAll }: { w: ProposedWrite; all: ProposedWri
           )}
           {choice.spoken && choice.candidates.length === 0 && !newName && (
             <Hint>No client named &ldquo;{choice.spoken}&rdquo;. Search below.</Hint>
+          )}
+          {choice.truncated && (
+            <Hint>More clients may match than are listed. Search to find the one you mean.</Hint>
           )}
           {choice.candidates.map((cand) => (
             <PickRow key={cand.id} c={c} title={cand.name} sub={candidateLine(cand)} selected={cand.id === choice.selectedId} onPress={() => choose({ kind: "existing", candidate: cand })} />

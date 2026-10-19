@@ -94,37 +94,52 @@ function saveFailed(failed: QueuedMutation[]) {
 // queued before 2026-10-14 can carry a null in a NOT NULL text column, or a
 // client without name_search, which failed on every replay.
 
-async function executeMutation(mutation: QueuedMutation): Promise<boolean> {
+interface ExecResult {
+  ok: boolean;
+  /**
+   * A queued new client turned out to match a client already on file (same
+   * name, added meanwhile): the writes queued for the new one go on that client.
+   */
+  remap?: { from: string; to: { id: string; name: string } };
+}
+
+async function executeMutation(mutation: QueuedMutation): Promise<ExecResult> {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return false;
+  if (!user) return { ok: false };
 
   switch (mutation.type) {
     case "addTransaction": {
       const { error } = await supabase
         .from("transactions")
         .insert(transactionRow({ ...mutation.payload, user_id: user.id }, { insert: true }));
-      return !error;
+      return { ok: !error };
     }
     case "addClient": {
       const { error } = await supabase
         .from("clients")
         .insert(clientRow({ ...mutation.payload, user_id: user.id }));
-      return !error;
+      return { ok: !error };
     }
     case "addActivity": {
       const { error } = await supabase
         .from("contact_activities")
         .insert(activityRow({ ...mutation.payload, user_id: user.id }));
-      return !error;
+      return { ok: !error };
     }
     case "captureWrite": {
-      // The same writer the confirm card used (core record-writers). A new
-      // client queued here carries its id, so the writes queued after it
+      // The same writer the confirm card used (core record-writers), with
+      // the row id the card gave it: if the database saved it before the
+      // reply was lost, this counts as saved instead of saving it twice. A
+      // new client queued here carries its id, so the writes queued after it
       // (FIFO) land on it.
-      const out = await applyCaptureWrite(supabase, user.id, mutation.payload as CaptureWriteCall, localISODate());
-      return out.ok || (out as { duplicateOf?: unknown }).duplicateOf !== undefined;
+      const call = mutation.payload as CaptureWriteCall;
+      const out = await applyCaptureWrite(supabase, user.id, call, localISODate());
+      if (out.ok) return { ok: true };
+      const dup = (out as { duplicateOf?: { id: string; name: string } }).duplicateOf;
+      if (call.tool === "createClient" && dup && call.id) return { ok: true, remap: { from: call.id, to: dup } };
+      return { ok: false };
     }
     case "advanceStage": {
       const { dealId, newStage } = mutation.payload;
@@ -133,10 +148,10 @@ async function executeMutation(mutation: QueuedMutation): Promise<boolean> {
         .update({ stage: newStage })
         .eq("id", dealId)
         .eq("user_id", user.id);
-      return !error;
+      return { ok: !error };
     }
     default:
-      return false;
+      return { ok: false };
   }
 }
 
@@ -201,11 +216,25 @@ export const useOfflineQueueStore = create<OfflineQueueStore>((set, get) => ({
     // Process a snapshot of the current queue
     const snapshot = [...state.queue];
 
-    for (const mutation of snapshot) {
-      const success = await executeMutation(mutation);
+    for (const queued of snapshot) {
+      // Read it again: an earlier replay may have moved it to another client.
+      const mutation = get().queue.find((m) => m.id === queued.id);
+      if (!mutation) continue;
+      const result = await executeMutation(mutation);
 
-      if (success) {
+      if (result.ok) {
         get().dequeue(mutation.id);
+        if (result.remap) {
+          const { from, to } = result.remap;
+          const moved = get().queue.map((m) => {
+            const call = m.payload as CaptureWriteCall | undefined;
+            if (m.type !== "captureWrite" || !call || (call.tool !== "logContactActivity" && call.tool !== "createContactTask")) return m;
+            if (call.args.clientId !== from) return m;
+            return { ...m, payload: { ...call, args: { ...call.args, clientId: to.id, clientName: to.name } } };
+          });
+          set({ queue: moved, pendingCount: moved.length });
+          saveQueue(moved);
+        }
       } else {
         // Increment retry count
         const updated = get().queue.map((m) =>

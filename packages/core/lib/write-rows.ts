@@ -87,6 +87,7 @@ export function mileageRow<T extends Record<string, unknown>>(trip: T): T {
  * input tax credit is counted on it. Never worked out from a rate.
  */
 export function receiptExpenseRow(expense: {
+  id?: string;
   user_id: string;
   vendor: string;
   expense_date: string;
@@ -97,6 +98,7 @@ export function receiptExpenseRow(expense: {
 }): Record<string, unknown> {
   const tax = typeof expense.tax_amount === "number" ? expense.tax_amount : null;
   return {
+    ...(expense.id ? { id: expense.id } : {}),
     user_id: expense.user_id,
     vendor: expense.vendor,
     expense_date: expense.expense_date,

@@ -2,7 +2,8 @@ import type { SupabaseClient } from "npm:@supabase/supabase-js@2";
 import type { McpTool } from "./index.ts";
 import { atlanticISODate } from "../../_shared/core/lib/local-date.ts";
 import { EXPENSE_KEY_TO_T2125 } from "../../_shared/core/engines/t2125-engine.ts";
-import { applyCaptureWrites, checkWrite, summarizeSave } from "../../_shared/core/lib/capture/proposals.ts";
+import { applyCaptureWrites, argTypeProblems, checkWrite, summarizeSave } from "../../_shared/core/lib/capture/proposals.ts";
+import { newRecordId } from "../../_shared/core/lib/record-writers.ts";
 import { CAPTURE_TOOLS, CAPTURE_TOOL_CREW, type CaptureTool, type ProposedWrite } from "../../_shared/core/lib/capture/types.ts";
 
 /**
@@ -41,7 +42,12 @@ interface SubmittedWrite {
   args: Record<string, unknown>;
   /** The id of a createClient item in this same call that this write is about. */
   new_client_ref?: string;
+  /** The row id capture_note gave the item: saving it again saves it once. */
+  row_id?: string;
 }
+
+/** Tools that insert a row; their items get a row_id. */
+const INSERT_TOOLS = new Set<string>(["createClient", "logContactActivity", "createContactTask", "logMileage", "logExpense", "recordTransaction"]);
 
 function toProposedWrite(w: SubmittedWrite, index: number): ProposedWrite {
   const id = w.id && typeof w.id === "string" ? w.id : `w${index + 1}`;
@@ -54,8 +60,15 @@ function toProposedWrite(w: SubmittedWrite, index: number): ProposedWrite {
   return { id, tool: w.tool, intent: "note", include: true, warnings: [], args: w.args, client } as unknown as ProposedWrite;
 }
 
-/** Ids must be the agent's own; the writers check ownership too, but a made-up id is refused here first. */
+/**
+ * Checked before anything is written, so a malformed item can't stop the
+ * batch halfway (after a new client was already saved): each field's type
+ * (core argTypeProblems), ids shaped like ids (the writers check ownership
+ * too), and an expense key that is a real expense item.
+ */
 function idProblems(w: SubmittedWrite): string[] {
+  const types = argTypeProblems(w.tool, w.args);
+  if (types.length > 0) return types;
   const out: string[] = [];
   for (const key of ["clientId", "dealId"]) {
     const v = w.args[key];
@@ -107,6 +120,9 @@ export function getCaptureTools(supabase: SupabaseClient, userId: string, access
         const writes = (Array.isArray(body.writes) ? body.writes : []) as ProposedWrite[];
         const items = writes.map((w) => ({
           id: w.id,
+          // Sent back with save_captured_note, so a repeated save (a retry after
+          // a timeout) saves the row once.
+          ...(INSERT_TOOLS.has(w.tool) ? { row_id: newRecordId() } : {}),
           tool: w.tool,
           crew: CAPTURE_TOOL_CREW[w.tool],
           proposed_on: w.include,
@@ -133,7 +149,7 @@ export function getCaptureTools(supabase: SupabaseClient, userId: string, access
           transcript_cleaned: body.transcriptCleaned,
           items,
           not_proposed: body.notes ?? [],
-          next_step: "Show the agent these items in plain words. For an item with candidates and no selected_id, ask the agent which one (never pick the first) and put its id in args.clientId / args.dealId. Fill anything in still_needed. Drop items the agent doesn't want, and items with proposed_on false unless they ask. Then call save_captured_note with the approved items: { id, tool, args, new_client_ref }.",
+          next_step: "Show the agent these items in plain words. For an item with candidates and no selected_id, ask the agent which one (never pick the first) and put its id in args.clientId / args.dealId. Fill anything in still_needed. Drop items the agent doesn't want, and items with proposed_on false unless they ask. Then call save_captured_note with the approved items: { id, row_id, tool, args, new_client_ref }. Calling it again with the same row_id never saves an item twice.",
         }, null, 2));
       },
     },
@@ -156,6 +172,7 @@ export function getCaptureTools(supabase: SupabaseClient, userId: string, access
                 tool: { type: "string", enum: [...CAPTURE_TOOLS] },
                 args: { type: "object", description: "The item's args, as approved." },
                 new_client_ref: { type: "string", description: "The id of a createClient item in this call that this item is about." },
+                row_id: { type: "string", description: "The item's row_id from capture_note. With it, saving the same item again saves it once." },
               },
               required: ["tool", "args"],
               additionalProperties: false,
@@ -186,6 +203,18 @@ export function getCaptureTools(supabase: SupabaseClient, userId: string, access
             refused.push({ id, tool: String((w as { tool?: unknown })?.tool ?? "?"), status: "failed", message: "Not a capture item: needs a tool and args." });
             return;
           }
+          if (w.new_client_ref !== undefined && typeof w.new_client_ref !== "string") {
+            refused.push({ id, tool: w.tool, status: "failed", message: "new_client_ref must be the id of a createClient item." });
+            return;
+          }
+          if (w.row_id !== undefined && !(typeof w.row_id === "string" && UUID.test(w.row_id))) {
+            refused.push({ id, tool: w.tool, status: "failed", message: "row_id must be the row_id capture_note gave." });
+            return;
+          }
+          // An item about a new client in this call has no clientId yet.
+          if (w.new_client_ref && (w.tool === "logContactActivity" || w.tool === "createContactTask")) {
+            w.args = { clientId: "", clientName: "", ...w.args };
+          }
           const problems = idProblems(w);
           if (problems.length > 0) {
             refused.push({ id, tool: w.tool, status: "failed", message: problems.join(" ") });
@@ -194,11 +223,12 @@ export function getCaptureTools(supabase: SupabaseClient, userId: string, access
           submitted.push({ ...w, id });
         });
 
+        const rowIds = Object.fromEntries(submitted.filter((w) => w.row_id).map((w) => [w.id!, w.row_id!]));
         const results = await applyCaptureWrites(
           supabase,
           userId,
           submitted.map((w, i) => toProposedWrite(w, i)),
-          { today: atlanticISODate() },
+          { today: atlanticISODate(), rowIds },
         );
         const all = [...results.map((r) => ({ id: r.writeId, tool: r.tool, status: r.status, message: r.message })), ...refused];
         const summary = summarizeSave(results);

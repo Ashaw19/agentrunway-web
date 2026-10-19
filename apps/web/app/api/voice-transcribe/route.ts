@@ -13,8 +13,12 @@ import { getRequestUser } from "@/lib/supabase/request-user";
 // The audio is sent on to Groq and never stored. The phone deletes its copy
 // once this answers.
 
-/** The most audio one request takes. The phone records at most 3 minutes at 32 kbps (well under 1 MB). */
-const MAX_AUDIO_BYTES = 10 * 1024 * 1024;
+/**
+ * The most audio one request takes. Vercel refuses request bodies over
+ * 4.5 MB before this route runs, so the limit sits under that. The phone and
+ * the web button record at most 3 minutes at 32 kbps (about 0.7 MB).
+ */
+const MAX_AUDIO_BYTES = 4 * 1024 * 1024;
 
 export async function POST(req: NextRequest) {
   // ── Auth guard ────────────────────────────────────────────────────────────
@@ -51,7 +55,7 @@ export async function POST(req: NextRequest) {
   if (!audio || typeof audio === "string") return NextResponse.json({ error: "No audio file provided" }, { status: 400 });
 
   if (audio.size > MAX_AUDIO_BYTES) {
-    return NextResponse.json({ error: "Audio file too large (max 10 MB)" }, { status: 413 });
+    return NextResponse.json({ error: "Recording too large (max 4 MB, about 15 minutes of speech)" }, { status: 413 });
   }
 
   // ── Transcribe via Groq Whisper ───────────────────────────────────────────

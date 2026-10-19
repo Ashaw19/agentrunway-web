@@ -146,7 +146,9 @@ export function VoiceRecordButton({ onProposal, onStateChange }: Props) {
         ? "audio/webm"
         : "";
 
-    const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+    // Speech at 32 kbps: 3 minutes is about 0.7 MB, far under the route's
+    // limit (Vercel takes request bodies up to 4.5 MB).
+    const recorder = new MediaRecorder(stream, { ...(mimeType ? { mimeType } : {}), audioBitsPerSecond: 32_000 });
     mediaRecorderRef.current = recorder;
 
     recorder.ondataavailable = (e) => {

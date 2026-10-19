@@ -17,6 +17,18 @@
  *   several strong                          picker
  *   weak only                               picker ("did you mean")
  *   none                                    nothing selected
+ *   the search may not have seen everyone   picker, never a pick
+ *
+ * Reads are capped, so a pick is only made from a search that saw every
+ * client the name could be. The whole name and each word are read as whole
+ * words (name_search equal, or the word between spaces, hyphens or
+ * apostrophes): a strong match has every word said as a word of its name,
+ * so it is in each word's results, and one word's read coming back under
+ * the cap means every strong match was seen. Only when no strong match
+ * turns up is a part-of-a-word read made, and its results (weak matches) are
+ * never picked on their own. Before 2026-10-19 one part-of-a-word read of 25
+ * rows was all there was: with 24 "Joanne"s on file, "Ann" read 24 Joannes
+ * and one Ann, and that Ann was picked although another Ann was cut off.
  */
 
 import type { DbClient } from "../db-client";
@@ -26,8 +38,10 @@ import type { ClientCandidate, DealCandidate } from "./types";
 
 /** Most candidates kept per name. */
 export const MAX_CANDIDATES = 6;
-/** Rows read per search term (a search, not a list: PostgREST's 1,000-row cap never applies). */
-const SEARCH_LIMIT = 25;
+/** Rows read per name query (a search, not a list: PostgREST's 1,000-row cap never applies). */
+export const SEARCH_LIMIT = 25;
+/** Active pipeline deals read at once; an agent has tens. More than this and nothing is picked. */
+export const DEAL_READ_LIMIT = 500;
 
 export interface ClientSearchRow {
   id: string;
@@ -114,30 +128,56 @@ export function soleMatch<T extends { id: string; match: string }>(spoken: strin
   return null;
 }
 
+export interface ClientSearch {
+  rows: ClientSearchRow[];
+  /**
+   * The reads saw every client the name could strongly match: the exact read
+   * and at least one word's read came back under the cap. When false the
+   * card picks nobody.
+   */
+  complete: boolean;
+}
+
+/** Postgres regex for a whole word of name_search (words split on spaces, hyphens, apostrophes). */
+export function wholeWordPattern(word: string): string {
+  const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return `(^|[ '-])${escaped}($|[ '-])`;
+}
+
 /**
  * Clients whose name could be the one said, from the user's active (not
- * archived) clients. The whole name first; if that finds nobody, each word.
+ * archived) clients. See the header for why the reads are shaped this way.
  */
-export async function searchClients(db: DbClient, userId: string, spoken: string): Promise<ClientSearchRow[]> {
+export async function searchClients(db: DbClient, userId: string, spoken: string): Promise<ClientSearch> {
   const said = searchTerm(toNameSearch(spoken));
-  if (!said) return [];
-  const run = async (term: string): Promise<ClientSearchRow[]> => {
-    const { data, error } = await db
+  if (!said) return { rows: [], complete: true };
+  const run = async (filter: (q: any) => any): Promise<ClientSearchRow[]> => { // eslint-disable-line @typescript-eslint/no-explicit-any
+    const query = db
       .from("clients")
       .select("id, name, name_search, status, last_contact_at")
       .eq("user_id", userId)
-      .is("archived_at", null)
-      .ilike("name_search", `%${term}%`)
-      .limit(SEARCH_LIMIT);
+      .is("archived_at", null);
+    const { data, error } = await filter(query).limit(SEARCH_LIMIT);
     if (error) throw new Error(`Client search failed: ${error.message ?? "unknown error"}`);
     return (data ?? []) as ClientSearchRow[];
   };
-  const whole = await run(said);
-  if (whole.length > 0) return whole;
-  const terms = words(said).filter((w) => w.length >= 3).slice(0, 3);
-  const rows: ClientSearchRow[] = [];
-  for (const t of terms) rows.push(...(await run(t)));
-  return rows;
+  const terms = [...new Set(words(said))].slice(0, 3);
+  const [exact, ...byWord] = await Promise.all([
+    run((q) => q.eq("name_search", said)),
+    ...terms.map((w) => run((q) => q.filter("name_search", "imatch", wholeWordPattern(w)))),
+  ]);
+  const capped = (rows: ClientSearchRow[]) => rows.length >= SEARCH_LIMIT;
+  let complete = !capped(exact) && (byWord.length === 0 || byWord.some((r) => !capped(r)));
+  const rows = [...exact, ...byWord.flat()];
+  const strong = rows.some((r) => nameScore(spoken, r.name) >= 2);
+  if (!strong) {
+    // Nobody by that name: part-of-a-word matches for "did you mean". Never picked on their own.
+    const parts = terms.filter((w) => w.length >= 3);
+    const partial = await Promise.all(parts.map((w) => run((q) => q.ilike("name_search", `%${w}%`))));
+    if (partial.some(capped)) complete = false;
+    rows.push(...partial.flat());
+  }
+  return { rows, complete };
 }
 
 // ── Deals ────────────────────────────────────────────────────────────────────
@@ -203,26 +243,25 @@ export function rankDealCandidates(spoken: string, rows: DealSearchRow[]): DealC
     }));
 }
 
-/** Active pipeline deals (not closed or lost) whose address or client could be the one said. */
-export async function searchDeals(db: DbClient, userId: string, spoken: string): Promise<DealSearchRow[]> {
-  const term = searchTerm(spoken);
-  if (!term) return [];
-  const cols = "id, address, client_name, client_id, stage, expected_close_date, updated_at";
-  const run = async (column: string, value: string): Promise<DealSearchRow[]> => {
-    const { data, error } = await db
-      .from("pipeline_deals")
-      .select(cols)
-      .eq("user_id", userId)
-      .in("stage", [...ACTIVE_PIPELINE_STAGES])
-      .ilike(column, `%${value}%`)
-      .limit(SEARCH_LIMIT);
-    if (error) throw new Error(`Deal search failed: ${error.message ?? "unknown error"}`);
-    return (data ?? []) as DealSearchRow[];
-  };
-  const rows = [...(await run("address", term)), ...(await run("client_name", term))];
-  if (rows.length > 0) return rows;
-  // A house number or a street name on its own: "the Elm one", "number 12".
-  const parts = term.split(" ").filter((w) => w.length >= 3 && !/^(the|deal|house|street|road|drive|avenue|listing|showing)$/i.test(w)).slice(0, 3);
-  for (const p of parts) rows.push(...(await run("address", p)));
-  return rows;
+export interface DealSearch {
+  rows: DealSearchRow[];
+  /** Every active deal was read (fewer than DEAL_READ_LIMIT). When false nothing is picked. */
+  complete: boolean;
+}
+
+/**
+ * The user's active pipeline deals (not closed or lost), all of them: there
+ * are tens, so they are ranked here (rankDealCandidates) rather than by a
+ * capped search that could cut off the one meant.
+ */
+export async function searchDeals(db: DbClient, userId: string): Promise<DealSearch> {
+  const { data, error } = await db
+    .from("pipeline_deals")
+    .select("id, address, client_name, client_id, stage, expected_close_date, updated_at")
+    .eq("user_id", userId)
+    .in("stage", [...ACTIVE_PIPELINE_STAGES])
+    .limit(DEAL_READ_LIMIT);
+  if (error) throw new Error(`Deal search failed: ${error.message ?? "unknown error"}`);
+  const rows = (data ?? []) as DealSearchRow[];
+  return { rows, complete: rows.length < DEAL_READ_LIMIT };
 }

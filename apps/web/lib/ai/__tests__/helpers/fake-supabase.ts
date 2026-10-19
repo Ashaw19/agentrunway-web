@@ -98,6 +98,13 @@ export function fakeSupabase(tables: Record<string, Row[]>, options: FakeSupabas
         rows = rows.filter((r) => any.some(([k, v]) => String(r[k]) === v));
         return builder;
       },
+      // Postgres regex, case-insensitive ("imatch"): the capture name search's whole-word read.
+      filter(k: string, op: string, pattern: string) {
+        if (op !== "imatch") throw new Error(`fake supabase: filter ${op} not supported`);
+        const re = new RegExp(pattern, "i");
+        rows = rows.filter((r) => re.test(String(r[k] ?? "")));
+        return builder;
+      },
       limit(n: number) { rows = rows.slice(0, n); return builder; },
       // Paged reads (lib/supabase/fetch-all.ts): rows from..to inclusive.
       range(from: number, to: number) { rows = rows.slice(from, to + 1); return builder; },

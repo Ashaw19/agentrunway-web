@@ -9,6 +9,7 @@ import Toast from "@/components/Toast";
 import { CookieConsentBanner } from "@/components/CookieConsentBanner";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import { bootstrapStorage, isStorageReady } from "@/lib/storage-bootstrap";
+import { sweepLeftoverRecordings } from "@/lib/voice-capture";
 import "react-native-reanimated";
 import "@/lib/i18n"; // Initialize i18next before app renders
 
@@ -91,6 +92,12 @@ export default function RootLayout() {
     if (storageReady) return;
     void bootstrapStorage().finally(() => setStorageReady(true));
   }, [storageReady]);
+
+  // A voice note recording left behind when the app was closed before it was
+  // read: no recording is kept, so it goes. Nothing records at launch.
+  useEffect(() => {
+    sweepLeftoverRecordings();
+  }, []);
 
   if (!storageReady) return null;
 

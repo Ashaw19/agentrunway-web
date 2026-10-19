@@ -166,6 +166,8 @@ export interface RawNewTransaction {
   salePrice: number | null;
   /** A percentage, 2.5 for 2.5%. */
   commissionPct: number | null;
+  /** A commission heard that isn't a clear percentage (0.025, 25): left out, and the card asks. */
+  commissionUnclear: number | null;
   gci: number | null;
   notes: string | null;
 }
@@ -341,6 +343,12 @@ export interface ClientChoice {
   newClientOffer: string | null;
   /** The agent chose "No client" (a task only). */
   noClient: boolean;
+  /**
+   * The search couldn't be sure it saw every client with that name (a query
+   * came back at its row cap), so nothing was chosen; the card says more may
+   * match and offers search.
+   */
+  truncated?: boolean;
   /** True for a task, which can be a to-do with no client. */
   optional: boolean;
 }
@@ -359,6 +367,8 @@ export interface DealChoice {
   spoken: string | null;
   candidates: DealCandidate[];
   selectedId: string | null;
+  /** More active deals than one read returns: nothing was chosen. */
+  truncated?: boolean;
 }
 
 // ── Proposal ─────────────────────────────────────────────────────────────────

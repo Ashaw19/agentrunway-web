@@ -44,6 +44,8 @@ import {
 export interface CaptureLookups {
   clients: Record<string, ClientCandidate[]>;
   deals: Record<string, DealCandidate[]>;
+  /** Names whose search couldn't see every possible match (a read hit its cap): nothing is picked for them. */
+  incomplete?: { clients?: Record<string, boolean>; deals?: Record<string, boolean> };
   /** The client the capture was recorded from, checked to be the user's own. */
   context: { id: string; name: string } | null;
 }
@@ -107,16 +109,25 @@ export async function loadCaptureLookups(
     }
   }
 
+  const incomplete = { clients: {} as Record<string, boolean>, deals: {} as Record<string, boolean> };
   for (const spoken of names.clients) {
     const key = clientKey(spoken);
     if (key in lookups.clients) continue;
-    lookups.clients[key] = rankClientCandidates(spoken, await searchClients(db, userId, spoken));
+    const found = await searchClients(db, userId, spoken);
+    lookups.clients[key] = rankClientCandidates(spoken, found.rows);
+    if (!found.complete) incomplete.clients[key] = true;
   }
-  for (const spoken of names.deals) {
-    const key = dealKey(spoken);
-    if (key in lookups.deals) continue;
-    lookups.deals[key] = rankDealCandidates(spoken, await searchDeals(db, userId, spoken));
+  if (names.deals.length > 0) {
+    // Every active deal, read once and ranked for each name.
+    const deals = await searchDeals(db, userId);
+    for (const spoken of names.deals) {
+      const key = dealKey(spoken);
+      if (key in lookups.deals) continue;
+      lookups.deals[key] = rankDealCandidates(spoken, deals.rows);
+      if (!deals.complete) incomplete.deals[key] = true;
+    }
   }
+  lookups.incomplete = incomplete;
   return lookups;
 }
 
@@ -148,6 +159,8 @@ function clientChoiceFor(
   }
   const candidates = [...(lookups.clients[clientKey(spoken)] ?? [])];
   const newOffer = newClients.find((n) => nameScore(spoken, n.name) >= 2) ?? null;
+  // A capped read may have cut off the client meant: list, never pick.
+  const truncated = !!lookups.incomplete?.clients?.[clientKey(spoken)];
 
   // Said on a client's profile and their name fits: that client.
   if (ctx && nameScore(spoken, ctx.name) >= 2) {
@@ -159,13 +172,15 @@ function clientChoiceFor(
     // The person this note adds as a new client.
     return { ...base, candidates, newClientWriteId: newOffer.writeId, newClientOffer: newOffer.writeId };
   }
-  return { ...base, candidates, selectedId: newOffer ? null : soleMatch(spoken, candidates), newClientOffer: newOffer?.writeId ?? null };
+  const selectedId = newOffer || truncated ? null : soleMatch(spoken, candidates);
+  return { ...base, candidates, selectedId, newClientOffer: newOffer?.writeId ?? null, ...(truncated ? { truncated } : {}) };
 }
 
 function dealChoiceFor(spoken: string | null, lookups: CaptureLookups): DealChoice {
   if (!spoken) return { spoken: null, candidates: [], selectedId: null };
   const candidates = lookups.deals[dealKey(spoken)] ?? [];
-  return { spoken, candidates, selectedId: soleMatch(spoken, candidates) };
+  const truncated = !!lookups.incomplete?.deals?.[dealKey(spoken)];
+  return { spoken, candidates, selectedId: truncated ? null : soleMatch(spoken, candidates), ...(truncated ? { truncated } : {}) };
 }
 
 /** "12 Elm St — Sarah Johnson" for an approval card and the deal row. */
@@ -368,6 +383,9 @@ export function buildCaptureProposal({ transcript, parsed, today, lookups }: Bui
         const picked = pickDate(i.closeDate, today, "past", today);
         const warnings = dateWarnings(picked, today, "past", "close date");
         if (!i.side) warnings.push("Check the side: set to buyer.");
+        if (i.commissionUnclear !== null) {
+          warnings.push(`The commission was heard as ${i.commissionUnclear}. Enter it as a percentage, like 2.5.`);
+        }
         if (!i.salePrice && !i.gci) warnings.push("Add the sale price and commission, or the GCI.");
         // A deal still in the pipeline is recorded by closing it there
         // (one linked transaction). Recording it here too counts it twice.
@@ -496,54 +514,109 @@ export interface CheckOptions {
   isExpenseCategoryKey?: (key: string) => boolean;
 }
 
-/** What still has to be filled in or picked before this write can be saved. Empty = ready. */
+/** A string field's text, "" for anything that isn't a string (a write from MCP may be malformed). */
+const text = (v: unknown): string => (typeof v === "string" ? v.trim() : "");
+const positive = (v: unknown): boolean => typeof v === "number" && Number.isFinite(v) && v > 0;
+
+/**
+ * What still has to be filled in or picked before this write can be saved.
+ * Empty = ready. Never throws, whatever the args hold.
+ */
 export function checkWrite(w: ProposedWrite, options: CheckOptions = {}): string[] {
   const p: string[] = [];
+  const a = (w.args ?? {}) as unknown as Record<string, unknown>;
   const clientPicked = (c?: ClientChoice) => !!c && (!!c.selectedId || !!c.newClientWriteId);
   switch (w.tool) {
     case "logContactActivity":
-      if (!clientPicked(w.client) && !w.args.clientId) p.push(w.client?.candidates.length ? "Pick which client." : "Pick the client.");
-      if (!w.args.description.trim()) p.push("Add what happened.");
-      if (w.args.activityDate !== undefined && !isIsoDay(w.args.activityDate)) p.push("Fix the date.");
+      if (!clientPicked(w.client) && !text(a.clientId)) p.push(w.client?.candidates?.length ? "Pick which client." : "Pick the client.");
+      if (!text(a.description)) p.push("Add what happened.");
+      if (a.activityDate !== undefined && !isIsoDay(a.activityDate)) p.push("Fix the date.");
       break;
     case "createContactTask":
-      if (!w.args.title.trim()) p.push("Add a title.");
-      if (!isIsoDay(w.args.dueDate)) p.push("Fix the due date.");
-      if (w.client?.spoken && !clientPicked(w.client) && !w.client.noClient && !w.args.clientId) {
+      if (!text(a.title)) p.push("Add a title.");
+      if (!isIsoDay(a.dueDate)) p.push("Fix the due date.");
+      if (w.client?.spoken && !clientPicked(w.client) && !w.client.noClient && !text(a.clientId)) {
         p.push("Pick which client, or No client.");
       }
       break;
     case "updatePipelineDealStage":
-      if (!w.args.dealId) p.push(w.deal?.candidates.length ? "Pick which deal." : "No matching deal in your pipeline.");
-      if (!(CAPTURE_DEAL_STAGES as readonly string[]).includes(w.args.stage)) p.push("Pick the stage.");
+      if (!text(a.dealId)) p.push(w.deal?.candidates?.length ? "Pick which deal." : "No matching deal in your pipeline.");
+      if (!(CAPTURE_DEAL_STAGES as readonly unknown[]).includes(a.stage)) p.push("Pick the stage.");
       break;
     case "updatePipelineDealCloseDate":
-      if (!w.args.dealId) p.push(w.deal?.candidates.length ? "Pick which deal." : "No matching deal in your pipeline.");
-      if (!isIsoDay(w.args.closeDate)) p.push("Fix the close date.");
+      if (!text(a.dealId)) p.push(w.deal?.candidates?.length ? "Pick which deal." : "No matching deal in your pipeline.");
+      if (!isIsoDay(a.closeDate)) p.push("Fix the close date.");
       break;
     case "logMileage":
-      if (!(w.args.km > 0)) p.push("Add the kilometres.");
-      if (!isIsoDay(w.args.tripDate)) p.push("Fix the trip date.");
-      if (!w.args.description.trim()) p.push("Add the trip purpose.");
+      if (!positive(a.km)) p.push("Add the kilometres.");
+      if (!isIsoDay(a.tripDate)) p.push("Fix the trip date.");
+      if (!text(a.description)) p.push("Add the trip purpose.");
       break;
-    case "logExpense":
-      if (!(w.args.amount > 0)) p.push("Add the amount.");
-      if (!w.args.vendor.trim()) p.push("Add who it was paid to.");
-      if (!w.args.categoryKey || (options.isExpenseCategoryKey && !options.isExpenseCategoryKey(w.args.categoryKey))) p.push("Pick the category.");
-      if (!isIsoDay(w.args.expenseDate)) p.push("Fix the date.");
-      if (w.args.taxAmount !== undefined && w.args.taxAmount > w.args.amount) p.push("GST/HST is more than the total.");
+    case "logExpense": {
+      const key = text(a.categoryKey);
+      if (!positive(a.amount)) p.push("Add the amount.");
+      if (!text(a.vendor)) p.push("Add who it was paid to.");
+      if (!key || (options.isExpenseCategoryKey && !options.isExpenseCategoryKey(key))) p.push("Pick the category.");
+      if (!isIsoDay(a.expenseDate)) p.push("Fix the date.");
+      if (typeof a.taxAmount === "number" && typeof a.amount === "number" && a.taxAmount > a.amount) p.push("GST/HST is more than the total.");
       break;
+    }
     case "createClient":
-      if (!w.args.name.trim()) p.push("Add the name.");
+      if (!text(a.name)) p.push("Add the name.");
       break;
     case "recordTransaction":
-      if (!w.args.address.trim()) p.push("Add the address.");
-      if (!w.args.clientName.trim()) p.push("Add the client.");
-      if (!isIsoDay(w.args.closeDate)) p.push("Fix the close date.");
-      if (!w.args.salePrice && !w.args.gciOverride) p.push("Add the sale price or the GCI.");
+      if (!text(a.address)) p.push("Add the address.");
+      if (!text(a.clientName)) p.push("Add the client.");
+      if (!isIsoDay(a.closeDate)) p.push("Fix the close date.");
+      if (!positive(a.salePrice) && !positive(a.gciOverride)) p.push("Add the sale price or the GCI.");
+      // With a sale price, the commission is said, never defaulted (the tool's 2.5% fallback).
+      if (positive(a.salePrice) && !positive(a.gciOverride) && !positive(a.commissionPct)) p.push("Add the commission %.");
       break;
   }
   return p;
+}
+
+const STRING = "string";
+const NUMBER = "number";
+/** Each tool's fields and their types: required first, then optional. */
+const ARG_TYPES: Record<CaptureTool, { required: Record<string, string>; optional: Record<string, string> }> = {
+  logContactActivity: { required: { clientId: STRING, clientName: STRING, type: STRING, description: STRING }, optional: { activityDate: STRING } },
+  createContactTask: { required: { title: STRING, dueDate: STRING }, optional: { clientId: STRING, clientName: STRING, priority: STRING, notes: STRING } },
+  updatePipelineDealStage: { required: { dealId: STRING, dealDescription: STRING, stage: STRING }, optional: {} },
+  updatePipelineDealCloseDate: { required: { dealId: STRING, dealDescription: STRING, closeDate: STRING }, optional: {} },
+  logMileage: { required: { tripDate: STRING, km: NUMBER, description: STRING }, optional: { fromLocation: STRING, toLocation: STRING } },
+  logExpense: { required: { vendor: STRING, amount: NUMBER, categoryKey: STRING, expenseDate: STRING }, optional: { taxAmount: NUMBER, notes: STRING } },
+  createClient: {
+    required: { name: STRING },
+    optional: { email: STRING, phone: STRING, city: STRING, buyerTargetArea: STRING, status: STRING, propertyInterest: NUMBER, propertyInterestType: STRING, side: STRING, timeframe: STRING, leadSource: STRING, notes: STRING },
+  },
+  recordTransaction: {
+    required: { address: STRING, clientName: STRING, side: STRING, closeDate: STRING },
+    optional: { commissionPaidDate: STRING, salePrice: NUMBER, commissionPct: NUMBER, gciOverride: NUMBER, notes: STRING },
+  },
+};
+
+/**
+ * Fields of the wrong type, before anything is written: for a write that
+ * arrives as JSON (MCP save_captured_note). A field the tool doesn't take is
+ * refused too.
+ */
+export function argTypeProblems(tool: CaptureTool, args: unknown): string[] {
+  const spec = ARG_TYPES[tool];
+  if (!spec) return [`${String(tool)} is not a capture tool.`];
+  if (typeof args !== "object" || args === null || Array.isArray(args)) return ["args must be an object."];
+  const a = args as Record<string, unknown>;
+  const out: string[] = [];
+  for (const [k, t] of Object.entries(spec.required)) {
+    if (typeof a[k] !== t) out.push(`${k} must be a ${t}.`);
+  }
+  for (const [k, v] of Object.entries(a)) {
+    if (k in spec.required) continue;
+    const t = spec.optional[k];
+    if (!t) out.push(`${k} is not a field of ${tool}.`);
+    else if (v !== undefined && v !== null && typeof v !== t) out.push(`${k} must be a ${t}.`);
+  }
+  return out;
 }
 
 export type SaveStatus = "saved" | "queued" | "failed" | "skipped";
@@ -553,22 +626,43 @@ export interface SaveResult {
   tool: CaptureTool;
   status: SaveStatus;
   message: string;
+  /** The row id this write used. Pass it back in `rowIds` on a retry, so the row is saved once. */
+  rowId?: string;
+  /** createClient: the client the note's other items go on (the new one, or the one already on file). */
+  client?: { id: string; name: string };
 }
 
 export interface SaveOptions {
-  /** Today on the caller's calendar (atlanticISODate on a server, localISODate on a device). */
+  /**
+   * The capture's calendar day: the proposal's `today` (Atlantic). Used for
+   * replies, and put on an activity that is queued, so it keeps the day it
+   * happened rather than the day it syncs.
+   */
   today: string;
   /** Called for a write that couldn't reach the database; return true once it is queued (the phone). */
   queue?: (call: CaptureWriteCall) => boolean;
+  /** Row ids from an earlier try of these writes, by write id (SaveResult.rowId). */
+  rowIds?: Record<string, string>;
+}
+
+/** Tools that insert a row (and so carry its id). The deal updates are idempotent as they are. */
+const INSERTS = new Set<CaptureTool>(["createClient", "logContactActivity", "createContactTask", "logMileage", "logExpense", "recordTransaction"]);
+
+const QUEUED = "Saved on this phone. It syncs when you're back online.";
+
+/** True once a write needs nothing more: saved, waiting in the phone's queue, or settled another way. */
+export function isSettled(result: SaveResult | undefined): boolean {
+  return !!result && result.status !== "failed";
 }
 
 /**
- * Save the included writes, new clients first. Each goes through the
- * Flight Crew tool's writer (record-writers.ts). A write that names a new
- * client in this capture gets its id; if that client couldn't be added (and
- * wasn't queued), the write is not saved either. A new client whose name is
- * already on file is not added again: the writes that named them go on the
- * existing client.
+ * Save the included writes, new clients first. Each goes through the Flight
+ * Crew tool's writer (record-writers.ts) with a row id, so saving it again
+ * (a retry, or the phone's offline replay after a lost reply) saves it once.
+ * A write that names a new client in this capture gets its id; if that
+ * client couldn't be added (and wasn't queued), the write is not saved
+ * either. A new client whose name is already on file is not added again: the
+ * writes that named them go on the existing client. Never throws.
  */
 export async function applyCaptureWrites(
   db: DbClient,
@@ -581,73 +675,109 @@ export async function applyCaptureWrites(
   /** New clients waiting in the phone's queue: writes about them wait behind them. */
   const queuedClients = new Set<string>();
   const ordered = [...writes.filter((w) => w.tool === "createClient"), ...writes.filter((w) => w.tool !== "createClient")];
+  const rowIdFor = (w: ProposedWrite) => (INSERTS.has(w.tool) ? options.rowIds?.[w.id] ?? newRecordId() : undefined);
+
+  /** A queued activity keeps the capture's day; replayed later it would be stamped the sync time. */
+  const forQueue = (call: CaptureWriteCall): CaptureWriteCall =>
+    call.tool === "logContactActivity" && call.args.activityDate === undefined
+      ? { ...call, args: { ...call.args, activityDate: options.today } }
+      : call;
 
   const run = async (w: ProposedWrite, call: CaptureWriteCall): Promise<SaveResult> => {
+    const base = { writeId: w.id, tool: w.tool, rowId: call.id };
     const outcome: WriteOutcome = await applyCaptureWrite(db, userId, call, options.today);
-    if (outcome.ok) return { writeId: w.id, tool: w.tool, status: "saved", message: outcome.message };
-    if (outcome.offline && options.queue?.(call)) {
-      return { writeId: w.id, tool: w.tool, status: "queued", message: "Saved on this phone. It syncs when you're back online." };
-    }
-    return { writeId: w.id, tool: w.tool, status: "failed", message: outcome.message };
+    if (outcome.ok) return { ...base, status: "saved", message: outcome.message };
+    if (outcome.offline && options.queue?.(forQueue(call))) return { ...base, status: "queued", message: QUEUED };
+    return { ...base, status: "failed", message: outcome.message };
   };
 
   for (const w of ordered) {
-    if (!w.include) {
-      results.push({ writeId: w.id, tool: w.tool, status: "skipped", message: "Removed." });
-      if (w.tool === "createClient") newClientIds.set(w.id, null);
-      continue;
-    }
-    const problems = checkWrite(w);
-    if (problems.length > 0) {
-      results.push({ writeId: w.id, tool: w.tool, status: "failed", message: problems.join(" ") });
-      if (w.tool === "createClient") newClientIds.set(w.id, null);
-      continue;
-    }
-
-    if (w.tool === "createClient") {
-      const id = newRecordId();
-      const outcome = await applyCaptureWrite(db, userId, { tool: "createClient", args: w.args, id }, options.today);
-      const dup = (outcome as { duplicateOf?: { id: string; name: string } }).duplicateOf;
-      if (outcome.ok) {
-        newClientIds.set(w.id, { id: outcome.id ?? id, name: w.args.name });
-        results.push({ writeId: w.id, tool: w.tool, status: "saved", message: outcome.message });
-      } else if (dup) {
-        newClientIds.set(w.id, dup);
-        results.push({ writeId: w.id, tool: w.tool, status: "skipped", message: `${dup.name} is already on file, so the rest of this note went on that client.` });
-      } else if (outcome.offline && options.queue?.({ tool: "createClient", args: w.args, id })) {
-        newClientIds.set(w.id, { id, name: w.args.name });
-        queuedClients.add(w.id);
-        results.push({ writeId: w.id, tool: w.tool, status: "queued", message: "Saved on this phone. It syncs when you're back online." });
-      } else {
-        newClientIds.set(w.id, null);
-        results.push({ writeId: w.id, tool: w.tool, status: "failed", message: outcome.message });
-      }
-      continue;
-    }
-
-    // Point a write at the new client it names.
-    let call: CaptureWriteCall = { tool: w.tool, args: w.args } as CaptureWriteCall;
-    if ((w.tool === "logContactActivity" || w.tool === "createContactTask") && w.client?.newClientWriteId) {
-      const made = newClientIds.get(w.client.newClientWriteId);
-      if (!made) {
-        results.push({ writeId: w.id, tool: w.tool, status: "failed", message: "Not saved: the new client it is about wasn't added." });
+    try {
+      if (!w.include) {
+        results.push({ writeId: w.id, tool: w.tool, status: "skipped", message: "Removed." });
+        if (w.tool === "createClient") newClientIds.set(w.id, null);
         continue;
       }
-      call = { tool: w.tool, args: { ...w.args, clientId: made.id, clientName: made.name } } as CaptureWriteCall;
-      if (queuedClients.has(w.client.newClientWriteId)) {
-        // The client isn't in the database yet: queue this behind it.
-        results.push(options.queue?.(call)
-          ? { writeId: w.id, tool: w.tool, status: "queued", message: "Saved on this phone. It syncs when you're back online." }
-          : { writeId: w.id, tool: w.tool, status: "failed", message: "Not saved: the new client it is about is still waiting to sync." });
+      const problems = checkWrite(w);
+      if (problems.length > 0) {
+        results.push({ writeId: w.id, tool: w.tool, status: "failed", message: problems.join(" "), rowId: options.rowIds?.[w.id] });
+        if (w.tool === "createClient") newClientIds.set(w.id, null);
         continue;
       }
+
+      if (w.tool === "createClient") {
+        const id = rowIdFor(w)!;
+        const call: CaptureWriteCall = { tool: "createClient", args: w.args, id };
+        const outcome = await applyCaptureWrite(db, userId, call, options.today);
+        const dup = (outcome as { duplicateOf?: { id: string; name: string } }).duplicateOf;
+        const made = { id: outcome.id ?? id, name: w.args.name.trim() };
+        if (outcome.ok) {
+          newClientIds.set(w.id, made);
+          results.push({ writeId: w.id, tool: w.tool, status: "saved", message: outcome.message, rowId: id, client: made });
+        } else if (dup) {
+          newClientIds.set(w.id, dup);
+          results.push({ writeId: w.id, tool: w.tool, status: "skipped", message: `${dup.name} is already on file, so the rest of this note went on that client.`, rowId: id, client: dup });
+        } else if (outcome.offline && options.queue?.(call)) {
+          newClientIds.set(w.id, made);
+          queuedClients.add(w.id);
+          results.push({ writeId: w.id, tool: w.tool, status: "queued", message: QUEUED, rowId: id, client: made });
+        } else {
+          newClientIds.set(w.id, null);
+          results.push({ writeId: w.id, tool: w.tool, status: "failed", message: outcome.message, rowId: id });
+        }
+        continue;
+      }
+
+      // Point a write at the new client it names.
+      let call = { tool: w.tool, args: w.args, id: rowIdFor(w) } as CaptureWriteCall;
+      if ((w.tool === "logContactActivity" || w.tool === "createContactTask") && w.client?.newClientWriteId) {
+        const made = newClientIds.get(w.client.newClientWriteId);
+        if (!made) {
+          const why = newClientIds.has(w.client.newClientWriteId)
+            ? "Not saved: the new client it is about wasn't added."
+            : "Not saved: pick the client (the new client isn't part of this save).";
+          results.push({ writeId: w.id, tool: w.tool, status: "failed", message: why, rowId: call.id });
+          continue;
+        }
+        call = { ...call, args: { ...w.args, clientId: made.id, clientName: made.name } } as CaptureWriteCall;
+        if (queuedClients.has(w.client.newClientWriteId)) {
+          // The client isn't in the database yet: queue this behind it.
+          results.push(options.queue?.(forQueue(call))
+            ? { writeId: w.id, tool: w.tool, status: "queued", message: QUEUED, rowId: call.id }
+            : { writeId: w.id, tool: w.tool, status: "failed", message: "Not saved: the new client it is about is still waiting to sync.", rowId: call.id });
+          continue;
+        }
+      }
+      results.push(await run(w, call));
+    } catch (err) {
+      results.push({ writeId: w.id, tool: w.tool, status: "failed", message: `Not saved: ${err instanceof Error ? err.message : "something went wrong"}.` });
     }
-    results.push(await run(w, call));
   }
 
   // Report in the card's order.
   const order = new Map(writes.map((w, i) => [w.id, i]));
   return results.sort((a, b) => (order.get(a.writeId) ?? 0) - (order.get(b.writeId) ?? 0));
+}
+
+/**
+ * After a save: point every item that named a new client of this capture at
+ * the client that was saved for it (or the one already on file), so fixing
+ * and saving one of them again lands on that client. Without this, "Save the
+ * rest" found no new client in the batch and refused them.
+ */
+export function settleSavedClients(writes: ProposedWrite[], results: SaveResult[]): ProposedWrite[] {
+  const made = new Map<string, { id: string; name: string }>();
+  for (const r of results) {
+    if (r.tool === "createClient" && r.client && r.status !== "failed") made.set(r.writeId, r.client);
+  }
+  if (made.size === 0) return writes;
+  return writes.map((w) => {
+    const ref = w.client?.newClientWriteId;
+    const client = ref ? made.get(ref) : undefined;
+    if (!w.client || !client) return w;
+    const candidate: ClientCandidate = { id: client.id, name: client.name, status: null, lastContactAt: null, match: "exact" };
+    return withClient(w, w.client, { kind: "existing", candidate });
+  });
 }
 
 /** "2 saved, 1 not saved" for a toast. */

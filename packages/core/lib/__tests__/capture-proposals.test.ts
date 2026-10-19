@@ -295,3 +295,65 @@ describe("buildCaptureProposal is pure", () => {
     expect(Object.keys(lookups.clients)).toEqual(["sarah"]);
   });
 });
+
+describe("capped name reads never pick for the agent", () => {
+  const joannes = Array.from({ length: 24 }, (_, n) => client(`c-jo-${n}`, `Joanne Tremblay${n}`, `2026-10-${String(10 + (n % 9)).padStart(2, "0")}T15:00:00Z`));
+  const anns = [client("c-ann-j", "Ann Jones", "2026-10-01T15:00:00Z"), client("c-ann-s", "Ann Smith", "2026-09-01T15:00:00Z")];
+
+  it("24 Joannes and two Anns: \"Called Ann\" lists both Anns and picks neither", async () => {
+    // Insertion order put the Joannes first, as an unordered capped read can.
+    const { db } = fakeDb({ clients: [...joannes, ...anns], pipeline_deals: [] });
+    const parsed = parseCaptureExtraction({ intents: [{ intent: "log_activity", client_name: "Ann", activity_type: "call", summary: "Called about the listing" }] });
+    const p = await resolveCapture(db, USER, { transcript: "Called Ann", parsed, today: TODAY });
+    expect(p.writes[0].client?.selectedId).toBeNull();
+    expect(p.writes[0].client?.candidates.map((c) => c.id).sort()).toEqual(["c-ann-j", "c-ann-s"]);
+  });
+
+  it("one Ann among 24 Joannes is found by the whole-word read and picked", async () => {
+    const { db } = fakeDb({ clients: [...joannes, anns[1]], pipeline_deals: [] });
+    const parsed = parseCaptureExtraction({ intents: [{ intent: "log_activity", client_name: "Ann", activity_type: "call", summary: "x" }] });
+    const p = await resolveCapture(db, USER, { transcript: "x", parsed, today: TODAY });
+    expect(p.writes[0].client?.selectedId).toBe("c-ann-s");
+  });
+
+  it("when every read for the name comes back at the cap, nothing is picked and the card says more may match", async () => {
+    // 30 clients with "Lee" as a word: the whole-word read stops at 25.
+    const lees = Array.from({ length: 30 }, (_, n) => client(`c-lee-${n}`, `Pat${n} Lee`, null));
+    const { db } = fakeDb({ clients: lees, pipeline_deals: [] });
+    const parsed = parseCaptureExtraction({ intents: [{ intent: "note", client_name: "Lee", summary: "x" }] });
+    const p = await resolveCapture(db, USER, { transcript: "x", parsed, today: TODAY });
+    expect(p.writes[0].client).toMatchObject({ selectedId: null, truncated: true });
+  });
+
+  it("a full name is picked when one of its words was read in full, even if the other hit the cap", async () => {
+    const sarahs = Array.from({ length: 30 }, (_, n) => client(`c-s-${n}`, `Sarah Lastname${n}`, null));
+    const { db } = fakeDb({ clients: [...sarahs, client("c-target", "Sarah Johnson", null)], pipeline_deals: [] });
+    const parsed = parseCaptureExtraction({ intents: [{ intent: "note", client_name: "Sarah Johnson", summary: "x" }] });
+    const p = await resolveCapture(db, USER, { transcript: "x", parsed, today: TODAY });
+    expect(p.writes[0].client?.selectedId).toBe("c-target");
+    expect(p.writes[0].client?.truncated).toBeUndefined();
+  });
+
+  it("deals: every active deal is read once and ranked, so a capped search can't hide one", async () => {
+    const many = Array.from({ length: 40 }, (_, n) => ({ ...DEALS[0], id: `d-${n}`, address: `${n} Elmwood Dr`, client_name: `Buyer ${n}`, client_id: null }));
+    const { db, reads } = fakeDb({ clients: CLIENTS, pipeline_deals: [...many, ...DEALS] });
+    const parsed = parseCaptureExtraction({ intents: [
+      { intent: "update_deal", deal: "12 Elm St", stage: "offer" },
+      { intent: "update_deal", deal: "40 Pine", stage: "firm" },
+    ] });
+    const p = await resolveCapture(db, USER, { transcript: "x", parsed, today: TODAY });
+    expect(p.writes.map((w) => w.deal?.selectedId)).toEqual(["d-elm", "d-pine"]);
+    expect(reads.filter((r) => r.table === "pipeline_deals")).toHaveLength(1);
+  });
+});
+
+describe("commission", () => {
+  it("0.025 is not taken as 0.025%: the card asks, and a sale price needs a commission", async () => {
+    const p = await propose([{ intent: "new_transaction", address: "7 Birch Lane", client_name: "Pat Roy", side: "buyer", sale_price: 450000, commission_pct: 0.025 }]);
+    expect(p.writes[0].args).not.toHaveProperty("commissionPct");
+    expect(p.writes[0].warnings.join(" ")).toMatch(/heard as 0\.025\. Enter it as a percentage, like 2\.5/);
+    expect(checkWrite(p.writes[0])).toEqual(["Add the commission %."]);
+    const fixed = { ...p.writes[0], args: { ...p.writes[0].args, commissionPct: 2.5 } } as ProposedWrite;
+    expect(checkWrite(fixed)).toEqual([]);
+  });
+});

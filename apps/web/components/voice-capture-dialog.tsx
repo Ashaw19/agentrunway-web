@@ -29,8 +29,10 @@ import { shortDayLabel } from "@agent-runway/core/lib/capture/dates";
 import {
   applyCaptureWrites,
   checkWrite,
+  isSettled,
   pickClient,
   pickDeal,
+  settleSavedClients,
   summarizeSave,
   type ClientPick,
   type SaveResult,
@@ -93,7 +95,8 @@ function CaptureBody({ proposal, onClose }: { proposal: CaptureProposal; onClose
   const [results, setResults] = useState<Record<string, SaveResult>>({});
   const [saving, setSaving] = useState(false);
 
-  const done = (id: string) => results[id]?.status === "saved" || results[id]?.status === "queued";
+  // Saved, or a new client already on file (the note went on them): nothing more to do.
+  const done = (id: string) => isSettled(results[id]);
   const pending = writes.filter((w) => w.include && !done(w.id));
   const problems = useMemo(
     () => Object.fromEntries(writes.map((w) => [w.id, checkWrite(w, { isExpenseCategoryKey: isReceiptCategoryKey })])),
@@ -113,8 +116,15 @@ function CaptureBody({ proposal, onClose }: { proposal: CaptureProposal; onClose
         toast.error("Sign in again to save.");
         return;
       }
-      const out = await applyCaptureWrites(supabase, user.id, pending, { today: localISODate() });
+      // Row ids from the last try: a write that reached the database before
+      // its reply was lost is saved once, not twice.
+      const rowIds = Object.fromEntries(
+        Object.values(results).filter((r) => r.rowId).map((r) => [r.writeId, r.rowId!]),
+      );
+      const out = await applyCaptureWrites(supabase, user.id, pending, { today: proposal.today || localISODate(), rowIds });
       setResults((r) => ({ ...r, ...Object.fromEntries(out.map((x) => [x.writeId, x])) }));
+      // Items about a new client that saved now point at that client.
+      setWrites((ws) => settleSavedClients(ws, out));
       const s = summarizeSave(out);
       if (s.failed > 0) toast.error(s.text);
       else toast.success(s.text);
@@ -306,6 +316,7 @@ function Fields({ w, all, today, onChange, onSetAll }: { w: ProposedWrite; all: 
             <Field label="Kilometres"><Input inputMode="decimal" defaultValue={w.args.km || ""} onChange={(e) => set({ km: num(e.target.value) ?? 0 })} /></Field>
             <Field label="Date"><Input type="date" value={w.args.tripDate} onChange={(e) => set({ tripDate: e.target.value })} /></Field>
           </div>
+          {w.args.km > 1000 && <p className="text-xs text-amber-600">That&apos;s a long trip. Check the kilometres.</p>}
           <Field label="Purpose"><Input value={w.args.description} onChange={(e) => set({ description: e.target.value })} /></Field>
           <div className="grid grid-cols-2 gap-2">
             <Field label="From (optional)"><Input value={w.args.fromLocation ?? ""} onChange={(e) => set({ fromLocation: e.target.value || undefined })} /></Field>
@@ -396,7 +407,7 @@ function ClientPicker({ w, all, onSetAll }: { w: ProposedWrite; all: ProposedWri
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user || query.trim().length < 2) return;
-    setFound(rankClientCandidates(query, await searchClients(supabase, user.id, query)));
+    setFound(rankClientCandidates(query, (await searchClients(supabase, user.id, query)).rows));
   };
 
   return (
@@ -411,6 +422,9 @@ function ClientPicker({ w, all, onSetAll }: { w: ProposedWrite; all: ProposedWri
         <div className="space-y-1">
           {choice.spoken && choice.candidates.length > 1 && !choice.selectedId && (
             <p className="text-xs text-muted-foreground">&ldquo;{choice.spoken}&rdquo; matches {choice.candidates.length} clients. Most recently contacted first.</p>
+          )}
+          {choice.truncated && (
+            <p className="text-xs text-amber-600">More clients may match than are listed. Search to find the one you mean.</p>
           )}
           {[...choice.candidates, ...found.filter((f) => !choice.candidates.some((c) => c.id === f.id))].map((c) => (
             <label key={c.id} className="flex cursor-pointer items-center gap-2 text-sm">
@@ -457,7 +471,7 @@ function DealPicker({ w, all, onSetAll }: { w: ProposedWrite; all: ProposedWrite
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user || query.trim().length < 2) return;
-    setFound(rankDealCandidates(query, await searchDeals(supabase, user.id, query)));
+    setFound(rankDealCandidates(query, (await searchDeals(supabase, user.id)).rows));
   };
   return (
     <div className="space-y-1 rounded-md bg-muted/30 p-2">

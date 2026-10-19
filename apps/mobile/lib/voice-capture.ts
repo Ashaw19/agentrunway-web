@@ -8,14 +8,19 @@
  *            (Bearer token; the routes use getRequestUser)
  *   discard  the recording is deleted as soon as transcription answers,
  *            success or not. Nothing keeps the audio: not the phone, not the
- *            server (the route passes it to Groq and stores nothing)
+ *            server (the route passes it to Groq and stores nothing). A
+ *            recording left behind when the app was killed mid-way is swept
+ *            at the next launch (sweepLeftoverRecordings, app/_layout.tsx)
  *   save     core applyCaptureWrites → record-writers, the writers Flight
  *            Crew's tools use; a write that can't reach the database is
- *            queued (offline-queue "captureWrite") and replayed by the same
- *            writer
+ *            queued (offline-queue "captureWrite") with its row id and
+ *            replayed by the same writer, so it is saved once
+ *
+ * Tests: lib/__tests__/voice-capture.test.ts (the real functions; expo
+ * modules, storage and the network mocked).
  */
 
-import { File } from "expo-file-system";
+import { Directory, File, Paths } from "expo-file-system";
 import {
   AudioQuality,
   IOSOutputFormat,
@@ -82,6 +87,37 @@ export async function setRecordingMode(on: boolean): Promise<void> {
   } catch {
     // A failure here leaves the session as it was; recording reports its own error.
   }
+}
+
+/** Where expo-audio writes recordings: Caches/ExpoAudio on iOS, cache/Audio on Android. */
+const RECORDING_DIRS = ["ExpoAudio", "Audio"] as const;
+
+/**
+ * Delete recordings left in the cache: the app was closed between stopping a
+ * recording and the transcription answering, so its `finally` never ran.
+ * Called once at launch, when nothing is recording. Returns how many went.
+ */
+export function sweepLeftoverRecordings(): number {
+  let removed = 0;
+  for (const name of RECORDING_DIRS) {
+    try {
+      const dir = new Directory(Paths.cache, name);
+      if (!dir.exists) continue;
+      for (const entry of dir.list()) {
+        if (entry instanceof File && entry.name.startsWith("recording-")) {
+          try {
+            entry.delete();
+            removed += 1;
+          } catch {
+            // In use or already gone: the next launch tries again.
+          }
+        }
+      }
+    } catch {
+      // No such folder on this platform.
+    }
+  }
+  return removed;
 }
 
 /** Delete a recording. Never throws. */
@@ -165,19 +201,42 @@ function clientIdsIn(writes: ProposedWrite[]): string[] {
   return [...ids];
 }
 
+export interface SaveCaptureOptions {
+  /** The proposal's day (Atlantic): a queued activity keeps it. */
+  today: string;
+  /**
+   * The signed-in user, from the auth context (useAuth). It is known on the
+   * phone without a network call, so a save with no connection queues; RLS
+   * checks every write when it replays. Falls back to the stored session.
+   */
+  userId?: string | null;
+  /** Row ids from an earlier try (SaveResult.rowId), so a retry saves each row once. */
+  rowIds?: Record<string, string>;
+}
+
 /**
  * Save the confirmed writes. A write the database refused comes back
  * "failed" with the reason; one that couldn't reach it is queued and syncs
  * when the phone is back online. Then the data the screens show is re-read.
  */
-export async function saveCapture(writes: ProposedWrite[]): Promise<SaveResult[]> {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
+export async function saveCapture(writes: ProposedWrite[], options: SaveCaptureOptions): Promise<SaveResult[]> {
+  // Not auth.getUser(): that asks the server, so with no connection every
+  // item failed as "sign in again" and nothing was queued.
+  let userId = options.userId ?? null;
+  if (!userId) {
+    try {
+      userId = (await supabase.auth.getSession()).data.session?.user.id ?? null;
+    } catch {
+      userId = null;
+    }
+  }
+  if (!userId) {
     return writes.map((w) => ({ writeId: w.id, tool: w.tool, status: "failed" as const, message: "Sign in again to save." }));
   }
   const queue = useOfflineQueueStore.getState();
-  const results = await applyCaptureWrites(supabase, user.id, writes, {
-    today: localISODate(),
+  const results = await applyCaptureWrites(supabase, userId, writes, {
+    today: options.today || localISODate(),
+    rowIds: options.rowIds,
     queue: (call) => {
       queue.enqueue("captureWrite", call);
       return true;

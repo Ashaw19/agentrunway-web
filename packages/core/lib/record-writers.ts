@@ -12,6 +12,18 @@
  * with auth.getUser(). Rows go through write-rows.ts, so NOT NULL text columns
  * get '' and a client gets name_search.
  *
+ * Every insert carries its row id, made by the caller (newRecordId) or here.
+ * Saving the same write twice with the same id saves it once: the second
+ * insert hits the primary key (23505), and when the row with that id is
+ * already there it counts as saved. That is what keeps a write the phone
+ * queued from landing twice when the database saved it but the reply was
+ * lost (an expense, its ITC or a deal's GCI counted double).
+ *
+ * The writers accept what the Flight Crew tools accepted before they moved
+ * here (a blank trip purpose, vendor or task title still saves, as it did).
+ * The confirm card's own checks (capture/proposals.ts checkWrite) ask for
+ * those before the agent can save from a voice note.
+ *
  * A writer never throws: it returns `ok: false` with the reason, and
  * `offline: true` when the request never reached the database (no PostgREST
  * code), which the phone queues for later.
@@ -40,12 +52,20 @@ export interface WriteOutcome {
   ok: boolean;
   /** Plain words: what was saved, or why not. */
   message: string;
-  /** The new row's id, when one was made. */
+  /** The row's id, when the write made one. */
   id?: string;
+  /** The row with this id was already saved (a replay of a write that had landed). */
+  alreadySaved?: boolean;
   /** The request never reached the database: the phone queues it. */
   offline?: boolean;
   /** The PostgREST error code, when the database refused it. */
   code?: string;
+}
+
+/** Options every inserting writer takes. */
+export interface InsertOptions {
+  /** The row id. Pass the same id on a retry or replay so the row is saved once. */
+  id?: string;
 }
 
 interface DbError {
@@ -90,11 +110,12 @@ export function activityTimestampFor(day: string): string {
 }
 
 /**
- * A new row id made on the device. Lets a capture that adds a client save
- * the client's activity and task in the same go, including when the phone
- * queues them offline. crypto.randomUUID where the runtime has it (web,
- * server, Deno); a v4 UUID from Math.random on the phone (Hermes has no
- * crypto), which is enough for a primary key nobody else writes.
+ * A new row id made on the device. Lets a write keep its id across a retry
+ * or an offline replay, and lets a capture that adds a client save the
+ * client's activity and task in the same go. crypto.randomUUID where the
+ * runtime has it (web, server, Deno); a v4 UUID from Math.random on the
+ * phone (Hermes has no crypto), which is enough for a primary key nobody
+ * else writes.
  */
 export function newRecordId(): string {
   const c = (globalThis as { crypto?: { randomUUID?: () => string } }).crypto;
@@ -102,6 +123,31 @@ export function newRecordId(): string {
   const hex = (n: number) => Math.floor(Math.random() * 16 ** n).toString(16).padStart(n, "0");
   const variant = (8 + Math.floor(Math.random() * 4)).toString(16);
   return `${hex(8)}-${hex(4)}-4${hex(3)}-${variant}${hex(3)}-${hex(12)}`;
+}
+
+/**
+ * Insert a row that carries its id. A primary-key clash on a row of the
+ * user's that is already there means this write was saved before: success.
+ * Any other clash (or none found) is the database refusing it.
+ */
+async function insertOnce(
+  db: DbClient,
+  table: string,
+  row: Record<string, unknown>,
+  userId: string,
+): Promise<{ error: DbError | null; alreadySaved?: boolean }> {
+  const { error } = await db.from(table).insert(row);
+  if (!error) return { error: null };
+  if (error.code === "23505" && typeof row.id === "string") {
+    const { data: existing } = await db
+      .from(table)
+      .select("id")
+      .eq("id", row.id)
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (existing) return { error: null, alreadySaved: true };
+  }
+  return { error };
 }
 
 // ── Activity ─────────────────────────────────────────────────────────────────
@@ -127,10 +173,12 @@ export async function writeContactActivity(
   userId: string,
   args: LogContactActivityArgs,
   today: string,
+  options: InsertOptions = {},
 ): Promise<ActivityOutcome> {
-  const description = (args.description ?? "").trim().slice(0, FIELD_LIMITS.description);
+  const description = (typeof args.description === "string" ? args.description : "").trim().slice(0, FIELD_LIMITS.description);
   if (!args.clientId) return fail("Pick the client first.");
   if (args.activityDate !== undefined && !isIsoDay(args.activityDate)) return fail("The activity date isn't a real date.");
+  const id = options.id ?? newRecordId();
   try {
     const { data: before, error: readError } = await db
       .from("clients")
@@ -142,13 +190,14 @@ export async function writeContactActivity(
     if (!before) return fail(`${args.clientName || "That client"} wasn't found in your clients.`);
     const priorStatus = (before.status as string | null) ?? null;
 
-    const { error } = await db.from("contact_activities").insert(activityRow({
+    const { error, alreadySaved } = await insertOnce(db, "contact_activities", activityRow({
+      id,
       user_id: userId,
       client_id: args.clientId,
       type: args.type as ActivityType,
       description,
       activity_date: args.activityDate ? activityTimestampFor(args.activityDate) : new Date().toISOString(),
-    }));
+    }), userId);
     if (error) return refused("log the activity", error);
 
     void markMemoryStale(db, userId, args.clientId);
@@ -165,7 +214,7 @@ export async function writeContactActivity(
     }
     const day = args.activityDate ?? today;
     const what = args.type === "note" ? "Note saved" : `Logged ${args.type}`;
-    return { ok: true, message: `${what} on ${args.clientName || "the client"} for ${day}.`, day, priorStatus, newStatus };
+    return { ok: true, message: `${what} on ${args.clientName || "the client"} for ${day}.`, id, alreadySaved, day, priorStatus, newStatus };
   } catch (err) {
     return thrown("log the activity", err);
   }
@@ -178,10 +227,11 @@ export async function writeContactTask(
   db: DbClient,
   userId: string,
   args: CaptureToolArgs["createContactTask"],
+  options: InsertOptions = {},
 ): Promise<WriteOutcome> {
-  const title = (args.title ?? "").trim();
-  if (!title) return fail("The Checklist item needs a title.");
+  const title = (typeof args.title === "string" ? args.title : "").trim();
   if (!isIsoDay(args.dueDate)) return fail("The due date isn't a real date.");
+  const id = options.id ?? newRecordId();
   try {
     if (args.clientId) {
       const { data: owner, error: readError } = await db
@@ -193,20 +243,17 @@ export async function writeContactTask(
       if (readError) return refused("find the client", readError);
       if (!owner) return fail(`${args.clientName || "That client"} wasn't found in your clients.`);
     }
-    const { data, error } = await db
-      .from("contact_tasks")
-      .insert(contactTaskRow({
-        user_id: userId,
-        client_id: args.clientId || null,
-        title,
-        due_date: args.dueDate,
-        priority: (args.priority ?? "normal") as TaskPriority,
-        notes: args.notes,
-      }))
-      .select("id")
-      .single();
+    const { error, alreadySaved } = await insertOnce(db, "contact_tasks", contactTaskRow({
+      id,
+      user_id: userId,
+      client_id: args.clientId || null,
+      title,
+      due_date: args.dueDate,
+      priority: (args.priority ?? "normal") as TaskPriority,
+      notes: args.notes,
+    }), userId);
     if (error) return refused("add the Checklist item", error);
-    return { ok: true, message: `Added to your Checklist: "${title.slice(0, 80)}", due ${args.dueDate}.`, id: data?.id };
+    return { ok: true, message: `Added to your Checklist: "${title.slice(0, 80)}", due ${args.dueDate}.`, id, alreadySaved };
   } catch (err) {
     return thrown("add the Checklist item", err);
   }
@@ -216,7 +263,8 @@ export async function writeContactTask(
 
 /**
  * updatePipelineDealStage. Flight Crew may set `closed` (the Closing Day
- * prompt then records the sale); a capture never proposes it.
+ * prompt then records the sale); a capture never proposes it. Setting the
+ * same stage twice is harmless, so a replay needs no id.
  */
 export async function writeDealStage(
   db: DbClient,
@@ -239,7 +287,7 @@ export async function writeDealStage(
   }
 }
 
-/** updatePipelineDealCloseDate: the expected close date. */
+/** updatePipelineDealCloseDate: the expected close date (idempotent, like the stage). */
 export async function writeDealCloseDate(
   db: DbClient,
   userId: string,
@@ -264,32 +312,34 @@ export async function writeDealCloseDate(
 
 // ── Mileage ──────────────────────────────────────────────────────────────────
 
-/** Most km one trip line takes (mileage_logs.km is NUMERIC(8,1)); a typo past it is refused. */
-export const MAX_TRIP_KM = 5000;
-
-/** logMileage. EXTENSION POINT (vehicle logbook): odometer readings go on the row here. */
-export async function writeMileage(db: DbClient, userId: string, args: LogMileageArgs): Promise<WriteOutcome> {
-  const description = (args.description ?? "").trim();
+/**
+ * logMileage. As the tool always took it: any positive km, any purpose
+ * (blank included). EXTENSION POINT (vehicle logbook): odometer readings go
+ * on the row here.
+ */
+export async function writeMileage(
+  db: DbClient,
+  userId: string,
+  args: LogMileageArgs,
+  options: InsertOptions = {},
+): Promise<WriteOutcome> {
+  const description = typeof args.description === "string" ? args.description.trim() : "";
   if (!isIsoDay(args.tripDate)) return fail("The trip date isn't a real date.");
-  if (!(typeof args.km === "number" && args.km > 0)) return fail("The trip needs the kilometres driven.");
-  if (args.km > MAX_TRIP_KM) return fail(`${args.km} km is more than one trip line takes (${MAX_TRIP_KM} km).`);
-  if (!description) return fail("The trip needs a purpose.");
+  if (!(typeof args.km === "number" && Number.isFinite(args.km) && args.km > 0)) return fail("The trip needs the kilometres driven.");
+  const id = options.id ?? newRecordId();
   try {
-    const { data, error } = await db
-      .from("mileage_logs")
-      .insert(mileageRow({
-        user_id: userId,
-        trip_date: args.tripDate,
-        km: args.km,
-        description,
-        from_location: args.fromLocation,
-        to_location: args.toLocation,
-        purpose: description,
-      }))
-      .select("id")
-      .single();
+    const { error, alreadySaved } = await insertOnce(db, "mileage_logs", mileageRow({
+      id,
+      user_id: userId,
+      trip_date: args.tripDate,
+      km: args.km,
+      description,
+      from_location: args.fromLocation,
+      to_location: args.toLocation,
+      purpose: description,
+    }), userId);
     if (error) return refused("log the trip", error);
-    return { ok: true, message: `Trip logged: ${args.km} km on ${args.tripDate}.`, id: data?.id };
+    return { ok: true, message: `Trip logged: ${args.km} km on ${args.tripDate}.`, id, alreadySaved };
   } catch (err) {
     return thrown("log the trip", err);
   }
@@ -302,17 +352,23 @@ export async function writeMileage(db: DbClient, userId: string, args: LogMileag
  * stated no input tax credit is counted on it. It is never worked out from a
  * rate (expense-totals-engine).
  */
-export async function writeExpense(db: DbClient, userId: string, args: LogExpenseArgs): Promise<WriteOutcome> {
-  const vendor = (args.vendor ?? "").trim();
-  if (!vendor) return fail("The expense needs a vendor.");
-  if (!(typeof args.amount === "number" && args.amount > 0)) return fail("The expense needs an amount.");
+export async function writeExpense(
+  db: DbClient,
+  userId: string,
+  args: LogExpenseArgs,
+  options: InsertOptions = {},
+): Promise<WriteOutcome> {
+  const vendor = typeof args.vendor === "string" ? args.vendor.trim() : "";
+  if (!(typeof args.amount === "number" && Number.isFinite(args.amount) && args.amount > 0)) return fail("The expense needs an amount.");
   if (!args.categoryKey) return fail("Pick the expense category.");
   if (!isIsoDay(args.expenseDate)) return fail("The expense date isn't a real date.");
   if (args.taxAmount !== undefined && args.taxAmount > args.amount) {
     return fail(`GST/HST of $${args.taxAmount.toFixed(2)} is more than the $${args.amount.toFixed(2)} total, so nothing was logged.`);
   }
+  const id = options.id ?? newRecordId();
   try {
-    const { error } = await db.from("receipt_expenses").insert(receiptExpenseRow({
+    const { error, alreadySaved } = await insertOnce(db, "receipt_expenses", receiptExpenseRow({
+      id,
       user_id: userId,
       vendor,
       expense_date: args.expenseDate,
@@ -320,9 +376,9 @@ export async function writeExpense(db: DbClient, userId: string, args: LogExpens
       tax_amount: args.taxAmount,
       category_key: args.categoryKey,
       notes: args.notes,
-    }));
+    }), userId);
     if (error) return refused("log the expense", error);
-    return { ok: true, message: `Expense logged: $${args.amount.toFixed(2)} at ${vendor} on ${args.expenseDate}.` };
+    return { ok: true, message: `Expense logged: $${args.amount.toFixed(2)}${vendor ? ` at ${vendor}` : ""} on ${args.expenseDate}.`, id, alreadySaved };
   } catch (err) {
     return thrown("log the expense", err);
   }
@@ -331,23 +387,25 @@ export async function writeExpense(db: DbClient, userId: string, args: LogExpens
 // ── Client ───────────────────────────────────────────────────────────────────
 
 export interface ClientOutcome extends WriteOutcome {
-  /** Set when a client with that name is already on file; nothing new was made. */
+  /** Set when a different client with that name is already on file; nothing new was made. */
   duplicateOf?: { id: string; name: string };
 }
 
 /**
  * createClient. A client whose name matches an existing one (name_search) is
- * not made twice: the existing one is returned. `id` may be given so writes
- * that depend on the new client can name it before it is saved.
+ * not made twice: the existing one is returned. With `id`, a replay that
+ * finds its own row already saved counts as saved. A blank name is still
+ * refused, as a client with no name can't be found or matched.
  */
 export async function writeClient(
   db: DbClient,
   userId: string,
   args: CaptureToolArgs["createClient"],
-  options: { id?: string } = {},
+  options: InsertOptions = {},
 ): Promise<ClientOutcome> {
-  const name = (args.name ?? "").trim().replace(/\s+/g, " ").slice(0, FIELD_LIMITS.clientName);
+  const name = (typeof args.name === "string" ? args.name : "").trim().replace(/\s+/g, " ").slice(0, FIELD_LIMITS.clientName);
   if (!name) return fail("The new client needs a name.");
+  const id = options.id ?? newRecordId();
   const row = clientRow({ name }) as { name: string; name_search: string };
   try {
     const { data: existing, error: readError } = await db
@@ -360,18 +418,19 @@ export async function writeClient(
     if (readError) return refused("check for an existing client", readError);
     if (Array.isArray(existing) && existing.length > 0) {
       const dup = existing[0] as { id: string; name: string };
+      if (dup.id === id) return { ok: true, message: `New client added: ${name}.`, id, alreadySaved: true };
       return { ok: false, message: `A client named "${dup.name}" is already on file, so no new client was made.`, duplicateOf: dup };
     }
 
     const parts = name.split(" ");
     const record: Record<string, unknown> = {
+      id,
       user_id: userId,
       name,
       first_name: parts[0] ?? "",
       last_name: parts.length > 1 ? parts.slice(1).join(" ") : "",
       status: args.status ?? "boarding",
     };
-    if (options.id) record.id = options.id;
     if (args.email) record.email = args.email.trim().slice(0, FIELD_LIMITS.email);
     if (args.phone) record.phone = args.phone.trim().slice(0, FIELD_LIMITS.phone);
     if (args.city) record.city = args.city.trim();
@@ -384,9 +443,9 @@ export async function writeClient(
     if (args.notes) record.notes = args.notes.trim().slice(0, FIELD_LIMITS.notes);
     if (args.leadSource) record.lead_source = args.leadSource;
 
-    const { data, error } = await db.from("clients").insert(clientRow(record)).select("id").single();
+    const { error, alreadySaved } = await insertOnce(db, "clients", clientRow(record), userId);
     if (error) return refused("add the client", error);
-    return { ok: true, message: `New client added: ${name}.`, id: (data?.id as string | undefined) ?? options.id };
+    return { ok: true, message: `New client added: ${name}.`, id, alreadySaved };
   } catch (err) {
     return thrown("add the client", err);
   }
@@ -395,15 +454,22 @@ export async function writeClient(
 // ── Closed transaction ───────────────────────────────────────────────────────
 
 /** recordTransaction: a closed deal, by sale price and commission % or the exact GCI. */
-export async function writeTransaction(db: DbClient, userId: string, args: RecordTransactionArgs): Promise<WriteOutcome> {
+export async function writeTransaction(
+  db: DbClient,
+  userId: string,
+  args: RecordTransactionArgs,
+  options: InsertOptions = {},
+): Promise<WriteOutcome> {
   if (!args.salePrice && !args.gciOverride) {
     return fail("Give either the sale price and commission rate, or the exact GCI.");
   }
   if (!isIsoDay(args.closeDate)) return fail("The close date isn't a real date.");
   const paidCheck = validateCommissionPaidDate(args.closeDate, args.commissionPaidDate);
   if (!paidCheck.valid) return fail(`Not recorded: ${paidCheck.errors.join("; ")}.`);
+  const id = options.id ?? newRecordId();
   try {
-    const { error } = await db.from("transactions").insert(transactionRow({
+    const { error, alreadySaved } = await insertOnce(db, "transactions", transactionRow({
+      id,
       user_id: userId,
       date: args.closeDate,
       commission_paid_date: args.commissionPaidDate || null,
@@ -415,9 +481,9 @@ export async function writeTransaction(db: DbClient, userId: string, args: Recor
       gci_override: args.gciOverride ?? null,
       status: "closed",
       notes: args.notes ?? "",
-    }, { insert: true }));
+    }, { insert: true }), userId);
     if (error) return refused("record the transaction", error);
-    return { ok: true, message: `Transaction recorded: ${args.address} (${args.clientName}) closed ${args.closeDate}.` };
+    return { ok: true, message: `Transaction recorded: ${args.address} (${args.clientName}) closed ${args.closeDate}.`, id, alreadySaved };
   } catch (err) {
     return thrown("record the transaction", err);
   }
@@ -425,6 +491,7 @@ export async function writeTransaction(db: DbClient, userId: string, args: Recor
 
 // ── Dispatch ─────────────────────────────────────────────────────────────────
 
+/** One write as the confirm card, MCP and the phone's queue pass it: the tool, its args, and the row id. */
 export type CaptureWriteCall = { [T in CaptureTool]: { tool: T; args: CaptureToolArgs[T]; id?: string } }[CaptureTool];
 
 /** One write by its Flight Crew tool name. `today` is the caller's calendar day. */
@@ -434,14 +501,15 @@ export function applyCaptureWrite(
   call: CaptureWriteCall,
   today: string,
 ): Promise<WriteOutcome> {
+  const options = { id: call.id };
   switch (call.tool) {
-    case "logContactActivity": return writeContactActivity(db, userId, call.args, today);
-    case "createContactTask": return writeContactTask(db, userId, call.args);
+    case "logContactActivity": return writeContactActivity(db, userId, call.args, today, options);
+    case "createContactTask": return writeContactTask(db, userId, call.args, options);
     case "updatePipelineDealStage": return writeDealStage(db, userId, call.args);
     case "updatePipelineDealCloseDate": return writeDealCloseDate(db, userId, call.args);
-    case "logMileage": return writeMileage(db, userId, call.args);
-    case "logExpense": return writeExpense(db, userId, call.args);
-    case "createClient": return writeClient(db, userId, call.args, { id: call.id });
-    case "recordTransaction": return writeTransaction(db, userId, call.args);
+    case "logMileage": return writeMileage(db, userId, call.args, options);
+    case "logExpense": return writeExpense(db, userId, call.args, options);
+    case "createClient": return writeClient(db, userId, call.args, options);
+    case "recordTransaction": return writeTransaction(db, userId, call.args, options);
   }
 }

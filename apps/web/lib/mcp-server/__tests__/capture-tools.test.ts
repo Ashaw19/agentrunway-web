@@ -111,6 +111,50 @@ describe("save_captured_note", () => {
     expect(writes).toEqual([]);
   });
 
+  it("a malformed item is refused before anything is written, and never stops the batch", async () => {
+    const { db, tables, writes } = seed();
+    const tools = await load(db);
+    const out = await run(tools, "save_captured_note", {
+      writes: [
+        { id: "w1", tool: "createClient", args: { name: "Dana Whitfield" } },
+        { id: "w2", tool: "logMileage", args: { tripDate: "2026-10-18", km: "eighteen", description: "Showing" } },
+        { id: "w3", tool: "createContactTask", args: { dueDate: "2026-10-20" }, new_client_ref: "w1" },
+        { id: "w4", tool: "logContactActivity", args: { clientName: "Dana", type: "meeting", description: "Open house" }, new_client_ref: "w1" },
+      ],
+    });
+    const results = out.json.results as Array<{ id: string; status: string; message: string }>;
+    expect(results.find((r) => r.id === "w2")).toMatchObject({ status: "failed", message: "km must be a number." });
+    expect(results.find((r) => r.id === "w3")).toMatchObject({ status: "failed", message: "title must be a string." });
+    expect(results.find((r) => r.id === "w1")).toMatchObject({ status: "saved" });
+    expect(results.find((r) => r.id === "w4")).toMatchObject({ status: "saved" });
+    const dana = tables.clients.find((c) => c.name === "Dana Whitfield")!;
+    expect(writes.find((w) => w.table === "contact_activities")!.payload).toMatchObject({ client_id: dana.id });
+    expect(writes.some((w) => w.table === "mileage_logs" || w.table === "contact_tasks")).toBe(false);
+  });
+
+  it("saving the same items again with their row_id saves them once", async () => {
+    const { db, tables } = seed();
+    const tools = await load(db);
+    const item = { id: "w1", row_id: "00000000-0000-4000-8000-0000000000e1", tool: "logExpense", args: { vendor: "Irving", amount: 64.4, taxAmount: 8.4, categoryKey: "vehicle_fuel", expenseDate: "2026-10-18" } };
+    expect((await run(tools, "save_captured_note", { writes: [item] })).json.summary).toBe("1 saved");
+    expect((await run(tools, "save_captured_note", { writes: [item] })).json.summary).toBe("1 saved");
+    expect(tables.receipt_expenses).toHaveLength(1);
+  });
+
+  it("capture_note gives each new row a row_id", async () => {
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({
+      transcript: "x", transcriptCleaned: "x", today: "2026-10-18", notes: [],
+      writes: [
+        { id: "w1", tool: "logMileage", intent: "log_trip", include: true, warnings: [], args: { tripDate: "2026-10-18", km: 18, description: "Showing" } },
+        { id: "w2", tool: "updatePipelineDealStage", intent: "update_deal", include: true, warnings: [], args: { dealId: SAM, dealDescription: "x", stage: "offer" } },
+      ],
+    }), { status: 200 }));
+    const tools = await load(fakeDb().db);
+    const items = (await run(tools, "capture_note", { transcript: "x" })).json.items as Array<Record<string, unknown>>;
+    expect(items[0].row_id).toMatch(/^[0-9a-f-]{36}$/);
+    expect(items[1]).not.toHaveProperty("row_id");
+  });
+
   it("an item missing something is not saved and the reply says why", async () => {
     const { db, writes } = seed();
     const tools = await load(db);
