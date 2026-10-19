@@ -183,6 +183,9 @@ export const UNDO_TABLES: ReadonlySet<string> = new Set([
   "client_records",
   "contact_activities",
   "contact_tasks",
+  // Skip, Later and Stop on a suggestion (00168, 00188): one row each, owned
+  // by the agent (RLS on user_id), referenced by no other table, no trigger.
+  "flight_control_dismissals",
   "flight_plans",
   "flight_plan_steps",
   "listing_appointments",
@@ -225,6 +228,9 @@ export const UNDO_EXCLUDED: Readonly<Record<string, string>> = {
     "a year's income goal is saved by year and the dashboard reads it straight away; change it in Settings instead",
   ai_runs: "the AI ledger itself",
   ai_run_writes: "the AI ledger itself",
+  // The day's handful (00188) is written by the handful sync on both
+  // surfaces, never by a Flight Crew tool.
+  next_up_handful: "bookkeeping written by the handful sync, never by a tool",
   // Statement imports (00185): a line's status, links and counts move
   // together (fn_confirm_statement_lines, fn_reopen_statement_lines).
   statement_lines:
@@ -510,6 +516,7 @@ const TABLE_LABELS: Readonly<Record<string, [singular: string, plural: string]>>
   client_records: ["deal-client link", "deal-client links"],
   contact_activities: ["activity", "activities"],
   contact_tasks: ["checklist item", "checklist items"],
+  flight_control_dismissals: ["dismissed suggestion", "dismissed suggestions"],
   flight_plans: ["Flight Plan", "Flight Plans"],
   flight_plan_steps: ["Flight Plan step", "Flight Plan steps"],
   listing_appointments: ["listing appointment", "listing appointments"],

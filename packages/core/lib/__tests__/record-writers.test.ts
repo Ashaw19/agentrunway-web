@@ -3,19 +3,27 @@
  * (applyCaptureWrites). Each writer takes a Flight Crew tool's argument
  * shape and writes the row that tool writes. Synthetic rows only.
  */
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   activityTimestampFor,
   applyCaptureWrite,
   isOfflineError,
   newRecordId,
+  removeSuggestionDismissal,
+  removeSuggestionSkipByKey,
+  reopenHandfulPin,
+  restoreClientFromHangar,
+  resumeSuggestions,
   writeClient,
   writeContactActivity,
   writeContactTask,
   writeDealCloseDate,
   writeDealStage,
+  writeClientToHangar,
   writeExpense,
   writeMileage,
+  writeSuggestionHold,
+  writeSuggestionSkip,
   updateMileage,
   writeTransaction,
 } from "../record-writers";
@@ -517,4 +525,511 @@ describe("a new client whose name is in the Hangar", () => {
     expect(results[0].message).toMatch(/in the Hangar/);
     expect(writes.find((w) => w.table === "contact_tasks")!.payload).toMatchObject({ client_id: "c-arch" });
   });
+});
+
+// ── Skip, Later, Stop and the Hangar (phone dashboard "Next up") ─────────────
+
+const DISMISSALS = "flight_control_dismissals";
+const OCCURRENCE_KEY = ["user_id", "client_id", "opportunity_type", "trigger_date"];
+const OCCURRENCE_CONFLICT = "user_id,client_id,opportunity_type,trigger_date";
+/** Monday 2026-10-19, 12:00 in Atlantic time (ADT, UTC-3). */
+const NOW = new Date("2026-10-19T15:00:00.000Z");
+const DAY = "2026-10-19";
+const HOUR_LATER = new Date(NOW.getTime() + 3_600_000);
+const idleOf = (client_id: string, trigger_date = "2026-10-01") => ({ client_id, opportunity_type: "idle_client", trigger_date });
+const dismissals = (extra: Record<string, Row[]> = {}, options: Parameters<typeof fakeDb>[1] = {}) =>
+  fakeDb({ ...seed(), ...extra }, { unique: { [DISMISSALS]: OCCURRENCE_KEY }, ...options });
+
+describe("writeSuggestionSkip", () => {
+  it("saves one skipped occurrence with a device-made id, cut to the day", async () => {
+    const { db, writes } = dismissals();
+    const out = await writeSuggestionSkip(db, USER, idleOf("c-1", "2026-10-01T00:00:00Z"));
+    expect(out).toMatchObject({ ok: true, id: expect.any(String) });
+    expect(out.alreadySaved).toBeUndefined();
+    expect(writes).toHaveLength(1);
+    expect(writes[0]).toMatchObject({ table: DISMISSALS, op: "insert" });
+    // A skip has no end: the table refuses a skip that carries `until`.
+    expect(writes[0].payload).toEqual({
+      id: out.id,
+      user_id: USER,
+      client_id: "c-1",
+      opportunity_type: "idle_client",
+      trigger_date: "2026-10-01",
+      kind: "skip",
+    });
+  });
+
+  it("uses the id it is given, and the same id again is saved once", async () => {
+    const { db, tables } = dismissals();
+    const id = newRecordId();
+    expect(await writeSuggestionSkip(db, USER, idleOf("c-1"), { id })).toMatchObject({ ok: true, id });
+    expect(await writeSuggestionSkip(db, USER, idleOf("c-1"), { id })).toMatchObject({ ok: true, alreadySaved: true, id });
+    expect(tables[DISMISSALS]).toHaveLength(1);
+  });
+
+  it("the same occurrence skipped twice from two devices counts as saved, and names the row that is there", async () => {
+    const { db, tables } = dismissals();
+    const first = await writeSuggestionSkip(db, USER, idleOf("c-1"));
+    const second = await writeSuggestionSkip(db, USER, idleOf("c-1", "2026-10-01T09:30:00Z"));
+    expect(second).toMatchObject({ ok: true, alreadySaved: true, id: first.id });
+    expect(tables[DISMISSALS]).toHaveLength(1);
+  });
+
+  it("a new occurrence of the same reason, or another reason, is its own row", async () => {
+    const { db, tables } = dismissals();
+    await writeSuggestionSkip(db, USER, idleOf("c-1", "2026-10-01"));
+    await writeSuggestionSkip(db, USER, idleOf("c-1", "2026-11-01"));
+    await writeSuggestionSkip(db, USER, { client_id: "c-1", opportunity_type: "birthday", trigger_date: "2026-10-01" });
+    expect(tables[DISMISSALS]).toHaveLength(3);
+  });
+
+  it("only the user's own rows count as the earlier save", async () => {
+    // Someone else's row holds this id (and the same client, reason and day): the
+    // clash is not this write's earlier save.
+    const taken = newRecordId();
+    const { db, tables } = dismissals({ [DISMISSALS]: [{ id: taken, user_id: "someone-else", ...idleOf("c-1"), kind: "skip" }] });
+    expect(await writeSuggestionSkip(db, USER, idleOf("c-1"), { id: taken })).toMatchObject({ ok: false, code: "23505" });
+    expect(tables[DISMISSALS]).toHaveLength(1);
+    // Another user skipping the same client and reason is a different key.
+    const other = dismissals({ [DISMISSALS]: [{ id: "x-1", user_id: "someone-else", ...idleOf("c-1"), kind: "skip" }] });
+    expect(await writeSuggestionSkip(other.db, USER, idleOf("c-1"))).toMatchObject({ ok: true });
+    expect(other.tables[DISMISSALS]).toHaveLength(2);
+  });
+
+  it("refuses what the table would, in plain words, before any write", async () => {
+    const { db, writes } = dismissals();
+    expect((await writeSuggestionSkip(db, USER, idleOf(""))).message).toBe("Pick the client first.");
+    expect((await writeSuggestionSkip(db, USER, { client_id: "c-1", opportunity_type: "", trigger_date: "2026-10-01" })).ok).toBe(false);
+    expect((await writeSuggestionSkip(db, USER, idleOf("c-1", "2026-02-30"))).message).toBe("The suggestion's date isn't a real date.");
+    // 'any' is a hold's reason: a skip under it would collide with the client's hold row.
+    expect((await writeSuggestionSkip(db, USER, { client_id: "c-1", opportunity_type: "any", trigger_date: "2026-10-01" })).ok).toBe(false);
+    expect(writes).toEqual([]);
+  });
+
+  it("a dropped connection is offline (the phone queues it), a refusal is not", async () => {
+    const offline = dismissals({}, { offline: [DISMISSALS] });
+    expect(await writeSuggestionSkip(offline.db, USER, idleOf("c-1"))).toMatchObject({ ok: false, offline: true });
+    const refused = dismissals({}, { fail: { [DISMISSALS]: { code: "42501", message: "rls" } } });
+    expect(await writeSuggestionSkip(refused.db, USER, idleOf("c-1"))).toMatchObject({ ok: false, offline: false, code: "42501" });
+  });
+
+  it("the reply was lost after the save: the replay finds the row and counts it saved", async () => {
+    const { db, tables } = dismissals({}, { lostReplies: [DISMISSALS] });
+    const id = newRecordId();
+    const first = await writeSuggestionSkip(db, USER, idleOf("c-1"), { id });
+    expect(first).toMatchObject({ ok: false, offline: true });
+    expect(await writeSuggestionSkip(db, USER, idleOf("c-1"), { id })).toMatchObject({ ok: true, alreadySaved: true, id });
+    expect(tables[DISMISSALS]).toHaveLength(1);
+  });
+});
+
+describe("writeSuggestionHold", () => {
+  const later = (until = HOUR_LATER) => ({ clientId: "c-1", clientName: "Sam Lee", kind: "later" as const, until });
+  const stop = (until = new Date("2027-01-19T04:00:00.000Z")) => ({ clientId: "c-1", clientName: "Sam Lee", kind: "stop" as const, until });
+
+  it("a Later is one row for the client: reason 'any', the Atlantic day, the end as an instant", async () => {
+    const { db, writes } = dismissals();
+    const out = await writeSuggestionHold(db, USER, later(), DAY, NOW);
+    expect(out.ok).toBe(true);
+    expect(writes).toHaveLength(1);
+    expect(writes[0]).toMatchObject({ table: DISMISSALS, op: "upsert", onConflict: OCCURRENCE_CONFLICT });
+    expect(writes[0].payload).toEqual({
+      user_id: USER,
+      client_id: "c-1",
+      opportunity_type: "any",
+      trigger_date: DAY,
+      kind: "later",
+      until: HOUR_LATER.toISOString(),
+      dismissed_at: NOW.toISOString(),
+    });
+  });
+
+  it("sends no row id, so a second hold the same day can't change the first row's id", async () => {
+    const { db, writes } = dismissals();
+    await writeSuggestionHold(db, USER, later(), DAY, NOW);
+    expect(writes[0].payload).not.toHaveProperty("id");
+  });
+
+  it("a second hold the same day updates the same row", async () => {
+    const { db, writes, tables } = dismissals();
+    const tonight = new Date("2026-10-19T22:00:00.000Z");
+    await writeSuggestionHold(db, USER, later(), DAY, NOW);
+    await writeSuggestionHold(db, USER, later(tonight), DAY, NOW);
+    expect(writes.map((w) => [w.op, w.onConflict])).toEqual([["upsert", OCCURRENCE_CONFLICT], ["upsert", OCCURRENCE_CONFLICT]]);
+    expect(tables[DISMISSALS]).toHaveLength(1);
+    expect(tables[DISMISSALS][0]).toMatchObject({ kind: "later", until: tonight.toISOString() });
+  });
+
+  it("a Stop replaces a Later the same day", async () => {
+    const { db, tables } = dismissals();
+    await writeSuggestionHold(db, USER, later(), DAY, NOW);
+    const out = await writeSuggestionHold(db, USER, stop(), DAY, NOW);
+    expect(out.ok).toBe(true);
+    expect(tables[DISMISSALS]).toHaveLength(1);
+    expect(tables[DISMISSALS][0]).toMatchObject({ kind: "stop", until: "2027-01-19T04:00:00.000Z" });
+  });
+
+  it("a Later never replaces a Stop that is still running: saved, unchanged, and says so", async () => {
+    const running = { id: "h-1", user_id: USER, client_id: "c-1", opportunity_type: "any", trigger_date: "2026-10-05", kind: "stop", until: "2027-01-05T04:00:00.000Z" };
+    const { db, writes, tables } = dismissals({ [DISMISSALS]: [running] });
+    const out = await writeSuggestionHold(db, USER, later(), DAY, NOW);
+    expect(out).toMatchObject({ ok: true, message: "Suggestions for Sam Lee are already stopped until January 5, 2027." });
+    // A marker a caller can read without matching English: nothing was written
+    // (so no Undo, which would delete the Stop), and when the Stop ends.
+    expect(out).toMatchObject({ alreadySaved: true, stoppedUntil: "2027-01-05T04:00:00.000Z" });
+    expect(writes).toEqual([]);
+    expect(tables[DISMISSALS]).toEqual([running]);
+  });
+
+  it("a hold that was written carries no marker, so its Undo is offered", async () => {
+    const { db } = dismissals();
+    for (const args of [later(), stop()]) {
+      const out = await writeSuggestionHold(db, USER, args, DAY, NOW);
+      expect(out.ok).toBe(true);
+      expect(out.alreadySaved).toBeUndefined();
+      expect(out.stoppedUntil).toBeUndefined();
+    }
+  });
+
+  it("with the latest of several running Stops named, and only Stops still running", async () => {
+    const row = (id: string, until: string) => ({ id, user_id: USER, client_id: "c-1", opportunity_type: "any", trigger_date: id === "h-1" ? "2026-09-01" : "2026-10-05", kind: "stop", until });
+    const { db } = dismissals({ [DISMISSALS]: [row("h-1", "2026-12-01T04:00:00.000Z"), row("h-2", "2027-04-05T03:00:00.000Z"), row("h-3", "2026-10-01T03:00:00.000Z")] });
+    expect(await writeSuggestionHold(db, USER, later(), DAY, NOW)).toMatchObject({ alreadySaved: true, stoppedUntil: "2027-04-05T03:00:00.000Z" });
+  });
+
+  it("names a client with no name in lowercase, mid-sentence", async () => {
+    const running = { id: "h-1", user_id: USER, client_id: "c-1", opportunity_type: "any", trigger_date: "2026-10-05", kind: "stop", until: "2027-01-05T04:00:00.000Z" };
+    const held = dismissals({ [DISMISSALS]: [running] });
+    expect((await writeSuggestionHold(held.db, USER, { ...later(), clientName: "" }, DAY, NOW)).message).toBe("Suggestions for this client are already stopped until January 5, 2027.");
+    const fresh = dismissals();
+    expect((await writeSuggestionHold(fresh.db, USER, { ...stop(), clientName: "" }, DAY, NOW)).message).toBe("Suggestions for this client are stopped until January 19, 2027.");
+    expect((await writeSuggestionHold(dismissals().db, USER, { ...later(), clientName: "" }, DAY, NOW)).message).toBe("This client will come back later.");
+  });
+
+  it("a Later on the day a Stop was made leaves that Stop in place", async () => {
+    const { db, tables } = dismissals();
+    await writeSuggestionHold(db, USER, stop(), DAY, NOW);
+    const out = await writeSuggestionHold(db, USER, later(), DAY, NOW);
+    expect(out).toMatchObject({ ok: true, alreadySaved: true, stoppedUntil: "2027-01-19T04:00:00.000Z" });
+    expect(tables[DISMISSALS]).toHaveLength(1);
+    expect(tables[DISMISSALS][0]).toMatchObject({ kind: "stop" });
+  });
+
+  it("a Stop that has ended, or is another user's, does not stand in the way of a Later", async () => {
+    const ended = { id: "h-1", user_id: USER, client_id: "c-1", opportunity_type: "any", trigger_date: "2026-04-01", kind: "stop", until: "2026-07-01T03:00:00.000Z" };
+    const theirs = { id: "h-2", user_id: "someone-else", client_id: "c-1", opportunity_type: "any", trigger_date: "2026-10-05", kind: "stop", until: "2027-01-05T04:00:00.000Z" };
+    const { db, tables } = dismissals({ [DISMISSALS]: [ended, theirs] });
+    const out = await writeSuggestionHold(db, USER, later(), DAY, NOW);
+    expect(out).toMatchObject({ ok: true });
+    expect(out.message).not.toMatch(/already stopped/);
+    expect(tables[DISMISSALS].filter((r) => r.user_id === USER && r.kind === "later")).toHaveLength(1);
+  });
+
+  it("a Stop on another client does not hold this one's Later back", async () => {
+    const running = { id: "h-1", user_id: USER, client_id: "c-2", opportunity_type: "any", trigger_date: "2026-10-05", kind: "stop", until: "2027-01-05T04:00:00.000Z" };
+    const { db, writes } = dismissals({ [DISMISSALS]: [running] });
+    await writeSuggestionHold(db, USER, later(), DAY, NOW);
+    expect(writes).toHaveLength(1);
+  });
+
+  it("refuses a time that has already passed, the moment itself included", async () => {
+    const { db, writes } = dismissals();
+    for (const until of [NOW, new Date(NOW.getTime() - 1), new Date("2026-10-18T22:00:00.000Z")]) {
+      expect(await writeSuggestionHold(db, USER, later(until), DAY, NOW)).toMatchObject({ ok: false, message: "That time has already passed." });
+    }
+    expect(await writeSuggestionHold(db, USER, later(new Date(NOW.getTime() + 1)), DAY, NOW)).toMatchObject({ ok: true });
+    expect(writes).toHaveLength(1);
+  });
+
+  it("uses the real clock when no `now` is passed", async () => {
+    const { db } = dismissals();
+    expect(await writeSuggestionHold(db, USER, later(new Date(Date.now() - 60_000)), DAY)).toMatchObject({ ok: false, message: "That time has already passed." });
+    expect(await writeSuggestionHold(db, USER, later(new Date(Date.now() + 3_600_000)), DAY)).toMatchObject({ ok: true });
+  });
+
+  it("refuses a hold with no client, no real time, a bad day or a kind that isn't a hold", async () => {
+    const { db, writes } = dismissals();
+    expect((await writeSuggestionHold(db, USER, { ...later(), clientId: "" }, DAY, NOW)).message).toBe("Pick the client first.");
+    expect((await writeSuggestionHold(db, USER, later(new Date(NaN)), DAY, NOW)).ok).toBe(false);
+    expect((await writeSuggestionHold(db, USER, later(), "2026-13-01", NOW)).ok).toBe(false);
+    expect((await writeSuggestionHold(db, USER, { ...later(), kind: "skip" as unknown as "later" }, DAY, NOW)).ok).toBe(false);
+    expect(writes).toEqual([]);
+  });
+
+  it("a row whose kind isn't one of ours is not a Stop", async () => {
+    const odd = { id: "h-1", user_id: USER, client_id: "c-1", opportunity_type: "any", trigger_date: "2026-10-05", kind: "paused", until: "2027-01-05T04:00:00.000Z" };
+    const { db, writes } = dismissals({ [DISMISSALS]: [odd] });
+    expect(await writeSuggestionHold(db, USER, later(), DAY, NOW)).toMatchObject({ ok: true });
+    expect(writes).toHaveLength(1);
+  });
+
+  it("a dropped connection is offline, a refusal is not", async () => {
+    const offline = dismissals({}, { offline: [DISMISSALS] });
+    expect(await writeSuggestionHold(offline.db, USER, later(), DAY, NOW)).toMatchObject({ ok: false, offline: true });
+    const refused = dismissals({}, { fail: { [DISMISSALS]: { code: "42501", message: "rls" } } });
+    expect(await writeSuggestionHold(refused.db, USER, later(), DAY, NOW)).toMatchObject({ ok: false, offline: false, code: "42501" });
+  });
+});
+
+describe("undoing a skip or a hold", () => {
+  const skip = (id: string, user = USER, client = "c-1", date = "2026-10-01") => ({ id, user_id: user, ...idleOf(client, date), kind: "skip" });
+  const hold = (id: string, kind: string, user = USER, client = "c-1") => ({ id, user_id: user, client_id: client, opportunity_type: "any", trigger_date: DAY, kind, until: "2027-01-05T04:00:00.000Z" });
+
+  it("removeSuggestionDismissal deletes the user's row by id and nobody else's", async () => {
+    const { db, tables } = dismissals({ [DISMISSALS]: [skip("d-1"), skip("d-2", "someone-else", "c-1", "2026-10-02")] });
+    expect(await removeSuggestionDismissal(db, USER, "d-2")).toMatchObject({ ok: true });
+    expect(tables[DISMISSALS].map((r) => r.id)).toEqual(["d-1", "d-2"]);
+    expect(await removeSuggestionDismissal(db, USER, "d-1")).toMatchObject({ ok: true });
+    expect(tables[DISMISSALS].map((r) => r.id)).toEqual(["d-2"]);
+  });
+
+  it("undoing a skip that is already gone is fine, and a missing id is not", async () => {
+    const { db } = dismissals();
+    expect(await removeSuggestionDismissal(db, USER, "nope")).toMatchObject({ ok: true });
+    expect((await removeSuggestionDismissal(db, USER, "")).ok).toBe(false);
+  });
+
+  it("removeSuggestionSkipByKey deletes exactly that occurrence", async () => {
+    const { db, tables } = dismissals({
+      [DISMISSALS]: [skip("d-1"), skip("d-2", USER, "c-1", "2026-11-01"), skip("d-3", USER, "c-2"), skip("d-4", "someone-else"), hold("h-1", "later")],
+    });
+    expect(await removeSuggestionSkipByKey(db, USER, idleOf("c-1", "2026-10-01T00:00:00Z"))).toMatchObject({ ok: true });
+    expect(tables[DISMISSALS].map((r) => r.id)).toEqual(["d-2", "d-3", "d-4", "h-1"]);
+  });
+
+  it("removeSuggestionSkipByKey never takes out a hold", async () => {
+    const { db, tables } = dismissals({ [DISMISSALS]: [hold("h-1", "later")] });
+    expect((await removeSuggestionSkipByKey(db, USER, { client_id: "c-1", opportunity_type: "any", trigger_date: DAY })).ok).toBe(false);
+    expect(tables[DISMISSALS]).toHaveLength(1);
+  });
+
+  it("resumeSuggestions deletes the client's Later and Stop rows, nothing else", async () => {
+    const { db, tables } = dismissals({
+      [DISMISSALS]: [
+        hold("h-1", "later"), hold("h-2", "stop"),
+        skip("d-1"),                       // a skip is one occurrence, not a hold
+        hold("h-3", "later", USER, "c-2"), // another client
+        hold("h-4", "stop", "someone-else"), // another user
+      ],
+    });
+    const out = await resumeSuggestions(db, USER, "c-1");
+    expect(out).toMatchObject({ ok: true });
+    expect(tables[DISMISSALS].map((r) => r.id)).toEqual(["d-1", "h-3", "h-4"]);
+  });
+
+  it("resuming a client with no hold is fine, and a missing client is not", async () => {
+    const { db } = dismissals();
+    expect(await resumeSuggestions(db, USER, "c-1")).toMatchObject({ ok: true });
+    expect((await resumeSuggestions(db, USER, "")).message).toBe("Pick the client first.");
+  });
+
+  it("a dropped connection is offline", async () => {
+    const offline = dismissals({}, { offline: [DISMISSALS] });
+    expect(await resumeSuggestions(offline.db, USER, "c-1")).toMatchObject({ ok: false, offline: true });
+    expect(await removeSuggestionDismissal(offline.db, USER, "d-1")).toMatchObject({ ok: false, offline: true });
+  });
+});
+
+describe("the Hangar writers", () => {
+  const sam = { clientId: "c-1", clientName: "Sam Lee" };
+
+  it("writeClientToHangar archives the client with the reason 'other'", async () => {
+    const { db, writes, tables } = fakeDb(seed());
+    const before = Date.now();
+    const out = await writeClientToHangar(db, USER, sam);
+    expect(out).toMatchObject({ ok: true, message: "Sam Lee moved to the Hangar." });
+    expect(writes).toHaveLength(1);
+    expect(writes[0]).toMatchObject({ table: "clients", op: "update", payload: { archive_reason: "other" } });
+    const at = Date.parse(String(tables.clients[0].archived_at));
+    expect(at).toBeGreaterThanOrEqual(before);
+    expect(at).toBeLessThanOrEqual(Date.now());
+    expect(tables.clients[0].archive_reason).toBe("other");
+  });
+
+  it("refuses a client who is already in the Hangar, and writes nothing", async () => {
+    const archived = { ...CLIENT, archived_at: "2026-09-01T12:00:00.000Z", archive_reason: "moved_away" };
+    const { db, writes, tables } = fakeDb(seed({ clients: [archived] }));
+    const out = await writeClientToHangar(db, USER, sam);
+    expect(out).toEqual({ ok: false, message: "Sam Lee is already in the Hangar." });
+    expect(writes).toEqual([]);
+    expect(tables.clients[0]).toMatchObject({ archive_reason: "moved_away" }); // not overwritten
+  });
+
+  it("only moves the user's own client", async () => {
+    const theirs = { ...CLIENT, user_id: "someone-else" };
+    const { db, writes, tables } = fakeDb(seed({ clients: [theirs] }));
+    expect(await writeClientToHangar(db, USER, sam)).toMatchObject({ ok: false, message: "Sam Lee wasn't found in your clients." });
+    expect(writes).toEqual([]);
+    expect(tables.clients[0].archived_at).toBeNull();
+    expect((await writeClientToHangar(db, USER, { clientId: "", clientName: "" })).message).toBe("Pick the client first.");
+  });
+
+  it("restoreClientFromHangar clears both fields", async () => {
+    const archived = { ...CLIENT, archived_at: "2026-10-19T15:00:00.000Z", archive_reason: "other" };
+    const { db, writes, tables } = fakeDb(seed({ clients: [archived] }));
+    const out = await restoreClientFromHangar(db, USER, sam);
+    expect(out).toMatchObject({ ok: true, message: "Sam Lee is back from the Hangar." });
+    expect(writes[0].payload).toEqual({ archived_at: null, archive_reason: null });
+    expect(tables.clients[0]).toMatchObject({ archived_at: null, archive_reason: null });
+  });
+
+  it("restoreClientFromHangar only touches the user's own client", async () => {
+    const theirs = { ...CLIENT, user_id: "someone-else", archived_at: "2026-10-19T15:00:00.000Z", archive_reason: "other" };
+    const { db, tables } = fakeDb(seed({ clients: [theirs] }));
+    expect(await restoreClientFromHangar(db, USER, sam)).toMatchObject({ ok: false, message: "Sam Lee isn't in the Hangar from this move, so nothing was changed." });
+    expect(tables.clients[0]).toMatchObject({ archived_at: "2026-10-19T15:00:00.000Z", archive_reason: "other" });
+  });
+
+  it("restoreClientFromHangar refuses a client who isn't in the Hangar, instead of reporting success", async () => {
+    const { db, tables } = fakeDb(seed());
+    expect(await restoreClientFromHangar(db, USER, sam)).toEqual({ ok: false, message: "Sam Lee isn't in the Hangar from this move, so nothing was changed." });
+    expect(tables.clients[0]).toMatchObject({ archived_at: null });
+  });
+
+  it.each(["do_not_contact", "moved_away", "deceased"])("a stale Undo does not clear a client archived since as %s", async (reason) => {
+    const archived = { ...CLIENT, archived_at: "2026-10-19T16:00:00.000Z", archive_reason: reason };
+    const { db, tables } = fakeDb(seed({ clients: [archived] }));
+    expect(await restoreClientFromHangar(db, USER, sam)).toMatchObject({ ok: false });
+    expect(tables.clients[0]).toMatchObject({ archived_at: "2026-10-19T16:00:00.000Z", archive_reason: reason });
+  });
+
+  it("restoreClientFromHangar needs the client archived as well as the reason", async () => {
+    const odd = { ...CLIENT, archived_at: null, archive_reason: "other" };
+    const { db, tables } = fakeDb(seed({ clients: [odd] }));
+    expect(await restoreClientFromHangar(db, USER, sam)).toMatchObject({ ok: false });
+    expect(tables.clients[0].archive_reason).toBe("other");
+  });
+
+  it("a dropped connection is offline, a refusal is not", async () => {
+    const offline = fakeDb(seed(), { offline: ["clients"] });
+    expect(await writeClientToHangar(offline.db, USER, sam)).toMatchObject({ ok: false, offline: true });
+    expect(await restoreClientFromHangar(offline.db, USER, sam)).toMatchObject({ ok: false, offline: true });
+    const refused = fakeDb(seed(), { fail: { clients: { code: "42501", message: "rls" } } });
+    expect(await writeClientToHangar(refused.db, USER, sam)).toMatchObject({ ok: false, offline: false, code: "42501" });
+  });
+});
+
+// ── Reopening today's pin after an Undo (R11) ────────────────────────────────
+//
+// A sync may already have closed the client's pin for the skip, stop or Hangar
+// move the agent is now undoing. The client is then "handled today" and
+// wouldn't be picked again until tomorrow, so the Undo reopens that pin.
+
+describe("reopenHandfulPin", () => {
+  const PINS = "next_up_handful";
+  /** The Atlantic day of NOW (2026-10-19, ADT) begins at 03:00 UTC. */
+  const pin = (id: string, how: string | null, at: string | null, extra: Row = {}) => ({
+    id, user_id: USER, client_id: "c-1", opportunity_type: "idle_client", trigger_date: "2026-10-01",
+    rank: 0, added_at: "2026-10-19T04:00:00.000Z", handled_at: at, handled_how: how, ...extra,
+  });
+  const pins = (rows: Row[], options: Parameters<typeof fakeDb>[1] = {}) => fakeDb({ ...seed(), [PINS]: rows }, options);
+
+  it.each(["skipped", "stopped", "archived"])("reopens the pin a sync closed today as %s", async (how) => {
+    const { db, tables, writes } = pins([pin("p-1", how, "2026-10-19T14:00:00.000Z")]);
+    const out = await reopenHandfulPin(db, USER, "c-1", NOW);
+    expect(out).toMatchObject({ ok: true, id: "p-1" });
+    expect(tables[PINS][0]).toMatchObject({ handled_at: null, handled_how: null });
+    // Only the two fields change, and the history stays on the row.
+    expect(writes).toEqual([{ table: PINS, op: "update", payload: { handled_at: null, handled_how: null } }]);
+    expect(tables[PINS][0]).toMatchObject({ opportunity_type: "idle_client", rank: 0, added_at: "2026-10-19T04:00:00.000Z" });
+  });
+
+  it.each(["contacted", "expired"])("never reopens a pin closed as %s", async (how) => {
+    const { db, tables, writes } = pins([pin("p-1", how, "2026-10-19T14:00:00.000Z")]);
+    expect(await reopenHandfulPin(db, USER, "c-1", NOW)).toMatchObject({ ok: true });
+    expect(writes).toEqual([]);
+    expect(tables[PINS][0]).toMatchObject({ handled_how: how });
+  });
+
+  it("only looks at pins closed today in Atlantic time", async () => {
+    // 02:59:59 UTC is still the evening of the 18th in Atlantic time; 03:00:00 UTC is midnight.
+    const before = pins([pin("p-1", "skipped", "2026-10-19T02:59:59.000Z")]);
+    await reopenHandfulPin(before.db, USER, "c-1", NOW);
+    expect(before.writes).toEqual([]);
+    const edge = pins([pin("p-1", "skipped", "2026-10-19T03:00:00.000Z")]);
+    await reopenHandfulPin(edge.db, USER, "c-1", NOW);
+    expect(edge.tables[PINS][0]).toMatchObject({ handled_at: null });
+    // 22:30 on the 19th in Atlantic time is already the 20th in UTC.
+    const late = pins([pin("p-1", "skipped", "2026-10-19T14:00:00.000Z")]);
+    expect((await reopenHandfulPin(late.db, USER, "c-1", new Date("2026-10-20T01:30:00.000Z"))).id).toBe("p-1");
+    // And the same pin is yesterday's once Atlantic time reaches the 20th.
+    const next = pins([pin("p-1", "skipped", "2026-10-19T14:00:00.000Z")]);
+    await reopenHandfulPin(next.db, USER, "c-1", new Date("2026-10-20T03:00:00.000Z"));
+    expect(next.writes).toEqual([]);
+  });
+
+  it("leaves a client who already has an open pin alone", async () => {
+    const { db, tables, writes } = pins([
+      pin("p-open", null, null, { added_at: "2026-10-19T16:00:00.000Z" }),
+      pin("p-skip", "skipped", "2026-10-19T14:00:00.000Z"),
+    ]);
+    expect(await reopenHandfulPin(db, USER, "c-1", NOW)).toMatchObject({ ok: true });
+    expect(writes).toEqual([]);
+    expect(tables[PINS].find((r) => r.id === "p-skip")).toMatchObject({ handled_how: "skipped" });
+  });
+
+  it("a second open pin from a race (23505) counts as already open", async () => {
+    const { db, tables } = pins([pin("p-1", "skipped", "2026-10-19T14:00:00.000Z")], {
+      fail: { [PINS]: { code: "23505", message: "duplicate key value violates unique constraint \"next_up_handful_open_client\"" } },
+    });
+    expect(await reopenHandfulPin(db, USER, "c-1", NOW)).toMatchObject({ ok: true });
+    expect(tables[PINS][0]).toMatchObject({ handled_how: "skipped" });
+  });
+
+  it("the latest pin closed today decides: a later contact is not undone, a later skip is", async () => {
+    const contactedAfter = pins([
+      pin("p-1", "skipped", "2026-10-19T10:00:00.000Z"),
+      pin("p-2", "contacted", "2026-10-19T14:00:00.000Z"),
+    ]);
+    await reopenHandfulPin(contactedAfter.db, USER, "c-1", NOW);
+    expect(contactedAfter.writes).toEqual([]);
+
+    const skippedAfter = pins([
+      pin("p-1", "expired", "2026-10-19T10:00:00.000Z"),
+      pin("p-2", "skipped", "2026-10-19T14:00:00.000Z"),
+      pin("p-3", "skipped", "2026-10-19T12:00:00.000Z"),
+    ]);
+    expect((await reopenHandfulPin(skippedAfter.db, USER, "c-1", NOW)).id).toBe("p-2");
+    expect(skippedAfter.tables[PINS].map((r) => r.handled_how)).toEqual(["expired", null, "skipped"]);
+  });
+
+  it("touches only this user's pin for this client", async () => {
+    const { db, tables } = pins([
+      pin("p-other-client", "skipped", "2026-10-19T14:00:00.000Z", { client_id: "c-2" }),
+      pin("p-other-user", "skipped", "2026-10-19T14:00:00.000Z", { user_id: "someone-else" }),
+    ]);
+    expect(await reopenHandfulPin(db, USER, "c-1", NOW)).toMatchObject({ ok: true });
+    expect(tables[PINS].map((r) => r.handled_how)).toEqual(["skipped", "skipped"]);
+  });
+
+  it("nothing pinned is nothing to reopen", async () => {
+    const { db, writes } = pins([]);
+    expect(await reopenHandfulPin(db, USER, "c-1", NOW)).toMatchObject({ ok: true });
+    expect(writes).toEqual([]);
+  });
+
+  it("asks for the client", async () => {
+    const { db } = pins([]);
+    expect(await reopenHandfulPin(db, USER, "", NOW)).toEqual({ ok: false, message: "Pick the client first." });
+  });
+
+  it("never throws: a dropped connection is offline, a refusal is not, a throw is reported", async () => {
+    const rows = [pin("p-1", "skipped", "2026-10-19T14:00:00.000Z")];
+    const offline = pins(rows, { offline: [PINS] });
+    expect(await reopenHandfulPin(offline.db, USER, "c-1", NOW)).toMatchObject({ ok: false, offline: true });
+    const refused = pins(rows, { fail: { [PINS]: { code: "42501", message: "rls" } } });
+    expect(await reopenHandfulPin(refused.db, USER, "c-1", NOW)).toMatchObject({ ok: false, offline: false, code: "42501" });
+    const broken = { from() { throw new Error("boom"); } };
+    expect(await reopenHandfulPin(broken, USER, "c-1", NOW)).toMatchObject({ ok: false });
+  });
+
+  it("reads the clock itself when it isn't given one", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+    const { db, tables } = pins([pin("p-1", "skipped", "2026-10-19T14:00:00.000Z")]);
+    expect(await reopenHandfulPin(db, USER, "c-1")).toMatchObject({ ok: true, id: "p-1" });
+    expect(tables[PINS][0]).toMatchObject({ handled_at: null, handled_how: null });
+  });
+
+  afterEach(() => { vi.useRealTimers(); });
 });

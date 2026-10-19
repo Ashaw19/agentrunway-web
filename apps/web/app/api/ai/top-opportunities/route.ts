@@ -1,14 +1,16 @@
 /**
  * GET /api/ai/top-opportunities
  *
- * Returns the top 3-5 highest-value opportunities for the authenticated user.
- * Pure detection + scoring — NO database writes, NO Groq calls.
- * Fast, safe, read-only.
+ * Web Flight Control's Scan: the day's handful (lib/crm/next-up-handful.ts),
+ * up to 5 of the highest-value opportunities for the authenticated user, the
+ * same people the phone's Next up shows. Detection + scoring, NO AI calls.
+ * Its only writes are the handful's own bookkeeping (next_up_handful pins,
+ * and a handled client's unsent Next up text marked skipped).
  */
 
 import { NextResponse }  from "next/server";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
-import { getTopOpportunities } from "@/app/api/ai/detect-opportunities/route";
+import { loadNextUpHandful } from "@/lib/crm/next-up-handful";
 import { authenticateRequest } from "@/lib/api-helpers";
 
 export const maxDuration = 30;
@@ -18,7 +20,7 @@ export async function GET() {
   if (auth.error) return auth.error;
   const { supabase, userId } = auth;
 
-  // Rate limit: 20 reads/hour (lightweight, no writes)
+  // Rate limit: 20 reads/hour (lightweight)
   const rl = await checkRateLimit(userId, "top_opportunities", 20, 60);
   if (!rl.allowed) {
     return NextResponse.json(
@@ -28,7 +30,7 @@ export async function GET() {
   }
 
   try {
-    const opportunities = await getTopOpportunities(userId, supabase);
+    const { opportunities } = await loadNextUpHandful(userId, supabase);
 
     return NextResponse.json(
       { opportunities },

@@ -152,6 +152,12 @@ export async function draftTextForClient(input: {
   clientId: string;
   purpose: TextPurpose;
   note?: string | null;
+  /**
+   * Who asked. "next_up": the phone dashboard's handful drafted it, and the
+   * text is marked skipped if the client is handled before it's sent
+   * (lib/crm/next-up-handful.ts).
+   */
+  source?: "next_up";
 }): Promise<DraftTextResult> {
   const { supabase, userId, clientId, purpose } = input;
   const note = input.note?.trim() ? input.note.trim().slice(0, 500) : null;
@@ -227,6 +233,16 @@ export async function draftTextForClient(input: {
       queueItemId: existing.id as string,
       body: (existing.final_body ?? existing.ai_body ?? undefined) as string | undefined,
       reason: existing.status === "sent" ? `You already texted ${clientName} today.` : undefined,
+    };
+  }
+  // A background draft for the Next up handful never replaces today's text
+  // once there is one in any other state (skipped in Messages, failed).
+  // Tapping Text drafts on request (no source), which may.
+  if (existing && input.source === "next_up") {
+    return {
+      status: "skipped", clientId, clientName, phone,
+      queueItemId: existing.id as string,
+      reason: `There's already a text for ${clientName} today.`,
     };
   }
 
@@ -320,7 +336,7 @@ export async function draftTextForClient(input: {
     opportunity_type: TEXT_OPPORTUNITY_TYPE,
     channel: "sms",
     trigger_date: today,
-    context: { purpose, note, phone },
+    context: { purpose, note, phone, ...(input.source ? { source: input.source } : {}) },
     status: "ready",
     ai_subject: null,
     ai_body: body,

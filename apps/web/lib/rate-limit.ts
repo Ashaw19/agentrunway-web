@@ -29,26 +29,45 @@ export interface RateLimitResult {
 }
 
 /**
+ * A window on the calendar rather than a fixed block of minutes: one Atlantic
+ * day is `{ start: atlanticDayStart(day), end: atlanticDayStart(next day) }`.
+ * A 24-hour block is aligned to UTC midnight, so it would start over at 8 or
+ * 9 pm Atlantic.
+ */
+export interface CalendarWindow {
+  start: Date;
+  end:   Date;
+}
+
+/**
  * Check and increment the rate limit for a user/endpoint pair.
  *
  * @param userId       - Supabase auth user ID
  * @param endpoint     - Stable identifier for the route (e.g. "chat", "import-history")
  * @param maxRequests  - Maximum requests allowed per window
- * @param windowMinutes - Window length in minutes (default: 60)
+ * @param window       - Window length in minutes (default: 60), or a CalendarWindow
  */
 export async function checkRateLimit(
   userId: string,
   endpoint: string,
   maxRequests: number,
-  windowMinutes = 60,
+  window: number | CalendarWindow = 60,
 ): Promise<RateLimitResult> {
   const admin = createAdminClient();
 
-  // Align window to fixed boundaries (e.g. 60-min window → top of each hour)
+  // Align window to fixed boundaries (e.g. 60-min window → top of each hour),
+  // or take the calendar window as given.
   const now = Date.now();
-  const windowMs = windowMinutes * 60 * 1000;
-  const windowStart = new Date(Math.floor(now / windowMs) * windowMs);
-  const resetAt = new Date(windowStart.getTime() + windowMs);
+  let windowStart: Date;
+  let resetAt: Date;
+  if (typeof window === "number") {
+    const windowMs = window * 60 * 1000;
+    windowStart = new Date(Math.floor(now / windowMs) * windowMs);
+    resetAt = new Date(windowStart.getTime() + windowMs);
+  } else {
+    windowStart = window.start;
+    resetAt = window.end;
+  }
 
   // Read the current record for this user + endpoint
   const { data: existing, error: selectError } = await admin

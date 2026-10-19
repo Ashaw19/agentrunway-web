@@ -117,3 +117,79 @@ describe("sphere check-in cap (2026-10-07)", () => {
     expect(ids(picked)).toEqual(["l1:lead_going_quiet", "i1:idle_client", "s1:sphere_check_in"]);
   });
 });
+
+/**
+ * The day's handful (next_up_handful, phone dashboard Next up, 2026-10-19):
+ * a client Flight Control picked stays until handled, so a higher-scoring
+ * newcomer (a birthday entering its window) can't push them out tomorrow.
+ * Pinned clients that are still candidates come first, in pin order, each
+ * with their best candidate. TYPE_CAPS and the seasonal rule still apply.
+ */
+describe("pinned clients (the day's handful)", () => {
+  const three = (score: number) => [cand("x1", "birthday", score), cand("x2", "birthday", score), cand("x3", "birthday", score)];
+  const clientIds = (rows: { client_id: string }[]) => rows.map((r) => r.client_id);
+
+  it("a pinned client keeps its place over a higher-scoring newcomer", () => {
+    const c = [cand("new", "birthday", 80), cand("old", "idle_client", 38), ...three(50)];
+    expect(selectTopCandidates(c, new Map(), 5, ["old"]).map((x) => x.client_id)).toContain("old");
+    expect(selectTopCandidates(c, new Map(), 5, ["old"])[0].client_id).toBe("old");
+  });
+
+  it("a pinned client keeps a slot a newcomer would otherwise take", () => {
+    const c = [cand("new", "birthday", 80), cand("x", "birthday", 70), cand("old", "idle_client", 38)];
+    expect(clientIds(selectTopCandidates(c, new Map(), 2))).toEqual(["new", "x"]);
+    expect(clientIds(selectTopCandidates(c, new Map(), 2, ["old"]))).toEqual(["old", "new"]);
+  });
+
+  it("pins come first in pin order, whatever their scores", () => {
+    const c = [cand("a", "birthday", 80), cand("b", "idle_client", 38), cand("c", "lead_going_quiet", 60)];
+    expect(clientIds(selectTopCandidates(c, new Map(), 5, ["b", "a"]))).toEqual(["b", "a", "c"]);
+  });
+
+  it("a pinned client gets their best candidate", () => {
+    const c = [cand("a", "idle_client", 38), cand("a", "closing_anniversary", 60), cand("b", "birthday", 70)];
+    expect(ids(selectTopCandidates(c, new Map(), 5, ["a"]))).toEqual(["a:closing_anniversary", "b:birthday"]);
+  });
+
+  it("pins still respect TYPE_CAPS", () => {
+    const c = [
+      cand("s1", "sphere_check_in", 30), cand("s2", "sphere_check_in", 30), cand("s3", "sphere_check_in", 30),
+      cand("i1", "idle_client", 38),
+    ];
+    const picked = selectTopCandidates(c, new Map(), 5, ["s1", "s2", "s3"]);
+    expect(ids(picked)).toEqual(["s1:sphere_check_in", "s2:sphere_check_in", "i1:idle_client"]);
+  });
+
+  it("a capped pinned client falls back to their next candidate", () => {
+    const c = [
+      cand("s1", "sphere_check_in", 30), cand("s2", "sphere_check_in", 30),
+      cand("s3", "sphere_check_in", 30), cand("s3", "idle_client", 20),
+    ];
+    expect(ids(selectTopCandidates(c, new Map(), 5, ["s1", "s2", "s3"])))
+      .toEqual(["s1:sphere_check_in", "s2:sphere_check_in", "s3:idle_client"]);
+  });
+
+  it("the seasonal rule applies to a pinned client", () => {
+    const c = [cand("a", "seasonal_fall", 38), cand("b", "idle_client", 38)];
+    expect(ids(selectTopCandidates(c, new Map(), 5, ["a"]))).toEqual(["b:idle_client"]);
+  });
+
+  it("a pin that is no longer a candidate is passed over", () => {
+    const c = [cand("a", "birthday", 70), cand("b", "idle_client", 38)];
+    expect(clientIds(selectTopCandidates(c, new Map(), 5, ["gone", "b"]))).toEqual(["b", "a"]);
+  });
+
+  it("more pins than slots: the first ones in pin order", () => {
+    const c = [cand("a", "birthday", 70), cand("b", "idle_client", 38), cand("c", "idle_client", 38)];
+    expect(clientIds(selectTopCandidates(c, new Map(), 2, ["c", "b", "a"]))).toEqual(["c", "b"]);
+  });
+
+  it("a repeated pin is one card", () => {
+    const c = [cand("a", "birthday", 70), cand("b", "idle_client", 38)];
+    expect(clientIds(selectTopCandidates(c, new Map(), 5, ["b", "b"]))).toEqual(["b", "a"]);
+  });
+
+  it("no slots, no cards", () => {
+    expect(selectTopCandidates([cand("a", "birthday", 70)], new Map(), 0, ["a"])).toEqual([]);
+  });
+});

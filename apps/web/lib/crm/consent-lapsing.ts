@@ -27,9 +27,12 @@ import {
   formatConsentDay,
 } from "@agent-runway/core/engines/casl-consent-engine";
 import type { ConsentInputs } from "@agent-runway/core/lib/consent-ledger";
+import { CONSENT_LAPSING_TYPE } from "@agent-runway/core/lib/suggestion-dismissals";
 import type { CallCardCopy } from "@/lib/crm/scan-call-cards";
 
-export const CONSENT_LAPSING_TYPE = "consent_lapsing" as const;
+// Defined in core so the suggestion rules (Stop never hides this card) and
+// every surface read one value.
+export { CONSENT_LAPSING_TYPE };
 /** At most this many consent cards per Scan, so the list keeps room for other signals. */
 export const CONSENT_LAPSING_MAX_PER_SCAN = 3;
 /** Days left at which the ask outranks the backfill (a strong signal, ≥ 55). */

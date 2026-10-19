@@ -7,11 +7,19 @@
  * Message drafting is optional and assistive, not the primary experience.
  */
 
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, Fragment } from "react";
 import { Button }                          from "@/components/ui/button";
 import { Input }                           from "@/components/ui/input";
 import { Textarea }                        from "@/components/ui/textarea";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
+  DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { createClient }                    from "@/lib/supabase/client";
 import { toast }                           from "sonner";
 import { cn }                              from "@/lib/utils";
@@ -30,7 +38,10 @@ import Link from "next/link";
 import type { OutreachQueueItem, OutreachOpportunityType, TopOpportunity, NewsletterQueue, ActivityType, ClientStatus } from "@/lib/types/database";
 import { ACTIVITY_TYPE_LABELS, ACTIVITY_TYPE_ICONS, CLIENT_STATUS_LABELS } from "@/lib/types/database";
 import { logClientContact } from "@/lib/crm/log-contact";
-import { dismissOpportunity, undismissOpportunity } from "@/lib/crm/dismissed-opportunities";
+import {
+  applyDismiss, dismissMenuFor, LATER_LABELS, MENU_HEADINGS, SKIP_LABEL, STOP_LABELS,
+  type DismissPick,
+} from "@/lib/crm/dismiss-menu";
 import { markMemoryStaleClient } from "@/lib/ai/mark-memory-stale";
 import { AddToChecklistButton } from "@/components/checklist/add-to-checklist-button";
 import { useAiChat } from "@/lib/ai-chat-context";
@@ -131,7 +142,7 @@ function OpportunityCard({
 }: {
   opportunity:    TopOpportunity;
   onDraftMessage: (opp: TopOpportunity) => void;
-  onDismiss:      (opp: TopOpportunity) => void;
+  onDismiss:      (opp: TopOpportunity, pick: DismissPick) => void;
   onLogContact:   (opp: TopOpportunity, type: ActivityType, note: string) => Promise<boolean>;
   /** The client already has an open Checklist item. */
   onChecklist:    boolean;
@@ -145,6 +156,11 @@ function OpportunityCard({
   const scoreColors = getScoreColor(opportunity.score);
   const contextBadge = getContextBadge(opportunity.context_level);
   const [expanded, setExpanded] = useState(false);
+
+  // Dismiss menu: the Later times are read when it opens ("tonight" ends at 19:00).
+  const [menuNow,    setMenuNow]    = useState(() => new Date());
+  const [hangarOpen, setHangarOpen] = useState(false);
+  const dismissMenu = dismissMenuFor(opportunity.opportunity_type, menuNow);
 
   // Log contact form
   const [logOpen,   setLogOpen]   = useState(false);
@@ -322,14 +338,58 @@ function OpportunityCard({
       {/* Actions */}
       <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
         <div className="flex items-center gap-1">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-muted-foreground hover:text-foreground h-7 text-xs"
-            onClick={() => onDismiss(opportunity)}
-          >
-            Dismiss
-          </Button>
+          <DropdownMenu onOpenChange={(open) => { if (open) setMenuNow(new Date()); }}>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-muted-foreground hover:text-foreground h-7 text-xs gap-1"
+              >
+                Dismiss
+                <ChevronDown className="h-3 w-3" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-52">
+              {dismissMenu.map((entry) => {
+                if (entry.choice === "skip") {
+                  return (
+                    <DropdownMenuItem key="skip" onSelect={() => onDismiss(opportunity, { choice: "skip" })}>
+                      {SKIP_LABEL}
+                    </DropdownMenuItem>
+                  );
+                }
+                if (entry.choice === "later") {
+                  return (
+                    <Fragment key="later">
+                      <DropdownMenuSeparator />
+                      <DropdownMenuLabel className="text-xs text-muted-foreground">{MENU_HEADINGS.later}</DropdownMenuLabel>
+                      {entry.options.map((option) => (
+                        <DropdownMenuItem key={option} onSelect={() => onDismiss(opportunity, { choice: "later", option })}>
+                          {LATER_LABELS[option]}
+                        </DropdownMenuItem>
+                      ))}
+                    </Fragment>
+                  );
+                }
+                return (
+                  <Fragment key="stop">
+                    <DropdownMenuSeparator />
+                    <DropdownMenuLabel className="text-xs text-muted-foreground">{MENU_HEADINGS.stop}</DropdownMenuLabel>
+                    {entry.options.map((option) => (
+                      <DropdownMenuItem
+                        key={option}
+                        onSelect={() => option === "hangar"
+                          ? setHangarOpen(true)
+                          : onDismiss(opportunity, { choice: "stop", option })}
+                      >
+                        {STOP_LABELS[option]}
+                      </DropdownMenuItem>
+                    ))}
+                  </Fragment>
+                );
+              })}
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button
             variant="ghost"
             size="sm"
@@ -397,6 +457,24 @@ function OpportunityCard({
           )}
         </div>
       </div>
+
+      {/* The Hangar asks first: it hides the client from the list and from every suggestion. */}
+      <AlertDialog open={hangarOpen} onOpenChange={setHangarOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Move {opportunity.client_name} to the Hangar?</AlertDialogTitle>
+            <AlertDialogDescription>
+              They leave your active client list and stop coming up here. Their history and deals stay, and you can bring them back from the Hangar any time.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep them</AlertDialogCancel>
+            <AlertDialogAction onClick={() => onDismiss(opportunity, { choice: "stop", option: "hangar" })}>
+              Move to the Hangar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Log contact — reached them another way; takes them off the list */}
       {logOpen && (
@@ -879,38 +957,47 @@ export function FlightControlContent({
   }, []);
 
   // ── Dismiss opportunity ──────────────────────────────────────────────────
-  // Persisted per occurrence (flight_control_dismissals), so a refresh, another
-  // device or tonight's drafter won't bring it back. Hidden immediately; a
-  // quiet re-scan backfills the slot.
-  const handleDismiss = useCallback(async (opp: TopOpportunity) => {
+  // Skip, Later and Stop suggesting (lib/crm/dismiss-menu.ts). Persisted
+  // (flight_control_dismissals; the Hangar archives the client), so a refresh,
+  // another device or tonight's drafter won't bring the card back. Hidden at
+  // once; a quiet re-scan backfills the slot. A save that fails puts the card
+  // back. Every toast carries Undo, except when nothing was written.
+  const handleDismiss = useCallback(async (opp: TopOpportunity, pick: DismissPick) => {
     const localKey = `${opp.client_id}:${opp.opportunity_type}`;
+    const showAgain = () => setDismissedIds((prev) => {
+      const next = new Set(prev);
+      next.delete(localKey);
+      return next;
+    });
     setDismissedIds((prev) => new Set([...prev, localKey]));
 
-    const saved = await dismissOpportunity(createClient(), opp);
-    if (!saved.ok) {
-      toast.error("Couldn't save that dismissal. It may come back after a refresh.");
+    const result = await applyDismiss(createClient(), opp, pick);
+    if (!result.ok) {
+      showAgain();
+      toast.error(result.message);
       return;
     }
+    if (!result.hidesCard) showAgain();
     void loadOpportunities({ refill: true });
 
-    toast(`Dismissed ${opp.client_name}.`, {
-      description: "Hidden until there's a new reason to reach out.",
-      action: {
-        label: "Undo",
-        onClick: async () => {
-          const undone = await undismissOpportunity(createClient(), opp);
-          if (!undone.ok) {
-            toast.error("Couldn't undo. Try again.");
-            return;
+    const { undo } = result;
+    toast(result.toast.title, {
+      description: result.toast.description || undefined,
+      action: undo
+        ? {
+            label: "Undo",
+            onClick: async () => {
+              const undone = await undo();
+              if (!undone.ok) {
+                toast.error("Couldn't undo. Try again.");
+                return;
+              }
+              showAgain();
+              void loadOpportunities({ refill: true });
+              if (undone.message) toast(undone.message);
+            },
           }
-          setDismissedIds((prev) => {
-            const next = new Set(prev);
-            next.delete(localKey);
-            return next;
-          });
-          void loadOpportunities({ refill: true });
-        },
-      },
+        : undefined,
     });
   }, [loadOpportunities]);
 

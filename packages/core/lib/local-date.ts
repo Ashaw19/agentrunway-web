@@ -25,6 +25,8 @@
  * next month. Server code uses:
  *
  *   atlanticYear / atlanticMonth  the Atlantic year and month (0-11).
+ *   atlanticHour                  the Atlantic hour of the day (0-23): the
+ *                                 time-of-day bands, "tonight", "tomorrow".
  *   atlanticNoon                  a stand-in "today" for calendar math that
  *                                 reads local getters (getFullYear, getMonth,
  *                                 getDate, getDay, new Date(y, m, d)): noon
@@ -97,6 +99,11 @@ export function atlanticYear(d: Date = new Date()): number {
 /** The month in Atlantic time, 0-11 like Date#getMonth. */
 export function atlanticMonth(d: Date = new Date()): number {
   return atlanticFields(d).month - 1;
+}
+
+/** The hour of the day in Atlantic time, 0-23: 12:00 sharp reads 12. */
+export function atlanticHour(d: Date = new Date()): number {
+  return atlanticFields(d).hour;
 }
 
 /**

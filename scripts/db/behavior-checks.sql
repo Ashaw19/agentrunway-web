@@ -681,3 +681,158 @@ BEGIN
   RESET ROLE;
   RAISE NOTICE 'behaviour checks (00185 statement import): all passed';
 END $$;
+
+-- 00188: suggestion holds and the day's handful. A hold row must say how long
+-- it lasts and cover the client; a pin is open or handled; and a client has
+-- ONE open pin, which fn_merge_clients' generic FK loop relies on (a clash
+-- raises unique_violation and the loop deletes the loser's row).
+DO $$
+DECLARE
+  v_user   uuid := '00000000-0000-0000-0000-000000000132';
+  v_a      uuid;
+  v_b      uuid;
+  v_pin_b  uuid;
+  v_open   integer;
+  v_other  uuid := '00000000-0000-0000-0000-000000000188';
+  v_c      uuid;
+  v_theirs uuid;
+  v_hist   uuid;
+  v_hold   uuid;
+BEGIN
+  -- fn_merge_clients checks auth.uid().
+  PERFORM set_config('request.jwt.claim.sub', v_user::text, true);
+  PERFORM set_config('request.jwt.claims', json_build_object('sub', v_user)::text, true);
+
+  INSERT INTO clients (user_id, name, name_search)
+  VALUES (v_user, 'CI Handful A', 'ci handful a') RETURNING id INTO v_a;
+  INSERT INTO clients (user_id, name, name_search)
+  VALUES (v_user, 'CI Handful B', 'ci handful b') RETURNING id INTO v_b;
+
+  -- Holds: a skip has no end, a hold has one and covers the client.
+  INSERT INTO flight_control_dismissals (user_id, client_id, opportunity_type, trigger_date)
+  VALUES (v_user, v_a, 'birthday', '2026-10-19');
+  IF (SELECT kind FROM flight_control_dismissals WHERE client_id = v_a AND opportunity_type = 'birthday') <> 'skip' THEN
+    RAISE EXCEPTION 'behaviour check: a dismissal with no kind is not a skip';
+  END IF;
+  INSERT INTO flight_control_dismissals (user_id, client_id, opportunity_type, trigger_date, kind, until)
+  VALUES (v_user, v_a, 'any', '2026-10-19', 'later', now() + interval '1 hour');
+  BEGIN
+    INSERT INTO flight_control_dismissals (user_id, client_id, opportunity_type, trigger_date, kind)
+    VALUES (v_user, v_b, 'any', '2026-10-19', 'later');
+    RAISE EXCEPTION 'behaviour check: a hold with no end was accepted';
+  EXCEPTION WHEN check_violation THEN NULL;
+  END;
+  BEGIN
+    INSERT INTO flight_control_dismissals (user_id, client_id, opportunity_type, trigger_date, until)
+    VALUES (v_user, v_b, 'birthday', '2026-10-19', now() + interval '1 hour');
+    RAISE EXCEPTION 'behaviour check: a skip with an end was accepted';
+  EXCEPTION WHEN check_violation THEN NULL;
+  END;
+  BEGIN
+    INSERT INTO flight_control_dismissals (user_id, client_id, opportunity_type, trigger_date, kind, until)
+    VALUES (v_user, v_b, 'birthday', '2026-10-19', 'stop', now() + interval '3 months');
+    RAISE EXCEPTION 'behaviour check: a hold on one reason, not the client, was accepted';
+  EXCEPTION WHEN check_violation THEN NULL;
+  END;
+  BEGIN
+    INSERT INTO flight_control_dismissals (user_id, client_id, opportunity_type, trigger_date, kind, until)
+    VALUES (v_user, v_b, 'any', '2026-10-19', 'snooze', now() + interval '1 hour');
+    RAISE EXCEPTION 'behaviour check: an unknown hold kind was accepted';
+  EXCEPTION WHEN check_violation THEN NULL;
+  END;
+
+  -- Pins: open or handled, never half of each.
+  BEGIN
+    INSERT INTO next_up_handful (user_id, client_id, opportunity_type, trigger_date, rank, handled_at)
+    VALUES (v_user, v_b, 'birthday', '2026-10-19', 0, now());
+    RAISE EXCEPTION 'behaviour check: a pin handled with no how was accepted';
+  EXCEPTION WHEN check_violation THEN NULL;
+  END;
+
+  -- Two clients of one user each have an open pin.
+  INSERT INTO next_up_handful (user_id, client_id, opportunity_type, trigger_date, rank)
+  VALUES (v_user, v_a, 'birthday', '2026-10-19', 0);
+  INSERT INTO next_up_handful (user_id, client_id, opportunity_type, trigger_date, rank)
+  VALUES (v_user, v_b, 'birthday', '2026-10-19', 1) RETURNING id INTO v_pin_b;
+
+  -- A client has one open pin; handled pins are history and may repeat.
+  BEGIN
+    INSERT INTO next_up_handful (user_id, client_id, opportunity_type, trigger_date, rank)
+    VALUES (v_user, v_a, 'idle', '2026-10-19', 2);
+    RAISE EXCEPTION 'behaviour check: a second open pin for one client was accepted';
+  EXCEPTION WHEN unique_violation THEN NULL;
+  END;
+  INSERT INTO next_up_handful (user_id, client_id, opportunity_type, trigger_date, rank, handled_at, handled_how)
+  VALUES (v_user, v_a, 'idle', '2026-10-18', 0, now(), 'contacted'),
+         (v_user, v_a, 'idle', '2026-10-17', 0, now(), 'expired');
+
+  -- Merging them succeeds.
+  PERFORM fn_merge_clients(v_a, ARRAY[v_b]);
+
+  -- The generic FK loop repoints B's pin to A, hits the clash and deletes it.
+  -- This replay's loop moves nothing, for any table (see the consent block
+  -- above), so do that step by hand for a pin still on the duplicate. Where
+  -- the loop does run it has already done this and the step is skipped.
+  IF EXISTS (SELECT 1 FROM next_up_handful WHERE id = v_pin_b AND client_id = v_b) THEN
+    BEGIN
+      UPDATE next_up_handful SET client_id = v_a WHERE id = v_pin_b;
+      RAISE EXCEPTION 'behaviour check: repointing a pin onto a client with an open pin did not clash';
+    EXCEPTION WHEN unique_violation THEN
+      DELETE FROM next_up_handful WHERE id = v_pin_b;
+    END;
+  END IF;
+
+  -- Exactly one open pin remains, on the surviving client.
+  SELECT count(*) INTO v_open FROM next_up_handful
+   WHERE user_id = v_user AND client_id IN (v_a, v_b) AND handled_at IS NULL;
+  IF v_open <> 1 THEN
+    RAISE EXCEPTION 'behaviour check: % open pins remain after merging two clients that each had one', v_open;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM next_up_handful WHERE client_id = v_a AND handled_at IS NULL) THEN
+    RAISE EXCEPTION 'behaviour check: the open pin is not on the surviving client';
+  END IF;
+
+  -- A row can't be pointed at another agent's client. Set-up as the owner:
+  -- another agent with a client, one more client of the CI user, a handled
+  -- pin and a hold to move.
+  INSERT INTO auth.users (id, email) VALUES (v_other, 'handful-other@example.test') ON CONFLICT (id) DO NOTHING;
+  INSERT INTO clients (user_id, name, name_search)
+  VALUES (v_other, 'CI Handful Theirs', 'ci handful theirs') RETURNING id INTO v_theirs;
+  INSERT INTO clients (user_id, name, name_search)
+  VALUES (v_user, 'CI Handful C', 'ci handful c') RETURNING id INTO v_c;
+  SELECT id INTO v_hist FROM next_up_handful WHERE client_id = v_a AND handled_at IS NOT NULL LIMIT 1;
+  SELECT id INTO v_hold FROM flight_control_dismissals WHERE client_id = v_a AND kind = 'later';
+  -- A throwaway database: make sure the signed-in role can read clients, as
+  -- the policies' client check does (production grants this already).
+  GRANT SELECT ON clients TO authenticated;
+
+  PERFORM set_config('request.jwt.claims', json_build_object('sub', v_user, 'role', 'authenticated')::text, true);
+  PERFORM set_config('request.jwt.claim.sub', v_user::text, true);
+  SET LOCAL ROLE authenticated;
+
+  -- Moving to one of the agent's own clients works, so the refusals below
+  -- come from the policy and not from a missing grant or a hidden row.
+  UPDATE next_up_handful SET client_id = v_c WHERE id = v_hist;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'behaviour check: an agent could not move their own pin to their own client';
+  END IF;
+  UPDATE flight_control_dismissals SET client_id = v_c WHERE id = v_hold;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'behaviour check: an agent could not move their own hold to their own client';
+  END IF;
+
+  BEGIN
+    UPDATE next_up_handful SET client_id = v_theirs WHERE id = v_hist;
+    RAISE EXCEPTION 'behaviour check: a pin was pointed at another agent''s client';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+  BEGIN
+    UPDATE flight_control_dismissals SET client_id = v_theirs WHERE id = v_hold;
+    RAISE EXCEPTION 'behaviour check: a hold was pointed at another agent''s client';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+
+  RESET ROLE;
+
+  RAISE NOTICE 'behaviour checks (00188 handful): all passed';
+END $$;

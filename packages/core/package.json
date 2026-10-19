@@ -34,6 +34,8 @@
     "./lib/ai-undo": "./lib/ai-undo.ts",
     "./lib/expense-items": "./lib/expense-items.ts",
     "./lib/receipt-sections": "./lib/receipt-sections.ts",
+    "./lib/suggestion-dismissals": "./lib/suggestion-dismissals.ts",
+    "./lib/next-up/*": "./lib/next-up/*.ts",
     "./types/database": "./types/database.ts",
     "./types/organizations": "./types/organizations.ts",
     "./formatters": "./formatters.ts",
