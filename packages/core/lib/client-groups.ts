@@ -52,6 +52,14 @@ export type AchievementBadgeId = "high_yield" | "frequent_flyer" | "silver_wings
 export type GroupableClient = Pick<Client, "id" | "name" | "name_search">;
 
 /**
+ * In the Hangar (archived): any archived_at. The web Clients table hides these
+ * unless the Hangar is open, so they never rank among its top clients.
+ */
+export function isArchivedClient(client: { archived_at?: string | null }): boolean {
+  return !!client.archived_at;
+}
+
+/**
  * Clients flagged as having household activity: co-parties on a deal held by
  * another contact (client_record_co_parties). Display only: a co-party's GCI
  * stays $0, the deal's GCI is on its one client_records row.

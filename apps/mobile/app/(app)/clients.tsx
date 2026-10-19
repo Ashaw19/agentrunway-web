@@ -338,7 +338,8 @@ export default function ClientsScreen() {
   const slCounts = useMemo(() => smartListCounts(), [clients]);
 
   // Top clients first, by lifetime GCI as the web Clients table ranks them
-  // (lib/client-order.ts); everyone else by most recent contact.
+  // (Hangar clients never rank); everyone else by most recent contact
+  // (lib/client-order.ts).
   const top = useMemo(() => topClients(clients, clientRecords), [clients, clientRecords]);
 
   const filtered = useMemo(() => {
@@ -802,7 +803,7 @@ function ClientRow({
   selected = false,
 }: {
   client: Client;
-  /** Lifetime GCI, for top clients only (the web table's Lifetime GCI). */
+  /** The web table's Lifetime GCI; not set for $0 or Hangar clients. */
   lifetimeGci?: number;
   onPress: () => void;
   onCall: (c: Client) => void;
@@ -864,7 +865,7 @@ function ClientRow({
           </View>
           {lifetimeGci !== undefined && (
             <Text style={[Type.micro, { color: c.textMuted }]} numberOfLines={1}>
-              {t("detail.gciAmount", { amount: fmtCurrency(lifetimeGci) })}
+              {t("detail.lifetimeGciAmount", { amount: fmtCurrency(lifetimeGci) })}
             </Text>
           )}
         </View>

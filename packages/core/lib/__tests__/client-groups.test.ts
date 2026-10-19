@@ -5,6 +5,7 @@ import {
   CLIENTS_TABLE_DEFAULT_SORT,
   computeHouseholdActivityIds,
   dominantSide,
+  isArchivedClient,
   sortTableGroups,
   type GroupableClient,
 } from "../client-groups";
@@ -167,6 +168,12 @@ describe("helpers that moved with the groups", () => {
     expect(dominantSide([deal({ id: "1", side: "seller" }), deal({ id: "2", side: "seller" }), deal({ id: "3" })])).toBe("seller");
     expect(dominantSide([deal({ id: "1", side: null })])).toBeNull();
     expect(dominantSide([])).toBeNull();
+  });
+
+  it("isArchivedClient: in the Hangar when archived_at is set", () => {
+    expect(isArchivedClient({ archived_at: "2026-09-01T00:00:00Z" })).toBe(true);
+    expect(isArchivedClient({ archived_at: null })).toBe(false);
+    expect(isArchivedClient({})).toBe(false);
   });
 
   it("computeHouseholdActivityIds lists every co-party once", () => {

@@ -595,9 +595,10 @@ interface DataStore {
 //   lost row would show in the Deals list), every client instead of the
 //   first 200, and up to 500 open Checklist items.
 // v8 (2026-10-14): added `text_footer` on `settings` (Settings → Texts).
-// (2026-10-19: `clientRecords` added as a new key, no bump: a v8 cache
-//   without it reads as [] until the first fetch, nothing has a stale shape.)
-const CACHE_VERSION = 8;
+// v9 (2026-10-19): added `clientRecords` (deal history for the Clients
+//   list's top clients). Without the bump, the first launch after the update
+//   would list cached clients by contact order, then reorder on the fetch.
+const CACHE_VERSION = 9;
 const CACHE_KEY = "data_store_cache";
 const CACHE_VERSION_KEY = "data_store_cache_version";
 

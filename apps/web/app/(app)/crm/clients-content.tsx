@@ -118,6 +118,7 @@ import {
   computeSourceStats,
   dominantSide,
   firstClassThreshold as computeFirstClassThreshold,
+  isArchivedClient,
   repeatClientStats,
   rewardBudgetBasisGci,
   sortTableGroups,
@@ -1366,7 +1367,7 @@ export function ClientsContent({
 
   // Sets of archived client IDs for fast lookup
   const archivedClientIds = useMemo(
-    () => new Set(localClients.filter((c) => !!c.archived_at).map((c) => c.id)),
+    () => new Set(localClients.filter(isArchivedClient).map((c) => c.id)),
     [localClients],
   );
   const archivedCount = archivedClientIds.size;
