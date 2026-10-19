@@ -35,7 +35,7 @@ import {
   totalRecurringYTD,
 } from "../recurring-expense-engine";
 import { computeT2125, t2125EntriesFromAmounts } from "../t2125-engine";
-import { createTestSettings } from "./test-data";
+import { createTestSettings, withDeclaredShare } from "./test-data";
 import type { RecurringExpense } from "../../types/database";
 
 const REGISTRANT = { gstHstRegistered: true, vehicleBusinessUsePct: 0.8, homeOfficeBusinessUsePct: 0.15 };
@@ -65,16 +65,19 @@ function recurring(overrides: Partial<RecurringExpense>): RecurringExpense {
 }
 
 describe("expenseTaxContext", () => {
+  // With no logbook rows the vehicle share is the declared setting
+  // (vehicle-logbook-engine.test.ts covers the logbook's own figure).
   it("reads registration and vehicle use from user_settings", () => {
-    expect(expenseTaxContext({ gst_hst_registered: true, vehicle_business_use_pct: 0.65, home_office_business_use_pct: 0 }))
-      .toEqual({ gstHstRegistered: true, vehicleBusinessUsePct: 0.65, homeOfficeBusinessUsePct: 0 });
+    const ctx = expenseTaxContext({ gst_hst_registered: true, vehicle_business_use_pct: 0.65, home_office_business_use_pct: 0 });
+    expect(ctx).toMatchObject({ gstHstRegistered: true, vehicleBusinessUsePct: 0.65, homeOfficeBusinessUsePct: 0 });
+    expect(ctx.vehicleBusinessUse?.method).toBe("declared");
   });
 
   it("treats missing settings as not registered, with the column's default vehicle use", () => {
-    expect(expenseTaxContext(null)).toEqual({ gstHstRegistered: false, vehicleBusinessUsePct: DEFAULT_VEHICLE_BUSINESS_USE_PCT, homeOfficeBusinessUsePct: 0 });
+    expect(expenseTaxContext(null)).toMatchObject({ gstHstRegistered: false, vehicleBusinessUsePct: DEFAULT_VEHICLE_BUSINESS_USE_PCT, homeOfficeBusinessUsePct: 0 });
     expect(expenseTaxContext(undefined).gstHstRegistered).toBe(false);
     expect(expenseTaxContext({ gst_hst_registered: null, vehicle_business_use_pct: null, home_office_business_use_pct: 0 }))
-      .toEqual({ gstHstRegistered: false, vehicleBusinessUsePct: 0.8, homeOfficeBusinessUsePct: 0 });
+      .toMatchObject({ gstHstRegistered: false, vehicleBusinessUsePct: 0.8, homeOfficeBusinessUsePct: 0 });
   });
 
   it("keeps an explicit 0% vehicle use (it is not 'missing') and clamps to 0–1", () => {
@@ -331,7 +334,7 @@ describe("T2125 lines from net amounts", () => {
   it("registrant: lines are net of ITCs before the 50% and business-use limits", () => {
     const settings = createTestSettings({ gst_hst_registered: true, vehicle_business_use_pct: 0.8, province: "newBrunswick" });
     const { byKey } = aggregateReceiptTotals(rows, expenseTaxContext(settings));
-    const t = computeT2125({ settings, transactions: [], expenses: t2125EntriesFromAmounts(byKey), ccaAssets: [], taxYear: 2026 });
+    const t = computeT2125(withDeclaredShare({ settings, transactions: [], expenses: t2125EntriesFromAmounts(byKey), ccaAssets: [], taxYear: 2026 }));
 
     expect(t.line8811_officeSupplies).toBe(100);
     // 50% of ($115 − the $7.50 ITC)
@@ -344,7 +347,7 @@ describe("T2125 lines from net amounts", () => {
   it("non-registrant: lines carry the GST/HST, as before", () => {
     const settings = createTestSettings({ gst_hst_registered: false, vehicle_business_use_pct: 0.8, province: "newBrunswick" });
     const { byKey } = aggregateReceiptTotals(rows, expenseTaxContext(settings));
-    const t = computeT2125({ settings, transactions: [], expenses: t2125EntriesFromAmounts(byKey), ccaAssets: [], taxYear: 2026 });
+    const t = computeT2125(withDeclaredShare({ settings, transactions: [], expenses: t2125EntriesFromAmounts(byKey), ccaAssets: [], taxYear: 2026 }));
 
     expect(t.line8811_officeSupplies).toBe(115);
     expect(t.line8523_mealsEntertainment50pct).toBe(57.5);
@@ -355,8 +358,8 @@ describe("T2125 lines from net amounts", () => {
   it("the old HST-inclusive input overstated a registrant's T2125 expenses", () => {
     const settings = createTestSettings({ gst_hst_registered: true, vehicle_business_use_pct: 0.8, province: "newBrunswick" });
     const net = aggregateReceiptTotals(rows, expenseTaxContext(settings));
-    const before = computeT2125({ settings, transactions: [], expenses: t2125EntriesFromAmounts({ office_supplies: 115, meals_client: 115, vehicle_fuel: 115 }), ccaAssets: [], taxYear: 2026 });
-    const after = computeT2125({ settings, transactions: [], expenses: t2125EntriesFromAmounts(net.byKey), ccaAssets: [], taxYear: 2026 });
+    const before = computeT2125(withDeclaredShare({ settings, transactions: [], expenses: t2125EntriesFromAmounts({ office_supplies: 115, meals_client: 115, vehicle_fuel: 115 }), ccaAssets: [], taxYear: 2026 }));
+    const after = computeT2125(withDeclaredShare({ settings, transactions: [], expenses: t2125EntriesFromAmounts(net.byKey), ccaAssets: [], taxYear: 2026 }));
     expect(before.line9369_totalExpenses - after.line9369_totalExpenses).toBeCloseTo(30.75, 10);
   });
 });

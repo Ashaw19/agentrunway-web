@@ -17,7 +17,7 @@ import { RISK_BAND_LADDER } from "@/lib/engines/survival-engine";
 import { PROVINCE_LABELS } from "@/lib/types/database";
 import { EXPENSE_RATIO_COPY } from "@agent-runway/core/engines/expense-ratio-bands";
 import { TAX_YEAR } from "@agent-runway/core/engines/canadian-tax-engine";
-import { CANONICAL_TAX_DISCLAIMER, TAX_ENGINE_TABLES } from "@agent-runway/core/tax-copy";
+import { CANONICAL_TAX_DISCLAIMER, TAX_ENGINE_TABLES, allowanceRatesSentence } from "@agent-runway/core/tax-copy";
 
 // The engine's federal and CPP figures for its tax year. Printed, not retyped.
 const { federal, cpp } = TAX_ENGINE_TABLES;
@@ -295,11 +295,11 @@ export function GuidePdf({ province, businessStructure, splitPreset }: Props) {
 
         <Text style={S.sectionSubtitle}>Expenses</Text>
         <Text style={S.body}>
-          Two tabs: Receipts (manual or OCR photo entry) and Mileage (CRA 2025 rates).
+          Two tabs: Receipts (manual or OCR photo entry) and Mileage (trips and CRA&apos;s vehicle logbook).
         </Text>
         <Text style={S.bullet}>{"\u2022"} Expense Ratio target: {EXPENSE_RATIO_COPY.target}</Text>
-        {/* Source of truth for mileage rates: CRA_MILEAGE_RATES in packages/core/types/database.ts */}
-        <Text style={S.bullet}>{"\u2022"} Mileage: $0.72/km first 5,000 km, $0.66/km after</Text>
+        {/* Rates: CRA_ALLOWANCE_RATES in packages/core/tax-copy/cra-rules.ts, by year. */}
+        <Text style={S.bullet}>{"\u2022"} CRA per-km allowance rates: {allowanceRatesSentence(TAX_YEAR)}. An employer allowance benchmark, not the T2125 vehicle deduction</Text>
         <Text style={S.bullet}>{"\u2022"} Meals: 50% deductible (CRA rule)</Text>
         {/* What the app does with the Client Gifts item (its T2125 line is set in t2125-engine). The "~$25/person/year" figure that was here had no CRA source. */}
         <Text style={S.bullet}>{"\u2022"} Client gifts: counted in full under Other Expenses (T2125 line 9270)</Text>

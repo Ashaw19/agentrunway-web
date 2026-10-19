@@ -5,6 +5,7 @@ import { getPipelineTools } from "./pipeline.ts";
 import { getOpportunityTools } from "./opportunities.ts";
 import { getCrmTools } from "./crm.ts";
 import { getExpenseTools } from "./expenses.ts";
+import { getLogbookTools } from "./logbook.ts";
 import { getOutreachTools } from "./outreach.ts";
 import { getSettingsTools } from "./settings.ts";
 import { getCaptureTools } from "./capture.ts";
@@ -91,12 +92,15 @@ export function buildToolRegistry(
                   "get_clients", "get_client_detail",
                   // Expenses (Step 8)
                   "get_expenses", "get_mileage_summary",
+                  // Vehicle logbook (CRA's simplified logbook, 2026-10-18)
+                  "get_logbook_status", "start_logbook_period", "log_mileage",
+                  "record_odometer_reading",
                   // Outreach + Settings (Step 9)
                   "get_flight_control_priorities", "get_user_settings",
                   // Note capture (a pasted note → proposed writes → save)
                   "capture_note", "save_captured_note",
                 ],
-                phase: "Phase 1 + Opportunities + Note capture — 23 tools live",
+                phase: "Phase 1 + Opportunities + Note capture + Vehicle logbook — 27 tools live",
               },
               null,
               2,
@@ -112,6 +116,7 @@ export function buildToolRegistry(
     ...getOpportunityTools(supabase, userId),  // Pre-Transactional Opportunities
     ...getCrmTools(supabase, userId),          // Step 7
     ...getExpenseTools(supabase, userId),      // Step 8
+    ...getLogbookTools(supabase, userId),      // Vehicle logbook
     ...getOutreachTools(supabase, userId),     // Step 9
     ...getSettingsTools(supabase, userId),     // Step 9
     ...getCaptureTools(supabase, userId, accessToken), // Note capture (2026-10-18)

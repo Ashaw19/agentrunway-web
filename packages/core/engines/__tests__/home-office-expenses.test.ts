@@ -37,7 +37,7 @@ import {
   isHomeOfficeKey,
   t2125EntriesFromAmounts,
 } from "../t2125-engine";
-import { createTestSettings } from "./test-data";
+import { createTestSettings, withDeclaredShare } from "./test-data";
 import type { RecurringExpense } from "../../types/database";
 
 const HOME_KEYS = [
@@ -94,7 +94,7 @@ describe("ITC on a home bill", () => {
   });
 
   it("with no share given, nothing is claimed (a caller that doesn't know the share can't over-claim)", () => {
-    expect(itcForExpense(15, "home_utilities").claimable).toBe(0);
+    expect(itcForExpense(15, "home_utilities", 1).claimable).toBe(0);
     expect(itcForExpense(15, "home_utilities", 0.8).claimable).toBe(0);
   });
 
@@ -131,7 +131,7 @@ describe("GST34 summary with home bills", () => {
   });
 
   it("an older caller that passes no home share claims nothing on the home bill", () => {
-    const r = computeGST34(base);
+    const r = computeGST34({ vehicleBusinessUsePct: 1, ...(base) });
     expect(r.line108).toBe(15);
     expect(r.homeItcReduction).toBe(15);
   });
@@ -249,7 +249,7 @@ describe("T2125 line 9945 from logged bills", () => {
     const totals = aggregateReceiptTotals(rows, expenseTaxContext(s));
     return {
       totals,
-      t: computeT2125({ settings: s, transactions: [], expenses: t2125EntriesFromAmounts(totals.byKey), homeOfficeCosts: totals.homeOfficeCosts, ccaAssets: [], taxYear: 2026 }),
+      t: computeT2125(withDeclaredShare({ settings: s, transactions: [], expenses: t2125EntriesFromAmounts(totals.byKey), homeOfficeCosts: totals.homeOfficeCosts, ccaAssets: [], taxYear: 2026 })),
     };
   };
 
@@ -293,17 +293,17 @@ describe("T2125 line 9945 from logged bills", () => {
 
   it("with no logged bills the estimate works exactly as before", () => {
     const s = settings({ home_office_utilities_monthly: 200, home_office_rent_monthly: 1000, home_office_property_tax_annual: 3000 });
-    const t = computeT2125({ settings: s, transactions: [], expenses: t2125EntriesFromAmounts({}), ccaAssets: [], taxYear: 2026 });
+    const t = computeT2125(withDeclaredShare({ settings: s, transactions: [], expenses: t2125EntriesFromAmounts({}), ccaAssets: [], taxYear: 2026 }));
     expect(t.homeOffice.totalAnnualHomeCosts).toBe(2400 + 12000 + 3000);
     expect(t.line9945_homeOfficeDeduction).toBeCloseTo(17400 * 0.15, 10);
     expect(t.homeOffice.loggedCostTypes).toEqual([]);
   });
 
   it("home keys left in the expense entries (the share) are ignored: only homeOfficeCosts feeds 9945", () => {
-    const t = computeT2125({
+    const t = computeT2125(withDeclaredShare({
       settings: settings(), transactions: [], ccaAssets: [], taxYear: 2026,
       expenses: t2125EntriesFromAmounts({ home_utilities: 45 }),
-    });
+    }));
     expect(t.expenseLines).toEqual([]);
     expect(t.line9369_totalExpenses).toBe(0);
     expect(t.line9945_homeOfficeDeduction).toBe(0);

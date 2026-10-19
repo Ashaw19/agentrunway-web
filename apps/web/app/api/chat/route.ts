@@ -72,6 +72,8 @@ import { generateInsights, type Insight } from "@agent-runway/core/engines/insig
 import { recurringHSTEntriesForPeriod } from "@agent-runway/core/engines/recurring-expense-engine";
 import { itcForExpense } from "@agent-runway/core/engines/gst34-engine";
 import { expenseTaxContext } from "@agent-runway/core/engines/expense-totals-engine";
+import { allowanceRateFigure } from "@agent-runway/core/engines/vehicle-logbook-engine";
+import { loadVehicleLogbook, loadYearMileageTotals } from "@/lib/vehicle-logbook/load";
 import { ytdExpenseTotals, ytdExpensesGstHstIncluded } from "@agent-runway/core/engines/t2125-expenses-engine";
 import { ccaOpportunityLine, documentationLine, expenseItemsOf, missingDeductionsLine, trackedExpenseCounts, type ExpenseCategoryRow } from "@/lib/ai/expense-tax-intel";
 import { getCurrentFilingPeriod, deadlineUrgency } from "@agent-runway/core/engines/filing-period-engine";
@@ -267,6 +269,9 @@ export async function POST(req: NextRequest) {
     const currentYear = today.getFullYear();
     const todayISO = atlanticISODate();
     const ytdStart = `${currentYear}-01-01`;
+    // The vehicle business-use share: the logbook's when it covers the year
+    // (expenseTaxContext → vehicle-logbook-engine), the setting otherwise.
+    const logbookPromise = loadVehicleLogbook(supabase, user.id, currentYear);
     const settled = await Promise.allSettled([
         supabase.from("user_settings").select("*").eq("user_id", user.id).maybeSingle(),                                                                  // 0
         supabase.from("transactions").select("id, date, commission_paid_date, sale_price, commission_pct, team_split_pct, gci_override").eq("user_id", user.id).eq("status", "closed"), // 1
@@ -281,7 +286,7 @@ export async function POST(req: NextRequest) {
         // ── Phase 2 context injection queries ──
         supabase.from("contact_tasks").select("id, title, due_date, priority, client_id").eq("user_id", user.id).is("completed_at", null).order("due_date", { ascending: true }).limit(10), // 10: open tasks
         supabase.from("outreach_queue").select("id, status", { count: "exact", head: false }).eq("user_id", user.id).in("status", ["draft", "ready"]),  // 11: pending outreach
-        supabase.from("mileage_logs").select("km, deduction").eq("user_id", user.id).gte("trip_date", ytdStart),                                       // 12: YTD mileage
+        loadYearMileageTotals(supabase, user.id, currentYear).then((t) => ({ data: t })),                                                  // 12: YTD business km and trips (every trip, paged)
         supabase.from("referrals").select("direction, status, actual_fee_paid, estimated_value").eq("user_id", user.id).gte("referral_date", ytdStart), // 13: YTD referrals
         supabase.from("t2125_cca_assets").select("description, cca_class, original_cost, opening_ucc").eq("user_id", user.id),                            // 14: CCA assets
         supabase.from("listing_appointments").select("id, property_address, status, appointment_date, client_id, estimated_list_price, estimated_commission_pct").eq("user_id", user.id).in("status", ["scheduled", "active"]).order("appointment_date", { ascending: true }).limit(10000), // 15: active listing appointments — feeds BOTH the display context (top rows) AND listing-weighted GCI for the projection (must match dashboard: no row cap, same status filter). limit 10000 mirrors dashboard/page.tsx.
@@ -315,7 +320,8 @@ export async function POST(req: NextRequest) {
     // Expense totals are net of the GST/HST a registrant claims back as ITCs
     // (expense-totals-engine), same as the dashboard. `recurringExps` keeps
     // the amounts as entered for the ITC forecast below.
-    const expenseTaxCtx = expenseTaxContext(settings);
+    const expenseTaxCtx = expenseTaxContext(settings, await logbookPromise);
+    const vehicleUse = expenseTaxCtx.vehicleBusinessUse;
 
     if (settings && transactions) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -383,8 +389,8 @@ export async function POST(req: NextRequest) {
 
       // ── Setup gap detection (post-onboarding) ──
       const setupGaps: string[] = [];
-      if (!settings.vehicle_business_use_pct || Number(settings.vehicle_business_use_pct) === 0)
-        setupGaps.push("Vehicle business-use % is at 0% — mileage deductions won't calculate");
+      if (expenseTaxCtx.vehicleBusinessUsePct === 0 && vehicleUse?.method === "declared")
+        setupGaps.push("Declared vehicle business-use % is 0% and no logbook covers this year, so vehicle costs count for $0 on T2125 line 9281");
       if (!settings.home_office_business_use_pct || Number(settings.home_office_business_use_pct) === 0)
         setupGaps.push("Home office % is not set — missing potential deduction");
       if ((ccaRows ?? []).length === 0)
@@ -393,9 +399,9 @@ export async function POST(req: NextRequest) {
         setupGaps.push("No recurring expenses set up — monthly subscriptions like MLS fees aren't being tracked");
       if (!(transactions ?? []).some((tx: Record<string, unknown>) => !String(tx.date).startsWith(String(currentYear))))
         setupGaps.push("No historical transactions — year-over-year comparison and personal records need past data (import at /history)");
-      const ytdMileageKm = (mileageRows ?? []).reduce((s: number, t: { km: number }) => s + Number(t.km), 0);
+      const ytdMileageKm = Number((mileageRows as { km: number } | null)?.km ?? 0);
       if (ytdMileageKm === 0)
-        setupGaps.push("No mileage logged YTD — driving to showings/meetings is a CRA-deductible expense");
+        setupGaps.push("No business trips logged this year. Per CRA, a logbook of business trips (date, destination, purpose, km) with the odometer at the start and end of the year is the best evidence of a vehicle's business use (Expenses → Mileage)");
 
       financialContext = [
         `Current Year: ${currentYear}`,
@@ -448,11 +454,18 @@ export async function POST(req: NextRequest) {
           return `Outreach Queue: ${drafts} drafts, ${ready} ready to send`;
         })(),
         (() => {
-          const trips = (mileageRows ?? []) as { km: number; deduction: number }[];
-          if (trips.length === 0) return null;
-          const totalKm = trips.reduce((s, t) => s + Number(t.km), 0);
-          const totalDed = trips.reduce((s, t) => s + Number(t.deduction), 0);
-          return `Mileage YTD: ${totalKm.toFixed(0)} km across ${trips.length} trips — ${fmtCurrency(totalDed)} deduction`;
+          // km × CRA's per-km allowance rates is an employer-allowance
+          // benchmark, not the T2125 vehicle deduction (actual costs ×
+          // business use). Until 2026-10-18 this line called it a deduction.
+          const totals = mileageRows as { km: number; tripCount: number } | null;
+          const vehicleLine = vehicleUse
+            ? ` Vehicle business use applied: ${vehicleUse.label}.` +
+              (vehicleUse.readingsDue.length ? ` Odometer readings due: ${vehicleUse.readingsDue.map((d) => d.label).join("; ")}.` : "") +
+              (vehicleUse.progress.length ? ` Logbook: ${vehicleUse.progress.map((p) => p.label).join("; ")}.` : "")
+            : "";
+          if (!totals || totals.tripCount === 0) return vehicleLine ? `Mileage YTD: no trips logged.${vehicleLine}` : null;
+          const allowance = allowanceRateFigure(totals.km, currentYear);
+          return `Mileage YTD: ${totals.km.toFixed(0)} business km across ${totals.tripCount} trips. At CRA's ${allowance.rates.year} per-km allowance rates that is ${fmtCurrency(allowance.amount)}, an employer-allowance benchmark, not the T2125 vehicle deduction (vehicle costs × business use).${vehicleLine}`;
         })(),
         (() => {
           const refs = (referralRows ?? []) as { direction: string; status: string; actual_fee_paid: number | null; estimated_value: number | null }[];
@@ -1350,13 +1363,13 @@ When the agent's data shows any of these patterns, surface them naturally in you
 - Filing deadlines within 30 days or overdue → always mention, with action items
 - Open tasks are overdue (from context data) → mention it naturally: "I see you have X overdue tasks..."
 - Outreach queue has pending items → when relevant, suggest reviewing Flight Control
-- Mileage is at 0 but agent discusses showings/meetings → suggest logging mileage for CRA deductions
+- No trips logged but the agent discusses driving to showings/meetings → mention that trips can be logged (logMileage, or Expenses → Mileage) and that CRA's logbook rule is what supports a vehicle business-use share. Never call km × CRA's per-km rate a deduction: it is CRA's employer-allowance benchmark; the T2125 vehicle deduction is vehicle costs × business use
 - No recurring expenses set up but agent mentions monthly subscriptions → suggest using createRecurringExpense
 - CCA assets are empty but agent mentions buying equipment → suggest tracking it for depreciation
 
 POST-ONBOARDING SETUP GAPS:
 When the agent's context data includes [SETUP GAPS], these represent profile items that are still at defaults after onboarding. On the FIRST message of a new session, naturally mention 1-2 of the most impactful gaps. Don't dump the whole list — pick the ones that affect their numbers most (vehicle use %, mileage, recurring expenses, historical data). Frame it helpfully:
-- "I noticed your vehicle business-use is at 0% — if you drive to showings or meetings, setting this in **Settings** (/settings) will unlock your mileage deductions."
+- "I noticed no trips are logged this year. CRA's logbook (each business trip's date, destination, purpose and km, plus the odometer at the start and end of the year) is what a vehicle business-use share is worked out from; the Mileage tab (/expenses?tab=mileage) keeps it." Never suggest a vehicle or home office percentage.
 - "You don't have any recurring expenses set up yet. Do you pay monthly for anything like MLS fees, Mailchimp, or a CRM? I can set those up for you."
 After the first mention, don't repeat the same gaps in subsequent messages unless the user asks.
 
@@ -1373,7 +1386,7 @@ IMPORTANT: Use the Computed Engine Outputs section in the business data as your 
 
 AGENTIC ACTIONS — You have tools to act on the agent's behalf. Always searchClients first before any client action.
 
-CORE TOOLS: searchClients, searchPipelineDeals, searchTransactions, searchExpenses, searchListingAppointments, searchCCAAssets, searchClientsByFilter, getClientSummary, getQuickStats, createClient, updateClientDetails, updateClientNotes, updateClientStatus, updateClientTags, updateClientTone, linkClientReferral, createPipelineDeal, updatePipelineDealStage, updatePipelineDealCloseDate, updatePipelineDealValue, logContactActivity, createContactTask, captureNote (read-only), searchRecurringExpenses, createRecurringExpense, updateRecurringExpense, deleteRecurringExpense, logExpense, updateExpense, logMileage, recordReferral, recordTransaction, updateTransaction, updateIncomeReportingMethod, addCCAAsset, updateListingAppointment.
+CORE TOOLS: searchClients, searchPipelineDeals, searchTransactions, searchExpenses, searchListingAppointments, searchCCAAssets, searchClientsByFilter, getClientSummary, getQuickStats, createClient, updateClientDetails, updateClientNotes, updateClientStatus, updateClientTags, updateClientTone, linkClientReferral, createPipelineDeal, updatePipelineDealStage, updatePipelineDealCloseDate, updatePipelineDealValue, logContactActivity, createContactTask, captureNote (read-only), searchRecurringExpenses, createRecurringExpense, updateRecurringExpense, deleteRecurringExpense, logExpense, updateExpense, logMileage, logbookStatus, startLogbookPeriod, recordOdometerReading, recordReferral, recordTransaction, updateTransaction, updateIncomeReportingMethod, addCCAAsset, updateListingAppointment.
 
 Every write tool listed above is gated by an approval card — just call the tool when the agent describes the intent. The user sees a Confirm/Cancel card and the tool only runs on Confirm.
 
@@ -1391,7 +1404,7 @@ TOOL TRIGGERS:
 - Log call/email/meeting → searchClients → logContactActivity
 - Follow-up reminder → searchClients → createContactTask
 - Log expense → logExpense (pick the expense ITEM: fuel, ads, software, a client meal...; pass taxAmount only when the agent states the GST/HST, never worked out from a rate). For complex multi-receipt uploads or OCR, direct to /expenses. Edit an expense → searchExpenses → updateExpense.
-- Log mileage → logMileage (km driven, date, trip purpose).
+- Log mileage → logMileage (km driven or the odometer at the start and end, date, trip purpose, vehicle when the agent has more than one). Logbook status, odometer readings due, the year's vehicle business use and CRA's 10% test → logbookStatus. Start a base year or a sample period the agent asks for → startLogbookPeriod (never suggest which kind or when). An odometer reading the agent reads out ("odometer's at 45,210") → logbookStatus for what is due, then recordOdometerReading.
 - Record referral → recordReferral (inbound or outbound, partner name, client name, fee %).
 - Recurring expense → createRecurringExpense (pass hstAmount only when the agent states the GST/HST inside each charge, never worked out from a rate).
 - A recurring expense that was real and has stopped ("I cancelled Canva at the end of June", "my lease is done") → searchRecurringExpenses → updateRecurringExpense with endDate (the date the agent states; ask for it when none is given). Its charges up to that date stay in the year's totals, the T2125 lines and the GST/HST credits, and none count after it. deleteRecurringExpense is only for an entry made by mistake: deleting takes the months already past this year out of every total as well.

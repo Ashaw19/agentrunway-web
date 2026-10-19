@@ -200,6 +200,9 @@ function fixtures({ registered = true, legacyMonthly = 20 }: FixtureOptions = {}
   return { tables, settings, receipts, recurring, items };
 }
 
+/** The logbook rows of an account that has never kept one. */
+const NO_LOGBOOK = { vehicles: [], periods: [], readings: [], trips: [] };
+
 /**
  * The dashboard's expenses over the same fixture rows: the rows its queries
  * return, then its one engine call (page.tsx).
@@ -217,7 +220,9 @@ function dashboardExpenses(fx: Fixture) {
     receipts: receiptRows,
     recurring: recurringRows,
     expenseItems,
-    ctx: expenseTaxContext(settingsRow),
+    // The fixture has no logbook rows, so the dashboard's loader
+    // (loadVehicleLogbook) would return empty lists: the declared share.
+    ctx: expenseTaxContext(settingsRow, { rows: NO_LOGBOOK, year: dashYear }),
     now: today,
   });
   const { expensesYTD, monthlyRecurring, expensesRemaining } = expenseTotals;
@@ -827,7 +832,10 @@ describe("the dashboard lines the MCP mirrors have not moved", () => {
       '.from("receipt_expenses") .select("category_key, total_amount, tax_amount") .eq("user_id", user.id) .gte("expense_date", `${dashYear}-01-01`) .limit(10000)',
       '.from("recurring_expenses") .select("*") .eq("user_id", user.id) .eq("is_active", true) .limit(10000)',
       '.from("expense_items") .select("*") .eq("user_id", user.id) .limit(10000)',
-      "const expenseTotals = ytdExpenseTotals({ receipts: receiptTotalsResult.data, recurring: (recurringExpResult.data ?? []) as RecurringExpense[], expenseItems: expItemResult.data, ctx: expenseTaxContext(settingsRow), now: today, });",
+      // The vehicle share: the logbook's for the year when it covers it (2026-10-18).
+      "const logbookPromise = loadVehicleLogbook(supabase, user.id, dashYear);",
+      "const expenseCtx = expenseTaxContext(settingsRow, await logbookPromise);",
+      "const expenseTotals = ytdExpenseTotals({ receipts: receiptTotalsResult.data, recurring: (recurringExpResult.data ?? []) as RecurringExpense[], expenseItems: expItemResult.data, ctx: expenseCtx, now: today, });",
       "expensesYTD={expenseTotals.expensesYTD}",
       "monthlyRecurring={expenseTotals.monthlyRecurring}",
       "expensesRemaining={expenseTotals.expensesRemaining}",
@@ -851,9 +859,18 @@ describe("the dashboard lines the MCP mirrors have not moved", () => {
     expect(content).not.toMatch(/const expensesYTD\b|const monthlyRecurring\b|legacyRecurringYTDEstimate|legacyMonthlyRecurring/);
   });
 
+  it("the dashboard's logbook loader: the core rows, the year, the Atlantic day", () => {
+    const load = squash(read("lib/vehicle-logbook/load.ts"));
+    expect(load).toContain("const rows = await loadLogbookRowsOrNull(supabase, userId, year);");
+    expect(load).toContain("return { rows, year, today: atlanticISODate() };");
+  });
+
   it("the MCP loader makes the dashboard's call", () => {
     const loader = squash(read("supabase/functions/mcp-server/lib/expense-inputs.ts"));
     expect(loader).toContain("totals: ytdExpenseTotals({ receipts, recurring, expenseItems: items, ctx: taxCtx, now: today }),");
+    // The same logbook rows and year the dashboard's loader passes.
+    expect(loader).toContain("loadLogbookRowsOrNull(supabase, userId, year),");
+    expect(loader).toContain("const taxCtx = expenseTaxContext(settingsRes.data, { rows: logbookRows, year, today: todayISO });");
   });
 });
 

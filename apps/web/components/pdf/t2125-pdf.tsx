@@ -17,7 +17,14 @@ import type { T2125Result } from "@/lib/engines/t2125-engine";
 import type { TaxOptimizationCard } from "@/lib/engines/tax-optimization-engine";
 import type { UserSettings } from "@/lib/types/database";
 import { PROVINCE_LABELS } from "@/lib/types/database";
-import { INCOME_TAX_INSTALMENT_DUE_DATES } from "@agent-runway/core/tax-copy";
+import {
+  ALLOWANCE_RATE_NOTE,
+  INCOME_TAX_INSTALMENT_DUE_DATES,
+  VEHICLE_BUSINESS_PART_RULE,
+  VEHICLE_LOGBOOK_RETENTION_RULE,
+  VEHICLE_LOGBOOK_RULE,
+} from "@agent-runway/core/tax-copy";
+import type { VehicleBusinessUseMethod } from "@agent-runway/core/engines/vehicle-logbook-engine";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -330,23 +337,46 @@ function Footer({ year, agentName }: { year: number; agentName: string }) {
 // ── Main PDF component ─────────────────────────────────────────────────────────
 
 interface MileageSummary {
+  /** Business km logged in the tax year. */
   totalKm: number;
-  totalDeduction: number;
   tripCount: number;
-  businessUsePct: number;
+  /** totalKm × CRA's per-km allowance rates (allowanceRateFigure): an employer-allowance benchmark, not a deduction. */
+  allowanceRateFigure: number;
+  /** The year of the CRA rates used (the latest published when the tax year's are not out). */
+  allowanceRatesYear: number;
+}
+
+/**
+ * The vehicle business-use share on line 9281 and where it comes from
+ * (expenseTaxContext(...).vehicleBusinessUse): the logbook's figure when it
+ * covers the tax year, else the declared setting.
+ */
+interface VehicleUse {
+  pct: number;
+  method: VehicleBusinessUseMethod;
+  label: string;
 }
 
 interface Props {
   result: T2125Result;
   settings: UserSettings;
   taxYear: number;
+  vehicleUse: VehicleUse;
   mileageSummary?: MileageSummary;
   taxOptCards?: TaxOptimizationCard[];
   totalEstimatedSavings?: number;
 }
 
-export function T2125Pdf({ result, settings, taxYear, mileageSummary, taxOptCards, totalEstimatedSavings }: Props) {
+/** "From the logbook" or "Declared": what the vehicle share is, in a few words. */
+function vehicleUseSource(v: VehicleUse, taxYear: number): string {
+  if (v.method === "full") return `from the ${taxYear} logbook`;
+  if (v.method === "simplified") return "from the logbook, CRA's simplified method";
+  return "declared in Settings, not computed from a logbook";
+}
+
+export function T2125Pdf({ result, settings, taxYear, vehicleUse, mileageSummary, taxOptCards, totalEstimatedSavings }: Props) {
   const generatedDate = new Date().toLocaleDateString("en-CA");
+  const vehicleDeclared = vehicleUse.method === "declared";
 
   return (
     <Document
@@ -408,7 +438,7 @@ export function T2125Pdf({ result, settings, taxYear, mileageSummary, taxOptCard
         {/* Expenses */}
         <SectionHeader title="Part 3B — Deductible Expenses" subtitle="CRA T2125 lines 8521–9369 · Auto-filled from expense tracking" color="#7C3AED" />
         <LineRow lineNum="8521" label="Advertising & Marketing" value={result.line8521_advertising} />
-        <LineRow lineNum="9281" label={`Motor Vehicle Expenses (${fmtPct(settings.vehicle_business_use_pct)} business use)`} value={result.line9281_motorVehicle} note="* User-declared %" />
+        <LineRow lineNum="9281" label={`Motor Vehicle Expenses (${fmtPct(vehicleUse.pct)} business use)`} value={result.line9281_motorVehicle} note={vehicleDeclared ? "* Declared %" : "* % from the logbook"} />
         <LineRow lineNum="8811" label="Office Supplies & Software" value={result.line8811_officeSupplies} />
         <LineRow
           lineNum="8523"
@@ -428,7 +458,7 @@ export function T2125Pdf({ result, settings, taxYear, mileageSummary, taxOptCard
         <LineHighlight lineNum="9369" label="Total Deductible Expenses" value={result.line9369_totalExpenses} />
         {result.line9281_motorVehicle > 0 && (
           <Text style={{ fontSize: 7, color: "#92400E", paddingHorizontal: 6, marginTop: 2 }}>
-            * Vehicle business-use % ({fmtPct(settings.vehicle_business_use_pct)}) is user-declared. CRA requires a contemporaneous mileage logbook to substantiate this figure.
+            * Vehicle business-use % ({fmtPct(vehicleUse.pct)}) is {vehicleUseSource(vehicleUse, taxYear)}. {VEHICLE_BUSINESS_PART_RULE}
           </Text>
         )}
 
@@ -614,28 +644,27 @@ export function T2125Pdf({ result, settings, taxYear, mileageSummary, taxOptCard
           {/* Mileage Summary */}
           {mileageSummary && mileageSummary.tripCount > 0 && (
             <>
-              <SectionHeader title="Vehicle Mileage Summary" subtitle="Mileage log totals formatted for vehicle expense tracking" color="#7C3AED" />
+              <SectionHeader title="Vehicle Mileage Summary" subtitle={`Business trips logged in ${taxYear}`} color="#7C3AED" />
               <View style={s.kpiRow}>
                 <View style={s.kpiTile}>
-                  <Text style={s.kpiLabel}>Total Kilometres</Text>
+                  <Text style={s.kpiLabel}>Business Kilometres</Text>
                   <Text style={s.kpiValue}>{mileageSummary.totalKm.toLocaleString("en-CA")} km</Text>
                   <Text style={s.kpiSub}>{mileageSummary.tripCount} trips logged</Text>
                 </View>
                 <View style={s.kpiTile}>
-                  <Text style={s.kpiLabel}>Business Use</Text>
-                  <Text style={s.kpiValue}>{fmtPct(mileageSummary.businessUsePct)}</Text>
-                  <Text style={s.kpiSub}>of total driving</Text>
+                  <Text style={s.kpiLabel}>{vehicleDeclared ? "Declared Business Use" : "Business Use (Logbook)"}</Text>
+                  <Text style={s.kpiValue}>{fmtPct(vehicleUse.pct)}</Text>
+                  <Text style={s.kpiSub}>{vehicleDeclared ? "typed in Settings, not measured" : vehicleUse.method === "full" ? `${taxYear} full logbook` : "CRA's simplified method"}</Text>
                 </View>
                 <View style={s.kpiTile}>
-                  <Text style={s.kpiLabel}>Total Deduction</Text>
-                  <Text style={s.kpiValue}>{fmt(mileageSummary.totalDeduction)}</Text>
-                  <Text style={s.kpiSub}>at CRA per-km rate</Text>
+                  <Text style={s.kpiLabel}>At CRA Per-km Allowance Rates</Text>
+                  <Text style={s.kpiValue}>{fmt(mileageSummary.allowanceRateFigure)}</Text>
+                  <Text style={s.kpiSub}>{`${mileageSummary.allowanceRatesYear} rates; a benchmark, not a deduction`}</Text>
                 </View>
               </View>
               <View style={[s.disclaimer, { marginTop: 8, backgroundColor: "#F5F3FF", borderColor: "#C4B5FD" }]}>
                 <Text style={{ color: "#5B21B6" }}>
-                  CRA requires a logbook tracking each business trip with date, destination, purpose, and
-                  kilometres. Keep this mileage log with your tax records for at least 6 years.
+                  {ALLOWANCE_RATE_NOTE} {VEHICLE_LOGBOOK_RULE} {VEHICLE_LOGBOOK_RETENTION_RULE}
                 </Text>
               </View>
             </>

@@ -8,6 +8,7 @@ import { deductionTrackingFlags } from "@agent-runway/core/engines/tax-optimizat
 import { buildScenarioSeed } from "@/lib/scenario-seed";
 import { computeIsPro } from "@/lib/compute-is-pro";
 import { atlanticNoon } from "@agent-runway/core/lib/local-date";
+import { loadVehicleLogbook, loadYearBusinessKm } from "@/lib/vehicle-logbook/load";
 import { loadCapYearCarryOver } from "@/lib/cap-year-carry-over";
 import { loadTaxYearCarryIn } from "@/lib/tax-year-carry-in";
 
@@ -27,6 +28,9 @@ export default async function OverheadPage() {
   // Atlantic calendar, not the server's UTC clock (local-date.ts).
   const today = atlanticNoon();
   const currentYear = today.getFullYear();
+  // The vehicle business-use share comes from the logbook when it covers the
+  // year (expenseTaxContext → vehicle-logbook-engine), the setting otherwise.
+  const logbookPromise = loadVehicleLogbook(supabase, user.id, currentYear);
 
   // A REAL agent's closed deals before January 1 in the anniversary year that
   // contains it: the plan waterfall's cap carries across January 1 (the
@@ -74,11 +78,9 @@ export default async function OverheadPage() {
       .eq("user_id", user.id)
       .gte("expense_date", `${currentYear}-01-01`)
       .limit(10000),
-    supabase
-      .from("mileage_logs")
-      .select("km")
-      .eq("user_id", user.id)
-      .limit(10000),
+    // This year's business km, for the tax cards: every trip in the year,
+    // read in pages. Until 2026-10-18 this summed every trip ever logged.
+    loadYearBusinessKm(supabase, user.id, currentYear).then((km) => ({ data: km })),
     supabase
       .from("t2125_cca_assets")
       .select("id")
@@ -126,11 +128,12 @@ export default async function OverheadPage() {
   // Year-to-date expenses and the monthly figure: the dashboard's one engine
   // call (t2125-expenses-engine). Receipts, the per-item monthly figures and
   // the Recurring Expenses list, net of the ITCs a registrant claims.
+  const expenseCtx = expenseTaxContext(rawSettings, await logbookPromise);
   const expenseTotals = ytdExpenseTotals({
     receipts: receiptTotalsResult.data,
     recurring: (recurringExpResult.data ?? []) as RecurringExpense[],
     expenseItems,
-    ctx: expenseTaxContext(rawSettings),
+    ctx: expenseCtx,
     now: today,
   });
   const { expensesYTD, expensesRemaining } = expenseTotals;
@@ -139,10 +142,7 @@ export default async function OverheadPage() {
   // the two totals above are the sums of.
   const deductionTracking = deductionTrackingFlags(expenseTotals.tracked.lines, expenseCategories);
 
-  const mileageKmTotal = (mileageResult.data ?? []).reduce(
-    (sum, r) => sum + Number(r.km ?? 0),
-    0,
-  );
+  const mileageKmTotal = Number(mileageResult.data ?? 0);
 
   const ccaAssetCount = (ccaResult.data ?? []).length;
 
@@ -168,6 +168,7 @@ export default async function OverheadPage() {
       expensesYTD={expensesYTD}
       deductionTracking={deductionTracking}
       mileageKmTotal={mileageKmTotal}
+      vehicleBusinessUsePct={expenseCtx.vehicleBusinessUsePct}
       ccaAssetCount={ccaAssetCount}
       historyItems={(historyResult.data ?? []) as HistoryItem[]}
       pipelineDeals={pipelineDeals}

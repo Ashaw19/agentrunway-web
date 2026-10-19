@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { ChevronDown, ChevronRight, Plus, Check, X, Trash2, Info, ExternalLink, ChevronsUpDown, Camera, Receipt, ArrowRight, Download, FileText, RefreshCw, AlertTriangle, Clock, Lightbulb } from "lucide-react";
 import { fmtCurrency, fmtPct } from "@/lib/formatters";
 import type { ReceiptTotalsRow } from "@agent-runway/core/engines/expense-totals-engine";
+import { expenseTaxContext, type ExpenseTaxLogbook } from "@agent-runway/core/engines/expense-totals-engine";
 import {
   RECEIPT_LIST_COLUMNS,
   RECEIPT_LIST_PAGE,
@@ -96,7 +97,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import type { PlaidItem, PlaidTransaction, MileageLog, RecurringExpense, PipelineDeal, HistoryItem } from "@/lib/types/database";
+import type { PlaidItem, PlaidTransaction, MileageLog, MileagePlace, RecurringExpense, PipelineDeal, HistoryItem } from "@/lib/types/database";
 import { computeWeightedGCI, activePipelineDeals } from "@/lib/types/database";
 import { seasonalFractionElapsed, projectedYearEndGCI, projectedYearEndTransactions } from "@/lib/engines/projection-engine";
 import { computeEffectiveCashForSurvival, computePipelineMonthlyIncome } from "@/lib/engines/effective-cash";
@@ -163,8 +164,18 @@ interface Props {
   /** Prior year history for YoY comparison (up to 4 years) */
   priorYearHistory?: PriorYearRow[];
   currentYear?: number;
-  /** Mileage tab data */
+  /** Mileage tab data: this year's trips, newest first. */
   mileageLogs?: MileageLog[];
+  /**
+   * The vehicle logbook for the year (loadVehicleLogbook): the vehicle
+   * business-use share on this page is expenseTaxContext's from it, the same
+   * figure the dashboard, Reports and the GST/HST return use.
+   */
+  logbook: ExpenseTaxLogbook;
+  /** Saved places for the Mileage tab's trip form. */
+  mileagePlaces?: MileagePlace[];
+  /** The tab to open on ("?tab=mileage"). */
+  initialTab?: "receipts" | "mileage";
   /** Bank Imports tab data */
   plaidItems?: PlaidItem[];
   plaidTransactions?: PlaidTransaction[];
@@ -208,7 +219,7 @@ const CAT_LABEL: Record<string, string> = Object.fromEntries(
 export function ExpensesContent({
   initialCategories, settings, transactions, carryOverTx, initialReceipts = [],
   receiptTotalRows: receiptTotalRowsSeed, priorYearHistory = [], currentYear,
-  mileageLogs = [], plaidItems = [], plaidTransactions = [],
+  mileageLogs = [], logbook, mileagePlaces = [], initialTab = "receipts", plaidItems = [], plaidTransactions = [],
   plaidExpenseItems = [], plaidExpenseCategories = [], plaidConfigured = false,
   isPro: isProProp = false,
   pipelineDeals = [], historyItems = [], recurringExpenses: recurringExpensesSeed = [],
@@ -221,7 +232,7 @@ export function ExpensesContent({
   const [categories, setCategories] = useState(initialCategories);
 
   // ── Tab state ─────────────────────────────────────────────────────────────
-  const [tab, setTab] = useState<"receipts" | "mileage" | "imports">("receipts");
+  const [tab, setTab] = useState<"receipts" | "mileage" | "imports">(initialTab);
 
   // ── Sections minimized to their title bar (remembered per browser) ──────
   const sections = useCollapsedSections<ExpensesSection>({
@@ -240,9 +251,12 @@ export function ExpensesContent({
   ).length;
   void _pendingImportsCount;
 
-  // ── Vehicle business use % (editable, persisted to user_settings) ────────
-  const [vehiclePct, setVehiclePct] = useState<number>(
-    settings?.vehicle_business_use_pct != null ? settings.vehicle_business_use_pct : 0.80,
+  // ── Vehicle business use % ───────────────────────────────────────────────
+  // The DECLARED share (editable, persisted to user_settings). What the page
+  // applies is `vehiclePct` below: the logbook's figure for the year when it
+  // covers it (vehicle-logbook-engine), else this one.
+  const [declaredVehiclePct, setDeclaredVehiclePct] = useState<number>(
+    settings?.vehicle_business_use_pct != null ? Number(settings.vehicle_business_use_pct) : 0.80, // vehicle-share-ok: the declared setting, edited on this page
   );
 
   // ── Home office % (editable, persisted to user_settings) ─────────────────
@@ -256,14 +270,24 @@ export function ExpensesContent({
   // ── Receipt YTD totals (refreshed after each save) ────────────────────────
   // Every expense total on this page comes from expense-totals-engine. For a
   // GST/HST registrant it is net of the ITCs the GST34 summary claims, so the
-  // same tax isn't counted as both an ITC and an expense. The vehicle % in
-  // the context is the editable one above, the same figure the GST34 uses.
+  // same tax isn't counted as both an ITC and an expense. The vehicle share
+  // in the context is resolved from the logbook (and the declared % above),
+  // the same figure the GST34 summary and every other surface use.
   const [receiptTotalRows, setReceiptTotalRows] = useState<ReceiptTotalDatedRow[]>(receiptTotalRowsSeed);
   const gstHstRegistered = settings?.gst_hst_registered === true;
+  // The logbook, re-read by the Mileage tab after each logbook write so the
+  // share on this page moves with it.
+  const [logbookState, setLogbookState] = useState<ExpenseTaxLogbook>(logbook);
   const expenseTaxCtx = useMemo(
-    () => ({ gstHstRegistered, vehicleBusinessUsePct: vehiclePct, homeOfficeBusinessUsePct: homePct }),
-    [gstHstRegistered, vehiclePct, homePct],
+    () => expenseTaxContext(
+      { gst_hst_registered: gstHstRegistered, vehicle_business_use_pct: declaredVehiclePct, home_office_business_use_pct: homePct }, // vehicle-share-ok: the declared setting, handed to the resolver
+      logbookState,
+    ),
+    [gstHstRegistered, declaredVehiclePct, homePct, logbookState],
   );
+  /** The vehicle share applied on this page, 0–1. */
+  const vehiclePct = expenseTaxCtx.vehicleBusinessUsePct;
+  const vehicleFromLogbook = expenseTaxCtx.vehicleBusinessUse?.method !== "declared";
   // ── Receipt capture ────────────────────────────────────────────────────────
   const [captureOpen, setCaptureOpen] = useState(false);
   const [receipts,    setReceipts]    = useState<ReceiptExpense[]>(initialReceipts);
@@ -1140,14 +1164,16 @@ export function ExpensesContent({
     if (!user) return;
     const { error } = await supabase
       .from("user_settings")
-      .update({ vehicle_business_use_pct: pct })
+      .update({ vehicle_business_use_pct: pct }) // vehicle-share-ok: saving the declared setting
       .eq("user_id", user.id);
     if (error) {
       toast.error("Couldn't save vehicle % — please try again.");
       return;
     }
-    setVehiclePct(pct);
-    toast.success("Vehicle business use % saved ✓");
+    setDeclaredVehiclePct(pct);
+    toast.success(vehicleFromLogbook
+      ? "Declared vehicle % saved. This year uses the logbook's figure; the declared % applies to years the logbook does not cover."
+      : "Vehicle business use % saved ✓");
   }
 
   async function saveHomePct(raw: string) {
@@ -1567,7 +1593,11 @@ export function ExpensesContent({
         <ExpensesMileageTab
           mileageLogs={mileageLogs}
           year={thisYear}
-          settings={settings}
+          logbook={logbookState}
+          onLogbookChange={(rows) => setLogbookState((prev) => ({ ...prev, rows }))}
+          vehicleUse={expenseTaxCtx.vehicleBusinessUse ?? null}
+          declaredVehiclePct={declaredVehiclePct}
+          mileagePlaces={mileagePlaces}
           tripLogSection={section("trip-log")}
         />
       )}
@@ -1931,7 +1961,7 @@ export function ExpensesContent({
           description={
             <>
               Based on CRA rules · Meals & entertainment at 50% · Vehicle at{" "}
-              {Math.round(vehiclePct * 100)}% business use
+              {Math.round(vehiclePct * 100)}% business use ({vehicleFromLogbook ? "from the logbook" : "declared"})
               {deductBreakdown.home > 0 && <> · Home bills at {homePctLabel} home office use</>}
               {gstHstRegistered && (
                 <>
@@ -1983,15 +2013,17 @@ export function ExpensesContent({
                 </span>
               )}
 
-              {/* Vehicle % editor */}
+              {/* Declared vehicle % editor */}
               <span className="ml-auto flex items-center gap-1.5 text-xs text-muted-foreground">
-                <span>Vehicle biz use:</span>
+                <span title={vehicleFromLogbook ? "This year uses the logbook's figure. The declared % applies to years the logbook does not cover." : undefined}>
+                  {vehicleFromLogbook ? "Declared vehicle %:" : "Vehicle biz use (declared):"}
+                </span>
                 <div className="relative flex items-center">
                   <Input
                     type="number"
                     min={0}
                     max={100}
-                    defaultValue={Math.round(vehiclePct * 100)}
+                    defaultValue={Math.round(declaredVehiclePct * 100)}
                     onBlur={(e) => saveVehiclePct(e.target.value)}
                     className="h-6 w-[4.5rem] pr-5 text-right text-xs"
                   />
@@ -2119,7 +2151,7 @@ export function ExpensesContent({
                     <TableHead>Year</TableHead>
                     <TableHead className="text-right">Total Expenses</TableHead>
                     <TableHead className="text-right">Mileage (km)</TableHead>
-                    <TableHead className="text-right">Mileage Deduction</TableHead>
+                    <TableHead className="text-right" title="The motor vehicle amount on that year's return, as typed here">Vehicle Amount Claimed</TableHead>
                     <TableHead className="text-right hidden md:table-cell">GCI</TableHead>
                     <TableHead className="text-right hidden md:table-cell">Exp. Ratio</TableHead>
                   </TableRow>

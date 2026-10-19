@@ -14,6 +14,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { fmtCurrency } from "@/lib/formatters";
+import { allowanceRateFigure } from "@agent-runway/core/engines/vehicle-logbook-engine";
 import { PROVINCE_LABELS } from "@/lib/types/database";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -142,9 +143,11 @@ export default function AccountantPage() {
       }, 0)
     : 0;
 
-  const mileageTotal = data.mileageLogs
-    ? data.mileageLogs.reduce((sum, m) => sum + Number(m.deduction), 0)
-    : 0;
+  // Business km × CRA's per-km allowance rates: an employer-allowance
+  // benchmark, not the T2125 vehicle deduction (actual costs × business use).
+  const mileageKm = data.mileageLogs ? data.mileageLogs.reduce((sum, m) => sum + Number(m.km), 0) : 0;
+  const mileageAllowance = allowanceRateFigure(mileageKm, year);
+  const mileageTotal = mileageAllowance.amount;
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -231,13 +234,16 @@ export default function AccountantPage() {
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">
-                      Mileage Deduction
+                      At CRA&apos;s per-km allowance rates ({mileageAllowance.rates.year})
                     </p>
                     <p className="text-xl font-bold">
                       {fmtCurrency(mileageTotal)}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      {data.mileageLogs.length} trips logged
+                      {data.mileageLogs.length} trips logged · {mileageKm.toLocaleString("en-CA", { maximumFractionDigits: 0 })} business km
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      An employer allowance benchmark, not a deduction. The T2125 vehicle deduction is the business part of actual vehicle costs.
                     </p>
                   </div>
                 </div>
@@ -432,9 +438,6 @@ export default function AccountantPage() {
                       <th className="pb-2 font-medium text-muted-foreground text-right">
                         Km
                       </th>
-                      <th className="pb-2 font-medium text-muted-foreground text-right">
-                        Deduction
-                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -452,9 +455,6 @@ export default function AccountantPage() {
                         <td className="py-2 text-right">
                           {Number(m.km).toFixed(1)}
                         </td>
-                        <td className="py-2 text-right font-medium">
-                          {fmtCurrency(Number(m.deduction))}
-                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -471,9 +471,6 @@ export default function AccountantPage() {
                           .reduce((s, m) => s + Number(m.km), 0)
                           .toFixed(1)}{" "}
                         km
-                      </td>
-                      <td className="py-2 text-right font-bold text-violet-600">
-                        {fmtCurrency(mileageTotal)}
                       </td>
                     </tr>
                   </tfoot>

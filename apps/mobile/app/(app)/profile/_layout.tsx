@@ -22,6 +22,7 @@ export default function ProfileLayout() {
       <Stack.Screen name="contacts-import" options={{ title: "Import from Contacts" }} />
       <Stack.Screen name="forecast" options={{ title: "Income Forecast" }} />
       <Stack.Screen name="expenses" options={{ title: "Expenses" }} />
+      <Stack.Screen name="mileage" options={{ title: "Mileage" }} />
       <Stack.Screen name="settings" options={{ title: "Goals & Settings" }} />
       <Stack.Screen name="notification-settings" options={{ title: "Notifications" }} />
       <Stack.Screen name="briefing" options={{ title: "Today's Briefing" }} />
