@@ -77,7 +77,9 @@ function baseLikelihood(key: string): number {
 /** The export's own category label (QuickBooks, Tangerine, National Bank) to an item key. */
 const SOURCE_CATEGORY_RULES: Array<{ pattern: RegExp; key: ReceiptCategoryKey | null; personal?: boolean }> = [
   { pattern: /grocer|[eé]picerie|pharma|personal|personnel|clothing|v[eê]tement|kids|enfants/i, key: null, personal: true },
-  { pattern: /\bgas\b|fuel|essence|car\s*&\s*truck|vehicle|v[eé]hicule|automobile|auto\b|parking/i, key: "vehicle_fuel" },
+  // Parking first: "Car & Truck: Parking" is parking, which CRA lets be deducted in full.
+  { pattern: /parking|stationnement/i, key: "vehicle_parking" },
+  { pattern: /\bgas\b|fuel|essence|car\s*&\s*truck|vehicle|v[eé]hicule|automobile|auto\b/i, key: "vehicle_fuel" },
   { pattern: /meal|restaurant|dining|resto|food\s*&\s*drink/i, key: "meals_client" },
   { pattern: /advertis|marketing|publicit/i, key: "marketing_ads" },
   { pattern: /software|subscription|abonnement|logiciel/i, key: "office_software" },

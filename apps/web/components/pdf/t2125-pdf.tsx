@@ -21,6 +21,7 @@ import {
   ALLOWANCE_RATE_NOTE,
   INCOME_TAX_INSTALMENT_DUE_DATES,
   VEHICLE_BUSINESS_PART_RULE,
+  VEHICLE_FULL_DEDUCTION_RULE,
   VEHICLE_LOGBOOK_RETENTION_RULE,
   VEHICLE_LOGBOOK_RULE,
 } from "@agent-runway/core/tax-copy";
@@ -472,7 +473,7 @@ export function T2125Pdf({ result, settings, taxYear, vehicleUse, mileageSummary
         <LineHighlight lineNum="9369" label="Total Deductible Expenses" value={result.line9369_totalExpenses} />
         {result.line9281_motorVehicle > 0 && (
           <Text style={{ fontSize: 7, color: "#92400E", paddingHorizontal: 6, marginTop: 2 }}>
-            * Vehicle business-use % ({fmtPct(vehicleUse.pct)}) is {vehicleUseSource(vehicleUse, taxYear)}. {VEHICLE_BUSINESS_PART_RULE}
+            * Vehicle business-use % ({fmtPct(vehicleUse.pct)}) is {vehicleUseSource(vehicleUse, taxYear)}. {VEHICLE_BUSINESS_PART_RULE} {VEHICLE_FULL_DEDUCTION_RULE}
           </Text>
         )}
 

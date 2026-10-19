@@ -23,6 +23,10 @@ export const RECEIPT_CATEGORY_GROUPS = [
       { key: "vehicle_service",   label: "Service & Repairs" },
       { key: "vehicle_insurance", label: "Insurance" },
       { key: "vehicle_payment",   label: "Vehicle Payment" },
+      // Deducted in full, not by the business-use share (CRA; see
+      // VEHICLE_FULL_DEDUCTION_KEYS in t2125-engine). Since 2026-10-19.
+      { key: "vehicle_parking",            label: "Business Parking" },
+      { key: "vehicle_business_insurance", label: "Supplementary Business Insurance" },
     ],
   },
   {

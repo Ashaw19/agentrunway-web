@@ -50,7 +50,7 @@
  */
 
 import { gstHstRate, gstHstLabel } from "./canadian-tax-engine";
-import { isHomeOfficeKey, t2125LineForExpenseKey } from "./t2125-engine";
+import { isFullVehicleDeductionKey, isHomeOfficeKey, t2125LineForExpenseKey } from "./t2125-engine";
 import type { FilingPeriod, FilingFrequency } from "../types/database";
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -242,7 +242,9 @@ export function itcForExpense(
     return { gross, mealReduction: 0, vehicleReduction: 0, homeReduction, claimable: gross - homeReduction };
   }
   const mealReduction = isMealOrEntertainmentKey(categoryKey) ? gross * 0.5 : 0;
-  const vehicleReduction = vehicleUse || isVehicleKey(categoryKey)
+  // Business parking and supplementary business insurance: in full, box or
+  // not (isFullVehicleDeductionKey, the T2125's rule).
+  const vehicleReduction = (vehicleUse || isVehicleKey(categoryKey)) && !isFullVehicleDeductionKey(categoryKey)
     ? gross * (1 - vehicleItcShare(vehicleBusinessUsePct))
     : 0;
   return { gross, mealReduction, vehicleReduction, homeReduction: 0, claimable: gross - mealReduction - vehicleReduction };

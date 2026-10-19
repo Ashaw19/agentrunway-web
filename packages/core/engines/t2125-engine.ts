@@ -34,6 +34,13 @@ export interface T2125LineMap {
   deductiblePct: number; // 1.0 = fully deductible, 0.5 = 50% meals rule
   applyVehicleUse: boolean; // multiply by the vehicle business-use share
   /**
+   * A vehicle cost CRA lets the agent deduct in full: business parking and
+   * supplementary business insurance (VEHICLE_FULL_DEDUCTION_KEYS). The
+   * business-use share never applies to it, even when a recurring expense's
+   * vehicle box is ticked.
+   */
+  fullVehicleDeduction?: boolean;
+  /**
    * A home bill (heat, insurance, mortgage interest...). Only the home
    * business-use share is a business cost, and it is claimed on line 9945
    * (business-use-of-home), never on an expense line or in line 9369.
@@ -48,6 +55,11 @@ export const EXPENSE_KEY_TO_T2125: Record<string, T2125LineMap> = {
   vehicle_insurance: { lineNumber: "9281", lineName: "Motor vehicle insurance",      deductiblePct: 1.0, applyVehicleUse: true,  t2125Part: "vehicle" },
   vehicle_fuel:      { lineNumber: "9281", lineName: "Motor vehicle fuel",           deductiblePct: 1.0, applyVehicleUse: true,  t2125Part: "vehicle" },
   vehicle_service:   { lineNumber: "9281", lineName: "Motor vehicle repairs/maint.", deductiblePct: 1.0, applyVehicleUse: true,  t2125Part: "vehicle" },
+  // Also line 9281, but in full: CRA lets business parking fees and
+  // supplementary business insurance be deducted in full
+  // (VEHICLE_FULL_DEDUCTION_RULE in tax-copy/cra-rules.ts).
+  vehicle_parking:            { lineNumber: "9281", lineName: "Business parking",                 deductiblePct: 1.0, applyVehicleUse: false, fullVehicleDeduction: true, t2125Part: "vehicle" },
+  vehicle_business_insurance: { lineNumber: "9281", lineName: "Supplementary business insurance", deductiblePct: 1.0, applyVehicleUse: false, fullVehicleDeduction: true, t2125Part: "vehicle" },
 
   // Marketing / advertising (CRA T2125 line 8521)
   marketing_ads:         { lineNumber: "8521", lineName: "Advertising",        deductiblePct: 1.0, applyVehicleUse: false, t2125Part: "expenses" },
@@ -92,6 +104,28 @@ export const EXPENSE_KEY_TO_T2125: Record<string, T2125LineMap> = {
   home_rent:              { lineNumber: "9945", lineName: "Rent",                           deductiblePct: 1.0, applyVehicleUse: false, applyHomeUse: true, t2125Part: "home_office" },
   home_condo_fees:        { lineNumber: "9945", lineName: "Condo fees",                     deductiblePct: 1.0, applyVehicleUse: false, applyHomeUse: true, t2125Part: "home_office" },
 };
+
+// ── Vehicle costs deducted in full ───────────────────────────────────────────
+// CRA ("Motor vehicle expenses (not including CCA)", completing Form T2125,
+// page dated 2026-08-31): "you can deduct the full amount of parking fees
+// related to your business activities and supplementary business insurance
+// for your motor vehicle or passenger vehicle." Until 2026-10-19 parking was
+// filed under Service & Repairs and every vehicle item took the business-use
+// share, so both were under-counted. Their GST/HST is claimed in full too
+// (itcForExpense): CRA lets a registrant claim the GST/HST "on the portion of
+// the expenses that are related to your commercial activities", which for
+// business parking is all of it. Insurance carries no GST/HST.
+
+/** The vehicle items deducted in full, from the map above. */
+export const VEHICLE_FULL_DEDUCTION_KEYS: readonly string[] = Object.entries(EXPENSE_KEY_TO_T2125)
+  .filter(([, v]) => v.fullVehicleDeduction)
+  .map(([k]) => k);
+
+/** Business parking or supplementary business insurance: never takes the vehicle share. */
+export function isFullVehicleDeductionKey(key: string | null | undefined): boolean {
+  if (!key) return false;
+  return t2125LineForExpenseKey(key).fullVehicleDeduction === true;
+}
 
 // ── Home bills → business-use-of-home cost types ─────────────────────────────
 // The Home Office expense category (migration 00174) holds the real bills.
@@ -258,7 +292,9 @@ export function t2125ExpenseLine(entry: T2125ExpenseEntry, vehicleBusinessUsePct
     };
   }
   const isMeals = map.deductiblePct === 0.5;
-  const isVehicle = map.applyVehicleUse || entry.vehicleUse === true;
+  // Business parking and supplementary business insurance are deducted in
+  // full whatever the vehicle box says (VEHICLE_FULL_DEDUCTION_KEYS).
+  const isVehicle = !map.fullVehicleDeduction && (map.applyVehicleUse || entry.vehicleUse === true);
   const vehicleUsePct = isVehicle ? Math.min(1, Math.max(0, vehicleBusinessUsePct || 0)) : 1.0;
   return {
     key: entry.key,

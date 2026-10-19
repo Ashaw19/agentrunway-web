@@ -665,12 +665,25 @@ export const MULTIPLE_VEHICLES_RULE: TaxCopy = asTaxCopy(
  * support the amount you can deduct, keep a record of the total kilometres
  * you drive and the kilometres you drive to earn income." The same page lets
  * business parking fees and supplementary business insurance be deducted in
- * full; Agent Runway applies the business-use share to every vehicle item
- * (open finding, 2026-10-18), so that sentence is not printed as if the app
- * followed it.
+ * full: VEHICLE_FULL_DEDUCTION_RULE below, printed with this one.
  */
 export const VEHICLE_BUSINESS_PART_RULE: TaxCopy = asTaxCopy(
   "Per CRA, when a vehicle is used for business and personal driving, only the part of its expenses paid to earn income is deductible, supported by a record of the total kilometres driven and the kilometres driven to earn income.",
+);
+
+/**
+ * Source: the same canada.ca page as VEHICLE_BUSINESS_PART_RULE ("Motor
+ * vehicle expenses (not including CCA)", page dated 2026-08-31, read
+ * 2026-10-19): "However, you can deduct the full amount of parking fees
+ * related to your business activities and supplementary business insurance
+ * for your motor vehicle or passenger vehicle." Agent Runway follows it since
+ * 2026-10-19: the Vehicle items Business Parking and Supplementary Business
+ * Insurance go on line 9281 in full (VEHICLE_FULL_DEDUCTION_KEYS in
+ * engines/t2125-engine.ts). Until then parking was filed under Service &
+ * Repairs and took the business-use share.
+ */
+export const VEHICLE_FULL_DEDUCTION_RULE: TaxCopy = asTaxCopy(
+  "Per CRA, parking fees related to business activities and supplementary business insurance for the vehicle are deductible in full, not by the business-use share.",
 );
 
 /**

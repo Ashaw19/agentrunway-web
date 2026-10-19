@@ -45,9 +45,11 @@ Required JSON structure:
 
 Category keys (pick the most specific match):
 - vehicle_fuel:     Gas stations (Shell, Esso, Petro-Canada, Circle K, Irving, Husky), fuel, car wash
-- vehicle_service:  Oil change, tire shop, auto repair, parking, Midas, Mr Lube, Canadian Tire service
+- vehicle_service:  Oil change, tire shop, auto repair, Midas, Mr Lube, Canadian Tire service
 - vehicle_insurance: Car insurance premiums
 - vehicle_payment:  Car loan or lease payments
+- vehicle_parking:  Parking lots, meters and parking apps (Impark, Indigo Park, Precise ParkLink, PayByPhone, HONK)
+- vehicle_business_insurance: An extra premium or rider for using the vehicle for business (only when the document says so; regular car insurance is vehicle_insurance)
 - marketing_ads:    Facebook/Instagram/Google/LinkedIn Ads, Mailchimp, signage
 - marketing_photography: Photography, videography, drone photo, virtual tour, Matterport
 - marketing_print:  Print shops, Vistaprint, Minuteman Press, flyers, signs

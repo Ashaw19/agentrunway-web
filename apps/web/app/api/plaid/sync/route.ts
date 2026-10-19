@@ -34,6 +34,7 @@ function buildPlaidClient() {
 // ── Simple keyword-based auto-categoriser ─────────────────────────────────────
 // Maps merchant/description substrings → expense_items.key
 const CATEGORY_RULES: Array<{ patterns: RegExp; key: string; confidence: number }> = [
+  { patterns: /parking|impark|indigo\s*park|parklink|paybyphone|honk/i, key: "vehicle_parking",    confidence: 0.80 },
   { patterns: /gas|petro|esso|shell|husky|irving|pioneer|fuel/i,       key: "vehicle_fuel",       confidence: 0.85 },
   { patterns: /carwash|mr\s*lube|oil change|jiffy|midas|canadian tire/i, key: "vehicle_service",   confidence: 0.75 },
   { patterns: /meta\s*ads|facebook\s*ads|google\s*ads|instagram/i,      key: "marketing_ads",     confidence: 0.88 },

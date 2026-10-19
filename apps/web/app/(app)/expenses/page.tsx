@@ -24,6 +24,8 @@ const DEFAULT_CATEGORIES = [
       { key: "vehicle_insurance", title: "Insurance",        sort_order: 1 },
       { key: "vehicle_fuel",     title: "Fuel",             sort_order: 2 },
       { key: "vehicle_service",  title: "Service & Repairs", sort_order: 3 },
+      { key: "vehicle_parking",  title: "Business Parking", sort_order: 4 },
+      { key: "vehicle_business_insurance", title: "Supplementary Business Insurance", sort_order: 5 },
     ],
   },
   {
