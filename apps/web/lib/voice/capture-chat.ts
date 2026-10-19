@@ -10,13 +10,15 @@
 import { checkWrite } from "@agent-runway/core/lib/capture/proposals";
 import { CAPTURE_TOOL_CREW, type CaptureProposal, type ProposedWrite } from "@agent-runway/core/lib/capture/types";
 import { isReceiptCategoryKey } from "@/lib/types/receipt";
+import { atlanticISODate } from "@agent-runway/core/lib/local-date";
 
 const CREW_NAME = { dispatcher: "Dispatcher", navigator: "Navigator" } as const;
 
 function candidatesLine(w: ProposedWrite): string | null {
   if (w.client && !w.client.selectedId && !w.client.newClientWriteId && w.client.candidates.length > 0) {
     const list = w.client.candidates
-      .map((c) => `${c.name} (clientId ${c.id}${c.lastContactAt ? `, last contact ${c.lastContactAt.slice(0, 10)}` : ""})`)
+      // The Atlantic day: cutting the timestamp at "T" is the UTC day (the next one from 8 pm).
+      .map((c) => `${c.name} (clientId ${c.id}${c.lastContactAt ? `, last contact ${atlanticISODate(new Date(c.lastContactAt))}` : ""})`)
       .join("; ");
     return `"${w.client.spoken ?? "the client"}" could be: ${list}. Ask the agent which one. Never pick the first.`;
   }

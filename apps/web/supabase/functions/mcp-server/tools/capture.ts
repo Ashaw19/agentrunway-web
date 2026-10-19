@@ -117,7 +117,8 @@ export function getCaptureTools(supabase: SupabaseClient, userId: string, access
                 heard: w.client.spoken,
                 selected_id: w.client.selectedId,
                 new_client_ref: w.client.newClientWriteId,
-                candidates: w.client.candidates.map((c) => ({ id: c.id, name: c.name, last_contact: c.lastContactAt })),
+                // The agent's calendar day, not the UTC timestamp.
+                candidates: w.client.candidates.map((c) => ({ id: c.id, name: c.name, last_contact_day: c.lastContactAt ? atlanticISODate(new Date(c.lastContactAt)) : null })),
               }
             : undefined,
           deal: w.deal
