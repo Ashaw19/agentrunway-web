@@ -42,6 +42,7 @@ import {
 } from "@/lib/engines/projection-engine";
 import { calculate as calculateTax, gstHstRate, gstHstLabel, marginalRate } from "@/lib/engines/canadian-tax-engine";
 import { computeHSTCollected } from "@/lib/engines/hst-engine";
+import { recordedCommissionHst, statementHstShare } from "@agent-runway/core/engines/commission-hst-engine";
 import { calculateCorporateTax } from "@/lib/engines/corporate-tax-engine";
 import { probabilityBands, fiveYearBands } from "@/lib/engines/probabilistic-forecast-engine";
 import { survivalResult, riskColorBand, type RiskColorBand } from "@/lib/engines/survival-engine";
@@ -252,13 +253,19 @@ export function ForecastContent({
     hstRate: taxRate,
     isRegistered: isGstRegistered ?? false,
     brokerageWithholdsHst: settings.brokerage_withholds_hst ?? false,
+    // The HST commission statements show, on the deals it was entered for.
+    recorded: statementHstShare(ytdTx),
   });
+  // The year's projection includes the deals closed so far: their statement
+  // figures stand, and the rest of the projected GCI is estimated.
   const gstHstCollectedProjected = computeHSTCollected({
     ytdGCI: projectedGCI,
     hstRate: taxRate,
     isRegistered: isGstRegistered ?? false,
     brokerageWithholdsHst: settings.brokerage_withholds_hst ?? false,
+    recorded: statementHstShare(ytdTx),
   });
+  const hstStatementDeals = ytdTx.filter((tx) => recordedCommissionHst(tx) != null).length;
 
   // ── CRA remittance calendar ────────────────────────────────────────────
   const today = new Date();
@@ -735,7 +742,9 @@ export function ForecastContent({
                   <div>
                     <p className="text-sm font-medium">{taxLabel} Collected YTD</p>
                     <p className="text-xs text-muted-foreground">
-                      On {fmtCurrency(ytdGCI)} GCI &middot; {(taxRate * 100).toFixed(taxRate === 0.14975 ? 3 : 0)}% rate &middot; tax portion estimated for remittance
+                      {hstStatementDeals > 0
+                        ? `On ${fmtCurrency(ytdGCI)} GCI · the ${taxLabel} your commission statements show for ${hstStatementDeals} deal${hstStatementDeals === 1 ? "" : "s"}, ${(taxRate * 100).toFixed(taxRate === 0.14975 ? 3 : 0)}% of the full commission on any other`
+                        : `On ${fmtCurrency(ytdGCI)} GCI · ${(taxRate * 100).toFixed(taxRate === 0.14975 ? 3 : 0)}% rate · tax portion estimated for remittance`}
                     </p>
                   </div>
                   <p className="text-lg font-bold tabular-nums">{fmtCurrency(gstHstCollectedYTD)}</p>

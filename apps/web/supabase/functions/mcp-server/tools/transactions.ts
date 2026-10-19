@@ -8,7 +8,7 @@ export function getTransactionTools(supabase: SupabaseClient, userId: string): M
     {
       name: "get_transactions",
       description:
-        "Returns the agent's closed transactions. Optionally filter by year, status, or limit. Each record includes address, sale price, GCI, side (buyer/seller/both), date (the closing date; the year filter uses it), and commission_paid_date (when the commission was received; null if not entered).",
+        "Returns the agent's closed transactions. Optionally filter by year, status, or limit. Each record includes address, sale price, GCI, side (buyer/seller/both), date (the closing date; the year filter uses it), commission_paid_date (when the commission was received; null if not entered) and commission_hst (the GST/HST the brokerage's commission statement shows it paid the agent; null if not entered).",
       inputSchema: {
         type: "object",
         properties: {
@@ -30,7 +30,7 @@ export function getTransactionTools(supabase: SupabaseClient, userId: string): M
 
         let query = supabase
           .from("transactions")
-          .select("id, date, commission_paid_date, address, sale_price, commission_pct, gci_override, team_split_pct, side, status, client_name, notes")
+          .select("id, date, commission_paid_date, commission_hst, address, sale_price, commission_pct, gci_override, team_split_pct, side, status, client_name, notes")
           .eq("user_id", userId)
           .order("date", { ascending: false })
           .limit(cap);
@@ -52,6 +52,7 @@ export function getTransactionTools(supabase: SupabaseClient, userId: string): M
             id: tx.id,
             date: tx.date,
             commission_paid_date: tx.commission_paid_date ?? null,
+            commission_hst: tx.commission_hst == null ? null : Number(tx.commission_hst),
             address: tx.address,
             sale_price: tx.sale_price,
             gci: Math.round(gci),

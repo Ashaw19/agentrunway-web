@@ -7,11 +7,14 @@ import {
   type SplitPreset,
 } from "../lib/effective-cash.ts";
 import {
-  computeHSTCollected,
   computeHSTNetOwing,
   gstHstLabel,
   gstHstRate,
 } from "../lib/hst-engine.ts";
+// The core helper (not the mirror): it takes the HST commission statements
+// show (transactions.commission_hst), as the web does.
+import { computeHSTCollected } from "../../_shared/core/engines/hst-engine.ts";
+import { statementHstShare } from "../../_shared/core/engines/commission-hst-engine.ts";
 import {
   computeListingWeightedGCI,
   projectedYearEndGCI,
@@ -651,7 +654,7 @@ export function getAnalyticsTools(supabase: SupabaseClient, userId: string): Mcp
             .maybeSingle(),
           supabase
             .from("transactions")
-            .select("sale_price, commission_pct, gci_override, team_split_pct, date")
+            .select("sale_price, commission_pct, gci_override, team_split_pct, date, commission_hst")
             .eq("user_id", userId)
             .eq("status", "closed")
             .gte("date", yearStart)
@@ -691,11 +694,13 @@ export function getAnalyticsTools(supabase: SupabaseClient, userId: string): Mcp
         const itcsPaidOnExpenses = expenseInputs.itcs.total;
 
         // Canonical helper — never reimplement.
+        const recorded = statementHstShare(transactions);
         const collected = computeHSTCollected({
           ytdGCI,
           hstRate,
           isRegistered,
           brokerageWithholdsHst,
+          recorded,
         });
         const netOwing = computeHSTNetOwing({
           hstCollected: collected,
@@ -730,6 +735,12 @@ export function getAnalyticsTools(supabase: SupabaseClient, userId: string): Mcp
               filing_frequency: filingFrequency,
               ytd_gci: Math.round(ytdGCI),
               ytd_collected: Math.round(collected),
+              // Deals whose HST is the commission statement's figure
+              // (transactions.commission_hst); the rest are estimated at the
+              // rate on the full commission.
+              ytd_collected_basis: recorded.gci > 0
+                ? `The ${label} the commission statements show on the deals it was entered for, plus ${label} at the rate on the full commission for the rest.`
+                : `${label} at the rate on the full commission (no commission statement figure entered).`,
               itcs_paid_on_expenses: Math.round(itcsPaidOnExpenses),
               itcs_basis: isRegistered
                 ? `Estimated from the ${label} recorded on this year's receipts and on recurring expenses charged to date. CRA limits applied: 50% on meals and entertainment, the business-use share on vehicle costs and on home bills.`

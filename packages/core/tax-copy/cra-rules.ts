@@ -12,6 +12,7 @@
 
 import { gstHstLabel, gstHstRate } from "../engines/canadian-tax-engine";
 import type { IncomeReportingMethod } from "../engines/tax-year";
+import type { GstHstCommissionTiming } from "../engines/commission-hst-engine";
 import { fmtCurrency } from "../formatters";
 import { PROVINCE_ISO_CODES, PROVINCE_LABELS, type Province } from "../types/database";
 import { asTaxCopy, type TaxCopy } from "./validate";
@@ -62,6 +63,11 @@ export interface GstHstReportNoteInput {
   /** `computeHSTCollected(...)` (hst-engine): 0 unless registered and not held back. */
   collectedYTD: number;
   ytdGCI: number;
+  /**
+   * How many of the year's deals carry the HST their commission statement
+   * shows (transactions.commission_hst). Omitted or 0: all estimated.
+   */
+  statementDeals?: number;
 }
 
 /**
@@ -75,7 +81,7 @@ export interface GstHstReportNoteInput {
  * around that amount misleads both of them.
  */
 export function gstHstReportNote(input: GstHstReportNoteInput): TaxCopy {
-  const { label, registered, brokerageWithholds, collectedYTD, ytdGCI } = input;
+  const { label, registered, brokerageWithholds, collectedYTD, ytdGCI, statementDeals = 0 } = input;
 
   if (!registered) {
     return asTaxCopy(
@@ -89,8 +95,11 @@ export function gstHstReportNote(input: GstHstReportNoteInput): TaxCopy {
     );
   }
 
+  const fromStatements = statementDeals > 0
+    ? ` For ${statementDeals} deal${statementDeals === 1 ? "" : "s"}, it is the ${label} your commission statement shows; any other deal is at the rate on the full commission.`
+    : "";
   return asTaxCopy(
-    `${label} estimate: ${fmtCurrency(collectedYTD)} collected on YTD GCI of ${fmtCurrency(ytdGCI)}. ${INPUT_TAX_CREDIT_NOTE}`,
+    `${label} estimate: ${fmtCurrency(collectedYTD)} collected on YTD GCI of ${fmtCurrency(ytdGCI)}.${fromStatements} ${INPUT_TAX_CREDIT_NOTE}`,
   );
 }
 
@@ -876,11 +885,11 @@ export const INCOME_REPORTING_METHOD_SETTING = {
 export function incomeReportingMethodHint(method: IncomeReportingMethod): TaxCopy {
   if (method === "cash") {
     return asTaxCopy(
-      "Agent Runway counts each deal's commission in the tax year of its Commission paid date, or of its closing date when that date is blank, for the income tax estimates, instalments and the T2125 view. Deal counts, GCI by year, History, the Runway Score and GST/HST stay on the closing date.",
+      "Agent Runway counts each deal's commission in the tax year of its Commission paid date, or of its closing date when that date is blank, for the income tax estimates, instalments and the T2125 view. Deal counts, GCI by year, History and the Runway Score stay on the closing date, and the GST/HST return follows its own setting below.",
     );
   }
   return asTaxCopy(
-    "Agent Runway counts each deal's commission in the tax year it closes. Deal counts, GCI by year, History, the Runway Score and GST/HST use the closing date under either method.",
+    "Agent Runway counts each deal's commission in the tax year it closes. Deal counts, GCI by year, History and the Runway Score use the closing date under either method, and the GST/HST return follows its own setting below.",
   );
 }
 
@@ -895,3 +904,53 @@ export function commissionPaidDateHint(method: IncomeReportingMethod): TaxCopy {
     "Optional. Your Settings show the accrual method, so the income tax estimates count this commission in the year the deal closed. The paid date is used only under the cash method (Settings, Tax Filing).",
   );
 }
+
+// ── GST/HST on commissions (2026-10-19) ──────────────────────────────────────
+
+/**
+ * When GST/HST on a commission is collectible. Source: CRA GST/HST
+ * Memorandum 300-6, "Time of Liability" (ETA s.168(1), s.152(1)), read
+ * 2026-10-19: tax is payable "on the earlier of the day that consideration
+ * for a taxable supply is paid or the day that consideration becomes due";
+ * consideration is deemed to become due on the earliest of the day the
+ * first invoice is issued, the invoice date, the day an invoice would have
+ * been issued but for undue delay, and the day payment is required under a
+ * written agreement. Which of those applies to a commission depends on the
+ * agent's agreement with the brokerage, so Agent Runway lets the agent pick
+ * the date (engines/commission-hst-engine.ts) and never picks it.
+ */
+export const GST_HST_COMMISSION_TIMING_RULE: TaxCopy = asTaxCopy(
+  "Per CRA, GST/HST on a supply is payable on the earlier of the day it is paid and the day it becomes due. Payment becomes due on the earliest of the day the first invoice is issued, the invoice date, the day an invoice would have been issued without undue delay, and the day payment is required under a written agreement.",
+);
+
+/** The CRA page the rule above comes from. */
+export const CRA_GST_HST_TIMING_SOURCE = {
+  label: "CRA GST/HST Memorandum 300-6: Time of Liability",
+  url: "https://www.canada.ca/en/revenue-agency/services/forms-publications/publications/g300-6/time-liability-gst-300-6.html",
+} as const;
+
+/** The Settings control (Tax Filing): which date places a commission on a GST/HST return. */
+export const GST_HST_COMMISSION_TIMING_SETTING = {
+  label: "GST/HST return: place each commission by",
+  options: {
+    closing: "Its closing date",
+    paid: "The date it was paid (the closing date when no paid date is entered)",
+  } satisfies Record<GstHstCommissionTiming, string>,
+} as const;
+
+/** The line under that control, for the choice made. */
+export function gstHstCommissionTimingHint(timing: GstHstCommissionTiming): TaxCopy {
+  if (timing === "paid") {
+    return asTaxCopy(
+      "The GST/HST return card on Expenses places each commission in the period of its Commission paid date, or of its closing date when that date is blank. Changing this setting moves commissions between periods, including periods already filed. Which date matches your agreement with your brokerage is a question for your accountant.",
+    );
+  }
+  return asTaxCopy(
+    "The GST/HST return card on Expenses places each commission in the period of its closing date. Changing this setting moves commissions between periods, including periods already filed. Which date matches your agreement with your brokerage is a question for your accountant.",
+  );
+}
+
+/** The line under the transaction form's "GST/HST paid to you" field. */
+export const COMMISSION_HST_HINT: TaxCopy = asTaxCopy(
+  "Optional. The GST/HST your brokerage's commission statement shows it paid you on this commission. Entered, it is this deal's GST/HST collected on the GST/HST return card and in the GST/HST figures. Blank, Agent Runway estimates it at your province's rate on the full commission; brokerages differ, and some charge it on your share after the split and fees.",
+);

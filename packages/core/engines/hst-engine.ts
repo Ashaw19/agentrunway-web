@@ -58,6 +58,14 @@ export interface HSTCollectedInputs {
    * the agent's personal cash-flow view sees $0 collected.
    */
   brokerageWithholdsHst: boolean;
+  /**
+   * The deals in `ytdGCI` whose HST was entered from the brokerage's
+   * commission statement (recordedCommissionHstShare in
+   * commission-hst-engine): their full commission and the HST the
+   * statements show. That HST replaces the estimate on those deals. Omitted:
+   * every deal is estimated.
+   */
+  recorded?: { gci: number; hst: number };
 }
 
 export interface HSTNetOwingInputs {
@@ -86,20 +94,30 @@ export type HSTThresholdSeverity =
  *   If !isRegistered         -> 0  (non-registrants do not charge HST)
  *   If brokerageWithholdsHst -> 0  (brokerage holds and remits; agent never
  *                                   touches the HST portion)
- *   Otherwise                -> ytdGCI * hstRate
+ *   Otherwise                -> the HST the commission statements show on
+ *                               the deals they were entered for, plus
+ *                               hstRate × the full commission on the rest
  *
- * Critical: the multiplier is the full invoiced GCI, not the agent's split.
- * HST is charged on the commission invoiced to the client; the split
- * determines who keeps how much of the net, not the HST base.
+ * The estimate is on the full commission (GCI). Since 2026-10-19 a deal can
+ * carry the HST its commission statement shows (transactions.commission_hst),
+ * because brokerages differ: one statement charged 15% on the agent's share
+ * after the split and franchise fee ($777 on a $7,000 commission), not on the
+ * full commission ($1,050). The entered figure is used as it is.
  */
 export function computeHSTCollected(inputs: HSTCollectedInputs): number {
-  const { ytdGCI, hstRate, isRegistered, brokerageWithholdsHst } = inputs;
+  const { ytdGCI, hstRate, isRegistered, brokerageWithholdsHst, recorded } = inputs;
 
   if (!isRegistered) return 0;
   if (brokerageWithholdsHst) return 0;
-  if (ytdGCI <= 0 || hstRate <= 0) return 0;
+  const rawRecordedGci = Math.max(0, recorded?.gci ?? 0);
+  const recordedGci = Math.min(Math.max(0, ytdGCI), rawRecordedGci);
+  // A caller that hands more statement deals than ytdGCI covers: their HST is
+  // scaled to the part ytdGCI includes, so it is never counted in full twice.
+  const recordedHst = Math.max(0, recorded?.hst ?? 0) * (rawRecordedGci > 0 ? recordedGci / rawRecordedGci : 0);
+  const estimatedGci = Math.max(0, ytdGCI - recordedGci);
+  if (estimatedGci <= 0 && recordedHst <= 0) return 0;
 
-  return ytdGCI * hstRate;
+  return recordedHst + (hstRate > 0 ? estimatedGci * hstRate : 0);
 }
 
 /**

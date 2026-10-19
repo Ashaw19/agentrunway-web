@@ -607,7 +607,9 @@ describe("income reporting method (T4002 ch. 1)", () => {
   it("the Settings hint says what stays on the closing date under either method", () => {
     for (const method of ["cash", "accrual"] as const) {
       const hint = incomeReportingMethodHint(method);
-      expect(hint).toContain("Deal counts, GCI by year, History, the Runway Score and GST/HST");
+      expect(hint).toContain("Deal counts, GCI by year, History and the Runway Score");
+      // The GST/HST return has its own date setting since 2026-10-19.
+      expect(hint).toContain("the GST/HST return follows its own setting below");
       expect(hint).toMatch(/^Agent Runway counts/);
     }
     expect(incomeReportingMethodHint("cash")).toContain("Commission paid date");

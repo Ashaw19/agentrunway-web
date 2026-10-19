@@ -59,6 +59,7 @@ import {
 } from "@agent-runway/core/engines/expense-ratio-bands";
 import { calculate as calculateTax, type CanadianTaxResult, gstHstRate, gstHstLabel } from "@agent-runway/core/engines/canadian-tax-engine";
 import { computeHSTCollected } from "@agent-runway/core/engines/hst-engine";
+import { statementHstShare } from "@agent-runway/core/engines/commission-hst-engine";
 import { compare as benchmarkCompare, COHORT_LABELS, type BenchmarkResult } from "@agent-runway/core/engines/benchmark-engine";
 import { probabilityBands, type ProbabilityBands } from "@agent-runway/core/engines/probabilistic-forecast-engine";
 import { computeWhereYouStand, type WhereYouStandResult } from "@agent-runway/core/engines/where-you-stand-engine";
@@ -279,7 +280,7 @@ export async function POST(req: NextRequest) {
     const logbookPromise = loadVehicleLogbook(supabase, user.id, currentYear);
     const settled = await Promise.allSettled([
         supabase.from("user_settings").select("*").eq("user_id", user.id).maybeSingle(),                                                                  // 0
-        supabase.from("transactions").select("id, date, commission_paid_date, sale_price, commission_pct, team_split_pct, gci_override").eq("user_id", user.id).eq("status", "closed"), // 1
+        supabase.from("transactions").select("id, date, commission_paid_date, commission_hst, sale_price, commission_pct, team_split_pct, gci_override").eq("user_id", user.id).eq("status", "closed"), // 1
         supabase.from("pipeline_deals").select("estimated_price, estimated_commission_pct, probability_override, stage, expected_close_date").eq("user_id", user.id), // 2
         supabase.from("expense_categories").select("key, expense_items(key, monthly_recurring)").eq("user_id", user.id),                   // 3
         supabase.from("clients").select("id", { count: "exact", head: true }).eq("user_id", user.id).is("archived_at", null).in("status", ["boarding", "in_flight"]).lt("last_contact_at", new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()), // 4
@@ -686,6 +687,8 @@ export async function POST(req: NextRequest) {
           // memory/findings/dashboard_metric_divergence_fix_2026-06-26.md.
           isRegistered: settings.gst_hst_registered ?? false,
           brokerageWithholdsHst: settings.brokerage_withholds_hst ?? false,
+          // The HST commission statements show, on the deals it was entered for.
+          recorded: statementHstShare(ytdTx),
         });
         // expensesYTD is already net of the ITCs a registrant claims
         // (expense-totals-engine), so no further ITC comes off the HST owing.
@@ -963,6 +966,7 @@ export async function POST(req: NextRequest) {
             // site above + dashboard_metric_divergence_fix_2026-06-26.md.
             isRegistered: settings.gst_hst_registered ?? false,
             brokerageWithholdsHst: settings.brokerage_withholds_hst ?? false,
+            recorded: statementHstShare(ytdTx),
           });
           const receiptDetails = (receiptDetailsRows ?? []) as { total_amount?: number | null; tax_amount?: number | null; category_key?: string | null }[];
           // Same limits as the GST34 pre-fill (itcForExpense): half of meals
@@ -1391,7 +1395,7 @@ IMPORTANT: Use the Computed Engine Outputs section in the business data as your 
 
 AGENTIC ACTIONS — You have tools to act on the agent's behalf. Always searchClients first before any client action.
 
-CORE TOOLS: searchClients, searchPipelineDeals, searchTransactions, searchExpenses, searchListingAppointments, searchCCAAssets, searchClientsByFilter, getClientSummary, getQuickStats, createClient, updateClientDetails, updateClientNotes, updateClientStatus, updateClientTags, updateClientTone, linkClientReferral, createPipelineDeal, updatePipelineDealStage, updatePipelineDealCloseDate, updatePipelineDealValue, logContactActivity, createContactTask, captureNote (read-only), searchRecurringExpenses, createRecurringExpense, updateRecurringExpense, deleteRecurringExpense, logExpense, updateExpense, logMileage, logbookStatus, startLogbookPeriod, recordOdometerReading, recordReferral, recordTransaction, updateTransaction, updateIncomeReportingMethod, addCCAAsset, updateListingAppointment.
+CORE TOOLS: searchClients, searchPipelineDeals, searchTransactions, searchExpenses, searchListingAppointments, searchCCAAssets, searchClientsByFilter, getClientSummary, getQuickStats, createClient, updateClientDetails, updateClientNotes, updateClientStatus, updateClientTags, updateClientTone, linkClientReferral, createPipelineDeal, updatePipelineDealStage, updatePipelineDealCloseDate, updatePipelineDealValue, logContactActivity, createContactTask, captureNote (read-only), searchRecurringExpenses, createRecurringExpense, updateRecurringExpense, deleteRecurringExpense, logExpense, updateExpense, logMileage, logbookStatus, startLogbookPeriod, recordOdometerReading, recordReferral, recordTransaction, updateTransaction, updateIncomeReportingMethod, updateGstHstCommissionTiming, addCCAAsset, updateListingAppointment.
 
 Every write tool listed above is gated by an approval card — just call the tool when the agent describes the intent. The user sees a Confirm/Cancel card and the tool only runs on Confirm.
 
@@ -1415,7 +1419,8 @@ TOOL TRIGGERS:
 - A recurring expense that was real and has stopped ("I cancelled Canva at the end of June", "my lease is done") → searchRecurringExpenses → updateRecurringExpense with endDate (the date the agent states; ask for it when none is given). Its charges up to that date stay in the year's totals, the T2125 lines and the GST/HST credits, and none count after it. deleteRecurringExpense is only for an entry made by mistake: deleting takes the months already past this year out of every total as well.
 - Record closed deal → recordTransaction (address, client, side, close date, sale price + commission% OR exact GCI; commissionPaidDate when the agent says when the commission was paid). Edit an existing transaction → searchTransactions → updateTransaction.
 - Commission paid on a date ("the Elm St commission came in January 9") → searchTransactions → updateTransaction with commissionPaidDate (on or after the close date). Under the cash method it decides the tax year; under accrual it is only recorded.
-- Switch income reporting method ("I report on the cash method", "switch me to accrual") → updateIncomeReportingMethod with the method the agent names. Never suggest a method or say which is better; state CRA's rule on changing (the tool returns it) and that an accountant confirms it. Which figures move: tax estimates, take-home, instalments, T2125. Which do not: deal counts, GCI by year, History, the Runway Score, GST/HST.
+- HST from a commission statement ("the brokerage paid me $777 HST on Wasson Court") → searchTransactions → updateTransaction with commissionHst (the statement's figure only; never compute it from a rate). Placing commissions on the GST/HST return by the date paid instead of the closing date → updateGstHstCommissionTiming, only when the agent asks.
+- Switch income reporting method ("I report on the cash method", "switch me to accrual") → updateIncomeReportingMethod with the method the agent names. Never suggest a method or say which is better; state CRA's rule on changing (the tool returns it) and that an accountant confirms it. Which figures move: tax estimates, take-home, instalments, T2125. Which do not: deal counts, GCI by year, History, the Runway Score, GST/HST (the GST/HST return has its own date setting: updateGstHstCommissionTiming).
 - Buy business equipment (laptop, camera, car, office furniture) → addCCAAsset with the right CCA class (8=office/furniture 20%, 10=vehicles 30%, 10.1=passenger vehicles >$37K 30%, 12=software/tools <$500 100%, 50=computers 55%).
 - Listing update ("that listing at 44 Main went live" / "sold" / "expired") → searchListingAppointments → updateListingAppointment.
 - Client summary → searchClients → getClientSummary

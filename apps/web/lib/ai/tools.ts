@@ -50,6 +50,7 @@
  *                         recordOdometerReading,
  *                         updateExpense, recordReferral, recordTransaction,
  *                         updateTransaction, updateIncomeReportingMethod,
+ *                         updateGstHstCommissionTiming,
  *                         updatePipelineDealValue,
  *                         addCCAAsset, updateListingAppointment,
  *                         deleteExpense, deleteMileage, deleteTransaction,
@@ -80,13 +81,17 @@ import { tool, type ToolSet } from "ai";
 import { z } from "zod";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { OutreachOpportunityType, NewsletterTemplateType } from "@agent-runway/core/types/database";
-import { validateCommissionPaidDate } from "@agent-runway/core/validation/input-guards";
+import { validateCommissionHst, validateCommissionPaidDate } from "@agent-runway/core/validation/input-guards";
 import {
+  GST_HST_COMMISSION_TIMING_RULE,
+  GST_HST_COMMISSION_TIMING_SETTING,
   INCOME_REPORTING_METHOD_RULES,
   INCOME_REPORTING_METHOD_SETTING,
+  gstHstCommissionTimingHint,
   incomeReportingMethodHint,
 } from "@agent-runway/core/tax-copy";
-import { ACTIVE_PIPELINE_STAGES } from "@agent-runway/core/types/database";
+import { gstHstCommissionTiming } from "@agent-runway/core/engines/commission-hst-engine";
+import { ACTIVE_PIPELINE_STAGES, computeGCI } from "@agent-runway/core/types/database";
 import {
   aggregateReceiptTotals,
   expenseTaxContext,
@@ -230,6 +235,7 @@ export const NEEDS_APPROVAL_TOOLS = new Set([
   "deleteTransaction",
   // Tax settings
   "updateIncomeReportingMethod",
+  "updateGstHstCommissionTiming",
   // Pipeline value mutations
   "updatePipelineDealValue",
   // CCA / tax assets
@@ -353,10 +359,14 @@ export const APPROVAL_DESCRIPTIONS: Record<string, (args: Record<string, unknown
     if (args.closeDate) changes.push(`close → ${args.closeDate}`);
     if (typeof args.commissionPaidDate === "string") changes.push(`commission paid → ${args.commissionPaidDate}`);
     if (args.commissionPaidDate === null) changes.push("commission paid date cleared");
+    if (typeof args.commissionHst === "number") changes.push(`GST/HST paid (from the statement) → $${Number(args.commissionHst).toFixed(2)}`);
+    if (args.commissionHst === null) changes.push("GST/HST paid cleared");
     if (args.notes !== undefined) changes.push("notes");
     return `Update transaction ${args.transactionDescription ?? ""}: ${changes.length ? changes.join(", ") : "(details)"}`.trim();
   },
   // Tax settings
+  updateGstHstCommissionTiming: (args) =>
+    `GST/HST return: place each commission by ${args.timing === "paid" ? GST_HST_COMMISSION_TIMING_SETTING.options.paid.toLowerCase() : GST_HST_COMMISSION_TIMING_SETTING.options.closing.toLowerCase()}. Only the GST/HST return card on Expenses follows it.`,
   updateIncomeReportingMethod: (args) =>
     `Set income reporting method to ${args.method === "cash" ? INCOME_REPORTING_METHOD_SETTING.options.cash : INCOME_REPORTING_METHOD_SETTING.options.accrual}. Tax estimates, take-home, instalments and the T2125 view follow it; deal counts, GCI by year and the Runway Score do not.`,
   // Pipeline value
@@ -2281,7 +2291,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
 
     // ── UPDATE TRANSACTION ───────────────────────────────────────────────────
     updateTransaction: tool({
-      description: "Update details on a closed transaction. Use when the agent says 'change the sale price on that deal', 'update the commission on [address]' or 'the commission on [address] was paid on [date]' (commissionPaidDate; null clears it). Gated by the approval card.",
+      description: "Update details on a closed transaction. Use when the agent says 'change the sale price on that deal', 'update the commission on [address]', 'the commission on [address] was paid on [date]' (commissionPaidDate; null clears it) or 'the brokerage paid me $777 HST on [address]' (commissionHst: the GST/HST their commission statement shows, never worked out from a rate). Gated by the approval card.",
       inputSchema: z.object({
         transactionId: z.string().uuid().describe("The transaction UUID"),
         transactionDescription: z.string().describe("Brief description for the approval card"),
@@ -2291,10 +2301,11 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
         gciOverride: z.number().optional().describe("Updated exact GCI in dollars"),
         closeDate: z.string().optional().describe("Updated close date YYYY-MM-DD"),
         commissionPaidDate: z.string().nullable().optional().describe("Date the commission was received, YYYY-MM-DD, on or after the close date; null clears it"),
+        commissionHst: z.number().min(0).nullable().optional().describe("GST/HST the brokerage's commission statement shows it paid the agent on this commission, in dollars (e.g. 777). Only a figure the agent states from the statement, never computed from a rate; null clears it"),
         notes: z.string().optional().describe("Updated notes"),
       }),
       needsApproval: true,
-      execute: async ({ transactionId, transactionDescription, address, salePrice, commissionPct, gciOverride, closeDate, commissionPaidDate, notes }) => {
+      execute: async ({ transactionId, transactionDescription, address, salePrice, commissionPct, gciOverride, closeDate, commissionPaidDate, commissionHst, notes }) => {
         // Stamp edited_at so a future re-import doesn't stomp this approved correction.
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const updates: Record<string, any> = {
@@ -2312,9 +2323,34 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
           updates.commission_paid_date = commissionPaidDate || null;
           changed.push(commissionPaidDate ? `commission paid → ${commissionPaidDate}` : "commission paid date cleared");
         }
+        if (commissionHst !== undefined) {
+          updates.commission_hst = commissionHst;
+          changed.push(commissionHst == null ? "GST/HST paid cleared" : `GST/HST paid (from the statement) → $${commissionHst.toFixed(2)}`);
+        }
         if (notes !== undefined) { updates.notes = notes; changed.push("notes updated"); }
 
         if (changed.length === 0) return "No fields to update were provided.";
+
+        // The statement's HST (new, or the stored one when the commission
+        // changes) is checked against the commission the row will have.
+        if (commissionHst != null || salePrice !== undefined || commissionPct !== undefined || gciOverride !== undefined) {
+          const { data: row } = await supabase
+            .from("transactions")
+            .select("sale_price, commission_pct, gci_override, team_split_pct, commission_hst")
+            .eq("id", transactionId)
+            .eq("user_id", userId)
+            .maybeSingle();
+          if (!row) return "Not updated: transaction not found.";
+          const hstToCheck = commissionHst !== undefined ? commissionHst : row.commission_hst == null ? null : Number(row.commission_hst);
+          const commission = computeGCI({
+            sale_price: salePrice ?? row.sale_price,
+            commission_pct: commissionPct !== undefined ? commissionPct / 100 : row.commission_pct,
+            gci_override: gciOverride !== undefined ? gciOverride : row.gci_override,
+            team_split_pct: row.team_split_pct,
+          });
+          const hstCheck = validateCommissionHst(hstToCheck, commission);
+          if (!hstCheck.valid) return `Not updated: ${hstCheck.errors.join("; ")}.`;
+        }
 
         // A paid date is checked against the closing date the row will have.
         if (commissionPaidDate || closeDate !== undefined) {
@@ -2388,6 +2424,38 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
       },
     }),
 
+    // ── UPDATE GST/HST COMMISSION TIMING (confirm required) ────────────────────
+    // user_settings.gst_hst_commission_timing (migration 00187). Read through
+    // core/engines/commission-hst-engine.ts. The agent chooses; the tool
+    // states CRA's rule, never which date matches their agreement.
+    updateGstHstCommissionTiming: tool({
+      description: "Set which date places each commission on the agent's GST/HST return card: 'closing' (the closing date) or 'paid' (the Commission paid date, the closing date when blank). Use only when the agent asks to switch. Never suggest one. Gated by the approval card.",
+      inputSchema: z.object({
+        timing: z.enum(["closing", "paid"]).describe("The date the agent chose"),
+      }),
+      needsApproval: true,
+      execute: async ({ timing }) => {
+        try {
+          const { data: row } = await supabase
+            .from("user_settings")
+            .select("gst_hst_commission_timing")
+            .eq("user_id", userId)
+            .maybeSingle();
+          if (gstHstCommissionTiming(row) === timing) {
+            return `No change: Settings already place commissions by ${GST_HST_COMMISSION_TIMING_SETTING.options[timing].toLowerCase()}.`;
+          }
+          const { error } = await supabase
+            .from("user_settings")
+            .update({ gst_hst_commission_timing: timing, updated_at: new Date().toISOString() })
+            .eq("user_id", userId);
+          if (error) return `Failed to update the GST/HST setting: ${error.message}`;
+          return `✓ GST/HST return set to place each commission by ${GST_HST_COMMISSION_TIMING_SETTING.options[timing].toLowerCase()} (Settings → Tax Filing). ${gstHstCommissionTimingHint(timing)} ${GST_HST_COMMISSION_TIMING_RULE}`;
+        } catch {
+          return "Failed to update the GST/HST setting. Please try again.";
+        }
+      },
+    }),
+
     // ── DELETE TRANSACTION ────────────────────────────────────────────────────
     deleteTransaction: tool({
       description: "Delete a closed transaction (e.g., duplicate or entered by mistake). This permanently removes it. Gated by the approval card.",
@@ -2423,7 +2491,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
         try {
           const { data, error } = await supabase
             .from("transactions")
-            .select("id, address, client_name, date, commission_paid_date, sale_price, gci_override, side, status")
+            .select("id, address, client_name, date, commission_paid_date, commission_hst, sale_price, gci_override, side, status")
             .eq("user_id", userId)
             .or(`address.ilike.%${query}%,client_name.ilike.%${query}%`)
             .order("date", { ascending: false })
@@ -2432,10 +2500,11 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
           if (error) return `Search failed: ${error.message}`;
           if (!data || data.length === 0) return `No transactions found matching "${query}".`;
 
-          return data.map((t: { id: string; address: string; client_name: string; date: string; commission_paid_date: string | null; sale_price: number; gci_override: number | null; side: string; status: string }) => {
+          return data.map((t: { id: string; address: string; client_name: string; date: string; commission_paid_date: string | null; commission_hst: number | string | null; sale_price: number; gci_override: number | null; side: string; status: string }) => {
             const gci = t.gci_override ? `GCI $${Number(t.gci_override).toLocaleString()}` : `$${Number(t.sale_price).toLocaleString()}`;
             const paid = t.commission_paid_date ? `, commission paid ${t.commission_paid_date}` : "";
-            return `${t.address} — ${t.client_name} (${t.side}, ${t.status}, ${gci}, closed ${t.date}${paid}) — ID: ${t.id}`;
+            const hst = t.commission_hst != null ? `, GST/HST paid per statement $${Number(t.commission_hst).toFixed(2)}` : "";
+            return `${t.address} — ${t.client_name} (${t.side}, ${t.status}, ${gci}, closed ${t.date}${paid}${hst}) — ID: ${t.id}`;
           }).join("\n");
         } catch {
           return "Transaction search temporarily unavailable.";
@@ -4517,6 +4586,7 @@ export function createCoreAgentTools(supabase: SupabaseClient, userId: string): 
     recordTransaction: all.recordTransaction,
     updateTransaction: all.updateTransaction,
     updateIncomeReportingMethod: all.updateIncomeReportingMethod,
+    updateGstHstCommissionTiming: all.updateGstHstCommissionTiming,
     addCCAAsset: all.addCCAAsset,
     updateListingAppointment: all.updateListingAppointment,
     // AI activity
@@ -4615,6 +4685,8 @@ export function createPersonaAgentTools(
       updateTransaction: all.updateTransaction,
       // Cash or accrual (Settings → Tax Filing): the agent's choice, applied on approval.
       updateIncomeReportingMethod: all.updateIncomeReportingMethod,
+      // Which date places a commission on the GST/HST return card: the agent's choice.
+      updateGstHstCommissionTiming: all.updateGstHstCommissionTiming,
       addCCAAsset: all.addCCAAsset,
       // AI activity
       getAIActivity: all.getAIActivity,

@@ -221,7 +221,7 @@ export async function buildDiagnostics(
     supabase.from("user_settings").select("*").eq("user_id", userId).single(),
     supabase
       .from("transactions")
-      .select("id, date, commission_paid_date, sale_price, commission_pct, team_split_pct, gci_override, status")
+      .select("id, date, commission_paid_date, commission_hst, sale_price, commission_pct, team_split_pct, gci_override, status")
       .eq("user_id", userId),
     supabase
       .from("pipeline_deals")

@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { validateTransaction, FIELD_LIMITS } from "@agent-runway/core/validation/input-guards";
-import { commissionPaidDateHint } from "@agent-runway/core/tax-copy";
+import { COMMISSION_HST_HINT, commissionPaidDateHint } from "@agent-runway/core/tax-copy";
 import { incomeReportingMethod, taxYearGCIAdjustment } from "@agent-runway/core/engines/tax-year";
 import {
   Dialog,
@@ -63,6 +63,8 @@ type FormState = {
   date: string;
   /** Commission paid date (YYYY-MM-DD); "" = not entered. Read by engines/tax-year.ts. */
   commission_paid_date: string;
+  /** GST/HST paid to the agent, from the commission statement; "" = not entered. Read by engines/commission-hst-engine.ts. */
+  commission_hst: string;
   address: string;
   client_name: string;
   side: "buyer" | "seller" | "both";
@@ -85,6 +87,7 @@ function localDateStr(): string {
 const emptyForm = (): FormState => ({
   date: localDateStr(),
   commission_paid_date: "",
+  commission_hst: "",
   address: "",
   client_name: "",
   side: "buyer",
@@ -138,6 +141,7 @@ export function TransactionsContent({ initialTransactions, initialPipelineDeals,
       ...emptyForm(),
       date: tx.date ?? emptyForm().date,
       commission_paid_date: "",
+      commission_hst: "",
       address: tx.address ?? "",
       client_name: tx.client_name ?? "",
       side: tx.side ?? "buyer",
@@ -187,6 +191,7 @@ export function TransactionsContent({ initialTransactions, initialPipelineDeals,
     setForm({
       date: tx.date,
       commission_paid_date: tx.commission_paid_date ?? "",
+      commission_hst: tx.commission_hst != null ? String(tx.commission_hst) : "",
       address: tx.address ?? "",
       client_name: tx.client_name ?? "",
       side: tx.side,
@@ -224,6 +229,7 @@ export function TransactionsContent({ initialTransactions, initialPipelineDeals,
       notes: form.notes,
       date: form.date,
       commission_paid_date: form.commission_paid_date,
+      commission_hst: form.commission_hst,
     });
     if (!validation.valid || !validation.parsed) {
       validation.errors.forEach((msg) => toast.error(msg));
@@ -236,6 +242,7 @@ export function TransactionsContent({ initialTransactions, initialPipelineDeals,
     const payload = {
       date: form.date,
       commission_paid_date: parsed.commission_paid_date,
+      commission_hst: parsed.commission_hst,
       address: form.address.slice(0, FIELD_LIMITS.address),
       client_name: form.client_name.slice(0, FIELD_LIMITS.clientName),
       side: form.side,
@@ -829,6 +836,22 @@ export function TransactionsContent({ initialTransactions, initialPipelineDeals,
               <p className="text-[11px] text-muted-foreground">
                 {commissionPaidDateHint(incomeReportingMethod(settings))}
               </p>
+            </div>
+
+            {/* GST/HST the commission statement shows: engines/commission-hst-engine.ts */}
+            <div className="grid gap-1.5">
+              <Label htmlFor="tx-commission-hst">
+                GST/HST paid to you ($){" "}
+                <span className="text-xs text-muted-foreground">(optional, from your commission statement)</span>
+              </Label>
+              <Input
+                id="tx-commission-hst"
+                inputMode="decimal"
+                placeholder="e.g. 777.00"
+                value={form.commission_hst}
+                onChange={(e) => setField("commission_hst", e.target.value)}
+              />
+              <p className="text-[11px] text-muted-foreground">{COMMISSION_HST_HINT}</p>
             </div>
 
             {/* Address */}

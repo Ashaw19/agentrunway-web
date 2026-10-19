@@ -113,6 +113,11 @@ import {
   deadlineUrgency,
 } from "@agent-runway/core/engines/filing-period-engine";
 import { computeGST34 } from "@agent-runway/core/engines/gst34-engine";
+import {
+  commissionHstInput,
+  commissionsInGstHstPeriod,
+  gstHstCommissionTiming,
+} from "@agent-runway/core/engines/commission-hst-engine";
 import { buildGST34Worksheet } from "@agent-runway/core/engines/gst34-worksheet";
 import { recurringHSTDetailForPeriod, recurringHSTEntriesForPeriod } from "@agent-runway/core/engines/recurring-expense-engine";
 import { recurringEndDateError, recurringEndStatus } from "@/lib/expenses/recurring-end-date";
@@ -155,6 +160,11 @@ interface Props {
   hiddenExpenseItems?: { key: string; monthly_recurring: number | string | null }[];
   settings: UserSettings | null;
   transactions: Transaction[];
+  /**
+   * Closings before January 1 paid this year (loadGstHstCarryIn): on the
+   * GST/HST return card only, when commissions are placed by the date paid.
+   */
+  gstHstCarryIn?: Transaction[];
   /** A REAL agent's closed deals before January 1 in the cap year (loadCapYearCarryOver); the plan waterfall's only. */
   carryOverTx: Transaction[];
   initialReceipts?: ReceiptExpense[];
@@ -219,7 +229,7 @@ const CAT_LABEL: Record<string, string> = Object.fromEntries(
 );
 
 export function ExpensesContent({
-  initialCategories, settings, transactions, carryOverTx, initialReceipts = [],
+  initialCategories, settings, transactions, carryOverTx, gstHstCarryIn = [], initialReceipts = [],
   receiptTotalRows: receiptTotalRowsSeed, priorYearHistory = [], currentYear,
   mileageLogs = [], logbook, mileagePlaces = [], initialTab = "receipts", plaidItems = [], plaidTransactions = [],
   plaidExpenseItems = [], plaidExpenseCategories = [], plaidConfigured = false,
@@ -319,11 +329,14 @@ export function ExpensesContent({
   // ── GST34 pre-fill computation ─────────────────────────────────────────
   const gst34Result = useMemo(() => {
     if (!activePeriod || !settings) return null;
-    // Filter transactions to the selected period
-    const periodTx = transactions.filter((tx) => {
-      const d = tx.date;
-      return d >= activePeriod.startDate && d <= activePeriod.endDate;
-    });
+    // The commissions this return covers: by closing date, or by the date
+    // each was paid when the agent chose that in Settings (commission-hst-
+    // engine). The carry-in is the earlier closings paid this year, so a
+    // December closing paid in January can land in Q1.
+    const timing = gstHstCommissionTiming(settings);
+    const periodTx = commissionsInGstHstPeriod(
+      [...gstHstCarryIn, ...transactions], activePeriod.startDate, activePeriod.endDate, timing,
+    );
     // One entry per recurring expense, so the meal and vehicle ITC limits
     // apply to each (a lease payment's HST follows the business-use share).
     const recurringHST = recurringHSTEntriesForPeriod(
@@ -335,7 +348,8 @@ export function ExpensesContent({
       province: settings.province,
       period: activePeriod,
       frequency: filingFreq,
-      periodTransactions: periodTx.map((tx) => ({ gci: computeGCI(tx) })),
+      periodTransactions: periodTx.map(commissionHstInput),
+      commissionTiming: timing,
       periodReceipts: [
         // Every receipt dated in the period, from the full current-year rows.
         ...receiptsInPeriod(receiptTotalRows, activePeriod).map((r) => ({
@@ -351,7 +365,7 @@ export function ExpensesContent({
       vehicleBusinessUsePct: vehiclePct,
       homeOfficeBusinessUsePct: homePct,
     });
-  }, [activePeriod, settings, transactions, receiptTotalRows, filingFreq, recurringExpenses, vehiclePct, homePct]);
+  }, [activePeriod, settings, transactions, gstHstCarryIn, receiptTotalRows, filingFreq, recurringExpenses, vehiclePct, homePct]);
 
   // ── Current period deadline alert ──────────────────────────────────────
   const currentDeadline = useMemo(() => {

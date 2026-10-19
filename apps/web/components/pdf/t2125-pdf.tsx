@@ -590,7 +590,7 @@ export function T2125Pdf({ result, settings, taxYear, vehicleUse, mileageSummary
               subtitle={`Rate: ${(result.gstHst.rate * 100).toFixed(result.gstHst.rate === 0.14975 ? 3 : 0)}% · ${PROVINCE_LABELS[settings.province] ?? settings.province}`}
               color="#0369A1"
             />
-            <View style={s.gstRow}><Text>Collected on GCI</Text><Text style={{ fontFamily: "Helvetica-Bold" }}>{fmt(result.gstHst.collectedOnGCI)}</Text></View>
+            <View style={s.gstRow}><Text>{result.gstHst.statementDeals > 0 ? "Collected (commission statements)" : "Collected on GCI"}</Text><Text style={{ fontFamily: "Helvetica-Bold" }}>{fmt(result.gstHst.collectedOnGCI)}</Text></View>
             {result.paymentsStored ? (
               <>
                 <View style={s.gstRow}><Text>Less: ITCs (tax paid on expenses)</Text><Text>−{fmt(result.gstHst.paidOnExpenses)}</Text></View>

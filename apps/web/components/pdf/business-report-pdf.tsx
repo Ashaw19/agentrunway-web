@@ -1231,6 +1231,8 @@ export interface BusinessReportPDFProps {
   projectedNet: number;
   taxResult: TaxSummaryForPDF;
   gstHstCollectedYTD: number;
+  /** Deals whose HST is their commission statement's figure (for the note). */
+  gstHstStatementDeals?: number;
   gstHstLabel: string;
   /** `user_settings.gst_hst_registered`. Never inferred from `business_number`. */
   gstHstRegistered: boolean;
@@ -1305,6 +1307,7 @@ export function BusinessReportPDF({
   projectedNet,
   taxResult,
   gstHstCollectedYTD,
+  gstHstStatementDeals = 0,
   gstHstLabel,
   gstHstRegistered,
   brokerageWithholdsHst,
@@ -1797,6 +1800,7 @@ export function BusinessReportPDF({
               brokerageWithholds: brokerageWithholdsHst,
               collectedYTD: gstHstCollectedYTD,
               ytdGCI,
+              statementDeals: gstHstStatementDeals,
             })}{" "}
             {CANONICAL_TAX_DISCLAIMER_SHORT}
           </Text>
