@@ -9,6 +9,10 @@
  *     shorter by one for each; clients done for today are left out.
  *   - Nightly drafter (detectAndDraftForUser): nothing is queued for a
  *     client on Later or Stop, and they are queued again once Later ends.
+ *   - Drafting (the nightly run and POST ?draft_only=true): a row queued
+ *     earlier is not drafted while its client is on Later or Stop (a Stop
+ *     still lets a consent request through), nor when its occurrence was
+ *     skipped. It stays queued, untouched, and drafts once the hold ends.
  *
  * Synthetic rows only.
  */
@@ -25,9 +29,14 @@ vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
 vi.mock("@/lib/rate-limit", () => ({ checkRateLimit: vi.fn(), rateLimitHeaders: vi.fn() }));
 vi.mock("@/lib/require-pro", () => ({ requirePro: vi.fn() }));
 
-import { detectAndDraftForUser, getTopOpportunities } from "@/app/api/ai/detect-opportunities/route";
+import type { NextRequest } from "next/server";
+import { generateText } from "ai";
+import { createClient } from "@/lib/supabase/server";
+import { checkRateLimit } from "@/lib/rate-limit";
+import { requirePro } from "@/lib/require-pro";
+import { POST, detectAndDraftForUser, getTopOpportunities } from "@/app/api/ai/detect-opportunities/route";
 import { loadNextUpHandful } from "@/lib/crm/next-up-handful";
-import { fakeSupabase, type Row } from "./helpers/fake-supabase";
+import { fakeSupabase, type Query, type Row } from "./helpers/fake-supabase";
 
 const USER = "user-1";
 const NOW = "2026-10-19T15:00:00Z";           // Mon Oct 19 2026, 12:00 ADT
@@ -311,5 +320,119 @@ describe("nightly drafter honours Later and Stop", () => {
     expect(queuedFor(await nightly(t), "c1")).toEqual(["consent_lapsing"]);
     const later = { ...t, flight_control_dismissals: [hold("c1", "later", TONIGHT)] };
     expect(queuedFor(await nightly(later), "c1")).toEqual([]);
+  });
+});
+
+describe("queued rows wait while a hold lasts (nightly run and draft_only)", () => {
+  const queuedRow = (id: string, clientId: string, opportunity_type: string, trigger_date: string, created_at: string): Row => ({
+    id, user_id: USER, client_id: clientId, opportunity_type, trigger_date, status: "draft", ai_subject: null,
+    channel: "email", created_at, context: {}, clients: { name: "Sam Lee" },
+  });
+  const skipRow = (clientId: string, opportunity_type: string, trigger_date: string): Row => ({
+    id: `skip-${clientId}-${opportunity_type}`, user_id: USER, client_id: clientId, opportunity_type, trigger_date,
+    kind: "skip", until: null, dismissed_at: "2026-10-19T13:00:00Z",
+  });
+
+  /** Ids a run drafted: the update that writes the subject and marks the row ready. */
+  const draftedIds = (queries: Query[]) => queries
+    .filter((q) => q.table === "outreach_queue" && q.op === "update" && (q.payload as Row).status === "ready")
+    .map((q) => q.filters.find((f) => f.op === "eq" && f.column === "id")?.value);
+  /** Every write aimed at one queued row by id (a draft, a skip, a delete). */
+  const touched = (queries: Query[], id: string) => queries.filter((q) =>
+    q.table === "outreach_queue" && q.filters.some((f) => f.column === "id" && (f.value === id || (Array.isArray(f.value) && f.value.includes(id)))));
+
+  async function nightlyRun(t: Record<string, Row[]>, options?: Parameters<typeof fakeSupabase>[1]) {
+    const { client, queries } = fakeSupabase(t, options);
+    await detectAndDraftForUser(USER, client);
+    return queries;
+  }
+
+  async function draftOnlyRun(t: Record<string, Row[]>, options?: Parameters<typeof fakeSupabase>[1]) {
+    const { client, queries } = fakeSupabase(t, options);
+    vi.mocked(createClient).mockResolvedValue(
+      Object.assign(client, { auth: { getUser: async () => ({ data: { user: { id: USER } } }) } }) as never,
+    );
+    vi.mocked(requirePro).mockResolvedValue({ allowed: true } as never);
+    vi.mocked(checkRateLimit).mockResolvedValue({ allowed: true, remaining: 29, resetAt: 0, limit: 30 } as never);
+    const res = await POST(new Request("http://localhost/api/ai/detect-opportunities?draft_only=true", { method: "POST" }) as unknown as NextRequest);
+    expect(res.status).toBe(200);
+    return queries;
+  }
+
+  const PATHS = [["the nightly run", nightlyRun], ["draft_only", draftOnlyRun]] as const;
+
+  beforeEach(() => {
+    process.env.ANTHROPIC_API_KEY = "test-key";
+    vi.mocked(generateText).mockReset();
+    vi.mocked(generateText).mockResolvedValue({ text: "Hi Sam,\n\nThinking of you this fall.\n\nSUBJECT: a quick hello" } as never);
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.spyOn(console, "error").mockImplementation(() => {});
+  });
+
+  it.each(PATHS)("%s: a queued row for a client on Later isn't drafted, and is drafted once Later has passed", async (_, run) => {
+    const t = tables([clientRow("c1", "Sam Lee"), clientRow("c2", "Ana Roy")], {
+      outreach_queue: [
+        queuedRow("q1", "c1", "past_client_check_in", "2026-10-01", "2026-10-01T12:00:00Z"),
+        queuedRow("q2", "c2", "past_client_check_in", "2026-10-01", "2026-10-02T12:00:00Z"),
+      ],
+      flight_control_dismissals: [hold("c1", "later", TONIGHT)],
+    });
+    const now = await run(t);
+    expect(draftedIds(now)).toEqual(["q2"]);
+    // Left queued: not drafted, skipped or deleted.
+    expect(touched(now, "q1")).toEqual([]);
+
+    vi.setSystemTime(new Date(TONIGHT));
+    expect(draftedIds(await run(t))).toEqual(["q1", "q2"]);
+  });
+
+  it.each(PATHS)("%s: a Stop leaves a consent-lapsing row draftable", async (_, run) => {
+    const t = tables([clientRow("c1", "Sam Lee")], {
+      client_records: [deal("c1", "2024-11-15")],
+      outreach_queue: [
+        queuedRow("q-ask", "c1", "consent_lapsing", "2026-11-14", "2026-10-01T12:00:00Z"),
+        // Inside the implied-consent window, so CASL alone would draft it.
+        queuedRow("q-check-in", "c1", "past_client_check_in", "2026-10-01", "2026-10-02T12:00:00Z"),
+      ],
+      flight_control_dismissals: [hold("c1", "stop", IN_3_MONTHS)],
+    });
+    const queries = await run(t);
+    expect(draftedIds(queries)).toEqual(["q-ask"]);
+    expect(touched(queries, "q-check-in")).toEqual([]);
+    // Without the Stop both draft.
+    expect(draftedIds(await run({ ...t, flight_control_dismissals: [] }))).toEqual(["q-ask", "q-check-in"]);
+  });
+
+  it.each(PATHS)("%s: a skipped occurrence's queued row isn't drafted", async (_, run) => {
+    const t = tables([clientRow("c1", "Sam Lee")], {
+      outreach_queue: [
+        queuedRow("q-skipped", "c1", "past_client_check_in", "2026-10-01", "2026-10-01T12:00:00Z"),
+        queuedRow("q-other", "c1", "past_client_check_in", "2026-09-01", "2026-10-02T12:00:00Z"),
+      ],
+      flight_control_dismissals: [skipRow("c1", "past_client_check_in", "2026-10-01")],
+    });
+    const queries = await run(t);
+    expect(draftedIds(queries)).toEqual(["q-other"]);
+    expect(touched(queries, "q-skipped")).toEqual([]);
+  });
+
+  it.each(PATHS)("%s: held rows don't take the batch: the oldest rows the agent can still get are drafted", async (_, run) => {
+    // Twelve older rows for a client on Stop, then one for a free client.
+    const held = Array.from({ length: 12 }, (_, i) =>
+      queuedRow(`h${String(i).padStart(2, "0")}`, "c1", "past_client_check_in", `2026-09-${String(i + 1).padStart(2, "0")}`, `2026-09-${String(i + 1).padStart(2, "0")}T12:00:00Z`));
+    const t = tables([clientRow("c1", "Sam Lee"), clientRow("c2", "Ana Roy")], {
+      outreach_queue: [...held, queuedRow("free", "c2", "past_client_check_in", "2026-10-01", "2026-10-01T12:00:00Z")],
+      flight_control_dismissals: [hold("c1", "stop", IN_3_MONTHS)],
+    });
+    expect(draftedIds(await run(t))).toEqual(["free"]);
+  });
+
+  it.each(PATHS)("%s: drafts nothing when the holds can't be read", async (_, run) => {
+    const t = tables([clientRow("c1", "Sam Lee")], {
+      outreach_queue: [queuedRow("q1", "c1", "past_client_check_in", "2026-10-01", "2026-10-01T12:00:00Z")],
+    });
+    const queries = await run(t, { readError: ["flight_control_dismissals"] });
+    expect(draftedIds(queries)).toEqual([]);
+    expect(vi.mocked(generateText)).not.toHaveBeenCalled();
   });
 });

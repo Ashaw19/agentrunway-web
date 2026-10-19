@@ -56,7 +56,7 @@ import type { ConsentLedgerRow } from "@agent-runway/core/types/database";
 import { recentlyContactedClientIds, outreachSuppressionCutoff } from "@/lib/crm/recently-contacted";
 import { selectTopCandidates, clientLifetimeGci, MAX_TOP_OPPORTUNITIES } from "@/lib/crm/top-opportunity-selection";
 import type { OpportunityKeyParts } from "@/lib/crm/dismissed-opportunities";
-import { dismissalRowsFrom, withoutDismissedOrHeld } from "@agent-runway/core/lib/suggestion-dismissals";
+import { dismissalRowsFrom, withoutDismissedOrHeld, type DismissalRow } from "@agent-runway/core/lib/suggestion-dismissals";
 import {
   FIRST_CONTACT_TYPES,
   contactAnniversaryCandidates,
@@ -950,6 +950,65 @@ async function skipQueueRows(supabase: SupabaseClient, userId: string, ids: stri
   else console.log(`[detect-opportunities] CASL gate: ${ids.length} queued row(s) skipped (unsubscribed or consent lapsed)`);
 }
 
+/**
+ * Skips, Laters and Stops (flight_control_dismissals, 00168, 00188), in
+ * pages. Pass `.data` through dismissalRowsFrom: kind is a text column.
+ */
+function readDismissals(supabase: SupabaseClient, userId: string) {
+  return fetchAllRows((from, to) =>
+    supabase
+      .from("flight_control_dismissals")
+      .select("id, client_id, opportunity_type, trigger_date, kind, until")
+      .eq("user_id", userId)
+      .order("id")
+      .range(from, to));
+}
+
+/**
+ * The oldest queued, undrafted rows that may be drafted now, at most
+ * MAX_DRAFTS_PER_RUN, with their client. A row whose occurrence was skipped,
+ * or whose client is on Later or Stop (a Stop still lets a consent request
+ * through), is left as it is: queued and undrafted, never skipped or
+ * deleted, and drafted as usual once the hold ends. Held rows are dropped
+ * before the limit, so they can't fill every run's batch. One request reads
+ * up to 1,000 queued rows; only the first eligible ones are needed.
+ */
+async function draftableQueueRows(
+  supabase:   SupabaseClient,
+  userId:     string,
+  dismissals: readonly DismissalRow[],
+  now:        Date,
+) {
+  const { data: queued, error } = await supabase
+    .from("outreach_queue")
+    .select("id, client_id, opportunity_type, trigger_date")
+    .eq("user_id", userId)
+    .eq("status", "draft")
+    .is("ai_subject", null)
+    .order("created_at", { ascending: true });
+  if (error) {
+    console.error("[detect-opportunities] queued rows read failed; nothing drafted:", error.message);
+    return [];
+  }
+  const keyed = (queued ?? []).map((r) => ({
+    id:               String(r.id),
+    client_id:        String(r.client_id ?? ""),
+    opportunity_type: String(r.opportunity_type ?? ""),
+    trigger_date:     String(r.trigger_date ?? ""),
+  }));
+  const ids = withoutDismissedOrHeld(keyed, dismissals, now).slice(0, MAX_DRAFTS_PER_RUN).map((r) => r.id);
+  if (ids.length === 0) return [];
+  const { data } = await supabase
+    .from("outreach_queue")
+    .select("*, clients(name, city, province_region, communication_tone, tags, notes)")
+    .eq("user_id", userId)
+    .in("id", ids)
+    .eq("status", "draft")
+    .is("ai_subject", null)
+    .order("created_at", { ascending: true });
+  return data ?? [];
+}
+
 // ── Core detection + drafting logic (exported for cron wrapper) ───────────────
 
 /** One opportunity the agent clicked "Draft" on in Flight Control. */
@@ -1019,13 +1078,7 @@ export async function detectAndDraftForUser(
         .range(from, to)),
     // Occurrences the agent skipped in Flight Control, and clients on Later
     // or Stop (00188) — packages/core/lib/suggestion-dismissals.ts
-    fetchAllRows((from, to) =>
-      supabase
-        .from("flight_control_dismissals")
-        .select("id, client_id, opportunity_type, trigger_date, kind, until")
-        .eq("user_id", userId)
-        .order("id")
-        .range(from, to)),
+    readDismissals(supabase, userId),
     firstContactOccurrences(supabase, userId),
   ]);
 
@@ -1048,6 +1101,7 @@ export async function detectAndDraftForUser(
   const _clientMap = new Map(clients.map((c) => [c.id, c]));
   // kind is a text column: an unknown value reads as a skip, never a hold.
   const dismissals = dismissalRowsFrom(dismissedRes.data);
+  const now        = new Date();
   // Gate records against the archived-filtered client map — see
   // lib/crm/contactable-records.ts. The detectors below iterate `records`, not
   // `clients`, so without this an archived client (incl. 'deceased' /
@@ -1405,7 +1459,7 @@ export async function detectAndDraftForUser(
   const notDismissed = withoutDismissedOrHeld(
     inserts as { client_id: string; opportunity_type: string; trigger_date: string }[],
     dismissals,
-    new Date(),
+    now,
   );
   inserts.length = 0;
   inserts.push(...notDismissed);
@@ -1585,15 +1639,13 @@ export async function detectAndDraftForUser(
     return { detected, drafted: 0, pinned };
   }
 
-  const { data: oldestUndrafted } = await supabase
-    .from("outreach_queue")
-    .select("*, clients(name, city, province_region, communication_tone, tags, notes)")
-    .eq("user_id", userId)
-    .eq("status", "draft")
-    .is("ai_subject", null)
-    .order("created_at", { ascending: true })
-    .limit(MAX_DRAFTS_PER_RUN);
-  const undrafted = oldestUndrafted ?? [];
+  // Holds decide what may be drafted: without them a client on Later or
+  // Stop could be drafted, so a failed read drafts nothing this run.
+  if (dismissedRes.error) {
+    console.error("[detect-opportunities] dismissals read failed; nothing drafted:", dismissedRes.error.message);
+    return { detected, drafted: 0, pinned };
+  }
+  const undrafted = await draftableQueueRows(supabase, userId, dismissals, now);
 
   // Draft the clicked one in this run even when older undrafted rows fill the batch.
   const pinnedId = pinnedRow?.status === "draft" && !pinnedRow.ai_subject ? pinnedRow.id : null;
@@ -2426,13 +2478,7 @@ export async function getTopOpportunities(
         .range(from, to)),
     // Occurrences the agent skipped in Flight Control, and clients on Later
     // or Stop (00188) — packages/core/lib/suggestion-dismissals.ts
-    fetchAllRows((from, to) =>
-      supabase
-        .from("flight_control_dismissals")
-        .select("id, client_id, opportunity_type, trigger_date, kind, until")
-        .eq("user_id", userId)
-        .order("id")
-        .range(from, to)),
+    readDismissals(supabase, userId),
     firstContactOccurrences(supabase, userId),
     // CASL consent ledger (00183). Throws on failure: Scan errors rather
     // than show email cards for someone whose unsubscribe it couldn't read.
@@ -3252,13 +3298,17 @@ export async function POST(req: NextRequest) {
       // Skip detection — only draft pending items for this user
       const aiKey = process.env.ANTHROPIC_API_KEY || process.env.GROQ_API_KEY;
       if (aiKey) {
-        const [settingsRes, undraftedRes] = await Promise.all([
+        const [settingsRes, dismissedRes] = await Promise.all([
           supabase.from("user_settings").select("display_name, email_signature, ai_voice_guide, brokerage_name, phone, mailing_address").eq("user_id", userId).single(),
-          supabase.from("outreach_queue").select("*, clients(name, city, province_region, communication_tone, tags, notes)")
-            .eq("user_id", userId).eq("status", "draft").is("ai_subject", null)
-            .order("created_at", { ascending: true }).limit(MAX_DRAFTS_PER_RUN),
+          readDismissals(supabase, userId),
         ]);
-        if (undraftedRes.data?.length) {
+        // A skipped occurrence or a client on Later or Stop is left queued
+        // and undrafted; without the holds nothing is drafted this time.
+        if (dismissedRes.error) console.error("[flight-control] dismissals read failed; nothing drafted:", dismissedRes.error.message);
+        const undrafted = dismissedRes.error
+          ? []
+          : await draftableQueueRows(supabase, userId, dismissalRowsFrom(dismissedRes.data), new Date());
+        if (undrafted.length) {
           const agentFirst     = extractFirstName(settingsRes.data?.display_name ?? null, "");
           const emailSignature = (settingsRes.data?.email_signature as string) ?? "";
           const agentStyleGuide = (settingsRes.data?.ai_voice_guide as string | null) ?? null;
@@ -3266,14 +3316,14 @@ export async function POST(req: NextRequest) {
           // CASL: each queued row is checked again before it is drafted
           // (core consentStatus on its send day). Refused rows are skipped;
           // a row whose consent can't be read is left for the next run.
-          const verdicts = await Promise.all(undraftedRes.data.map(async (item) => {
+          const verdicts = await Promise.all(undrafted.map(async (item) => {
             const read = await readClientConsent(supabase, userId, item.client_id as string);
             if (!read.ok) return read.notFound ? "refused" : "unknown";
             return consentBlockReason(read.inputs, "email", item.trigger_date as string, "") ? "refused" : "ok";
           }));
-          await skipQueueRows(supabase, userId, undraftedRes.data.filter((_, i) => verdicts[i] === "refused").map((r) => r.id as string));
+          await skipQueueRows(supabase, userId, undrafted.filter((_, i) => verdicts[i] === "refused").map((r) => r.id as string));
           const results = await Promise.allSettled(
-            undraftedRes.data.filter((_, i) => verdicts[i] === "ok").map((item) =>
+            undrafted.filter((_, i) => verdicts[i] === "ok").map((item) =>
               draftItem(
                 item as Parameters<typeof draftItem>[0],
                 agentFirst, emailSignature, agentStyleGuide, userId, supabase, identity,
