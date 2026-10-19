@@ -122,6 +122,12 @@ export function fakeDb(seed: Record<string, Row[]> = {}, options: FakeDbOptions 
         delete() { op = "delete"; return builder; },
         eq(k: string, v: unknown) { filters.push((r) => r[k] === v); return builder; },
         is(k: string, v: unknown) { filters.push((r) => (r[k] ?? null) === v); return builder; },
+        // Only `not(col, "is", value)`, as PostgREST's `col=not.is.value`.
+        not(k: string, operator: string, v: unknown) {
+          if (operator !== "is") throw new Error(`fake db: not operator ${operator} not supported`);
+          filters.push((r) => (r[k] ?? null) !== v);
+          return builder;
+        },
         in(k: string, vs: unknown[]) { filters.push((r) => vs.includes(r[k])); return builder; },
         ilike(k: string, pattern: string) {
           const needle = pattern.replace(/%/g, "").toLowerCase();

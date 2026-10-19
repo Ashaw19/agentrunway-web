@@ -25,6 +25,7 @@ import {
   resumeSuggestions,
   writeSuggestionHold,
   writeSuggestionSkip,
+  type HoldOutcome,
   type SuggestionHoldArgs,
   type WriteOutcome,
 } from "@agent-runway/core/lib/record-writers";
@@ -67,14 +68,15 @@ export async function undismissOpportunity(
 }
 
 /**
- * Later or Stop: hold the client's suggestions until `args.until`. Saved
- * means held, or already stopped for longer (the outcome's message says
- * which, for the toast).
+ * Later or Stop: hold the client's suggestions until `args.until`.
+ * `ok` with `alreadySaved` and `stoppedUntil` means nothing was written: a
+ * Stop is still running, so show that and don't offer Undo (resumeSuggestion
+ * would delete the Stop).
  */
 export async function holdSuggestion(
   supabase: SupabaseClient,
   args:     SuggestionHoldArgs,
-): Promise<WriteOutcome> {
+): Promise<HoldOutcome> {
   const userId = await signedInUserId(supabase);
   if (!userId) return SIGNED_OUT;
   const now = new Date();

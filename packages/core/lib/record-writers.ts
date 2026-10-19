@@ -762,6 +762,16 @@ export interface SuggestionHoldArgs {
   until: Date;
 }
 
+export interface HoldOutcome extends WriteOutcome {
+  /**
+   * Set (with `alreadySaved: true`) when a Later was not written because a
+   * Stop is still running: the ISO instant that Stop ends. Nothing changed,
+   * so a caller must not offer Undo (resumeSuggestions would delete the
+   * Stop) and shows its own "already stopped until ..." wording.
+   */
+  stoppedUntil?: string;
+}
+
 /**
  * Put a client's suggestions on hold: Later (a few hours, tonight, tomorrow)
  * or Stop (3 or 6 months). One row per client per day: it is upserted on the
@@ -773,7 +783,8 @@ export interface SuggestionHoldArgs {
  * A Stop replaces a Later. A Later never replaces a Stop that is still
  * running, on the same day or an earlier one: the Stop already hides the
  * client for longer, so Andrew's "stop" survives a stale Later on another
- * surface. That is reported as saved, with nothing changed.
+ * surface. That is reported as `ok: true` with `alreadySaved: true` and the
+ * Stop's end in `stoppedUntil`, and nothing is written.
  *
  * `until` has to be ahead of `now` (a sheet opened at 18:58 and tapped at
  * 19:01 must not write a hold that has already ended).
@@ -784,14 +795,15 @@ export async function writeSuggestionHold(
   args: SuggestionHoldArgs,
   today: string,
   now: Date = new Date(),
-): Promise<WriteOutcome> {
+): Promise<HoldOutcome> {
   if (!args.clientId) return fail("Pick the client first.");
   if (args.kind !== "later" && args.kind !== "stop") return fail("A hold is a Later or a Stop.");
   if (!isIsoDay(today)) return fail("The day isn't a real date.");
   const untilMs = args.until instanceof Date ? args.until.getTime() : NaN;
   if (!Number.isFinite(untilMs)) return fail("The time isn't a real time.");
   if (untilMs <= now.getTime()) return fail("That time has already passed.");
-  const name = args.clientName || "That client";
+  // Used mid-sentence ("Suggestions for <name> ..."), so the fallback is lowercase.
+  const name = args.clientName || "this client";
   try {
     if (args.kind === "later") {
       // The kind is filtered here, so a row whose kind isn't ours is not a Stop.
@@ -810,7 +822,12 @@ export async function writeSuggestionHold(
       }
       if (!Number.isNaN(running)) {
         const when = atlanticDayInWords(running);
-        return { ok: true, message: `Suggestions for ${name} are already stopped${when ? ` until ${when}` : ""}.` };
+        return {
+          ok: true,
+          alreadySaved: true,
+          stoppedUntil: new Date(running).toISOString(),
+          message: `Suggestions for ${name} are already stopped${when ? ` until ${when}` : ""}.`,
+        };
       }
     }
     const { error } = await db.from(DISMISSALS).upsert(
@@ -826,7 +843,7 @@ export async function writeSuggestionHold(
       { onConflict: OCCURRENCE_CONFLICT },
     );
     if (error) return refused(args.kind === "stop" ? "stop the suggestions" : "hold the suggestion", error);
-    if (args.kind === "later") return { ok: true, message: `${name} will come back later.` };
+    if (args.kind === "later") return { ok: true, message: `${name[0].toUpperCase()}${name.slice(1)} will come back later.` };
     const when = atlanticDayInWords(untilMs);
     return { ok: true, message: `Suggestions for ${name} are stopped${when ? ` until ${when}` : ""}.` };
   } catch (err) {
@@ -920,7 +937,13 @@ export async function writeClientToHangar(
   }
 }
 
-/** Undo for writeClientToHangar: clears archived_at and archive_reason. */
+/**
+ * Undo for writeClientToHangar: clears archived_at and archive_reason. Only a
+ * client who is in the Hangar with the reason 'other' (what writeClientToHangar
+ * sets) is brought back. A client who isn't archived, or who was archived
+ * since for another reason (do_not_contact, moved_away, ...), is refused and
+ * left as they are, so a stale Undo can't undo someone else's decision.
+ */
 export async function restoreClientFromHangar(
   db: DbClient,
   userId: string,
@@ -934,9 +957,13 @@ export async function restoreClientFromHangar(
       .update({ archived_at: null, archive_reason: null })
       .eq("id", args.clientId)
       .eq("user_id", userId)
+      .eq("archive_reason", "other")
+      .not("archived_at", "is", null)
       .select("id");
     if (error) return refused("bring the client back from the Hangar", error);
-    if (Array.isArray(data) && data.length === 0) return fail(`${name} wasn't found in your clients.`);
+    if (Array.isArray(data) && data.length === 0) {
+      return fail(`${name} isn't in the Hangar from this move, so nothing was changed.`);
+    }
     return { ok: true, message: `${name} is back from the Hangar.`, id: args.clientId };
   } catch (err) {
     return thrown("bring the client back from the Hangar", err);

@@ -148,7 +148,9 @@ describe("holdSuggestion and resumeSuggestion", () => {
     vi.useFakeTimers({ now: new Date("2026-10-20T02:30:00.000Z"), toFake: ["Date"] });
     const { supabase, writes } = supabaseFor();
     const until = new Date("2026-10-20T11:00:00.000Z"); // 08:00 ADT
-    expect(await holdSuggestion(supabase, args(until))).toMatchObject({ ok: true });
+    const out = await holdSuggestion(supabase, args(until));
+    expect(out).toMatchObject({ ok: true });
+    expect(out.alreadySaved).toBeUndefined(); // written: Undo is offered
     expect(writes).toHaveLength(1);
     expect(writes[0]).toMatchObject({ table: TABLE, op: "upsert", onConflict: "user_id,client_id,opportunity_type,trigger_date" });
     expect(writes[0].payload).toEqual({
@@ -157,12 +159,14 @@ describe("holdSuggestion and resumeSuggestion", () => {
     });
   });
 
-  it("hands back the writer's outcome, so the toast can say a Stop is already running", async () => {
+  it("hands back the writer's outcome and its marker, so the card can say a Stop is already running and skip Undo", async () => {
     vi.useFakeTimers({ now: new Date("2026-10-19T15:00:00.000Z"), toFake: ["Date"] });
     const running = { id: "h1", user_id: "u1", client_id: "c1", opportunity_type: "any", trigger_date: "2026-10-05", kind: "stop", until: "2027-01-05T04:00:00.000Z" };
     const { supabase, writes } = supabaseFor({ seed: [running] });
     const out = await holdSuggestion(supabase, args(new Date("2026-10-19T16:00:00.000Z")));
     expect(out).toMatchObject({ ok: true, message: "Suggestions for Sam Lee are already stopped until January 5, 2027." });
+    // Nothing was written, so there is nothing to undo; the end of the Stop is a field, not text.
+    expect(out).toMatchObject({ alreadySaved: true, stoppedUntil: "2027-01-05T04:00:00.000Z" });
     expect(writes).toHaveLength(0);
   });
 

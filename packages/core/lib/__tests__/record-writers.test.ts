@@ -673,15 +673,43 @@ describe("writeSuggestionHold", () => {
     const { db, writes, tables } = dismissals({ [DISMISSALS]: [running] });
     const out = await writeSuggestionHold(db, USER, later(), DAY, NOW);
     expect(out).toMatchObject({ ok: true, message: "Suggestions for Sam Lee are already stopped until January 5, 2027." });
+    // A marker a caller can read without matching English: nothing was written
+    // (so no Undo, which would delete the Stop), and when the Stop ends.
+    expect(out).toMatchObject({ alreadySaved: true, stoppedUntil: "2027-01-05T04:00:00.000Z" });
     expect(writes).toEqual([]);
     expect(tables[DISMISSALS]).toEqual([running]);
+  });
+
+  it("a hold that was written carries no marker, so its Undo is offered", async () => {
+    const { db } = dismissals();
+    for (const args of [later(), stop()]) {
+      const out = await writeSuggestionHold(db, USER, args, DAY, NOW);
+      expect(out.ok).toBe(true);
+      expect(out.alreadySaved).toBeUndefined();
+      expect(out.stoppedUntil).toBeUndefined();
+    }
+  });
+
+  it("with the latest of several running Stops named, and only Stops still running", async () => {
+    const row = (id: string, until: string) => ({ id, user_id: USER, client_id: "c-1", opportunity_type: "any", trigger_date: id === "h-1" ? "2026-09-01" : "2026-10-05", kind: "stop", until });
+    const { db } = dismissals({ [DISMISSALS]: [row("h-1", "2026-12-01T04:00:00.000Z"), row("h-2", "2027-04-05T03:00:00.000Z"), row("h-3", "2026-10-01T03:00:00.000Z")] });
+    expect(await writeSuggestionHold(db, USER, later(), DAY, NOW)).toMatchObject({ alreadySaved: true, stoppedUntil: "2027-04-05T03:00:00.000Z" });
+  });
+
+  it("names a client with no name in lowercase, mid-sentence", async () => {
+    const running = { id: "h-1", user_id: USER, client_id: "c-1", opportunity_type: "any", trigger_date: "2026-10-05", kind: "stop", until: "2027-01-05T04:00:00.000Z" };
+    const held = dismissals({ [DISMISSALS]: [running] });
+    expect((await writeSuggestionHold(held.db, USER, { ...later(), clientName: "" }, DAY, NOW)).message).toBe("Suggestions for this client are already stopped until January 5, 2027.");
+    const fresh = dismissals();
+    expect((await writeSuggestionHold(fresh.db, USER, { ...stop(), clientName: "" }, DAY, NOW)).message).toBe("Suggestions for this client are stopped until January 19, 2027.");
+    expect((await writeSuggestionHold(dismissals().db, USER, { ...later(), clientName: "" }, DAY, NOW)).message).toBe("This client will come back later.");
   });
 
   it("a Later on the day a Stop was made leaves that Stop in place", async () => {
     const { db, tables } = dismissals();
     await writeSuggestionHold(db, USER, stop(), DAY, NOW);
     const out = await writeSuggestionHold(db, USER, later(), DAY, NOW);
-    expect(out.ok).toBe(true);
+    expect(out).toMatchObject({ ok: true, alreadySaved: true, stoppedUntil: "2027-01-19T04:00:00.000Z" });
     expect(tables[DISMISSALS]).toHaveLength(1);
     expect(tables[DISMISSALS][0]).toMatchObject({ kind: "stop" });
   });
@@ -847,7 +875,27 @@ describe("the Hangar writers", () => {
   it("restoreClientFromHangar only touches the user's own client", async () => {
     const theirs = { ...CLIENT, user_id: "someone-else", archived_at: "2026-10-19T15:00:00.000Z", archive_reason: "other" };
     const { db, tables } = fakeDb(seed({ clients: [theirs] }));
-    expect(await restoreClientFromHangar(db, USER, sam)).toMatchObject({ ok: false, message: "Sam Lee wasn't found in your clients." });
+    expect(await restoreClientFromHangar(db, USER, sam)).toMatchObject({ ok: false, message: "Sam Lee isn't in the Hangar from this move, so nothing was changed." });
+    expect(tables.clients[0]).toMatchObject({ archived_at: "2026-10-19T15:00:00.000Z", archive_reason: "other" });
+  });
+
+  it("restoreClientFromHangar refuses a client who isn't in the Hangar, instead of reporting success", async () => {
+    const { db, tables } = fakeDb(seed());
+    expect(await restoreClientFromHangar(db, USER, sam)).toEqual({ ok: false, message: "Sam Lee isn't in the Hangar from this move, so nothing was changed." });
+    expect(tables.clients[0]).toMatchObject({ archived_at: null });
+  });
+
+  it.each(["do_not_contact", "moved_away", "deceased"])("a stale Undo does not clear a client archived since as %s", async (reason) => {
+    const archived = { ...CLIENT, archived_at: "2026-10-19T16:00:00.000Z", archive_reason: reason };
+    const { db, tables } = fakeDb(seed({ clients: [archived] }));
+    expect(await restoreClientFromHangar(db, USER, sam)).toMatchObject({ ok: false });
+    expect(tables.clients[0]).toMatchObject({ archived_at: "2026-10-19T16:00:00.000Z", archive_reason: reason });
+  });
+
+  it("restoreClientFromHangar needs the client archived as well as the reason", async () => {
+    const odd = { ...CLIENT, archived_at: null, archive_reason: "other" };
+    const { db, tables } = fakeDb(seed({ clients: [odd] }));
+    expect(await restoreClientFromHangar(db, USER, sam)).toMatchObject({ ok: false });
     expect(tables.clients[0].archive_reason).toBe("other");
   });
 
