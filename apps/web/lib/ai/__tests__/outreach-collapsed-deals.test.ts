@@ -134,8 +134,11 @@ describe("Scan — collapsed deals", () => {
     expect([...anniv, ...post].filter((t) => t === "closing_anniversary" || POST_CLOSE.includes(t))).toEqual([]);
   });
 
-  it("shows an idle past client whose last deal closed 23 months ago", async () => {
-    expect(await scanTypes([deal("2024-11-01", "firmed")])).toContain("idle_client");
+  // 2025-01-15: idle (18+ months) and outside the 60-day consent_lapsing
+  // window (implied consent lapses 2027-01-15). A closing inside that window
+  // shows the consent card instead (consent-lapsing-detector.test.ts).
+  it("shows an idle past client whose last deal closed 21 months ago", async () => {
+    expect(await scanTypes([deal("2025-01-15", "firmed")])).toContain("idle_client");
   });
 
   it("doesn't treat a client whose only deal collapsed as an idle past client", async () => {
@@ -143,7 +146,7 @@ describe("Scan — collapsed deals", () => {
   });
 
   it("doesn't let a newer collapsed deal hide an idle past client", async () => {
-    const types = await scanTypes([deal("2024-11-01", "firmed", 1), deal("2026-06-01", "collapsed", 2)]);
+    const types = await scanTypes([deal("2025-01-15", "firmed", 1), deal("2026-06-01", "collapsed", 2)]);
     expect(types).toContain("idle_client");
   });
 });

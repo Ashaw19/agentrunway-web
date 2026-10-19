@@ -14,8 +14,10 @@
  *   "created"  — new item drafted and ready (201)
  *   "existing" — this opportunity was already drafted/sent; link returned (200)
  *   "queued"   — item created but Claude unavailable / errored; cron retries (202)
- *   "call_only" — past client whose last deal closed 2+ years before the send
- *                 date (CASL implied consent lapsed); nothing written (422)
+ *   "call_only" — the client's CASL consent (core consentStatus) doesn't
+ *                 cover an email on the send date: unsubscribed, or implied
+ *                 consent lapsed with no express consent on record; nothing
+ *                 written (422)
  *
  * Rate-limited to 20 calls/hour per user (endpoint key: "draft_outreach").
  *
@@ -23,7 +25,8 @@
  * genuine email value (birthday, closing_anniversary, mortgage_renewal_due,
  * mortgage_renewal_window, past_client_check_in, timeframe_approaching,
  * property_value_milestone) plus the CRM client panel's review_request and
- * referral_ask. Every CRM caller's type is pinned against this list in
+ * referral_ask, and consent_lapsing (ask to keep in touch before implied
+ * consent ends, 00183). Every CRM caller's type is pinned against this list in
  * lib/crm/__tests__/outreach-draft-actions.test.ts.
  *
  * Core drafting logic lives in @/lib/ai/draft-services. The Flight Crew

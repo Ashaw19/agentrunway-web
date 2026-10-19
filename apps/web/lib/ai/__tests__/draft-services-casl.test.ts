@@ -308,3 +308,169 @@ describe("email opt-out", () => {
     expect(writes).toEqual([]);
   });
 });
+
+/**
+ * CASL consent ledger (00183): express consent the agent recorded reopens
+ * drafting for a past client whose implied consent lapsed; an unsubscribe
+ * (or a withdrawal) blocks the channel it covers whatever else is on file;
+ * a consent request goes out only before the lapse (s.1(3)) and carries the
+ * identification and unsubscribe line (s.6(2), Regs s.4(e)).
+ */
+function consentRow(overrides: Row = {}): Row {
+  return {
+    id: "consent-1", user_id: USER, client_id: CLIENT, kind: "other", source: "agent",
+    channel: "email", basis: "express", method: "verbal", consent_text: "Happy to keep hearing from you",
+    evidence_note: null, consented_at: "2026-09-20T15:00:00+00:00", recorded_via: "web",
+    withdrawn_at: null, withdrawn_method: null, withdrawn_note: null, created_at: "2026-09-20T15:00:00+00:00",
+    ...overrides,
+  };
+}
+
+describe("consent ledger — express consent and withdrawals", () => {
+  it("express email consent lets draftOutreachForClient draft for a lapsed past client", async () => {
+    const { client } = fakeSupabase(tables([deal("2021-05-01")], { client_email_consents: [consentRow()] }));
+    const result = await draftOutreachForClient({
+      supabase: client, userId: USER, clientId: CLIENT, opportunityType: "past_client_check_in",
+    });
+    expect(result.status).toBe("created");
+    expect(mockGenerate).toHaveBeenCalled();
+  });
+
+  it("express email consent lets draftWorkflowMessage draft for a lapsed past client", async () => {
+    const { client } = fakeSupabase(tables([deal("2021-05-01")], { client_email_consents: [consentRow()] }));
+    const result = await draftWorkflowMessage({ supabase: client, userId: USER, clientId: CLIENT, template });
+    expect(result.status).not.toBe("call_only");
+    expect(result.status).not.toBe("error");
+  });
+
+  it("express consent for texts only doesn't open email", async () => {
+    const { client } = fakeSupabase(tables([deal("2021-05-01")], { client_email_consents: [consentRow({ channel: "sms" })] }));
+    const result = await draftOutreachForClient({
+      supabase: client, userId: USER, clientId: CLIENT, opportunityType: "past_client_check_in",
+    });
+    expect(result.status).toBe("call_only");
+  });
+
+  it("a withdrawn express consent doesn't open email", async () => {
+    const { client } = fakeSupabase(tables([deal("2021-05-01")], {
+      client_email_consents: [consentRow({ withdrawn_at: "2026-10-01T15:00:00+00:00", withdrawn_method: "verbal" })],
+    }));
+    const result = await draftOutreachForClient({
+      supabase: client, userId: USER, clientId: CLIENT, opportunityType: "past_client_check_in",
+    });
+    expect(result.status).toBe("call_only");
+  });
+
+  it("an unsubscribe after the express consent blocks both drafters, never drafted", async () => {
+    const t = {
+      ...tables([deal("2021-05-01")], { client_email_consents: [consentRow()] }),
+      clients: [clientRow({ email_opt_out_at: "2026-10-01T12:00:00+00:00" })],
+    };
+    const a = fakeSupabase(t);
+    expect((await draftOutreachForClient({ supabase: a.client, userId: USER, clientId: CLIENT, opportunityType: "past_client_check_in" })).status).toBe("call_only");
+    const b = fakeSupabase(t);
+    expect((await draftWorkflowMessage({ supabase: b.client, userId: USER, clientId: CLIENT, template })).status).toBe("call_only");
+    expect(a.writes).toEqual([]);
+    expect(b.writes).toEqual([]);
+    expect(mockGenerate).not.toHaveBeenCalled();
+  });
+
+  it("a withdrawal from texts only doesn't stop email", async () => {
+    const { client } = fakeSupabase({ ...tables([deal("2025-06-01")]), clients: [clientRow({ sms_opt_out_at: "2026-10-01T12:00:00+00:00" })] });
+    const result = await draftOutreachForClient({
+      supabase: client, userId: USER, clientId: CLIENT, opportunityType: "past_client_check_in",
+    });
+    expect(result.status).toBe("created");
+  });
+
+  it("drafts nothing when the consent record can't be read", async () => {
+    const { client, writes } = fakeSupabase(tables([deal("2025-06-01")]), { unreachable: ["client_email_consents"] });
+    const result = await draftOutreachForClient({
+      supabase: client, userId: USER, clientId: CLIENT, opportunityType: "past_client_check_in",
+    });
+    expect(result.status).toBe("queued");
+    expect(result.reason).toMatch(/couldn't read their consent/);
+    expect(writes).toEqual([]);
+    expect(mockGenerate).not.toHaveBeenCalled();
+  });
+});
+
+describe("consent ledger — consent request (consent_lapsing)", () => {
+  // Today is 2026-10-06. A closing on 2024-11-20 lapses 2026-11-20.
+  const settings = [{
+    user_id: USER, display_name: "Andrew Shaw", email_signature: "", ai_voice_guide: null,
+    brokerage_name: "REAL Broker", phone: "506-555-0100", mailing_address: "123 Main St, Saint John NB E2L 1A1",
+  }];
+
+  it("drafts the ask while implied consent holds, keyed on the last implied day, with the CASL lines", async () => {
+    const { client, writes } = fakeSupabase(tables([deal("2024-11-20")], { user_settings: settings }));
+    const result = await draftOutreachForClient({
+      supabase: client, userId: USER, clientId: CLIENT, opportunityType: "consent_lapsing",
+    });
+    expect(result.status).toBe("created");
+    const upsert = writes.find((w) => w.table === "outreach_queue" && w.op === "upsert")?.payload as Row;
+    expect(upsert).toMatchObject({ opportunity_type: "consent_lapsing", trigger_date: "2026-11-19" });
+    // SOR/2012-36 s.2: name, mailing address, and a phone, email or website.
+    expect(result.body).toContain("Andrew Shaw, REAL Broker\n123 Main St, Saint John NB E2L 1A1\n506-555-0100");
+    expect(result.body).toMatch(/change your mind at any time/);
+    expect(result.body).toMatch(/reply "unsubscribe"/);
+  });
+
+  it("isn't drafted without a mailing address, and says where to add it", async () => {
+    const { client, writes } = fakeSupabase(tables([deal("2024-11-20")], {
+      user_settings: [{ ...settings[0], mailing_address: null }],
+    }));
+    const result = await draftOutreachForClient({
+      supabase: client, userId: USER, clientId: CLIENT, opportunityType: "consent_lapsing",
+    });
+    expect(result.status).toBe("queued");
+    expect(result.queueItemId).toBe("");
+    expect(result.reason).toMatch(/mailing address/);
+    expect(result.reason).toMatch(/Flight Control, under Email Signature/);
+    expect(writes).toEqual([]);
+    expect(mockGenerate).not.toHaveBeenCalled();
+  });
+
+  it("isn't drafted without a phone, email or website", async () => {
+    const { client } = fakeSupabase(tables([deal("2024-11-20")], {
+      user_settings: [{ ...settings[0], phone: null }],
+    }));
+    const result = await draftOutreachForClient({
+      supabase: client, userId: USER, clientId: CLIENT, opportunityType: "consent_lapsing",
+    });
+    expect(result.status).toBe("queued");
+    expect(result.reason).toMatch(/phone number, email or website/);
+  });
+
+  it("uses the email signature as the identification when there is one", async () => {
+    const { client } = fakeSupabase(tables([deal("2024-11-20")], {
+      user_settings: [{ ...settings[0], mailing_address: null, email_signature: "Andrew Shaw\nREAL Broker\n9 King St, Saint John NB E2L 4N8\nandrew@example.ca" }],
+    }));
+    const result = await draftOutreachForClient({
+      supabase: client, userId: USER, clientId: CLIENT, opportunityType: "consent_lapsing",
+    });
+    // The signature has a postal code and an email: nothing added from Settings.
+    expect(result.body).toContain("9 King St, Saint John NB E2L 4N8\nandrew@example.ca");
+    expect(result.body).not.toContain("123 Main St");
+    expect(result.body).not.toContain("506-555-0100");
+  });
+
+  it("is call-only once implied consent has lapsed: the ask is a commercial message too", async () => {
+    const { client, writes } = fakeSupabase(tables([deal("2024-10-01")], { user_settings: settings }));
+    const result = await draftOutreachForClient({
+      supabase: client, userId: USER, clientId: CLIENT, opportunityType: "consent_lapsing",
+    });
+    expect(result.status).toBe("call_only");
+    expect(writes).toEqual([]);
+    expect(mockGenerate).not.toHaveBeenCalled();
+  });
+
+  it("isn't drafted for a client with no deal on record", async () => {
+    const { client } = fakeSupabase(tables([], { user_settings: settings }));
+    const result = await draftOutreachForClient({
+      supabase: client, userId: USER, clientId: CLIENT, opportunityType: "consent_lapsing",
+    });
+    expect(result.status).toBe("call_only");
+    expect(result.reason).toMatch(/no closed deal on record/);
+  });
+});

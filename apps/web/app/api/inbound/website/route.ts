@@ -42,11 +42,12 @@ function likeExact(value: string): string {
   return value.replace(/[\\%_]/g, (c) => `\\${c}`);
 }
 
-const CLIENT_COLS = "id, name, email, secondary_email, phone, secondary_phone, tags, archived_at, email_opt_out_at, updated_at";
+const CLIENT_COLS = "id, name, email, secondary_email, phone, secondary_phone, tags, archived_at, email_opt_out_at, email_opt_out_source, sms_opt_out_at, sms_opt_out_source, updated_at";
 type ClientRow = {
   id: string; name: string; email: string | null; secondary_email: string | null;
   phone: string | null; secondary_phone: string | null; tags: string[] | null;
-  archived_at: string | null; email_opt_out_at: string | null; updated_at: string;
+  archived_at: string | null; email_opt_out_at: string | null; email_opt_out_source: string | null;
+  sms_opt_out_at: string | null; sms_opt_out_source: string | null; updated_at: string;
 };
 
 /**
@@ -144,6 +145,8 @@ export async function POST(req: Request) {
       match = {
         id: row.id, name: row.name, email: row.email, phone: row.phone, tags: row.tags,
         archived_at: row.archived_at, email_opt_out_at: row.email_opt_out_at,
+        email_opt_out_source: row.email_opt_out_source, sms_opt_out_at: row.sms_opt_out_at,
+        sms_opt_out_source: row.sms_opt_out_source,
         hasOpenChecklistItem: (count ?? 0) > 0,
       };
     }
@@ -194,18 +197,32 @@ export async function POST(req: Request) {
         if (plan.consent) {
           const { error } = await admin.from("client_email_consents").insert({
             user_id: userId, client_id: clientId, kind: plan.consent.kind, source: "website",
+            channel: "email", basis: "express", method: "web_form", recorded_via: "website",
             consent_text: plan.consent.text, consented_at: plan.consent.at, consent_ip: plan.consent.ip,
             source_event_id: event.event_id,
           });
           if (error) throw new Error(`consent insert failed: ${error.code ?? ""} ${error.message}`);
         }
         if (plan.withdraw) {
+          // "all" ends every record, the agent's own too (the client stopped
+          // everything); one list ends only the site's records for that list.
+          // withdrawn_method is required on agent records (00183).
           let q = admin.from("client_email_consents")
-            .update({ withdrawn_at: plan.occurredAt })
+            .update({ withdrawn_at: plan.occurredAt, withdrawn_method: "web_form" })
             .eq("user_id", userId).eq("client_id", clientId).is("withdrawn_at", null);
-          if (plan.withdraw !== "all") q = q.eq("kind", plan.withdraw);
+          if (plan.withdraw !== "all") q = q.eq("kind", plan.withdraw).eq("source", "website");
           const { error } = await q;
           if (error) throw new Error(`consent withdraw failed: ${error.code ?? ""} ${error.message}`);
+        }
+        // Unsubscribed from everything: drafts waiting for them, email or
+        // text, can't go out (the same as a withdrawal the agent records).
+        if (plan.withdraw === "all") {
+          const { error } = await admin.from("outreach_queue")
+            .update({ status: "skipped" })
+            .eq("user_id", userId).eq("client_id", clientId)
+            .in("channel", ["email", "sms"])
+            .in("status", ["draft", "ready"]);
+          if (error) throw new Error(`queued drafts not skipped: ${error.code ?? ""} ${error.message}`);
         }
       }
     }

@@ -1,10 +1,12 @@
 import { createClient }   from "@/lib/supabase/server";
-import { fetchAllIn, fetchAllRows } from "@/lib/supabase/fetch-all";
+import { fetchAllRows } from "@/lib/supabase/fetch-all";
 import { redirect }        from "next/navigation";
 import { FlightControlContent } from "./flight-control-content";
 import type { OutreachQueueItem, NewsletterQueue } from "@/lib/types/database";
-import { lapsedPastClients, withCoBuyerDeals } from "@/lib/crm/outreach-consent";
-import { atlanticDayStart, atlanticISODate, atlanticNoon } from "@agent-runway/core/lib/local-date";
+import { consentInputsFor, emailBlockedClients, fetchConsentLedger } from "@/lib/crm/outreach-consent";
+import { consentBlockReasonNowAndOnSendDay } from "@/lib/crm/consent-gate";
+import { atlanticDayStart, atlanticISODate } from "@agent-runway/core/lib/local-date";
+import type { ConsentLedgerRow } from "@agent-runway/core/types/database";
 
 
 export const dynamic = "force-dynamic";
@@ -90,45 +92,61 @@ export default async function FlightControlPage() {
 
   if (closedDealsRes.error || coPartiesRes.error) {
     console.error(
-      "[flight-control] deal fetch for the newsletter CASL note failed:",
+      "[flight-control] deal fetch for the CASL consent check failed:",
       closedDealsRes.error?.message ?? coPartiesRes.error?.message,
     );
   }
-  const lapsedIds = lapsedPastClients(withCoBuyerDeals(closedDealsRes.data ?? [], coPartiesRes.data ?? []), atlanticNoon());
 
-  // Names for the note, archived clients excluded (they get no newsletter).
-  const { data: lapsedClients, error: lapsedClientsError } = lapsedIds.length > 0
-    ? await fetchAllIn<string, { id: string; name: string }>(lapsedIds, (chunk, from, to) =>
-        supabase
-          .from("clients")
-          .select("id, name")
-          .eq("user_id", user.id)
-          .in("id", chunk)
-          .is("archived_at", null)
-          .order("id")
-          .range(from, to))
-    : { data: [], error: null };
-  if (lapsedClientsError) {
-    console.error("[flight-control] lapsed-client names fetch failed:", lapsedClientsError.message);
-  }
-  const lapsedPastClientNames = (lapsedClients ?? [])
-    .map((c) => (c.name as string | null)?.trim() || "Unnamed client")
-    .sort((a, b) => a.localeCompare(b));
-
-  // Unsubscribed from all email (00173): flagged in the newsletter Recipients note.
-  const { data: optedOutClients, error: optedOutError } = await fetchAllRows<{ name: string | null }>((from, to) =>
+  // ── CASL consent (core consentStatus) ──
+  // The newsletter Recipients note lists who email consent doesn't cover
+  // today (lapsed past clients, unsubscribed clients), and a queued draft
+  // whose client it no longer covers can't be copied or marked sent.
+  // Archived clients get no newsletter and aren't checked. Deals are all
+  // deals: a co-buyer's shared deal still counts when the spouse holding it
+  // is archived.
+  const { data: activeClients, error: activeClientsError } = await fetchAllRows<{ id: string; name: string | null; email_opt_out_at: string | null; sms_opt_out_at: string | null }>((from, to) =>
     supabase
       .from("clients")
-      .select("id, name")
+      .select("id, name, email_opt_out_at, sms_opt_out_at")
       .eq("user_id", user.id)
       .is("archived_at", null)
-      .not("email_opt_out_at", "is", null)
       .order("id")
       .range(from, to));
-  if (optedOutError) console.error("[flight-control] opted-out names fetch failed:", optedOutError.message);
-  const optedOutClientNames = (optedOutClients ?? [])
-    .map((c) => (c.name as string | null)?.trim() || "Unnamed client")
-    .sort((a, b) => a.localeCompare(b));
+  if (activeClientsError) console.error("[flight-control] client consent fetch failed:", activeClientsError.message);
+  let ledger: ConsentLedgerRow[] | null = null;
+  try {
+    ledger = await fetchConsentLedger(supabase, user.id);
+  } catch (err) {
+    console.error("[flight-control] consent ledger read failed:", err instanceof Error ? err.message : err);
+  }
+  const consentReadable = !activeClientsError && ledger !== null && !closedDealsRes.error && !coPartiesRes.error;
+  const consentInputs = consentInputsFor(activeClients ?? [], closedDealsRes.data ?? [], coPartiesRes.data ?? [], ledger ?? []);
+  const nameOf = new Map((activeClients ?? []).map((c) => [c.id, c.name?.trim() || "Unnamed client"]));
+  const blocked = emailBlockedClients(consentInputs);
+  const lapsedPastClientNames = blocked.lapsed.map((id) => nameOf.get(id) ?? "Unnamed client").sort((a, b) => a.localeCompare(b));
+  const optedOutClientNames = blocked.optedOut.map((id) => nameOf.get(id) ?? "Unnamed client").sort((a, b) => a.localeCompare(b));
+
+  // Fails closed: a draft whose client is archived (the Hangar, which is
+  // where a do-not-contact client goes) or gone can't be copied or sent.
+  const queueItems = (queue ?? []) as { id: string; client_id: string | null; trigger_date: string; clients?: { name?: string | null } | null }[];
+  const consentBlockedQueue: Record<string, string> = {};
+  for (const item of queueItems) {
+    const name = item.clients?.name?.trim() || (item.client_id ? nameOf.get(item.client_id) : null) || "This client";
+    if (!consentReadable) {
+      consentBlockedQueue[item.id] = "Agent Runway couldn't read consent records just now. Reload before sending this.";
+      continue;
+    }
+    const inputs = item.client_id ? consentInputs.get(item.client_id) : undefined;
+    if (!inputs) {
+      consentBlockedQueue[item.id] = item.clients
+        ? `${name} is archived (in the Hangar), so this draft can't be sent. Restore them first if that's a mistake.`
+        : "This client is no longer in your CRM, so this draft can't be sent.";
+      continue;
+    }
+    // Today and on its send day: either refusing makes it not sendable.
+    const reason = consentBlockReasonNowAndOnSendDay(inputs, "email", item.trigger_date, name);
+    if (reason) consentBlockedQueue[item.id] = reason;
+  }
 
   return (
     <FlightControlContent
@@ -139,6 +157,8 @@ export default async function FlightControlPage() {
       initialNewsletters={(newslettersRes.data ?? []) as NewsletterQueue[]}
       lapsedPastClientNames={lapsedPastClientNames}
       optedOutClientNames={optedOutClientNames}
+      consentBlockedQueue={consentBlockedQueue}
+      initialMailingAddress={(settingsRow?.mailing_address as string | null) ?? ""}
       checklistClientIds={[...new Set((checklistRes.data ?? []).map((r) => r.client_id as string))]}
     />
   );

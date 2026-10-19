@@ -358,6 +358,8 @@ export interface UserSettings {
 
   // Flight Control email signature (migration 00039)
   email_signature: string;           // free-form multi-line signature block
+  // Business mailing address for consent requests (CASL, SOR/2012-36 s.2, migration 00183)
+  mailing_address?: string | null;
 
   // AI Voice Guide (migration 00046) — personal writing style for AI outreach drafts
   ai_voice_guide: string | null;
@@ -721,7 +723,11 @@ export type OutreachOpportunityType =
   | "lead_going_quiet"          // Boarding / In-Flight, 14+ days since last contact
   | "sphere_check_in"           // Cruising, no deal ever, 90+ days since contact (max 2 per scan)
   // Text queue (00179) — a text the agent picked or asked Flight Crew for; channel "sms"
-  | "text_message";
+  | "text_message"
+  // CASL consent ledger (00183): a past client's implied consent from a
+  // purchase lapses soon. Before the lapse: a drafted consent request. From
+  // the lapse day: a call card (a consent request is itself a CEM, s.1(3)).
+  | "consent_lapsing";
 export type OutreachStatus          = "draft" | "ready" | "sent" | "skipped";
 
 /**
@@ -772,7 +778,7 @@ export interface TopOpportunity {
   /** "call" = no email draft for this card; `call_reason` says why. */
   contact_channel:   "email" | "call";
   /** Why a call card is call-only: CASL lapsed, a personal check-in on an active client, or a sphere contact. */
-  call_reason?:      "casl_lapsed" | "personal_check_in" | "sphere" | "opted_out" | null;
+  call_reason?:      "casl_lapsed" | "personal_check_in" | "sphere" | "opted_out" | "consent_lapsed" | null;
   client_record_id:  string | null;
   context:           Record<string, unknown>; // pass-through for optional drafting
   financial_impact:  string;                  // 1-2 sentence business impact explanation
@@ -1183,13 +1189,54 @@ export interface Client {
   // precompute-briefings cron via packages/core/engines/engagement-engine.ts)
   engagement_score:      number;         // time-decayed weighted score, default 0
   engagement_updated_at: string | null;  // last nightly refresh
-  /** Unsubscribed from all email (00173): every drafter treats them as call-only. */
+  /** Unsubscribed from email (00173): every email drafter treats them as call-only (consentStatus). */
   email_opt_out_at?:     string | null;
   email_opt_out_source?: string | null;
+  /** How and why, when the agent recorded the withdrawal (00183). */
+  email_opt_out_method?: string | null;
+  email_opt_out_note?:   string | null;
+  /** Unsubscribed from texts (00183): every text drafter treats them as call-only. */
+  sms_opt_out_at?:       string | null;
+  sms_opt_out_source?:   string | null;
+  sms_opt_out_method?:   string | null;
+  sms_opt_out_note?:     string | null;
 
   created_at: string;
   updated_at: string;
 }
+
+// ── CASL consent ledger (client_email_consents: 00173, generalized 00183) ────
+// One row per consent given, per client and channel. Never edited: a
+// withdrawal is the only change. Status: consentStatus() in
+// engines/casl-consent-engine.ts. Implied consent from a purchase has no row:
+// it comes from the closed deal.
+export interface ClientConsentRecord {
+  id:               string;
+  user_id:          string;
+  client_id:        string;
+  /** Website list kind (alerts, market_letter, ...); 'other' on agent records. */
+  kind:             string;
+  /** 'website' (the agent's site form) | 'agent' (the agent recorded it). */
+  source:           string;
+  channel:          "email" | "sms";
+  basis:            "express" | "implied_inquiry";
+  /** in_person | verbal | written | email_reply | text_reply | web_form. Required on agent records. */
+  method:           string | null;
+  /** The wording they agreed to ('' when only a note was recorded). */
+  consent_text:     string;
+  evidence_note:    string | null;
+  consented_at:     string;
+  consent_ip:       string | null;
+  recorded_via:     string | null;
+  withdrawn_at:     string | null;
+  withdrawn_method: string | null;
+  withdrawn_note:   string | null;
+  source_event_id:  string | null;
+  created_at:       string;
+}
+
+/** A ledger row as the app reads it (CONSENT_RECORD_COLUMNS in core/lib/consent-ledger.ts). */
+export type ConsentLedgerRow = Omit<ClientConsentRecord, "user_id" | "consent_ip" | "source_event_id">;
 
 // ── Client Relationships (migration 00027) ───────────────────────────────────
 export interface ClientRelationship {

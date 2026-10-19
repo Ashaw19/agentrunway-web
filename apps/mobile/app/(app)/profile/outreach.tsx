@@ -26,6 +26,7 @@ import {
   MessageSquare,
 } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
+import { textCheckOutcome } from "@agent-runway/core/lib/queued-text-check";
 import * as SMS from "expo-sms";
 import { useDataStore, type OutreachItem } from "@/stores/data-store";
 import { supabase } from "@/lib/supabase";
@@ -54,6 +55,7 @@ const OPPORTUNITY_LABELS: Record<string, string> = {
   referral_ask:    "Referral Ask",
   just_sold:       "Just Sold",
   new_listing:     "New Listing",
+  consent_lapsing: "Consent request",
 };
 
 function opportunityLabel(type: string): string {
@@ -168,6 +170,10 @@ export default function OutreachScreen() {
                     .getState()
                     .outreachQueue.filter((q) => q.id !== item.id),
                 });
+              } else if (json.code === "NO_CONSENT") {
+                // CASL (consentStatus): unsubscribed, or implied consent
+                // lapsed since this was drafted. The server says why.
+                Alert.alert("Call instead", json.error ?? "Their consent doesn't cover this email any more.");
               } else if (json.code === "NO_CONNECTION") {
                 Alert.alert(
                   "Email Sending Unavailable",
@@ -209,6 +215,36 @@ export default function OutreachScreen() {
     }
     setSendingId(item.id);
     try {
+      // CASL: the text was drafted earlier. Ask the server whether it may
+      // still go out (unsubscribed, implied consent lapsed, archived) before
+      // Messages opens. No answer means no text (fails closed).
+      const session = (await supabase.auth.getSession()).data.session;
+      let status: number | null = null;
+      let answer: unknown = null;
+      if (session) {
+        try {
+          const res = await fetch(`${API_URL}/api/mobile/outreach/text-check`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+            body: JSON.stringify({ outreach_id: item.id }),
+          });
+          status = res.status;
+          answer = await res.json().catch(() => null);
+        } catch {
+          status = null;
+        }
+      }
+      const check = textCheckOutcome(status, answer);
+      if (!check.send) {
+        if (check.removeFromQueue) {
+          useDataStore.setState({
+            outreachQueue: useDataStore.getState().outreachQueue.filter((q) => q.id !== item.id),
+          });
+        }
+        Alert.alert(check.title, check.message);
+        return;
+      }
+
       const { result } = await SMS.sendSMSAsync([phone], body);
       const record = async () => {
         const ok = await markTexted(item.id, body);

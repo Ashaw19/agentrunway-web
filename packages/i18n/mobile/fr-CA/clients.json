@@ -199,5 +199,46 @@
     "buyerTargetAreaPlaceholder": "Ville ou quartier",
     "notes": "Notes",
     "notesPlaceholder": "Autres détails à retenir..."
+  },
+  "consent": {
+    "title": "Consentement (LCAP)",
+    "email": "Courriel",
+    "texts": "Textos",
+    "state": {
+      "express": "Exprès",
+      "implied": "Tacite jusqu'au {{date}}",
+      "lapsed": "Expiré : appel seulement",
+      "opted_out": "Désabonné : appel seulement",
+      "no_record": "Aucun dossier"
+    },
+    "record": "Noter un consentement",
+    "recordStop": "Demande d'arrêt",
+    "saidYes": "Le client a dit oui",
+    "saidStop": "Le client demande d'arrêter",
+    "rule": "Selon la LCAP, le consentement tacite dure 2 ans après un achat et 6 mois après une demande de renseignements. Le consentement exprès dure jusqu'à son retrait. Notez seulement ce que le client vous a dit.",
+    "stopRule": "Agent Runway ne rédigera plus de courriels ni de textos sur les canaux choisis, et les brouillons en attente sont écartés.",
+    "basisExpress": "Consentement exprès",
+    "basisInquiry": "Une demande (6 mois)",
+    "channels": "Canaux",
+    "how": "Comment (obligatoire)",
+    "when": "Quand (obligatoire)",
+    "pickDate": "Choisir le jour",
+    "wording": "Ce qu'il a accepté, dans ses mots",
+    "inquiryWording": "L'objet de sa demande",
+    "note": "Note : où se trouve la preuve",
+    "stopNote": "Note (facultatif)",
+    "save": "Enregistrer",
+    "saving": "Enregistrement…",
+    "cancel": "Annuler",
+    "required": "Le comment et le quand sont obligatoires.",
+    "loadFailed": "Impossible de charger le consentement. Touchez pour réessayer.",
+    "methods": {
+      "in_person": "En personne",
+      "verbal": "Appel",
+      "written": "Par écrit",
+      "email_reply": "Réponse courriel",
+      "text_reply": "Réponse texto",
+      "web_form": "Formulaire web"
+    }
   }
 }

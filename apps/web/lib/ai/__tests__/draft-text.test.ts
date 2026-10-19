@@ -3,9 +3,13 @@
  * agent to send from the iPhone app.
  *
  * Pins the rules that matter before any text reaches a client:
- *   - CASL applies to texts as to email: an opted-out client, or a past client
- *     whose last non-collapsed deal closed 2+ years ago, gets "call instead",
- *     with nothing written and no AI call.
+ *   - CASL applies to texts as to email (core consentStatus, text channel):
+ *     a client who unsubscribed from texts, or a past client whose last
+ *     non-collapsed deal closed 2+ years ago with no express text consent on
+ *     record, gets "call instead", with nothing written and no AI call.
+ *   - A consent request ("consent_request") goes out only while implied
+ *     consent still holds (CASL s.1(3)), and always says they can say no or
+ *     change their mind (Regs s.4(e)), footer on or off.
  *   - No usable phone number → skipped, no AI call.
  *   - The queued row is channel "sms", opportunity_type "text_message", status
  *     "ready", today's Atlantic date, and the body ends with the agent's name
@@ -28,7 +32,9 @@ import {
   draftTextForClient,
   finalizeTextBody,
   pickTextPhone,
+  withConsentLine,
 } from "../draft-text";
+import { CONSENT_REQUEST_TEXT_LINE } from "@/lib/crm/consent-gate";
 import { fakeSupabase, type Row } from "./helpers/fake-supabase";
 
 const USER = "user-1";
@@ -41,6 +47,16 @@ function clientRow(overrides: Row = {}): Row {
     communication_tone: "friendly", notes: null, tags: [], last_contact_at: "2026-04-01T15:00:00Z",
     email_opt_out_at: null,
     phone: "(506) 555-0101", phone_type: "mobile", secondary_phone: null, secondary_phone_type: null,
+    ...overrides,
+  };
+}
+
+function consentRow(overrides: Row = {}): Row {
+  return {
+    id: "consent-1", user_id: USER, client_id: CLIENT, kind: "other", source: "agent",
+    channel: "sms", basis: "express", method: "text_reply", consent_text: "Yes please",
+    evidence_note: null, consented_at: "2026-10-01T15:00:00Z", recorded_via: "mobile",
+    withdrawn_at: null, withdrawn_method: null, withdrawn_note: null, created_at: "2026-10-01T15:00:00Z",
     ...overrides,
   };
 }
@@ -76,11 +92,54 @@ afterEach(() => {
 });
 
 describe("draftTextForClient — consent and phone gates", () => {
-  it("refuses a client who opted out, without an AI call or a write", async () => {
-    const { client, writes } = fakeSupabase(tables({ clients: [clientRow({ email_opt_out_at: "2026-09-01T12:00:00Z" })] }));
+  it("refuses a client who unsubscribed from texts, without an AI call or a write", async () => {
+    const { client, writes } = fakeSupabase(tables({ clients: [clientRow({ sms_opt_out_at: "2026-09-01T12:00:00Z" })] }));
     const r = await draftTextForClient({ supabase: client, userId: USER, clientId: CLIENT, purpose: "check_in" });
     expect(r.status).toBe("call_only");
+    expect(r.reason).toMatch(/unsubscribed from your texts/);
     expect(r.reason).toMatch(/phone call/);
+    expect(mockGenerate).not.toHaveBeenCalled();
+    expect(writes).toEqual([]);
+  });
+
+  it("an unsubscribe from texts holds even with express text consent given before it", async () => {
+    const { client } = fakeSupabase(tables({
+      clients: [clientRow({ sms_opt_out_at: "2026-09-01T12:00:00Z" })],
+      client_email_consents: [consentRow({ consented_at: "2026-08-01T12:00:00Z" })],
+    }));
+    const r = await draftTextForClient({ supabase: client, userId: USER, clientId: CLIENT, purpose: "check_in" });
+    expect(r.status).toBe("call_only");
+  });
+
+  it("an email-only unsubscribe doesn't stop texts (00183: one opt-out per channel)", async () => {
+    const { client } = fakeSupabase(tables({ clients: [clientRow({ email_opt_out_at: "2026-09-01T12:00:00Z" })] }));
+    const r = await draftTextForClient({ supabase: client, userId: USER, clientId: CLIENT, purpose: "check_in" });
+    expect(r.status).toBe("created");
+  });
+
+  it("express text consent the agent recorded reopens texts for a lapsed past client", async () => {
+    const { client } = fakeSupabase(tables({
+      client_records: [deal("2023-05-01")],
+      client_email_consents: [consentRow()],
+    }));
+    const r = await draftTextForClient({ supabase: client, userId: USER, clientId: CLIENT, purpose: "check_in" });
+    expect(r.status).toBe("created");
+  });
+
+  it("express EMAIL consent does not open texts", async () => {
+    const { client } = fakeSupabase(tables({
+      client_records: [deal("2023-05-01")],
+      client_email_consents: [consentRow({ channel: "email" })],
+    }));
+    const r = await draftTextForClient({ supabase: client, userId: USER, clientId: CLIENT, purpose: "check_in" });
+    expect(r.status).toBe("call_only");
+  });
+
+  it("drafts nothing when the consent record can't be read", async () => {
+    const { client, writes } = fakeSupabase(tables(), { unreachable: ["client_email_consents"] });
+    const r = await draftTextForClient({ supabase: client, userId: USER, clientId: CLIENT, purpose: "check_in" });
+    expect(r.status).toBe("skipped");
+    expect(r.reason).toMatch(/couldn't read their consent/);
     expect(mockGenerate).not.toHaveBeenCalled();
     expect(writes).toEqual([]);
   });
@@ -177,6 +236,82 @@ describe("draftTextForClient — the queued text", () => {
     const r = await draftTextForClient({ supabase: client, userId: USER, clientId: CLIENT, purpose: "check_in" });
     expect(r.status).toBe("existing");
     expect(r.reason).toMatch(/already texted/);
+  });
+});
+
+describe("draftTextForClient — consent request", () => {
+  beforeEach(() => {
+    mockGenerate.mockResolvedValue({
+      text: "Hi Sam, would you like the odd text from me now and then about your area? Just reply YES.",
+    } as Awaited<ReturnType<typeof generateText>>);
+  });
+
+  const withAddress = [{
+    user_id: USER, display_name: "Andrew Shaw", brokerage_name: "REAL Broker", ai_voice_guide: null,
+    mailing_address: "123 Main St, Saint John NB E2L 1A1", phone: "506-555-0100",
+  }];
+
+  it("drafts while implied consent holds: the withdrawal line, then name, mailing address, phone and opt-out", async () => {
+    const { client, writes } = fakeSupabase(tables({ client_records: [deal("2024-11-20")], user_settings: withAddress }));
+    const r = await draftTextForClient({ supabase: client, userId: USER, clientId: CLIENT, purpose: "consent_request" });
+    expect(r.status).toBe("created");
+    const row = writes.find((w) => w.table === "outreach_queue" && w.op === "upsert")?.payload as Row;
+    expect(String(row.ai_body)).toMatch(/Just reply YES\. You can say no, or change your mind any time\.\nAndrew Shaw, REAL Broker\n123 Main St, Saint John NB E2L 1A1\n506-555-0100\nReply STOP to opt out\.$/);
+  });
+
+  it("appends its own withdrawal line even when the model wrote 'change your mind' in another sense", async () => {
+    mockGenerate.mockResolvedValue({
+      text: "Hi Sam, if you ever change your mind about the deck, I know a builder. Want the odd text from me? Just reply YES.",
+    } as Awaited<ReturnType<typeof generateText>>);
+    const { client, writes } = fakeSupabase(tables({ client_records: [deal("2024-11-20")], user_settings: withAddress }));
+    await draftTextForClient({ supabase: client, userId: USER, clientId: CLIENT, purpose: "consent_request" });
+    const row = writes.find((w) => w.table === "outreach_queue" && w.op === "upsert")?.payload as Row;
+    expect(String(row.ai_body)).toContain("Just reply YES. You can say no, or change your mind any time.");
+  });
+
+  it("isn't drafted as a text when the agent turned the footer off: the ask would carry no sender identification", async () => {
+    const { client, writes } = fakeSupabase(tables({
+      client_records: [deal("2024-11-20")],
+      user_settings: [{ ...withAddress[0], text_footer: false }],
+    }));
+    const r = await draftTextForClient({ supabase: client, userId: USER, clientId: CLIENT, purpose: "consent_request" });
+    expect(r.status).toBe("call_only");
+    expect(r.reason).toMatch(/won't draft this ask as a text/);
+    expect(mockGenerate).not.toHaveBeenCalled();
+    expect(writes).toEqual([]);
+  });
+
+  it("isn't drafted as a text without a mailing address", async () => {
+    const { client } = fakeSupabase(tables({ client_records: [deal("2024-11-20")] }));
+    const r = await draftTextForClient({ supabase: client, userId: USER, clientId: CLIENT, purpose: "consent_request" });
+    expect(r.status).toBe("call_only");
+    expect(r.reason).toMatch(/mailing address/);
+  });
+
+  it("is a call once implied consent has lapsed (a request is itself a commercial message)", async () => {
+    const { client, writes } = fakeSupabase(tables({ client_records: [deal("2024-10-14")] }));
+    const r = await draftTextForClient({ supabase: client, userId: USER, clientId: CLIENT, purpose: "consent_request" });
+    expect(r.status).toBe("call_only");
+    expect(mockGenerate).not.toHaveBeenCalled();
+    expect(writes).toEqual([]);
+  });
+
+  it("isn't drafted for a client with no deal (their basis is unknown) or one who already said yes", async () => {
+    const none = fakeSupabase(tables());
+    expect((await draftTextForClient({ supabase: none.client, userId: USER, clientId: CLIENT, purpose: "consent_request" })).status).toBe("call_only");
+    const already = fakeSupabase(tables({ client_records: [deal("2024-11-20")], client_email_consents: [consentRow()] }));
+    const r = await draftTextForClient({ supabase: already.client, userId: USER, clientId: CLIENT, purpose: "consent_request" });
+    expect(r.status).toBe("call_only");
+    expect(r.reason).toMatch(/already gave you express consent/);
+    expect(mockGenerate).not.toHaveBeenCalled();
+  });
+});
+
+describe("withConsentLine", () => {
+  it("always ends with the code's own line, once", () => {
+    expect(withConsentLine("Want the odd text? Reply YES.")).toBe(`Want the odd text? Reply YES. ${CONSENT_REQUEST_TEXT_LINE}`);
+    expect(withConsentLine(`Reply YES. ${CONSENT_REQUEST_TEXT_LINE}`)).toBe(`Reply YES. ${CONSENT_REQUEST_TEXT_LINE}`);
+    expect(withConsentLine("You can change your mind later. Reply YES.")).toMatch(new RegExp(`${CONSENT_REQUEST_TEXT_LINE.replace(/[.]/g, "\\.")}$`));
   });
 });
 

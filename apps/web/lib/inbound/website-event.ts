@@ -21,9 +21,13 @@
  *     already have an open item. Never for an open house visitor who already
  *     has an agent, and never for someone in the Hangar.
  *   - Consent the site recorded (exact wording, time, IP) is kept per kind.
- *   - Unsubscribing from ALL site email sets clients.email_opt_out_at, and
- *     every email drafter then treats them as call-only. A fresh sign-up after
- *     that clears it, which is the site's own rule.
+ *   - Unsubscribing from ALL site email sets clients.email_opt_out_at and,
+ *     since 00183, sms_opt_out_at too (the text drafter had always read an
+ *     email opt-out as "no texts"), and every email and text drafter then
+ *     treats them as call-only. A fresh sign-up after that clears the email
+ *     one, which is the site's own rule, but never an unsubscribe the agent
+ *     recorded themselves (email_opt_out_source 'agent'), and never the text
+ *     one: a sign-up for website email isn't consent to texts.
  */
 
 import { z } from "zod";
@@ -114,6 +118,10 @@ export interface MatchedClient {
   tags:             string[] | null;
   archived_at:      string | null;
   email_opt_out_at: string | null;
+  /** 'website' | 'agent' (a withdrawal the agent recorded, 00183) | null (older rows). */
+  email_opt_out_source?: string | null;
+  sms_opt_out_at?:  string | null;
+  sms_opt_out_source?: string | null;
   hasOpenChecklistItem: boolean;
 }
 
@@ -133,7 +141,11 @@ export interface EventPlan {
   /** Create this client (no match). */
   create?:   NewClientFields;
   /** Patch the matched client (only fields that change). */
-  patch?:    Partial<{ email: string; phone: string; tags: string[]; email_opt_out_at: string | null; email_opt_out_source: string | null }>;
+  patch?:    Partial<{
+    email: string; phone: string; tags: string[];
+    email_opt_out_at: string | null; email_opt_out_source: string | null;
+    sms_opt_out_at: string | null; sms_opt_out_source: string | null;
+  }>;
   /** The note for their Activity tab. */
   note?:     string;
   /** A "Contact <name>" Checklist item. */
@@ -224,8 +236,19 @@ export function planWebsiteEvent(e: WebsiteEvent, match: MatchedClient | null, n
         ? "Website: unsubscribed from all your website emails. Agent Runway won't draft emails to them now; a call is the way to reach them."
         : `Website: stopped ${label}.`,
     };
-    if (e.scope === "all" && !match.email_opt_out_at) {
-      plan.patch = { email_opt_out_at: occurredAt, email_opt_out_source: "website" };
+    if (e.scope === "all") {
+      // The LATEST opt-out stands (express consent given after an opt-out
+      // lifts it), so a newer unsubscribe replaces an older one. One the
+      // agent recorded stays the agent's, so a later sign-up can't lift it.
+      const patch: NonNullable<EventPlan["patch"]> = {};
+      const newer = (prev: string | null | undefined) => !prev || Date.parse(occurredAt) > Date.parse(prev);
+      if (newer(match.email_opt_out_at)) {
+        Object.assign(patch, { email_opt_out_at: occurredAt, email_opt_out_source: match.email_opt_out_source === "agent" ? "agent" : "website" });
+      }
+      if (newer(match.sms_opt_out_at)) {
+        Object.assign(patch, { sms_opt_out_at: occurredAt, sms_opt_out_source: match.sms_opt_out_source === "agent" ? "agent" : "website" });
+      }
+      if (Object.keys(patch).length > 0) plan.patch = patch;
     }
     return plan;
   }
@@ -262,9 +285,13 @@ export function planWebsiteEvent(e: WebsiteEvent, match: MatchedClient | null, n
   if (phone && !match.phone) patch.phone = phone;
   const tags = match.tags ?? [];
   if (!tags.includes(tag)) patch.tags = [...tags, tag];
-  // A fresh opt-in after a global unsubscribe lifts it (the site's own rule).
+  // A fresh opt-in after a global unsubscribe lifts it (the site's own rule),
+  // unless the agent recorded that unsubscribe themselves.
   // Compared as instants: the DB returns +00:00, the site sends Z.
-  if (consent && match.email_opt_out_at && Date.parse(consent.at) > Date.parse(match.email_opt_out_at)) {
+  if (
+    consent && match.email_opt_out_at && match.email_opt_out_source !== "agent"
+    && Date.parse(consent.at) > Date.parse(match.email_opt_out_at)
+  ) {
     patch.email_opt_out_at = null;
     patch.email_opt_out_source = null;
   }

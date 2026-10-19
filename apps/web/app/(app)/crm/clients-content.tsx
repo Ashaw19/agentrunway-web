@@ -208,6 +208,10 @@ import { CockpitStrip, CockpitStat, ScoreDial, SEMANTIC, GOLD, magnitudePct, Fli
 import { activityDirection } from "@/lib/crm/activity-direction";
 import { localDateTimeToInstant } from "@/lib/crm/local-datetime";
 import { ClientMemoryPanel } from "./components/client-memory-panel";
+import { ClientConsentSection } from "./components/client-consent-section";
+import { flightPlanMessageStep } from "@/lib/crm/flight-plan-consent";
+import { loadClientConsent } from "@agent-runway/core/lib/consent-writes";
+import type { ConsentInputs } from "@agent-runway/core/lib/consent-ledger";
 import { tierFromScore } from "@/lib/engines/engagement-engine";
 import { Sparkline } from "@/components/sparkline";
 import { HoverCard, HoverCardTrigger, HoverCardContent } from "@/components/ui/hover-card";
@@ -1515,7 +1519,7 @@ export function ClientsContent({
       prev
         .filter((c) => !gone.has(c.id))
         .map((c) => (kept.has(c.id) && !c.archived_at
-          ? { ...c, archived_at: archivedAt, archive_reason: c.archive_reason ?? (c.email_opt_out_at ? "do_not_contact" : "other") }
+          ? { ...c, archived_at: archivedAt, archive_reason: c.archive_reason ?? (c.email_opt_out_at || c.sms_opt_out_at ? "do_not_contact" : "other") }
           : c)),
     );
     setLocalTasks((prev) => prev.filter((t) => !t.client_id || !gone.has(t.client_id)));
@@ -2009,6 +2013,20 @@ export function ClientsContent({
           if (fp.trigger_tag && !clientTags.map((t) => t.toLowerCase()).includes(fp.trigger_tag.toLowerCase())) return false;
           return true;
         });
+        // CASL (consentStatus): an email or text step becomes a message only
+        // when the client's consent covers that channel on the step's day;
+        // otherwise a Checklist call (lib/crm/flight-plan-consent.ts).
+        // Loaded once, and only when a plan has a message step.
+        let stepConsent: ConsentInputs | null | undefined;
+        const consentForSteps = async (): Promise<ConsentInputs | null> => {
+          if (stepConsent !== undefined) return stepConsent;
+          try {
+            stepConsent = userId ? (await loadClientConsent(supabase, userId, clientId))?.inputs ?? null : null;
+          } catch {
+            stepConsent = null;
+          }
+          return stepConsent;
+        };
         for (const plan of matchingPlans) {
           // Skip if this plan already fired for this client in the current session.
           // Prevents duplicate tasks/emails when an agent toggles status back and forth.
@@ -2038,7 +2056,21 @@ export function ClientsContent({
                 "normal",
                 `Auto-created by Flight Plan: ${plan.name}`,
               );
-            } else if (step.action_type === "email") {
+            } else if (step.action_type === "email" || step.action_type === "text") {
+              const gate = flightPlanMessageStep({
+                action: step.action_type,
+                inputs: await consentForSteps(),
+                clientName,
+                planName: plan.name,
+                dueDate: dueDateStr,
+              });
+              if (gate.kind === "call_task") {
+                await addTask(clientId, gate.title, dueDateStr, "normal", gate.notes);
+                continue;
+              }
+            }
+
+            if (step.action_type === "email") {
               // Queue email into outreach_queue as a draft for Flight Control review
               const { data: { user: u } } = await supabase.auth.getUser();
               if (u) {
@@ -2067,7 +2099,7 @@ export function ClientsContent({
         }
       }
     },
-    [localFlightPlans, localFlightPlanSteps, localClients, addTask],
+    [localFlightPlans, localFlightPlanSteps, localClients, addTask, userId],
   );
 
   // ── Listing Appointment CRUD ─────────────────────────────────────────────────
@@ -4767,6 +4799,9 @@ export function ClientsContent({
                       </div>
                     </div>
 
+                    {/* Consent (CASL consent ledger, 00183) */}
+                    <ClientConsentSection key={selectedClient.id} clientId={selectedClient.id} clientName={selectedClient.name} />
+
                     {/* Address */}
                     {(() => {
                       const addrLabels = getCountryLabels(selectedClient.country ?? "Canada");
@@ -6059,7 +6094,7 @@ export function ClientsContent({
                               } else {
                                 const err = await res.json().catch(() => ({}));
                                 if (err.status === "call_only") {
-                                  // CASL: implied consent from their last purchase has lapsed.
+                                  // CASL (consentStatus): unsubscribed, or implied consent lapsed with no express consent on record.
                                   toast.info("Call instead of email", { description: err.error, duration: 10000 });
                                 } else {
                                   toast.error(err.error || "Failed to draft referral ask");
@@ -6094,7 +6129,7 @@ export function ClientsContent({
                               } else {
                                 const err = await res.json().catch(() => ({}));
                                 if (err.status === "call_only") {
-                                  // CASL: implied consent from their last purchase has lapsed.
+                                  // CASL (consentStatus): unsubscribed, or implied consent lapsed with no express consent on record.
                                   toast.info("Call instead of email", { description: err.error, duration: 10000 });
                                 } else {
                                   toast.error(err.error || "Failed to draft check-in");
@@ -6129,7 +6164,7 @@ export function ClientsContent({
                               } else {
                                 const err = await res.json().catch(() => ({}));
                                 if (err.status === "call_only") {
-                                  // CASL: implied consent from their last purchase has lapsed.
+                                  // CASL (consentStatus): unsubscribed, or implied consent lapsed with no express consent on record.
                                   toast.info("Call instead of email", { description: err.error, duration: 10000 });
                                 } else {
                                   toast.error(err.error || "Failed to draft review request");
@@ -6164,7 +6199,7 @@ export function ClientsContent({
                               } else {
                                 const err = await res.json().catch(() => ({}));
                                 if (err.status === "call_only") {
-                                  // CASL: implied consent from their last purchase has lapsed.
+                                  // CASL (consentStatus): unsubscribed, or implied consent lapsed with no express consent on record.
                                   toast.info("Call instead of email", { description: err.error, duration: 10000 });
                                 } else {
                                   toast.error(err.error || "Failed to draft message");

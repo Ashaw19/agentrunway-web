@@ -1,69 +1,57 @@
 /**
- * CASL gate for every AI email drafter: Flight Control (Scan + nightly cron),
- * on-demand outreach (CRM briefing + Flight Crew), Flight Plan workflow
- * templates, and the newsletter Recipients note.
+ * CASL gate for every AI drafter and send path: Flight Control (Scan + the
+ * nightly drafter), on-demand outreach (CRM briefing, client panel AI
+ * Actions, Flight Crew), Flight Plan templates, the text queue, the email
+ * send routes and the newsletter Recipients note.
  *
- * Under CASL, buying (or selling) a home through the agent creates implied
- * consent to receive commercial email for two years. After that, the purchase
- * alone no longer covers an email — a closing-anniversary note with a home
- * value offer, an idle-client check-in, a mortgage-renewal nudge.
+ * The rule itself lives in ONE place: consentStatus() in
+ * packages/core/engines/casl-consent-engine.ts (CASL s.6, s.10(9)-(10),
+ * s.11). This file only feeds it the rows each surface already reads, and
+ * evaluates it on the day the message would go out.
  *
- * Flight Control still surfaces those past clients (they are the best people
- * to reconnect with), but as a call, not an email draft. The scan read path
- * (getTopOpportunities), the draft write path (detectAndDraftForUser) and the
- * on-demand drafters in lib/ai/draft-services.ts all apply this — one shared
- * helper keeps them in lock-step, the same reason contactable-records.ts
- * exists.
- *
- * Scope: only clients with a closed deal on record are gated, counting a
- * co-buyer named on a couple's deal (withCoBuyerDeals; Andrew, 2026-10-06).
- * For everyone else the app has no view of their consent basis (an inquiry,
- * an open-house sign-up, express consent), so their behaviour is unchanged.
+ *   - An unsubscribe (email or texts) blocks that channel everywhere.
+ *   - Express consent the agent recorded opens drafting again for a past
+ *     client whose purchase-based implied consent lapsed.
+ *   - Implied consent from a purchase lasts 2 years from the last closing
+ *     (own or co-bought, #278; collapsed deals don't count); from a
+ *     recorded inquiry, 6 months.
+ *   - A client with no closed deal and no consent record: the app can't see
+ *     their basis, so drafting is unchanged ("no_record").
  */
 
-import { localISODate } from "@agent-runway/core/lib/local-date";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { consentStatus, type ConsentStatus } from "@agent-runway/core/engines/casl-consent-engine";
+import {
+  CONSENT_RECORD_COLUMNS,
+  consentInputsByClient,
+  creditCoBuyers,
+  type ConsentInputs,
+  type CoPartyRow,
+  type DealRow,
+} from "@agent-runway/core/lib/consent-ledger";
+import { atlanticISODate } from "@agent-runway/core/lib/local-date";
 import { excludeCollapsedDeals } from "@agent-runway/core/types/database";
+import { fetchAllRows } from "@/lib/supabase/fetch-all";
+import type { ConsentLedgerRow } from "@agent-runway/core/types/database";
 
-/** CASL s.10(10)(a): implied consent from a purchase lasts two years. */
-export const CASL_IMPLIED_CONSENT_MONTHS = 24;
+export { CASL_IMPLIED_CONSENT_MONTHS } from "@agent-runway/core/engines/casl-consent-engine";
+export type { ConsentInputs };
 
 export type ContactChannel = "email" | "call";
 
-export interface DealForConsent {
-  client_id?:        string | null;
-  close_date?:       string | null;
-  condition_status?: string | null;
-}
-
-/** A client_record_co_parties row: this deal also named this person (#257). */
-export interface CoPartyForConsent {
-  client_record_id?: string | null;
-  co_client_id?:     string | null;
-}
+export type DealForConsent = DealRow;
+export type CoPartyForConsent = CoPartyRow;
 
 /**
  * `records` plus one entry per co-buyer, crediting them the deal they were
- * named on. A couple's deal is ONE client_records row held by one spouse; the
- * other spouse bought the home too, so their implied consent runs from the
- * same close date.
- *
- * CONSENT ONLY. Never feed the result into GCI, repeat-client or valuation
- * math: #257's invariant is exactly one client_records row per deal, and a
- * co-party's GCI stays $0.
+ * named on (#278). CONSENT ONLY: never feed the result into GCI,
+ * repeat-client or valuation math (#257).
  */
 export function withCoBuyerDeals(
   records:   readonly (DealForConsent & { id?: string | null })[],
   coParties: readonly CoPartyForConsent[],
 ): DealForConsent[] {
-  const byId = new Map<string, DealForConsent>();
-  for (const r of records) if (r.id) byId.set(r.id, r);
-  const out: DealForConsent[] = [...records];
-  for (const cp of coParties) {
-    const deal = cp.client_record_id ? byId.get(cp.client_record_id) : undefined;
-    if (!deal || !cp.co_client_id) continue;
-    out.push({ client_id: cp.co_client_id, close_date: deal.close_date, condition_status: deal.condition_status });
-  }
-  return out;
+  return creditCoBuyers(records, coParties);
 }
 
 /** Each client's most recent closed deal. Collapsed deals are not purchases. */
@@ -79,77 +67,87 @@ export function lastClosedDealByClient(
   return out;
 }
 
-/** A Date as YYYY-MM-DD in local time (toISOString would give the UTC day). */
-export { localISODate };
-
 /**
- * How Flight Control should reach this client for an opportunity.
- *
- * Measured on the day the message would go out: the trigger date, or today
- * if the trigger has already passed. "call" once that day is on or after the
- * two-year mark from the client's most recent closed deal.
+ * The day a message would go out: the trigger date, or today if the trigger
+ * has already passed (a post-close lookback carries a past trigger date).
  */
-export function outreachChannel(
-  lastClose:   string | undefined,
+export function sendDay(triggerDate: string | null | undefined, today: string = atlanticISODate()): string {
+  const trigger = (triggerDate ?? "").slice(0, 10);
+  return trigger > today ? trigger : today;
+}
+
+/** consentStatus on the day a message for `triggerDate` would go out. */
+export function consentOnSendDay(
+  inputs:      ConsentInputs | undefined,
+  triggerDate: string | null | undefined,
+  today:       string = atlanticISODate(),
+): ConsentStatus {
+  return consentStatus({
+    ...(inputs ?? { client: {}, closedDeals: [], consents: [] }),
+    today: sendDay(triggerDate, today),
+  });
+}
+
+/** "email" when an email may be drafted for `triggerDate`, else "call". */
+export function emailChannelFor(
+  inputs:      ConsentInputs | undefined,
   triggerDate: string,
-  today:       Date = new Date(),
+  today:       string = atlanticISODate(),
 ): ContactChannel {
-  if (!lastClose) return "email";
-
-  // Anchor at local noon — a bare date parsed as UTC midnight lands on the
-  // previous day west of Greenwich (the #268 bug class).
-  const lapse = new Date(`${lastClose.slice(0, 10)}T12:00:00`);
-  if (isNaN(lapse.getTime())) return "call"; // a past client we can't date: fail closed
-  lapse.setMonth(lapse.getMonth() + CASL_IMPLIED_CONSENT_MONTHS);
-
-  const todayIso = localISODate(today);
-  const trigger  = triggerDate.slice(0, 10);
-  const sendIso  = trigger > todayIso ? trigger : todayIso;
-  return sendIso >= localISODate(lapse) ? "call" : "email";
+  return consentOnSendDay(inputs, triggerDate, today).email.canMessage ? "email" : "call";
 }
 
 /**
- * Past clients whose purchase-based implied consent has lapsed as of today.
- * The newsletter Recipients note lists these so a broadcast isn't pasted to
- * them by default. Sorted for stable display.
+ * Every consent ledger row for the user, in pages (a request stops at 1,000
+ * rows). A failed read throws: a caller that treated it as "no records"
+ * would let an express consent go unseen (harmless) but, worse, read a
+ * withdrawal as missing (harmful), so the caller fails closed.
  */
-export function lapsedPastClients(
-  records: readonly DealForConsent[],
-  today:   Date = new Date(),
-): string[] {
-  const todayIso = localISODate(today);
-  const out: string[] = [];
-  for (const [clientId, lastClose] of lastClosedDealByClient(records)) {
-    if (outreachChannel(lastClose, todayIso, today) === "call") out.push(clientId);
+export async function fetchConsentLedger(
+  supabase: SupabaseClient,
+  userId:   string,
+): Promise<ConsentLedgerRow[]> {
+  const res = await fetchAllRows<ConsentLedgerRow>((from, to) =>
+    supabase
+      .from("client_email_consents")
+      .select(CONSENT_RECORD_COLUMNS)
+      .eq("user_id", userId)
+      .order("id")
+      .range(from, to));
+  if (res.error) throw new Error(`consent ledger read failed: ${res.error.message}`);
+  return res.data ?? [];
+}
+
+/**
+ * Consent inputs for many clients from rows a surface already fetched.
+ * `records` should be the unfiltered closed deals (an archived spouse's deal
+ * still counts for the co-buyer); co-buyers are credited here.
+ */
+export function consentInputsFor(
+  clients:   readonly { id: string; email_opt_out_at?: string | null; sms_opt_out_at?: string | null }[],
+  records:   readonly (DealForConsent & { id?: string | null })[],
+  coParties: readonly CoPartyForConsent[],
+  consents:  readonly ConsentLedgerRow[],
+): Map<string, ConsentInputs> {
+  return consentInputsByClient(clients, withCoBuyerDeals(records, coParties), consents);
+}
+
+/**
+ * Clients whose email consent doesn't cover a newsletter today: lapsed past
+ * clients (implied consent from a purchase or an inquiry has ended), and
+ * clients who unsubscribed from email. The Flight Control newsletter
+ * Recipients note lists them (the app never picks recipients). Sorted ids.
+ */
+export function emailBlockedClients(
+  inputsByClient: ReadonlyMap<string, ConsentInputs>,
+  today: string = atlanticISODate(),
+): { lapsed: string[]; optedOut: string[] } {
+  const lapsed: string[] = [];
+  const optedOut: string[] = [];
+  for (const [id, inputs] of inputsByClient) {
+    const s = consentStatus({ ...inputs, today }).email;
+    if (s.state === "lapsed") lapsed.push(id);
+    else if (s.state === "opted_out") optedOut.push(id);
   }
-  return out.sort();
-}
-
-const MONTHS = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
-];
-
-/**
- * The refusal the on-demand drafters (CRM briefing, Flight Crew, Flight Plan
- * templates) return for a lapsed past client. States the rule and what the
- * app does; it is not legal advice, so no should/must.
- */
-export function emailConsentLapsedReason(clientName: string, lastClose: string): string {
-  // Read the month off the string: no Date parse, no timezone shift (#268).
-  const [y, m] = lastClose.slice(0, 10).split("-");
-  const month  = MONTHS[Number(m) - 1];
-  const when   = month && y ? `${month} ${y}` : lastClose;
-  return `${clientName}'s last deal closed in ${when}. Under CASL, implied consent to email from a purchase lasts 2 years, and that window has closed by the time this message would go out, so Agent Runway won't draft an email. A phone call is the way to reconnect. Agent Runway doesn't record express email consent.`;
-}
-
-/**
- * The refusal for a client who unsubscribed from all email (00173, set by
- * Settings → Website leads when they stop every email from the agent's site).
- * Checked before the CASL date rule: an opt-out wins whatever their deals say.
- */
-export function emailOptOutReason(clientName: string, optOutAt: string): string {
-  const d = new Date(optOutAt);
-  const when = isNaN(d.getTime()) ? "" : ` on ${MONTHS[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
-  return `${clientName} unsubscribed from your emails${when}, so Agent Runway won't draft an email to them. A phone call is the way to reach them.`;
+  return { lapsed: lapsed.sort(), optedOut: optedOut.sort() };
 }

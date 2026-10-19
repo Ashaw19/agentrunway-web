@@ -16,8 +16,10 @@
  *
  * CASL posture: drafts are text the agent reviews and copies into their own
  * email client. There is NO email-sending mechanism here. NO auto-send.
- * A past client whose last deal closed 2+ years ago gets no draft: 422
- * { status: "call_only", error } (lib/crm/outreach-consent.ts).
+ * A client whose CASL consent doesn't cover an email today (unsubscribed,
+ * or implied consent lapsed with no express consent on record) gets no
+ * draft: 422 { status: "call_only", error } (core consentStatus via
+ * lib/crm/consent-gate.ts).
  *
  * Rate limit: 20 generations per hour per user.
  */

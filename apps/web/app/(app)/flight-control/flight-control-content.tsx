@@ -24,8 +24,9 @@ import {
   Handshake, Heart, Repeat2,
   Flower2, Leaf, PartyPopper, Receipt,
   RefreshCw, Timer, Lightbulb, ArrowRight,
-  AlertTriangle, Brain, Zap, Phone, PhoneCall, MessageSquare,
+  AlertTriangle, Brain, Zap, Phone, PhoneCall, MessageSquare, ShieldCheck,
 } from "lucide-react";
+import Link from "next/link";
 import type { OutreachQueueItem, OutreachOpportunityType, TopOpportunity, NewsletterQueue, ActivityType, ClientStatus } from "@/lib/types/database";
 import { ACTIVITY_TYPE_LABELS, ACTIVITY_TYPE_ICONS, CLIENT_STATUS_LABELS } from "@/lib/types/database";
 import { logClientContact } from "@/lib/crm/log-contact";
@@ -72,6 +73,8 @@ const OPTYPE_ICON: Record<OutreachOpportunityType, React.ElementType> = {
   sphere_check_in:        Users,
   // Text queue (00179): sent from the phone app, never listed here
   text_message:           MessageSquare,
+  // CASL consent ledger (00183): implied consent from a purchase lapses soon
+  consent_lapsing:        ShieldCheck,
 };
 
 // Opportunity score is a HEALTH/magnitude number — it follows the §9.1 score
@@ -112,7 +115,7 @@ type QueueItemWithClient = OutreachQueueItem & {
 const LOG_CONTACT_TYPES: ActivityType[] = ["call", "text", "email", "meeting"];
 
 /** Scan shows these regardless of the 14-day contact hold (getTopOpportunities). */
-const IGNORES_CONTACT_HOLD = new Set<string>(["birthday", "condition_firming"]);
+const IGNORES_CONTACT_HOLD = new Set<string>(["birthday", "condition_firming", "consent_lapsing"]);
 
 function OpportunityCard({
   opportunity,
@@ -163,6 +166,14 @@ function OpportunityCard({
   const isPrimary = opportunity.is_primary;
   // CASL: implied consent from the client's last deal has lapsed — no email.
   const isCallOnly = opportunity.contact_channel === "call";
+  // A consent request needs the sender's mailing address (SOR/2012-36 s.2).
+  const identityMissing = opportunity.opportunity_type === "consent_lapsing" && typeof opportunity.context.identity_missing === "string"
+    ? opportunity.context.identity_missing
+    : null;
+  // "Needs your mailing address" / "...your name" / "...your phone, email or website"
+  const identityLabel = typeof opportunity.context.identity_missing_label === "string"
+    ? opportunity.context.identity_missing_label
+    : "Needs your sender details";
 
   return (
     <div className={cn(
@@ -261,7 +272,24 @@ function OpportunityCard({
               ? "Call or text. A personal check-in works better than an email for an active client."
               : opportunity.call_reason === "sphere"
                 ? "Call. You haven't done a deal together, so there's no email consent on record."
-                : "Call, don't email. Their last deal closed over 2 years ago, so CASL implied consent for email has lapsed."}
+                : opportunity.call_reason === "consent_lapsed"
+                  ? "Call to ask. Under CASL a message asking for consent is a commercial message too, so once implied consent has ended the ask happens by phone."
+                  : "Call, don't email. Their last deal closed over 2 years ago, so CASL implied consent for email has lapsed, and no express consent is on record."}
+          </p>
+        </div>
+      )}
+
+      {/* Consent ask: the answer is recorded on the client's profile */}
+      {opportunity.opportunity_type === "consent_lapsing" && (
+        <div className="flex items-start gap-2 pl-0.5">
+          <ShieldCheck className="h-3.5 w-3.5 mt-0.5 shrink-0 text-emerald-400" />
+          <p className="text-[12px] text-muted-foreground leading-relaxed">
+            {identityMissing && <span className="block mb-1 text-amber-600 dark:text-amber-400">{identityMissing}</span>}
+            Only you record consent. When they say yes,{" "}
+            <Link href={`/crm?client=${opportunity.client_id}`} className="underline hover:text-foreground">
+              record it on their profile
+            </Link>{" "}
+            with how and when they said it.
           </p>
         </div>
       )}
@@ -335,6 +363,11 @@ function OpportunityCard({
               <Phone className="h-3.5 w-3.5" />
               Call
             </span>
+          ) : identityMissing ? (
+            <span className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md text-xs font-semibold ring-1 ring-amber-500/30 bg-amber-500/5 text-amber-700 dark:text-amber-400">
+              <AlertTriangle className="h-3.5 w-3.5" />
+              {identityLabel}
+            </span>
           ) : hasDraft && !drafting ? (
             <Button
               size="sm"
@@ -370,7 +403,9 @@ function OpportunityCard({
         <div className="rounded-lg border border-border/60 bg-muted/30 p-3 space-y-2.5">
           <p className="text-[12px] text-muted-foreground">
             How did you reach {opportunity.client_name}?{" "}
-            {IGNORES_CONTACT_HOLD.has(opportunity.opportunity_type)
+            {opportunity.opportunity_type === "consent_lapsing"
+              ? "This logs it in the CRM. If they said yes to hearing from you, record it in the Consent section of their profile; until then the card comes back on the next scan."
+              : IGNORES_CONTACT_HOLD.has(opportunity.opportunity_type)
               ? "This logs it in the CRM and clears the card."
               : "This logs it in the CRM and takes them off Flight Control for 14 days."}
           </p>
@@ -422,11 +457,14 @@ function ReviewDrawer({
   onClose,
   onSent,
   signature,
+  blockedReason,
 }: {
   item:      QueueItemWithClient | null;
   onClose:   () => void;
   onSent:    (id: string) => void;
   signature: string;
+  /** CASL: their consent no longer covers this email (unsubscribed, or implied consent lapsed). */
+  blockedReason: string | null;
 }) {
   const [editSubject, setEditSubject] = useState("");
   const [editBody,    setEditBody]    = useState("");
@@ -574,6 +612,14 @@ function ReviewDrawer({
         </SheetHeader>
 
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
+          {blockedReason && (
+            <div role="alert" className="flex items-start gap-2 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2.5">
+              <Phone className="h-3.5 w-3.5 mt-0.5 shrink-0 text-red-400" />
+              <p className="text-[12px] text-foreground/85 leading-relaxed">
+                <span className="font-semibold">Not sendable.</span> {blockedReason}
+              </p>
+            </div>
+          )}
           {/* Optimal send window (send-time engine; informational only —
               nothing is scheduled or sent automatically) */}
           <div className="flex items-center gap-2 rounded-lg border border-border/60 bg-muted/40 px-3 py-2">
@@ -644,18 +690,18 @@ function ReviewDrawer({
         {/* Send actions */}
         <div className="px-6 pb-6 pt-4 shrink-0 space-y-3 border-t border-border/30">
           <div className="flex gap-2">
-            <Button variant="outline" className="flex-1 gap-2 h-10" onClick={handleCopy} disabled={saving}>
+            <Button variant="outline" className="flex-1 gap-2 h-10" onClick={handleCopy} disabled={saving || !!blockedReason}>
               {copied ? <><CheckCircle2 className="h-4 w-4 text-emerald-400" /> Copied!</> : <><Copy className="h-4 w-4" /> Copy to Clipboard</>}
             </Button>
             <Button
               className="flex-1 gap-2 h-10 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white border-0 shadow-md shadow-violet-500/20"
               onClick={handleOpenMailto}
-              disabled={saving}
+              disabled={saving || !!blockedReason}
             >
               <Mail className="h-4 w-4" /> Open in Email
             </Button>
           </div>
-          <Button variant="ghost" className="w-full text-muted-foreground text-xs h-8" onClick={markAsSent} disabled={saving}>
+          <Button variant="ghost" className="w-full text-muted-foreground text-xs h-8" onClick={markAsSent} disabled={saving || !!blockedReason}>
             Mark as sent without opening
           </Button>
         </div>
@@ -674,10 +720,14 @@ interface FlightControlContentProps {
   initialSignature:    string;
   initialVoiceGuide:   string;
   initialNewsletters:  NewsletterQueue[];
-  /** Past clients whose CASL implied consent from a purchase has lapsed. */
+  /** Clients whose CASL implied consent (purchase or inquiry) has lapsed, with no express consent on record. */
   lapsedPastClientNames: string[];
-  /** Clients who unsubscribed from all email (00173). */
+  /** Clients who unsubscribed from email (00173; withdrawals the agent recorded, 00183). */
   optedOutClientNames: string[];
+  /** Queued drafts their client's consent no longer covers: queue id → why. */
+  consentBlockedQueue: Record<string, string>;
+  /** user_settings.mailing_address (00183): a consent request's sender identification. */
+  initialMailingAddress: string;
   /** Clients with an open Checklist item. */
   checklistClientIds:  string[];
 }
@@ -690,6 +740,8 @@ export function FlightControlContent({
   initialNewsletters,
   lapsedPastClientNames,
   optedOutClientNames,
+  consentBlockedQueue,
+  initialMailingAddress,
   checklistClientIds,
 }: FlightControlContentProps) {
   const [onChecklist, setOnChecklist] = useState<Set<string>>(() => new Set(checklistClientIds));
@@ -714,6 +766,8 @@ export function FlightControlContent({
   const [signature,     setSignature]     = useState(initialSignature);
   const [sigOpen,       setSigOpen]       = useState(false);
   const [sigSaving,     setSigSaving]     = useState(false);
+  const [mailingAddress, setMailingAddress] = useState(initialMailingAddress);
+  const addressDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sigDebounce     = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [voiceGuide,    setVoiceGuide]    = useState(initialVoiceGuide);
   const [guideOpen,     setGuideOpen]     = useState(false);
@@ -725,6 +779,7 @@ export function FlightControlContent({
     return () => {
       if (sigDebounce.current) clearTimeout(sigDebounce.current);
       if (guideDebounce.current) clearTimeout(guideDebounce.current);
+      if (addressDebounce.current) clearTimeout(addressDebounce.current);
     };
   }, []);
 
@@ -779,6 +834,27 @@ export function FlightControlContent({
       } catch (err) {
         console.error("[flight-control] Failed to save email signature:", err);
         toast.error("Couldn't save signature — changes may not persist");
+      } finally { setSigSaving(false); }
+    }, 800);
+  }, []);
+
+  // CASL (SOR/2012-36 s.2): a consent request carries this when the
+  // signature has no mailing address.
+  const saveMailingAddress = useCallback((value: string) => {
+    setMailingAddress(value);
+    if (addressDebounce.current) clearTimeout(addressDebounce.current);
+    addressDebounce.current = setTimeout(async () => {
+      setSigSaving(true);
+      try {
+        const supabase = createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const { error } = await supabase.from("user_settings").update({ mailing_address: value.trim() || null }).eq("user_id", user.id);
+          if (error) throw error;
+        }
+      } catch (err) {
+        console.error("[flight-control] Failed to save mailing address:", err);
+        toast.error("Couldn't save your mailing address. Try again.");
       } finally { setSigSaving(false); }
     }, 800);
   }, []);
@@ -1079,6 +1155,21 @@ export function FlightControlContent({
                     <p className="text-[10px] text-muted-foreground">
                       {sigSaving ? "Saving..." : "Appended to every AI-drafted message. Saves automatically."}
                     </p>
+                    <label className="block space-y-1 pt-1">
+                      <span className="text-[10px] font-semibold text-muted-foreground">Mailing address</span>
+                      <Input
+                        value={mailingAddress}
+                        onChange={(e) => saveMailingAddress(e.target.value)}
+                        className="h-8 text-xs"
+                        placeholder="123 Main St, Saint John NB E2L 1A1"
+                        maxLength={300}
+                      />
+                      <span className="block text-[10px] text-muted-foreground">
+                        Under CASL&apos;s regulations a consent request carries your mailing address and a phone number,
+                        email or website. Agent Runway adds this address to a consent request when your signature
+                        doesn&apos;t have one, and won&apos;t draft the ask without it.
+                      </span>
+                    </label>
                   </div>
                 )}
               </div>
@@ -1172,6 +1263,7 @@ export function FlightControlContent({
         onClose={() => setReviewItem(null)}
         onSent={handleSent}
         signature={signature}
+        blockedReason={reviewItem ? consentBlockedQueue[reviewItem.id] ?? null : null}
       />
     </>
   );

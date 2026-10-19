@@ -53,7 +53,9 @@
  *                         deleteExpense, deleteMileage, deleteTransaction,
  *                         deleteCCAAsset, deleteReferral,
  *                         deleteListingAppointment, deletePropertyShowing,
- *                         deleteContactActivity, deleteContactTask
+ *                         deleteContactActivity, deleteContactTask,
+ *                         recordConsent, withdrawConsent
+ *   CASL consent (read) — listConsentLapsing
  *
  * The record writes (logContactActivity, createContactTask, the two deal
  * updates, logMileage, logExpense, createClient, recordTransaction) save
@@ -88,8 +90,23 @@ import {
 } from "@/lib/ai/draft-services";
 import { type DraftTextResult, MAX_TEXT_DRAFTS_PER_REQUEST, draftTextForClient } from "@/lib/ai/draft-text";
 import { TEXT_PURPOSES } from "@/lib/outreach-prompts";
-import { APP_TIME_ZONE, addDaysISO, atlanticDayStart, atlanticISODate, atlanticNoon, atlanticYear } from "@agent-runway/core/lib/local-date";
+import { APP_TIME_ZONE, addDaysISO, atlanticDayStart, atlanticISODate, atlanticNoon, atlanticYear, daysBetweenISO } from "@agent-runway/core/lib/local-date";
 import { recurringHasEnded } from "@agent-runway/core/engines/recurring-expense-engine";
+import {
+  CASL_IMPLIED_CONSENT_MONTHS,
+  CASL_INQUIRY_CONSENT_MONTHS,
+  CONSENT_LAPSED_CALL_DAYS,
+  CONSENT_LAPSING_WARNING_DAYS,
+  CONSENT_METHODS,
+  CONSENT_METHOD_LABELS,
+  consentStateLabel,
+  consentStatus,
+  formatConsentDay,
+} from "@agent-runway/core/engines/casl-consent-engine";
+import { atlanticConsentClock } from "@agent-runway/core/lib/consent-ledger";
+import { recordClientConsent, withdrawClientConsent } from "@agent-runway/core/lib/consent-writes";
+import { consentInputsFor, fetchConsentLedger } from "@/lib/crm/outreach-consent";
+import { readClientConsent } from "@/lib/crm/consent-gate";
 import { hasClosedDeal } from "@/lib/crm/contactable-records";
 import {
   writeClient,
@@ -172,6 +189,9 @@ export const NEEDS_APPROVAL_TOOLS = new Set([
   "updateListingAppointment",
   "deleteListingAppointment",
   "deletePropertyShowing",
+  // CASL consent ledger (00183): only the agent records consent
+  "recordConsent",
+  "withdrawConsent",
 ]);
 
 // Human-readable descriptions for approval cards
@@ -302,7 +322,50 @@ export const APPROVAL_DESCRIPTIONS: Record<string, (args: Record<string, unknown
     `Delete activity: ${args.activityDescription ?? args.activityId}`,
   deleteContactTask: (args) =>
     `Delete task: "${args.taskTitle ?? args.taskId}"`,
+  // CASL consent ledger
+  recordConsent: (args) =>
+    `Record ${args.basis === "implied_inquiry" ? "an inquiry (implied consent, 6 months)" : "express consent"} for ${args.clientName ?? "client"} (${consentChannelsText(args.channels)}): ${consentMethodText(args.method)}, ${args.date}${args.wording ? `, "${String(args.wording).slice(0, 60)}"` : ""}`,
+  withdrawConsent: (args) =>
+    `Record that ${args.clientName ?? "client"} asked to stop (${consentChannelsText(args.channels)}): ${consentMethodText(args.method)}, ${args.date}. Agent Runway stops drafting to them there and skips drafts already waiting.`,
 };
+
+/** Tools whose approval card names the client from the database, not the model's text. */
+const APPROVAL_NAMES_FROM_DB = new Set(["recordConsent", "withdrawConsent"]);
+
+/**
+ * The approval card's text for a tool call. For the consent tools the client
+ * name is read from the database for the clientId that will be written,
+ * never the name the model typed, so the agent can't approve consent for the
+ * wrong person by mistake. An id that isn't the agent's client says so.
+ */
+export async function describeApproval(
+  toolName: string,
+  args: Record<string, unknown>,
+  supabase: SupabaseClient,
+  userId: string,
+): Promise<string> {
+  const fn = APPROVAL_DESCRIPTIONS[toolName];
+  if (!fn) return `Execute ${toolName}`;
+  if (!APPROVAL_NAMES_FROM_DB.has(toolName)) return fn(args);
+  const clientId = typeof args.clientId === "string" ? args.clientId : "";
+  const { data } = clientId
+    ? await supabase.from("clients").select("name").eq("id", clientId).eq("user_id", userId).maybeSingle()
+    : { data: null };
+  const name = (data?.name as string | null | undefined)?.trim();
+  if (!name) return "This client isn't in your CRM. Approving will save nothing.";
+  return fn({ ...args, clientName: name });
+}
+
+function consentChannelsText(v: unknown): string {
+  const list = Array.isArray(v) ? v : [];
+  return list.map((c) => (c === "sms" ? "texts" : "email")).join(" and ") || "email";
+}
+
+function consentMethodText(v: unknown): string {
+  return typeof v === "string" && v in CONSENT_METHOD_LABELS
+    ? CONSENT_METHOD_LABELS[v as keyof typeof CONSENT_METHOD_LABELS].toLowerCase()
+    : String(v ?? "");
+}
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -1414,6 +1477,15 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
           if (c.buyer_pre_approved) parts.push(`Pre-Approved: $${Number(c.buyer_pre_approval_amount ?? 0).toLocaleString()}`);
           if (c.last_contact_at) parts.push(`Last Contact: ${new Date(c.last_contact_at).toLocaleDateString("en-CA", { timeZone: APP_TIME_ZONE })}`);
           if (c.notes) parts.push(`Notes: ${c.notes.slice(0, 200)}${c.notes.length > 200 ? "..." : ""}`);
+
+          // CASL consent (core consentStatus, the drafters' rule)
+          const consent = await readClientConsent(supabase, userId, clientId);
+          if (consent.ok) {
+            const st = consentStatus({ ...consent.inputs, today: atlanticISODate() });
+            parts.push(`CASL consent: Email ${consentStateLabel(st.email)}; Texts ${consentStateLabel(st.sms)}.`);
+          } else {
+            parts.push("CASL consent: couldn't be read just now.");
+          }
 
           // Recent activities
           const activities = activitiesRes.data ?? [];
@@ -3669,7 +3741,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
 
     // ── DRAFT OUTREACH FOR CLIENT (Dispatcher) ───────────────────────────────
     draftOutreachForClient: tool({
-      description: "Draft a personalized outreach message for a specific client based on their situation and the touchpoint type. Use searchClients first to resolve the client_id. The message is written to Flight Control as a DRAFT — it is NEVER sent automatically; the agent reviews and sends it. Choose the opportunity_type that matches the touchpoint reason (birthday, closing anniversary, mortgage renewal due/window, past-client check-in, timeframe approaching for active buyer/seller, property value milestone, review request or referral ask after a closed deal).",
+      description: "Draft a personalized outreach message for a specific client based on their situation and the touchpoint type. Use searchClients first to resolve the client_id. The message is written to Flight Control as a DRAFT — it is NEVER sent automatically; the agent reviews and sends it. Choose the opportunity_type that matches the touchpoint reason (birthday, closing anniversary, mortgage renewal due/window, past-client check-in, timeframe approaching for active buyer/seller, property value milestone, review request or referral ask after a closed deal, consent_lapsing to ask permission to keep in touch before a past client's implied consent ends). CASL: the client's consent is checked first (core consentStatus). Unsubscribed clients, and past clients whose implied consent lapsed with no express consent on record, get 'call instead'.",
       inputSchema: z.object({
         client_id: z.string().uuid().describe("The client UUID — get this from searchClients first"),
         opportunity_type: z.enum([
@@ -3682,7 +3754,8 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
           "property_value_milestone",
           "review_request",
           "referral_ask",
-        ]).describe("Which kind of touchpoint to draft"),
+          "consent_lapsing",
+        ]).describe("Which kind of touchpoint to draft. consent_lapsing = ask a past client whether they'd like to keep hearing from the agent, before their implied consent from the purchase ends"),
       }),
       execute: async ({ client_id, opportunity_type }) => {
         try {
@@ -3719,10 +3792,10 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
 
     // ── DRAFT CLIENT TEXTS (Dispatcher) — text queue, 00179 ───────────────────
     draftClientTexts: tool({
-      description: "Draft a short text message (SMS) for each of 1 to 10 specific clients. Use searchClients first to resolve the client_ids. Each text lands in the Agent Runway iPhone app (More → Flight Control → Texts); the agent sends each one from their phone, where Messages opens with the number and text filled in and they tap Send. Nothing is sent automatically. purpose: check_in (a personal check-in), market_update (offers to send what homes in their area are selling for; never states numbers), custom (pass note with what the agent wants to say). Same CASL rules as email: opted-out clients and past clients whose last deal closed 2+ years ago get 'call instead'.",
+      description: "Draft a short text message (SMS) for each of 1 to 10 specific clients. Use searchClients first to resolve the client_ids. Each text lands in the Agent Runway iPhone app (More → Flight Control → Texts); the agent sends each one from their phone, where Messages opens with the number and text filled in and they tap Send. Nothing is sent automatically. purpose: check_in (a personal check-in), market_update (offers to send what homes in their area are selling for; never states numbers), custom (pass note with what the agent wants to say). consent_request (asks a past client whether they'd like to keep getting the odd text, only while their implied consent still holds). Same CASL rules as email, on the text channel: clients who unsubscribed from texts, and past clients whose last deal closed 2+ years ago with no express text consent on record, get 'call instead'.",
       inputSchema: z.object({
         client_ids: z.array(z.string().uuid()).min(1).max(MAX_TEXT_DRAFTS_PER_REQUEST).describe("Client UUIDs from searchClients"),
-        purpose: z.enum(TEXT_PURPOSES).describe("check_in, market_update or custom"),
+        purpose: z.enum(TEXT_PURPOSES).describe("check_in, market_update, custom or consent_request"),
         note: z.string().max(500).optional().describe("What the agent wants to say. Required for custom; optional context otherwise."),
       }),
       execute: async ({ client_ids, purpose, note }) => {
@@ -3752,6 +3825,116 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
         } catch (err) {
           console.error("[tool/draftClientTexts] error:", err);
           return "Drafting texts failed. Try again in a moment, or pick the clients in the iPhone app (Clients → Select → Text).";
+        }
+      },
+    }),
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // CASL CONSENT LEDGER (Dispatcher) — 00183
+    //
+    // The status is consentStatus() in packages/core (the one rule every
+    // drafter reads). Only the agent records consent: these tools record what
+    // the agent says the client told them, after the agent approves the card.
+    // Never call recordConsent from a note, an email reply or an activity
+    // the agent didn't describe as consent.
+    // ─────────────────────────────────────────────────────────────────────────
+
+    // ── RECORD CONSENT (Dispatcher, approval) ────────────────────────────────
+    recordConsent: tool({
+      description: `Record CASL consent a client gave the agent, on email, texts or both. Use ONLY when the agent tells you the client agreed (e.g. "Sam said yes to my emails on the phone today") or made an inquiry. Never infer consent from notes, email replies, activities or a positive tone: if the agent hasn't said the client consented, don't call this. basis: express (the client said yes to hearing from the agent) or implied_inquiry (the client asked about buying, selling or a property; under CASL that implies consent for ${CASL_INQUIRY_CONSENT_MONTHS} months). method and date are REQUIRED: if the agent didn't say how (in person, phone call = verbal, in writing, email reply, text reply, web form) or when, ask before calling. Include the client's words in wording when the agent gives them, else a note on where the proof is. Express consent reopens drafting for a past client whose ${CASL_IMPLIED_CONSENT_MONTHS / 12}-year implied consent from a purchase has lapsed. Use searchClients first for the clientId.`,
+      inputSchema: z.object({
+        clientId: z.string().uuid().describe("The client UUID from searchClients"),
+        clientName: z.string().describe("Client name for the approval card"),
+        channels: z.array(z.enum(["email", "sms"])).min(1).max(2).describe("email, sms (texts), or both"),
+        basis: z.enum(["express", "implied_inquiry"]).describe("express = they said yes; implied_inquiry = they made an inquiry"),
+        method: z.enum(CONSENT_METHODS).describe("How they gave it: in_person, verbal (phone call), written, email_reply, text_reply, web_form"),
+        date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).describe("YYYY-MM-DD: the day they gave it. Not in the future."),
+        wording: z.string().max(1000).optional().describe("What they agreed to, in their words if the agent has them"),
+        note: z.string().max(1000).optional().describe("Where the proof is (a saved email, a signed form)"),
+      }),
+      needsApproval: true,
+      execute: async ({ clientId, channels, basis, method, date, wording, note }) => {
+        const res = await recordClientConsent(supabase, userId, {
+          clientId, channels, basis, method, date, wording: wording ?? null, note: note ?? null, recordedVia: "flight_crew",
+        }, atlanticConsentClock());
+        if (!res.ok) return `Not recorded: ${res.error}`;
+        return `✓ ${res.message}${res.warning ? ` ${res.warning}` : ""} It shows in the Consent section of their profile.`;
+      },
+    }),
+
+    // ── WITHDRAW CONSENT (Dispatcher, approval) ──────────────────────────────
+    withdrawConsent: tool({
+      description: "Record that a client asked the agent to stop emailing or texting them (an unsubscribe or a withdrawal of consent), on email, texts or both. Use when the agent tells you the client said so ('Pat asked me to stop texting her'). method and date are REQUIRED: ask how (in person, phone call = verbal, in writing, email reply, text reply, web form) and when if the agent didn't say. Afterwards Agent Runway drafts nothing on those channels for them, and drafts already waiting are skipped. Under CASL an unsubscribe takes effect without delay (10 business days at the latest).",
+      inputSchema: z.object({
+        clientId: z.string().uuid().describe("The client UUID from searchClients"),
+        clientName: z.string().describe("Client name for the approval card"),
+        channels: z.array(z.enum(["email", "sms"])).min(1).max(2).describe("email, sms (texts), or both"),
+        method: z.enum(CONSENT_METHODS).describe("How they asked: in_person, verbal (phone call), written, email_reply, text_reply, web_form"),
+        date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).describe("YYYY-MM-DD: the day they asked. Not in the future."),
+        note: z.string().max(1000).optional().describe("Optional context"),
+      }),
+      needsApproval: true,
+      execute: async ({ clientId, channels, method, date, note }) => {
+        const res = await withdrawClientConsent(supabase, userId, {
+          clientId, channels, method, date, note: note ?? null, recordedVia: "flight_crew",
+        }, atlanticConsentClock());
+        if (!res.ok) return `Not recorded: ${res.error}`;
+        return `✓ ${res.message}${res.warning ? ` ${res.warning}` : ""}`;
+      },
+    }),
+
+    // ── LIST CONSENT LAPSING (Dispatcher, read) ──────────────────────────────
+    listConsentLapsing: tool({
+      description: `List past clients whose CASL implied consent from their purchase (${CASL_IMPLIED_CONSENT_MONTHS / 12} years from their last closing) ends within the next N days (default ${CONSENT_LAPSING_WARNING_DAYS}), and those whose consent ended in the last ${CONSENT_LAPSED_CALL_DAYS} days. Clients with express consent on record or who unsubscribed are left out. Use when the agent asks whose consent is running out, who to ask for permission to keep in touch, or about Flight Control's consent cards. Before the end date, a consent request can be drafted (draftOutreachForClient with opportunity_type consent_lapsing, or draftClientTexts with purpose consent_request); after it, the ask is a phone call because a request for consent is itself a commercial message under CASL.`,
+      inputSchema: z.object({
+        days: z.number().int().min(1).max(180).optional().describe(`Look this many days ahead (default ${CONSENT_LAPSING_WARNING_DAYS})`),
+      }),
+      execute: async ({ days }) => {
+        try {
+          const ahead = days ?? CONSENT_LAPSING_WARNING_DAYS;
+          const [clientsRes, recordsRes, coPartiesRes, ledger] = await Promise.all([
+            fetchAllRows<{ id: string; name: string | null; email_opt_out_at: string | null; sms_opt_out_at: string | null }>((from, to) =>
+              supabase.from("clients").select("id, name, email_opt_out_at, sms_opt_out_at")
+                .eq("user_id", userId).is("archived_at", null).order("id").range(from, to)),
+            fetchAllRows<{ id: string; client_id: string | null; close_date: string | null; condition_status: string | null }>((from, to) =>
+              supabase.from("client_records").select("id, client_id, close_date, condition_status")
+                .eq("user_id", userId).not("close_date", "is", null).not("client_id", "is", null).order("id").range(from, to)),
+            fetchAllRows<{ client_record_id: string; co_client_id: string }>((from, to) =>
+              supabase.from("client_record_co_parties").select("id, client_record_id, co_client_id")
+                .eq("user_id", userId).order("id").range(from, to)),
+            fetchConsentLedger(supabase, userId),
+          ]);
+          const failed = clientsRes.error ?? recordsRes.error ?? coPartiesRes.error;
+          if (failed) return "Couldn't read consent records right now. Try again in a moment.";
+
+          const today = atlanticISODate();
+          const names = new Map((clientsRes.data ?? []).map((c) => [c.id, c.name?.trim() || "Unnamed client"]));
+          const inputs = consentInputsFor(clientsRes.data ?? [], recordsRes.data ?? [], coPartiesRes.data ?? [], ledger);
+          const soon: string[] = [];
+          const ended: string[] = [];
+          const rows: { lapses: string; line: string; soon: boolean }[] = [];
+          for (const [id, input] of inputs) {
+            const email = consentStatus({ ...input, today }).email;
+            if (email.basis !== "purchase" || !email.lapsesOn) continue;
+            if (email.state === "implied" && (email.daysLeft ?? Infinity) <= ahead) {
+              rows.push({ lapses: email.lapsesOn, soon: true, line: `${names.get(id)}: implied consent ends ${formatConsentDay(email.lapsesOn)} (${email.daysLeft} day${email.daysLeft === 1 ? "" : "s"}); last deal closed ${email.since}` });
+            } else if (email.state === "lapsed" && daysBetweenISO(email.lapsesOn, today) < CONSENT_LAPSED_CALL_DAYS) {
+              rows.push({ lapses: email.lapsesOn, soon: false, line: `${names.get(id)}: implied consent ended ${formatConsentDay(email.lapsesOn)}; ask by phone` });
+            }
+          }
+          rows.sort((a, b) => a.lapses.localeCompare(b.lapses));
+          for (const r of rows) (r.soon ? soon : ended).push(`- ${r.line}`);
+          if (soon.length === 0 && ended.length === 0) {
+            return `No past client's implied consent from a purchase ends in the next ${ahead} days, and none ended in the last ${CONSENT_LAPSED_CALL_DAYS}.`;
+          }
+          return [
+            soon.length ? `Ending in the next ${ahead} days (a consent request can still go by email or text):\n${soon.join("\n")}` : null,
+            ended.length ? `Ended in the last ${CONSENT_LAPSED_CALL_DAYS} days (call to ask; a consent request is a commercial message too):\n${ended.join("\n")}` : null,
+            "A yes is recorded with recordConsent (how and when are required).",
+          ].filter(Boolean).join("\n\n");
+        } catch (err) {
+          console.error("[tool/listConsentLapsing] error:", err);
+          return "Couldn't read consent records right now. Try again in a moment.";
         }
       },
     }),
@@ -4167,6 +4350,11 @@ export function createPersonaAgentTools(
     draftOutreachForClient: all.draftOutreachForClient,
     draftClientTexts: all.draftClientTexts,
     draftListingDescription: all.draftListingDescription,
+    // CASL consent ledger (00183): record what the agent says the client
+    // told them (approval cards), and who is about to lapse.
+    recordConsent: all.recordConsent,
+    withdrawConsent: all.withdrawConsent,
+    listConsentLapsing: all.listConsentLapsing,
     // Flight Status workflow library (Phase 2.3) — read-only template lookup.
     // Lets Dispatcher proactively suggest a templated draft when a client
     // has changed stage. Generation happens in the CRM client detail panel.

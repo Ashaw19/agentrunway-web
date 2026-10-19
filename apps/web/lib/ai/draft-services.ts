@@ -41,6 +41,7 @@ import {
   buildPropertyValueMilestonePrompt,
   buildReferralAskPrompt,
   buildReviewRequestPrompt,
+  buildConsentRequestPrompt,
 } from "@/lib/outreach-prompts";
 import { POST_CLOSE_OPPORTUNITY_CONFIGS } from "@agent-runway/core/engines/nurture-engine";
 import {
@@ -48,7 +49,7 @@ import {
   buildCustomNewsletterPrompt,
 } from "@/lib/newsletter-prompts";
 import { excludeCollapsedDeals } from "@/lib/crm/contactable-records";
-import { type DealForConsent, emailConsentLapsedReason, lastClosedDealByClient, outreachChannel, withCoBuyerDeals, emailOptOutReason } from "@/lib/crm/outreach-consent";
+import { consentBlockReason, consentRequestEmailFooter, consentRequestWindow, readClientConsent, senderFromSettings } from "@/lib/crm/consent-gate";
 import { APP_TIME_ZONE, atlanticISODate, atlanticNoon } from "@agent-runway/core/lib/local-date";
 import { nextBirthdayDate } from "@/lib/crm/next-birthday";
 import type {
@@ -70,12 +71,16 @@ export const DRAFTABLE_OUTREACH_TYPES: OutreachOpportunityType[] = [
   "property_value_milestone",
   "review_request",
   "referral_ask",
+  // CASL consent ledger (00183): ask a past client to keep in touch before
+  // their implied consent from the purchase lapses.
+  "consent_lapsing",
 ];
 
 /**
- * "call_only": a past client whose purchase-based implied consent (CASL, 2
- * years) has lapsed by the send date. Nothing is written; `reason` says why
- * and suggests a call. Same rule as Flight Control Scan.
+ * "call_only": the client's CASL consent doesn't cover an email on the send
+ * date (consentStatus: unsubscribed, or implied consent lapsed with no
+ * express consent on record). Nothing is written; `reason` says why and
+ * suggests a call. Same rule as Flight Control Scan.
  */
 export type DraftOutreachStatus = "created" | "existing" | "queued" | "call_only";
 
@@ -278,40 +283,6 @@ const BANNED_PHRASES = [
   "your real estate journey",
 ];
 
-// ─── CASL: deals a client co-bought ──────────────────────────────────────────
-
-/**
- * Deals this client was named on as a co-buyer (client_record_co_parties).
- * A couple's deal is one client_records row held by the other spouse (#257),
- * so the client's own client_records query never sees it. Feeds the CASL
- * gate only. A failed lookup is logged and treated as no co-bought deals.
- */
-export async function coBoughtDeals(
-  supabase: SupabaseClient,
-  userId: string,
-  clientId: string,
-): Promise<DealForConsent[]> {
-  const { data: links, error: linkError } = await supabase
-    .from("client_record_co_parties")
-    .select("client_record_id, co_client_id")
-    .eq("co_client_id", clientId)
-    .eq("user_id", userId);
-  if (linkError) console.error("[draft-services/casl] co-party lookup failed:", linkError.message);
-  const recordIds = (links ?? [])
-    .map((l) => l.client_record_id)
-    .filter((id): id is string => typeof id === "string");
-  if (recordIds.length === 0) return [];
-
-  const { data: deals, error: dealError } = await supabase
-    .from("client_records")
-    .select("id, client_id, close_date, condition_status")
-    .in("id", recordIds)
-    .eq("user_id", userId)
-    .not("close_date", "is", null);
-  if (dealError) console.error("[draft-services/casl] co-bought deal lookup failed:", dealError.message);
-  return withCoBuyerDeals(deals ?? [], links ?? []).filter((d) => d.client_id === clientId);
-}
-
 // ─── Outreach: main service ───────────────────────────────────────────────────
 
 /**
@@ -363,33 +334,34 @@ export async function draftOutreachForClient(input: {
     .trim();
   const clientDisplayName = trimmedName || composedName || "this client";
 
-  // ── Unsubscribed from all email (00173): call only, before anything else ──
-  if (client.email_opt_out_at) {
-    return {
-      status: "call_only",
-      queueItemId: "",
-      reason: emailOptOutReason(clientDisplayName, client.email_opt_out_at),
-      clientName: clientDisplayName,
-    };
+  // ── CASL consent (core consentStatus), before anything else ─────────────
+  // Unsubscribed, or implied consent already lapsed today with no express
+  // consent on record: call only. Checked again on the send day below.
+  const consent = await readClientConsent(supabase, userId, clientId);
+  if (!consent.ok) {
+    return { status: "queued", queueItemId: "", reason: consent.reason, clientName: clientDisplayName };
+  }
+  const blockedToday = consentBlockReason(consent.inputs, "email", null, clientDisplayName);
+  if (blockedToday) {
+    return { status: "call_only", queueItemId: "", reason: blockedToday, clientName: clientDisplayName };
   }
 
-  // ── Fetch settings + closed records + co-bought deals in parallel ────────
-  const [settingsRes, recordsRes, coBought] = await Promise.all([
+  // ── Fetch settings + closed records in parallel ───────────────────────────
+  const [settingsRes, recordsRes] = await Promise.all([
     supabase
       .from("user_settings")
-      .select("display_name, email_signature, ai_voice_guide")
+      .select("display_name, email_signature, ai_voice_guide, brokerage_name, phone, mailing_address")
       .eq("user_id", userId)
       .single(),
     supabase
       .from("client_records")
-      // condition_status: excludeCollapsedDeals and the CASL gate read it.
-      // Without it in the select a collapsed deal would count as a purchase.
+      // condition_status: excludeCollapsedDeals reads it. Without it in the
+      // select a collapsed deal would anchor an anniversary or a check-in.
       .select("id, client_id, address, close_date, gci, side, property_use, condition_status")
       .eq("client_id", clientId)
       .eq("user_id", userId)
       .not("close_date", "is", null)
       .order("close_date", { ascending: false }),
-    coBoughtDeals(supabase, userId, clientId),
   ]);
 
   const agentFirst = extractFirstName(settingsRes.data?.display_name ?? null);
@@ -602,22 +574,40 @@ export async function draftOutreachForClient(input: {
       break;
     }
 
+    case "consent_lapsing": {
+      // Same occurrence key as Flight Control (trigger = the last day implied
+      // consent holds), so a draft started here and one from Scan are one row.
+      const window = consentRequestWindow(consent.inputs, "email", clientDisplayName);
+      if (!window.ok) {
+        return { status: "call_only", queueItemId: "", reason: window.reason, clientName: clientDisplayName };
+      }
+      // Never an ask without the sender's name, mailing address and contact.
+      const sender = consentRequestEmailFooter(senderFromSettings(settingsRes.data));
+      if (!sender.ok) {
+        return { status: "queued", queueItemId: "", reason: sender.reason, clientName: clientDisplayName };
+      }
+      triggerDate = window.phase.triggerDate;
+      context = {
+        lapses_on: window.phase.lapsesOn,
+        days_left: window.phase.daysLeft,
+        address: latestRecord?.address ?? null,
+        close_date: latestRecord?.close_date ?? null,
+        side: latestRecord?.side ?? null,
+      };
+      break;
+    }
+
     default:
       return { status: "queued", queueItemId: "", reason: "Unsupported opportunity type", clientName: clientDisplayName };
   }
 
-  // ── CASL: no email draft once purchase-based implied consent has lapsed ──
-  // Same rule and helper as Flight Control Scan (lib/crm/outreach-consent.ts).
-  // Checked before the existing-draft lookup so a lapsed client is never
-  // pointed at an old draft either. A co-buyer's shared deal counts too.
-  const lastClose = lastClosedDealByClient([...records, ...coBought]).get(clientId);
-  if (lastClose && outreachChannel(lastClose, triggerDate, atlanticNoon()) === "call") {
-    return {
-      status: "call_only",
-      queueItemId: "",
-      reason: emailConsentLapsedReason(clientDisplayName, lastClose),
-      clientName: clientDisplayName,
-    };
+  // ── CASL: consent on the day the message would go out ────────────────────
+  // Same rule as Flight Control Scan (core consentStatus via
+  // lib/crm/consent-gate.ts). Checked before the existing-draft lookup so a
+  // client who can't be emailed is never pointed at an old draft either.
+  const blockedOnSend = consentBlockReason(consent.inputs, "email", triggerDate, clientDisplayName);
+  if (blockedOnSend) {
+    return { status: "call_only", queueItemId: "", reason: blockedOnSend, clientName: clientDisplayName };
   }
 
   // ── Check for an existing queue item ─────────────────────────────────────
@@ -747,6 +737,14 @@ export async function draftOutreachForClient(input: {
           tone, side, daysSince(String(context.close_date)),
         );
         break;
+      case "consent_lapsing":
+        prompt = buildConsentRequestPrompt(
+          agentFirst, clientDisplayName,
+          (context.address as string | null) ?? null,
+          (context.close_date as string | null) ?? null,
+          tone, side,
+        );
+        break;
       default:
         prompt = "";
     }
@@ -843,7 +841,15 @@ export async function draftOutreachForClient(input: {
       aiBody = lines.slice(0, realSubjIdx).join("\n").trim();
     }
 
-    if (emailSignature) aiBody += `\n\n${emailSignature}`;
+    if (opType === "consent_lapsing") {
+      // CASL s.6(2) + Regs s.2, s.4: identification and the withdrawal /
+      // unsubscribe line come from the code, never the model.
+      const sender = consentRequestEmailFooter(senderFromSettings(settingsRes.data));
+      if (!sender.ok) return { status: "queued", queueItemId, reason: sender.reason, clientName: clientDisplayName };
+      aiBody += `\n\n${sender.footer}`;
+    } else if (emailSignature) {
+      aiBody += `\n\n${emailSignature}`;
+    }
 
     await supabase
       .from("outreach_queue")
@@ -1309,7 +1315,7 @@ export async function draftWorkflowMessage(
   // ── Load client (ownership enforced via user_id match) ────────────────
   const { data: client, error: clientError } = await supabase
     .from("clients")
-    .select("id, name, first_name, last_name, communication_tone, tags, notes, email_opt_out_at")
+    .select("id, name, first_name, last_name, communication_tone, tags, notes")
     .eq("id", clientId)
     .eq("user_id", userId)
     .is("archived_at", null)
@@ -1327,42 +1333,20 @@ export async function draftWorkflowMessage(
   const clientDisplayName = trimmedName || composedName || "this client";
   const clientFirstName = client.first_name?.trim() || clientDisplayName.split(/\s+/)[0] || "there";
 
-  // ── Unsubscribed from all email (00173): call only ─────────────────────
-  if (client.email_opt_out_at) {
-    return {
-      status: "call_only",
-      reason: emailOptOutReason(clientDisplayName, client.email_opt_out_at),
-      clientName: clientDisplayName,
-    };
-  }
+  // ── CASL consent (core consentStatus): a workflow draft goes out today ──
+  // Unsubscribed, or implied consent lapsed with no express consent on
+  // record: call only. Same rule as Flight Control Scan.
+  const consent = await readClientConsent(supabase, userId, clientId);
+  if (!consent.ok) return { status: "error", reason: consent.reason };
+  const blocked = consentBlockReason(consent.inputs, "email", null, clientDisplayName);
+  if (blocked) return { status: "call_only", reason: blocked, clientName: clientDisplayName };
 
-  // ── Load agent settings + the client's closed + co-bought deals ─────────
-  const [{ data: settings }, recordsRes, coBought] = await Promise.all([
-    supabase
-      .from("user_settings")
-      .select("display_name, email_signature, ai_voice_guide")
-      .eq("user_id", userId)
-      .single(),
-    supabase
-      .from("client_records")
-      .select("client_id, close_date, condition_status")
-      .eq("client_id", clientId)
-      .eq("user_id", userId)
-      .not("close_date", "is", null),
-    coBoughtDeals(supabase, userId, clientId),
-  ]);
-
-  // ── CASL: no email draft once purchase-based implied consent has lapsed ──
-  // A workflow draft goes out today. Same rule and helper as Flight Control
-  // Scan (lib/crm/outreach-consent.ts). A co-buyer's shared deal counts too.
-  const lastClose = lastClosedDealByClient([...(recordsRes.data ?? []), ...coBought]).get(clientId);
-  if (lastClose && outreachChannel(lastClose, atlanticISODate(), atlanticNoon()) === "call") {
-    return {
-      status: "call_only",
-      reason: emailConsentLapsedReason(clientDisplayName, lastClose),
-      clientName: clientDisplayName,
-    };
-  }
+  // ── Load agent settings ─────────────────────────────────────────────────
+  const { data: settings } = await supabase
+    .from("user_settings")
+    .select("display_name, email_signature, ai_voice_guide")
+    .eq("user_id", userId)
+    .single();
 
   const agentFirst = extractFirstName(settings?.display_name ?? null);
   const emailSignature = (settings?.email_signature as string) ?? "";

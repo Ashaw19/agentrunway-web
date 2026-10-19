@@ -1,5 +1,6 @@
 import { excludeCollapsedDeals } from "@agent-runway/core/types/database";
 import { SPHERE_MAX_PER_SCAN } from "./scan-call-cards";
+import { CONSENT_LAPSING_MAX_PER_SCAN, CONSENT_LAPSING_TYPE } from "./consent-lapsing";
 
 /**
  * Card selection for Flight Control "Scan Now" (getTopOpportunities).
@@ -18,8 +19,11 @@ import { SPHERE_MAX_PER_SCAN } from "./scan-call-cards";
 export const TOP_OPPORTUNITY_THRESHOLD = 55;
 export const MAX_TOP_OPPORTUNITIES     = 5;
 
-/** Per-type card limits. Sphere check-ins fill spare slots, never the whole list. */
-export const TYPE_CAPS: Readonly<Record<string, number>> = { sphere_check_in: SPHERE_MAX_PER_SCAN };
+/** Per-type card limits. Sphere check-ins fill spare slots, never the whole list; nor do consent asks. */
+export const TYPE_CAPS: Readonly<Record<string, number>> = {
+  sphere_check_in: SPHERE_MAX_PER_SCAN,
+  [CONSENT_LAPSING_TYPE]: CONSENT_LAPSING_MAX_PER_SCAN,
+};
 
 export interface RankableCandidate {
   client_id:        string;

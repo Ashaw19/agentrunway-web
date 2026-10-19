@@ -5,10 +5,16 @@
  * "sms", opportunity_type "text_message" and today's Atlantic date as the
  * trigger date, so a client has at most one text draft a day.
  *
- * Consent follows the email drafters exactly (lib/crm/outreach-consent.ts):
- * CASL treats a text like an email. A client who opted out of the agent's
- * messages, or a past client whose implied consent from a purchase has
- * lapsed, gets a "call instead" answer and nothing is written.
+ * Consent is the same core rule as the email drafters (consentStatus, via
+ * lib/crm/consent-gate.ts), on the text channel: CASL treats a text like an
+ * email. A client who unsubscribed from texts, or a past client whose
+ * implied consent from a purchase has lapsed with no express text consent
+ * on record, gets a "call instead" answer and nothing is written.
+ *
+ * purpose "consent_request" asks a past client to keep in touch before
+ * their implied consent lapses (Flight Control's consent_lapsing). It only
+ * drafts while implied consent still holds: the request is itself a
+ * commercial message (CASL s.1(3)).
  */
 
 import { generateText } from "ai";
@@ -21,9 +27,15 @@ import {
   TEXT_PURPOSES,
   buildTextMessagePrompt,
 } from "@/lib/outreach-prompts";
-import { coBoughtDeals, extractFirstName } from "@/lib/ai/draft-services";
+import { extractFirstName } from "@/lib/ai/draft-services";
 import { excludeCollapsedDeals } from "@/lib/crm/contactable-records";
-import { lastClosedDealByClient, outreachChannel, CASL_IMPLIED_CONSENT_MONTHS } from "@/lib/crm/outreach-consent";
+import {
+  CONSENT_REQUEST_TEXT_LINE,
+  consentBlockReason,
+  consentRequestTextSignOff,
+  consentRequestWindow,
+  readClientConsent,
+} from "@/lib/crm/consent-gate";
 import { atlanticISODate, atlanticNoon } from "@agent-runway/core/lib/local-date";
 
 export const TEXT_OPPORTUNITY_TYPE = "text_message" as const;
@@ -104,7 +116,23 @@ export function finalizeTextBody(raw: string, signOff: string | null, agentFirst
     const sentenceEnd = Math.max(cut.lastIndexOf(". "), cut.lastIndexOf("? "), cut.lastIndexOf("! "));
     body = sentenceEnd > 80 ? cut.slice(0, sentenceEnd + 1) : `${cut.slice(0, cut.lastIndexOf(" "))}…`;
   }
+  return withTextFooter(body, signOff);
+}
+
+/** The sign-off and opt-out line, each on its own line; none when the footer is off. */
+export function withTextFooter(body: string, signOff: string | null): string {
   return signOff === null ? body : `${body}\n${signOff}\n${TEXT_OPT_OUT_LINE}`;
+}
+
+/**
+ * The ask plus the code's own withdrawal statement, always (Regs s.4(e)),
+ * whatever the model wrote. Only an exact copy of the line at the very end
+ * is dropped first, so it never appears twice.
+ */
+export function withConsentLine(raw: string): string {
+  let t = raw.trim();
+  if (t.endsWith(CONSENT_REQUEST_TEXT_LINE)) t = t.slice(0, -CONSENT_REQUEST_TEXT_LINE.length).trim();
+  return t ? `${t} ${CONSENT_REQUEST_TEXT_LINE}` : CONSENT_REQUEST_TEXT_LINE;
 }
 
 function monthsSince(iso: string | null | undefined, now: Date): number | null {
@@ -112,12 +140,6 @@ function monthsSince(iso: string | null | undefined, now: Date): number | null {
   const d = new Date(iso);
   if (isNaN(d.getTime())) return null;
   return Math.max(0, Math.floor((now.getTime() - d.getTime()) / (1000 * 60 * 60 * 24 * 30)));
-}
-
-function casLapsedTextReason(name: string, lastClose: string): string {
-  const [y, m] = lastClose.slice(0, 10).split("-");
-  const when = new Date(Number(y), Number(m) - 1, 1).toLocaleString("en-CA", { month: "long", year: "numeric" });
-  return `${name}'s last deal closed in ${when}. Under CASL, implied consent from a purchase lasts ${CASL_IMPLIED_CONSENT_MONTHS / 12} years and covers texts the same as email, so Agent Runway won't draft a text. A phone call is the way to reconnect.`;
 }
 
 /**
@@ -137,7 +159,7 @@ export async function draftTextForClient(input: {
   const { data: client } = await supabase
     .from("clients")
     .select(
-      "id, name, first_name, last_name, city, communication_tone, notes, tags, last_contact_at, email_opt_out_at, phone, phone_type, secondary_phone, secondary_phone_type",
+      "id, name, first_name, last_name, city, communication_tone, notes, tags, last_contact_at, phone, phone_type, secondary_phone, secondary_phone_type",
     )
     .eq("id", clientId)
     .eq("user_id", userId)
@@ -153,11 +175,15 @@ export async function draftTextForClient(input: {
     [client.first_name, client.last_name].filter(Boolean).join(" ").trim() ||
     "This client";
 
-  if (client.email_opt_out_at) {
-    return {
-      status: "call_only", clientId, clientName,
-      reason: `${clientName} asked not to get messages from you, so Agent Runway won't draft a text. A phone call is the way to reach them.`,
-    };
+  // CASL (core consentStatus) on the text channel, on today's date. A failed
+  // read drafts nothing.
+  const consent = await readClientConsent(supabase, userId, clientId);
+  if (!consent.ok) return { status: "skipped", clientId, clientName, reason: consent.reason };
+  const blocked = consentBlockReason(consent.inputs, "sms", null, clientName);
+  if (blocked) return { status: "call_only", clientId, clientName, reason: blocked };
+  if (purpose === "consent_request") {
+    const window = consentRequestWindow(consent.inputs, "sms", clientName);
+    if (!window.ok) return { status: "call_only", clientId, clientName, reason: window.reason };
   }
 
   const phone = pickTextPhone(client as PhoneFields);
@@ -170,10 +196,10 @@ export async function draftTextForClient(input: {
   }
 
   const today = atlanticISODate();
-  const [settingsRes, recordsRes, coBought] = await Promise.all([
+  const [settingsRes, recordsRes] = await Promise.all([
     supabase
       .from("user_settings")
-      .select("display_name, brokerage_name, ai_voice_guide, text_footer")
+      .select("display_name, brokerage_name, ai_voice_guide, text_footer, email_signature, mailing_address, phone")
       .eq("user_id", userId)
       .maybeSingle(),
     supabase
@@ -183,15 +209,9 @@ export async function draftTextForClient(input: {
       .eq("user_id", userId)
       .not("close_date", "is", null)
       .order("close_date", { ascending: false }),
-    coBoughtDeals(supabase, userId, clientId),
   ]);
 
-  // CASL: the same two-year rule as the email drafters, on today's date.
   const records = excludeCollapsedDeals(recordsRes.data ?? []);
-  const lastClose = lastClosedDealByClient([...records, ...coBought]).get(clientId);
-  if (lastClose && outreachChannel(lastClose, today, atlanticNoon()) === "call") {
-    return { status: "call_only", clientId, clientName, reason: casLapsedTextReason(clientName, lastClose) };
-  }
 
   const { data: existing } = await supabase
     .from("outreach_queue")
@@ -220,6 +240,9 @@ export async function draftTextForClient(input: {
     brokerage_name?: string | null;
     ai_voice_guide?: string | null;
     text_footer?: boolean | null;
+    email_signature?: string | null;
+    mailing_address?: string | null;
+    phone?: string | null;
   } | null;
   const agentName = settings?.display_name?.trim() || "";
   const agentFirst = extractFirstName(agentName || null);
@@ -228,6 +251,17 @@ export async function draftTextForClient(input: {
   // (an older row read before the column existed) keeps the footer.
   const footer = settings?.text_footer !== false;
   const signOff = !footer ? null : agentName ? (brokerage ? `${agentName}, ${brokerage}` : agentName) : agentFirst;
+  // A consent request carries the sender's name and mailing address
+  // (SOR/2012-36 s.2, s.4). With the footer off it isn't drafted as a text.
+  const consentSignOff = purpose === "consent_request"
+    ? consentRequestTextSignOff({
+        displayName: agentName, brokerage, phone: settings?.phone, mailingAddress: settings?.mailing_address,
+        emailSignature: settings?.email_signature, textFooter: footer,
+      })
+    : null;
+  if (consentSignOff && !consentSignOff.ok) {
+    return { status: "call_only", clientId, clientName, reason: consentSignOff.reason };
+  }
   const clientFirst = (client.first_name as string | null)?.trim() || clientName.split(/\s+/)[0] || clientName;
   const latest = records[0] as { address?: string | null; close_date?: string | null; side?: string | null } | undefined;
 
@@ -274,7 +308,12 @@ export async function draftTextForClient(input: {
     return { status: "skipped", clientId, clientName, reason: "Flight Crew couldn't write this text. Try again in a minute." };
   }
 
-  const body = finalizeTextBody(raw, signOff, agentFirst);
+  // A consent request states that they can say no or change their mind
+  // (Regs SOR/2012-36 s.4(e)): part of the ask, so it is there whatever the
+  // footer setting.
+  const body = consentSignOff?.ok
+    ? withTextFooter(withConsentLine(finalizeTextBody(raw, null, agentFirst)), consentSignOff.footer)
+    : finalizeTextBody(raw, signOff, agentFirst);
   const row = {
     user_id: userId,
     client_id: clientId,
