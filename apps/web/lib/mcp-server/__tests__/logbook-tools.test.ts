@@ -476,7 +476,8 @@ describe("log_mileage — core's trip writer", () => {
     const db = fakeSupabase(craExample(), { failWrites: ["mileage_logs"] });
     const res = await callRaw(await logbookTools(db), "log_mileage", { trip_date: "2026-10-17", description: "Showing", km: 10 });
     expect(res).toMatchObject({ isError: true });
-    expect(res.content[0].text).toBe("simulated write failure on mileage_logs");
+    // record-writers' writeMileage words it ("Couldn't log the trip: ...").
+    expect(res.content[0].text).toBe("Couldn't log the trip: simulated write failure on mileage_logs.");
   });
 });
 
