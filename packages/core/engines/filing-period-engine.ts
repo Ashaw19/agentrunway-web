@@ -98,6 +98,33 @@ export function getFilingPeriods(
 }
 
 /**
+ * The filing period a calendar day falls in, or null when the value is not a
+ * `YYYY-MM-DD` day. The day stays a string: no Date, so no time zone can move
+ * it (a Mar 31 receipt is in Q1 on every server and every phone).
+ */
+export function filingPeriodForDate(
+  frequency: FilingFrequency,
+  isoDate: string | null | undefined,
+): FilingPeriod | null {
+  if (!isoDate || !/^\d{4}-\d{2}-\d{2}$/.test(isoDate)) return null;
+  const periods = getFilingPeriods(frequency, Number(isoDate.slice(0, 4)));
+  return periods.find((p) => isoDate >= p.startDate && isoDate <= p.endDate) ?? null;
+}
+
+/**
+ * First and last month of a period, short names as in the period labels
+ * ("Oct", "Dec"). The two are the same month for a monthly period.
+ */
+export function filingPeriodMonths(
+  period: Pick<FilingPeriod, "startDate" | "endDate">,
+): { from: string; to: string } {
+  return {
+    from: MONTH_NAMES[Number(period.startDate.slice(5, 7)) - 1],
+    to: MONTH_NAMES[Number(period.endDate.slice(5, 7)) - 1],
+  };
+}
+
+/**
  * Get the current filing period based on today's date. `now` is the calendar
  * anchor (server callers pass atlanticNoon()).
  */

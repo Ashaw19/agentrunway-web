@@ -33,6 +33,7 @@
     "./lib/ai-activity-load": "./lib/ai-activity-load.ts",
     "./lib/ai-undo": "./lib/ai-undo.ts",
     "./lib/expense-items": "./lib/expense-items.ts",
+    "./lib/receipt-sections": "./lib/receipt-sections.ts",
     "./types/database": "./types/database.ts",
     "./types/organizations": "./types/organizations.ts",
     "./formatters": "./formatters.ts",

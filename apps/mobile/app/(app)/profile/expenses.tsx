@@ -35,6 +35,10 @@ import { atlanticISODate } from "@agent-runway/core/lib/local-date";
 import { supabase } from "@/lib/supabase";
 import { validateExpenseAmount } from "@agent-runway/core/validation/input-guards";
 import { expenseTaxContext, receiptTotalsToDate } from "@agent-runway/core/engines/expense-totals-engine";
+import { receiptSections, toFilingFrequency, type ReceiptSection } from "@agent-runway/core/lib/receipt-sections";
+import type { FilingFrequency } from "@agent-runway/core/types/database";
+import { storage } from "@/lib/mmkv";
+import { useT } from "@/lib/useT";
 import {
   useColors,
   useTheme,
@@ -60,6 +64,13 @@ const CATEGORIES = EXPENSE_CATEGORY_LABELS;
 
 /** Receipt cards shown under "Recent Receipts". The totals use every receipt dated this year. */
 const RECENT_RECEIPTS_SHOWN = 50;
+
+/**
+ * The agent's GST/HST filing frequency (`user_settings.filing_frequency`),
+ * kept so the list's period headings are right offline. The data store does
+ * not load the column, so this screen reads it.
+ */
+const FILING_FREQUENCY_KEY = "expenses_filing_frequency";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -197,17 +208,54 @@ export default function ScanScreen() {
     if (!error) setImportReviewCount(count ?? 0);
   }, []);
 
+  // The list's headings follow the agent's filing periods (quarters for a
+  // quarterly filer). Until the setting is read, the saved one, else
+  // quarterly (the column's default).
+  const [filingFrequency, setFilingFrequency] = useState<FilingFrequency>(() => {
+    try {
+      return toFilingFrequency(storage.getString(FILING_FREQUENCY_KEY));
+    } catch {
+      return "quarterly";
+    }
+  });
+  const fetchFilingFrequency = useCallback(async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    const { data, error } = await supabase
+      .from("user_settings")
+      .select("filing_frequency")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (error || !data) return;
+    const freq = toFilingFrequency(data.filing_frequency);
+    setFilingFrequency(freq);
+    try {
+      storage.set(FILING_FREQUENCY_KEY, freq);
+    } catch {}
+  }, []);
+
+  // The list: undated receipts first (they count in no total until dated),
+  // then receipt date order, newest first, with a heading at each filing
+  // period (core receiptSections, the same as the web). The store holds
+  // receipts in upload order; the order here is the receipt's own date.
+  // Display only: the cards above are computed from `receipts`.
+  const receiptLog = useMemo(
+    () => receiptSections(receipts, filingFrequency, RECENT_RECEIPTS_SHOWN),
+    [receipts, filingFrequency],
+  );
+
   useEffect(() => {
     fetchReceipts();
     fetchLogbook();
     fetchImportReviewCount();
-  }, [fetchReceipts, fetchLogbook, fetchImportReviewCount]);
+    fetchFilingFrequency();
+  }, [fetchReceipts, fetchLogbook, fetchImportReviewCount, fetchFilingFrequency]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await Promise.all([fetchReceipts(), fetchLogbook(), fetchImportReviewCount()]);
+    await Promise.all([fetchReceipts(), fetchLogbook(), fetchImportReviewCount(), fetchFilingFrequency()]);
     setRefreshing(false);
-  }, [fetchReceipts, fetchLogbook, fetchImportReviewCount]);
+  }, [fetchReceipts, fetchLogbook, fetchImportReviewCount, fetchFilingFrequency]);
 
   // ── Camera ─────────────────────────────────────────────────────────────────
 
@@ -858,8 +906,13 @@ export default function ScanScreen() {
             />
           ) : (
             <>
-              {receipts.slice(0, RECENT_RECEIPTS_SHOWN).map((r) => <ReceiptCard key={r.id} receipt={r} />)}
-              {receipts.length > RECENT_RECEIPTS_SHOWN && (
+              {receiptLog.sections.map((section, i) => (
+                <View key={section.key} style={{ gap: Space.md, marginTop: i === 0 ? 0 : Space.lg }}>
+                  <ReceiptSectionHeader section={section} />
+                  {section.rows.map((r) => <ReceiptCard key={r.id} receipt={r} />)}
+                </View>
+              ))}
+              {receiptLog.shown < receiptLog.total && (
                 <Text style={{ ...Type.caption, color: c.textDim, textAlign: "center" }}>
                   Showing your {RECENT_RECEIPTS_SHOWN} most recent receipts. The totals above count every receipt dated this year. See the full list on the web.
                 </Text>
@@ -923,6 +976,48 @@ function SummaryCard({
       <Text style={{ ...Type.micro, color: c.textDim }}>
         {label}
       </Text>
+    </View>
+  );
+}
+
+// ── Receipt Section Header ───────────────────────────────────────────────────
+
+/**
+ * The break above each filing period in the list: "Q4 2026 · Oct to Dec" on
+ * the left, how many receipts of that period the list holds on the right.
+ * Month names are the short English ones, as on the receipt cards' dates.
+ */
+function ReceiptSectionHeader({ section }: { section: ReceiptSection<ReceiptExpense> }) {
+  const c = useColors();
+  const { t } = useT("profile");
+
+  const title = !section.period
+    ? t("receiptLog.noDate")
+    : section.months
+      ? t("receiptLog.periodRange", { period: section.period.label, from: section.months.from, to: section.months.to })
+      : section.period.label;
+  const count =
+    section.rows.length < section.count
+      ? t("receiptLog.receiptCountPartial", { count: section.rows.length, total: section.count })
+      : t("receiptLog.receiptCount", { count: section.count });
+
+  return (
+    <View
+      accessibilityRole="header"
+      style={{
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center",
+        gap: Space.md,
+        paddingBottom: Space.xs,
+        borderBottomWidth: 1,
+        borderBottomColor: c.cardBorder,
+      }}
+    >
+      <Text style={{ ...Type.bodyBold, color: c.text, flexShrink: 1 }} numberOfLines={1}>
+        {title}
+      </Text>
+      <Text style={{ ...Type.caption, color: c.textDim }}>{count}</Text>
     </View>
   );
 }

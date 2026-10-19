@@ -19,9 +19,12 @@ import {
   RECEIPT_LIST_COLUMNS,
   RECEIPT_LIST_PAGE,
   receiptListDateFilter,
+  receiptSectionCount,
+  receiptSectionTitle,
   receiptsForYear,
   receiptsInPeriod,
 } from "@/lib/expenses/receipt-list";
+import { receiptSections } from "@agent-runway/core/lib/receipt-sections";
 import { expenseCategoryResolver, ytdExpenseTotals, type TrackedExpenseLine } from "@agent-runway/core/engines/t2125-expenses-engine";
 import {
   UNFILED_CATEGORY_TITLE,
@@ -318,7 +321,14 @@ export function ExpensesContent({
   // from this list. See lib/expenses/receipt-list.ts.
   const filteredReceipts = useMemo(() => receiptsInPeriod(receipts, activePeriod), [receipts, activePeriod]);
   const [showAllReceipts, setShowAllReceipts] = useState(false);
-  const visibleReceipts = showAllReceipts ? filteredReceipts : filteredReceipts.slice(0, RECEIPT_LIST_PAGE);
+  // Undated receipts first (they count in no total until dated), then
+  // receipt date order, newest first, with a heading at each filing period
+  // (core receiptSections, the same as the phone). Every undated receipt and
+  // the newest RECEIPT_LIST_PAGE dated ones are shown until "Show all".
+  const receiptLog = useMemo(
+    () => receiptSections(filteredReceipts, filingFreq, showAllReceipts ? Infinity : RECEIPT_LIST_PAGE),
+    [filteredReceipts, filingFreq, showAllReceipts],
+  );
 
   // ── Recurring expenses ──────────────────────────────────────────────────
   // Seeded server-side so Survival/Runway metrics render with full data on first paint.
@@ -2872,70 +2882,82 @@ export function ExpensesContent({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {visibleReceipts.map((r) => (
-                    <TableRow
-                      key={r.id}
-                      className="cursor-pointer hover:bg-muted/60 group"
-                      onClick={() => openReceipt(r)}
-                    >
-                      <TableCell className="font-medium">
-                        <div className="flex items-center gap-1.5">
-                          {/* OCR confidence dot */}
-                          {r.ocr_confidence != null && (
-                            <span
-                              className={cn(
-                                "inline-block h-1.5 w-1.5 shrink-0 rounded-full",
-                                r.ocr_confidence >= 0.85 ? "bg-emerald-400" :
-                                r.ocr_confidence >= 0.60 ? "bg-amber-400"  : "bg-red-400",
+                  {receiptLog.sections.map((section) => (
+                    <Fragment key={section.key}>
+                      <TableRow className="bg-muted/40 hover:bg-muted/40">
+                        <TableHead colSpan={6} scope="rowgroup" className="h-8 text-xs">
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="font-semibold text-foreground">{receiptSectionTitle(section)}</span>
+                            <span className="font-normal text-muted-foreground tabular-nums">{receiptSectionCount(section)}</span>
+                          </div>
+                        </TableHead>
+                      </TableRow>
+                      {section.rows.map((r) => (
+                        <TableRow
+                          key={r.id}
+                          className="cursor-pointer hover:bg-muted/60 group"
+                          onClick={() => openReceipt(r)}
+                        >
+                          <TableCell className="font-medium">
+                            <div className="flex items-center gap-1.5">
+                              {/* OCR confidence dot */}
+                              {r.ocr_confidence != null && (
+                                <span
+                                  className={cn(
+                                    "inline-block h-1.5 w-1.5 shrink-0 rounded-full",
+                                    r.ocr_confidence >= 0.85 ? "bg-emerald-400" :
+                                    r.ocr_confidence >= 0.60 ? "bg-amber-400"  : "bg-red-400",
+                                  )}
+                                  title={`OCR confidence: ${Math.round(r.ocr_confidence * 100)}%`}
+                                />
                               )}
-                              title={`OCR confidence: ${Math.round(r.ocr_confidence * 100)}%`}
-                            />
-                          )}
-                          {r.vendor ?? <span className="text-muted-foreground italic">Unknown</span>}
-                        </div>
-                        {r.notes && (
-                          <p className="text-[11px] text-muted-foreground truncate max-w-[160px]">
-                            {r.notes}
-                          </p>
-                        )}
-                      </TableCell>
-                      <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
-                        {r.expense_date
-                          ? new Date(r.expense_date + "T12:00:00").toLocaleDateString("en-CA", {
-                              month: "short", day: "numeric", year: "numeric",
-                            })
-                          : "—"}
-                      </TableCell>
-                      <TableCell>
-                        {r.category_key ? (
-                          <Badge variant="outline" className="text-xs font-normal">
-                            {CAT_LABEL[r.category_key] ?? r.category_key}
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline" className="text-xs font-normal border-amber-300 text-amber-600">
-                            Uncategorized
-                          </Badge>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right font-medium tabular-nums">
-                        {r.total_amount != null ? fmtCurrency(r.total_amount) : "—"}
-                      </TableCell>
-                      <TableCell className="text-right text-sm text-muted-foreground tabular-nums">
-                        {r.tax_amount != null ? fmtCurrency(r.tax_amount) : "—"}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <span className="text-[10px] font-medium text-muted-foreground/50 group-hover:text-primary/60 transition-colors">
-                          Edit →
-                        </span>
-                      </TableCell>
-                    </TableRow>
+                              {r.vendor ?? <span className="text-muted-foreground italic">Unknown</span>}
+                            </div>
+                            {r.notes && (
+                              <p className="text-[11px] text-muted-foreground truncate max-w-[160px]">
+                                {r.notes}
+                              </p>
+                            )}
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
+                            {r.expense_date
+                              ? new Date(r.expense_date + "T12:00:00").toLocaleDateString("en-CA", {
+                                  month: "short", day: "numeric", year: "numeric",
+                                })
+                              : "—"}
+                          </TableCell>
+                          <TableCell>
+                            {r.category_key ? (
+                              <Badge variant="outline" className="text-xs font-normal">
+                                {CAT_LABEL[r.category_key] ?? r.category_key}
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="text-xs font-normal border-amber-300 text-amber-600">
+                                Uncategorized
+                              </Badge>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right font-medium tabular-nums">
+                            {r.total_amount != null ? fmtCurrency(r.total_amount) : "—"}
+                          </TableCell>
+                          <TableCell className="text-right text-sm text-muted-foreground tabular-nums">
+                            {r.tax_amount != null ? fmtCurrency(r.tax_amount) : "—"}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <span className="text-[10px] font-medium text-muted-foreground/50 group-hover:text-primary/60 transition-colors">
+                              Edit →
+                            </span>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </Fragment>
                   ))}
                 </TableBody>
               </Table>
-              {filteredReceipts.length > RECEIPT_LIST_PAGE && (
+              {receiptLog.datedTotal > RECEIPT_LIST_PAGE && (
                 <div className="flex items-center justify-between gap-3 border-t px-2 pt-3 text-xs text-muted-foreground">
                   <span>
-                    Showing {visibleReceipts.length} of {filteredReceipts.length} receipts
+                    Showing {receiptLog.shown} of {receiptLog.total} receipts
                     {activePeriod ? ` in ${activePeriod.label}` : ""}. Totals and exports include all of them.
                   </span>
                   <Button

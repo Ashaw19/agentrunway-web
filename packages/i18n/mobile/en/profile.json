@@ -373,5 +373,13 @@
     "deletesClientWarning": "This deletes the client and can't be undone. Their profile, notes and activity history go with them.",
     "allOrNothing": "Everything above is put back together, or nothing is if a record changed since.",
     "deleteClient": "Delete client"
+  },
+  "receiptLog": {
+    "periodRange": "{{period}} · {{from}} to {{to}}",
+    "noDate": "No date",
+    "receiptCount_one": "{{count}} receipt",
+    "receiptCount_other": "{{count}} receipts",
+    "receiptCountPartial_one": "{{count}} of {{total}} receipts",
+    "receiptCountPartial_other": "{{count}} of {{total}} receipts"
   }
 }

@@ -7,7 +7,7 @@
  * pinned; expectations hold in any host zone.
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { deadlineUrgency, getCurrentFilingPeriod } from "../filing-period-engine";
+import { deadlineUrgency, filingPeriodForDate, filingPeriodMonths, getCurrentFilingPeriod, getFilingPeriods } from "../filing-period-engine";
 import { atlanticNoon } from "../../lib/local-date";
 
 const DEC31_10PM_AST = atlanticNoon(new Date("2027-01-01T02:00:00Z"));
@@ -77,5 +77,37 @@ describe("deadlineUrgency across a clock change (2026-10-13)", () => {
     expect(deadlineUrgency("2027-03-31", mar10).daysUntil).toBe(21);
     expect(deadlineUrgency("2027-03-10", mar10).daysUntil).toBe(0);
     expect(deadlineUrgency("2027-03-09", mar10).daysUntil).toBe(-1);
+  });
+});
+
+describe("filingPeriodForDate (2026-10-19)", () => {
+  it("places a day in its quarter, both edges included", () => {
+    expect(filingPeriodForDate("quarterly", "2026-03-31")?.label).toBe("Q1 2026");
+    expect(filingPeriodForDate("quarterly", "2026-04-01")?.label).toBe("Q2 2026");
+    expect(filingPeriodForDate("quarterly", "2025-12-31")?.label).toBe("Q4 2025");
+    expect(filingPeriodForDate("quarterly", "2026-01-01")?.label).toBe("Q1 2026");
+  });
+
+  it("monthly and annual", () => {
+    expect(filingPeriodForDate("monthly", "2026-02-28")?.label).toBe("Feb 2026");
+    expect(filingPeriodForDate("monthly", "2026-03-01")?.label).toBe("Mar 2026");
+    expect(filingPeriodForDate("annual", "2025-06-15")?.label).toBe("2025");
+  });
+
+  it("no day, no period", () => {
+    expect(filingPeriodForDate("quarterly", null)).toBeNull();
+    expect(filingPeriodForDate("quarterly", "")).toBeNull();
+    expect(filingPeriodForDate("quarterly", "2026-10-19T12:00:00Z")).toBeNull();
+    expect(filingPeriodForDate("quarterly", "2026-13-01")).toBeNull();
+  });
+});
+
+describe("filingPeriodMonths", () => {
+  it("names the first and last month", () => {
+    const [q1, , , q4] = getFilingPeriods("quarterly", 2026);
+    expect(filingPeriodMonths(q1)).toEqual({ from: "Jan", to: "Mar" });
+    expect(filingPeriodMonths(q4)).toEqual({ from: "Oct", to: "Dec" });
+    expect(filingPeriodMonths(getFilingPeriods("annual", 2026)[0])).toEqual({ from: "Jan", to: "Dec" });
+    expect(filingPeriodMonths(getFilingPeriods("monthly", 2026)[8])).toEqual({ from: "Sep", to: "Sep" });
   });
 });
