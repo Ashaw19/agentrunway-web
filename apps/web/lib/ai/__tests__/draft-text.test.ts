@@ -204,6 +204,20 @@ describe("draftTextForClient — the queued text", () => {
       status: "ready", trigger_date: "2026-10-14", ai_subject: null,
     });
     expect(String(row.ai_body)).toMatch(/\nAndrew Shaw, REAL Broker\nReply STOP to opt out\.$/);
+    expect(row.context).toEqual({ purpose: "check_in", note: null, phone: "(506) 555-0101" });
+  });
+
+  it("a Next up draft carries context.source, so it's skipped once the client is handled", async () => {
+    const { client, writes } = fakeSupabase(tables());
+    const r = await draftTextForClient({
+      supabase: client, userId: USER, clientId: CLIENT, purpose: "check_in",
+      note: "Sam · no contact in 14 months", source: "next_up",
+    });
+    expect(r.status).toBe("created");
+    const row = writes.find((w) => w.table === "outreach_queue" && w.op === "upsert")?.payload as Row;
+    expect(row.context).toEqual({
+      purpose: "check_in", note: "Sam · no contact in 14 months", phone: "(506) 555-0101", source: "next_up",
+    });
   });
 
   it("leaves off the name, brokerage and opt-out line when the agent turned the footer off", async () => {

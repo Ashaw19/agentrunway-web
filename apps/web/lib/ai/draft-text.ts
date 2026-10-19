@@ -152,6 +152,12 @@ export async function draftTextForClient(input: {
   clientId: string;
   purpose: TextPurpose;
   note?: string | null;
+  /**
+   * Who asked. "next_up": the phone dashboard's handful drafted it, and the
+   * text is marked skipped if the client is handled before it's sent
+   * (lib/crm/next-up-handful.ts).
+   */
+  source?: "next_up";
 }): Promise<DraftTextResult> {
   const { supabase, userId, clientId, purpose } = input;
   const note = input.note?.trim() ? input.note.trim().slice(0, 500) : null;
@@ -320,7 +326,7 @@ export async function draftTextForClient(input: {
     opportunity_type: TEXT_OPPORTUNITY_TYPE,
     channel: "sms",
     trigger_date: today,
-    context: { purpose, note, phone },
+    context: { purpose, note, phone, ...(input.source ? { source: input.source } : {}) },
     status: "ready",
     ai_subject: null,
     ai_body: body,
