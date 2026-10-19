@@ -10,6 +10,12 @@
  * whose id is already in the table fails as Postgres does (23505), and
  * `filter(col, "imatch", re)` applies a Postgres regex, case-insensitive.
  * Each table's reads are counted in `reads`, with the rows they returned.
+ *
+ * `unique` names a table's other unique keys (its columns); an insert that
+ * repeats one fails with 23505 too. `upsert(row, { onConflict })` updates the
+ * row that shares the conflict columns (or leaves it with ignoreDuplicates),
+ * else inserts; each call is one `upsert` write with its `onConflict`.
+ * `delete()` removes the rows the filters match and records one `delete` write.
  */
 
 import type { DbClient } from "../../db-client";
@@ -18,8 +24,11 @@ export type Row = Record<string, unknown>;
 
 export interface Write {
   table: string;
-  op: "insert" | "update";
+  op: "insert" | "update" | "upsert" | "delete";
+  /** A delete has no payload: it is {}. */
   payload: Row;
+  /** An upsert's conflict columns, as passed ("a,b,c"). */
+  onConflict?: string;
 }
 
 export interface FakeDbOptions {
@@ -27,6 +36,8 @@ export interface FakeDbOptions {
   offline?: string[];
   /** Tables whose inserts are saved but whose reply is lost (the phone sees a dropped connection). */
   lostReplies?: string[];
+  /** Per table, the columns of a unique key besides the id (a repeat is a 23505). */
+  unique?: Record<string, string[]>;
 }
 
 export function fakeDb(seed: Record<string, Row[]> = {}, options: FakeDbOptions = {}) {
@@ -38,8 +49,9 @@ export function fakeDb(seed: Record<string, Row[]> = {}, options: FakeDbOptions 
   const db: DbClient = {
     from(table: string) {
       let rows: Row[] = [...(tables[table] ?? [])];
-      let op: "select" | "insert" | "update" = "select";
+      let op: "select" | "insert" | "update" | "upsert" | "delete" = "select";
       let payload: Row | null = null;
+      let upsertOptions: { onConflict?: string; ignoreDuplicates?: boolean } = {};
       let limit = Infinity;
       const filters: Array<(r: Row) => boolean> = [];
 
@@ -53,15 +65,43 @@ export function fakeDb(seed: Record<string, Row[]> = {}, options: FakeDbOptions 
       const resolveRows = (): { data: Row[] | null; error: unknown } => {
         const err = error();
         if (err) return { data: null, error: err };
+        const clash = (row: Row): { code: string; message: string } | null => {
+          if ((tables[table] ?? []).some((r) => r.id === row.id)) {
+            return { code: "23505", message: `duplicate key value violates unique constraint "${table}_pkey"` };
+          }
+          const key = options.unique?.[table];
+          if (key && (tables[table] ?? []).some((r) => key.every((c) => r[c] === row[c]))) {
+            return { code: "23505", message: `duplicate key value violates unique constraint "${table}_${key.join("_")}_key"` };
+          }
+          return null;
+        };
         if (op === "insert") {
           const row = { id: payload!.id ?? `${table}-${++seq}`, ...payload! };
-          if ((tables[table] ?? []).some((r) => r.id === row.id)) {
-            return { data: null, error: { code: "23505", message: `duplicate key value violates unique constraint "${table}_pkey"` } };
-          }
+          const dup = clash(row);
+          if (dup) return { data: null, error: dup };
           (tables[table] ??= []).push(row);
           writes.push({ table, op: "insert", payload: payload! });
           if (options.lostReplies?.includes(table)) return { data: null, error: { message: "TypeError: Network request failed" } };
           return { data: [row], error: null };
+        }
+        if (op === "upsert") {
+          const columns = (upsertOptions.onConflict ?? "id").split(",").map((c) => c.trim());
+          const existing = (tables[table] ?? []).find((r) => columns.every((c) => r[c] === payload![c]));
+          writes.push({ table, op: "upsert", payload: payload!, onConflict: upsertOptions.onConflict });
+          if (existing) {
+            // ON CONFLICT DO UPDATE sets every column sent; DO NOTHING leaves the row.
+            if (!upsertOptions.ignoreDuplicates) Object.assign(existing, payload);
+            return { data: [existing], error: null };
+          }
+          const row = { id: payload!.id ?? `${table}-${++seq}`, ...payload! };
+          (tables[table] ??= []).push(row);
+          return { data: [row], error: null };
+        }
+        if (op === "delete") {
+          const removed = (tables[table] ?? []).filter((r) => filters.every((f) => f(r)));
+          tables[table] = (tables[table] ?? []).filter((r) => !removed.includes(r));
+          writes.push({ table, op: "delete", payload: {} });
+          return { data: removed, error: null };
         }
         if (op === "update") {
           const matched = (tables[table] ?? []).filter((r) => filters.every((f) => f(r)));
@@ -78,6 +118,8 @@ export function fakeDb(seed: Record<string, Row[]> = {}, options: FakeDbOptions 
         select() { return builder; },
         insert(p: Row) { op = "insert"; payload = p; return builder; },
         update(p: Row) { op = "update"; payload = p; return builder; },
+        upsert(p: Row, o: { onConflict?: string; ignoreDuplicates?: boolean } = {}) { op = "upsert"; payload = p; upsertOptions = o; return builder; },
+        delete() { op = "delete"; return builder; },
         eq(k: string, v: unknown) { filters.push((r) => r[k] === v); return builder; },
         is(k: string, v: unknown) { filters.push((r) => (r[k] ?? null) === v); return builder; },
         in(k: string, vs: unknown[]) { filters.push((r) => vs.includes(r[k])); return builder; },

@@ -1,8 +1,9 @@
-import { describe, it, expect, vi } from "vitest";
+import { afterEach, describe, it, expect, vi } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
-  opportunityKey, withoutDismissed, dismissOpportunity, undismissOpportunity,
+  opportunityKey, withoutDismissed, dismissOpportunity, undismissOpportunity, holdSuggestion, resumeSuggestion,
 } from "../dismissed-opportunities";
+import { fakeDb, type FakeDbOptions, type Row } from "../../../../../packages/core/lib/__tests__/helpers/capture-fake-db";
 
 /**
  * Flight Control "Dismiss" (Andrew, 2026-10-06): "When I dismiss a suggested
@@ -66,69 +67,123 @@ describe("withoutDismissed", () => {
 });
 
 // ── Persisting a dismissal (browser, RLS-scoped client) ─────────────────────
+//
+// The helpers find the signed-in user and call the writers in core
+// (record-writers.ts), which the core suite covers in full. These tests pin
+// the hand-off: whose id, which row, what is reported.
 
-function fakeSupabase(opts: { userId?: string | null; error?: { message: string } | null } = {}) {
-  const calls: { op: string; table: string; payload?: unknown; options?: unknown; filters?: Record<string, unknown> }[] = [];
-  const from = (table: string) => {
-    const filters: Record<string, unknown> = {};
-    const del = {
-      eq(k: string, v: unknown) { filters[k] = v; return del; },
-      then(resolve: (r: { error: unknown }) => void) {
-        calls.push({ op: "delete", table, filters });
-        resolve({ error: opts.error ?? null });
-      },
-    };
-    return {
-      upsert: async (payload: unknown, options: unknown) => {
-        calls.push({ op: "upsert", table, payload, options });
-        return { error: opts.error ?? null };
-      },
-      delete: () => del,
-    };
-  };
+const TABLE = "flight_control_dismissals";
+
+function supabaseFor(opts: { userId?: string | null; seed?: Row[]; db?: FakeDbOptions } = {}) {
+  const fake = fakeDb(
+    { [TABLE]: opts.seed ?? [] },
+    { unique: { [TABLE]: ["user_id", "client_id", "opportunity_type", "trigger_date"] }, ...opts.db },
+  );
   const supabase = {
+    from: fake.db.from,
     auth: { getUser: async () => ({ data: { user: opts.userId === null ? null : { id: opts.userId ?? "u1" } } }) },
-    from,
   } as unknown as SupabaseClient;
-  return { supabase, calls };
+  return { supabase, ...fake };
 }
 
 const opp = { client_id: "c1", opportunity_type: "idle_client", trigger_date: "2026-10-01" };
+const skipRow = (user_id: string, extra: Row = {}) => ({ id: `d-${user_id}`, user_id, ...opp, kind: "skip", ...extra });
+
+afterEach(() => { vi.useRealTimers(); });
 
 describe("dismissOpportunity", () => {
-  it("stores the occurrence for the signed-in user, idempotently", async () => {
-    const { supabase, calls } = fakeSupabase();
+  it("stores the occurrence for the signed-in user, once", async () => {
+    const { supabase, writes, tables } = supabaseFor();
     expect(await dismissOpportunity(supabase, opp)).toEqual({ ok: true });
-    expect(calls).toEqual([{
-      op: "upsert",
-      table: "flight_control_dismissals",
-      payload: { user_id: "u1", client_id: "c1", opportunity_type: "idle_client", trigger_date: "2026-10-01" },
-      options: { onConflict: "user_id,client_id,opportunity_type,trigger_date", ignoreDuplicates: true },
-    }]);
+    expect(writes).toHaveLength(1);
+    expect(writes[0]).toMatchObject({ table: TABLE, op: "insert" });
+    expect(writes[0].payload).toEqual({ id: expect.any(String), user_id: "u1", ...opp, kind: "skip" });
+    // Dismissing twice is not an error and does not make a second row.
+    expect(await dismissOpportunity(supabase, opp)).toEqual({ ok: true });
+    expect(tables[TABLE]).toHaveLength(1);
+  });
+
+  it("passes only the occurrence on, not the rest of the card", async () => {
+    const { supabase, writes } = supabaseFor();
+    await dismissOpportunity(supabase, { ...opp, trigger_date: "2026-10-01T00:00:00Z", context: { note: "x" } } as typeof opp);
+    expect(Object.keys(writes[0].payload).sort()).toEqual(["client_id", "id", "kind", "opportunity_type", "trigger_date", "user_id"]);
+    expect(writes[0].payload.trigger_date).toBe("2026-10-01");
   });
 
   it("reports failure instead of pretending it saved", async () => {
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
-    const { supabase } = fakeSupabase({ error: { message: "permission denied" } });
+    const { supabase } = supabaseFor({ db: { fail: { [TABLE]: { code: "42501", message: "permission denied" } } } });
     expect(await dismissOpportunity(supabase, opp)).toEqual({ ok: false });
+    expect(spy).toHaveBeenCalled();
     spy.mockRestore();
   });
 
   it("refuses when nobody is signed in", async () => {
-    const { supabase, calls } = fakeSupabase({ userId: null });
+    const { supabase, writes } = supabaseFor({ userId: null });
     expect(await dismissOpportunity(supabase, opp)).toEqual({ ok: false });
-    expect(calls).toHaveLength(0);
+    expect(writes).toHaveLength(0);
   });
 });
 
 describe("undismissOpportunity", () => {
   it("deletes exactly that occurrence for the signed-in user", async () => {
-    const { supabase, calls } = fakeSupabase();
+    const other = { ...skipRow("u1"), id: "d-other", client_id: "c2" };
+    const { supabase, tables } = supabaseFor({ seed: [skipRow("u1"), skipRow("u2"), other] });
     expect(await undismissOpportunity(supabase, opp)).toEqual({ ok: true });
-    expect(calls).toEqual([{
-      op: "delete",
-      table: "flight_control_dismissals",
-      filters: { user_id: "u1", client_id: "c1", opportunity_type: "idle_client", trigger_date: "2026-10-01" },
-    }]);
+    expect(tables[TABLE].map((r) => r.id)).toEqual(["d-u2", "d-other"]);
+  });
+
+  it("refuses when nobody is signed in", async () => {
+    const { supabase, tables } = supabaseFor({ userId: null, seed: [skipRow("u1")] });
+    expect(await undismissOpportunity(supabase, opp)).toEqual({ ok: false });
+    expect(tables[TABLE]).toHaveLength(1);
+  });
+});
+
+describe("holdSuggestion and resumeSuggestion", () => {
+  const args = (until: Date) => ({ clientId: "c1", clientName: "Sam Lee", kind: "later" as const, until });
+
+  it("holds the client for the signed-in user on the Atlantic day, not the UTC day", async () => {
+    // 23:30 ADT on Oct 19 is already Oct 20 in UTC.
+    vi.useFakeTimers({ now: new Date("2026-10-20T02:30:00.000Z"), toFake: ["Date"] });
+    const { supabase, writes } = supabaseFor();
+    const until = new Date("2026-10-20T11:00:00.000Z"); // 08:00 ADT
+    expect(await holdSuggestion(supabase, args(until))).toMatchObject({ ok: true });
+    expect(writes).toHaveLength(1);
+    expect(writes[0]).toMatchObject({ table: TABLE, op: "upsert", onConflict: "user_id,client_id,opportunity_type,trigger_date" });
+    expect(writes[0].payload).toEqual({
+      user_id: "u1", client_id: "c1", opportunity_type: "any", trigger_date: "2026-10-19",
+      kind: "later", until: until.toISOString(), dismissed_at: "2026-10-20T02:30:00.000Z",
+    });
+  });
+
+  it("hands back the writer's outcome, so the toast can say a Stop is already running", async () => {
+    vi.useFakeTimers({ now: new Date("2026-10-19T15:00:00.000Z"), toFake: ["Date"] });
+    const running = { id: "h1", user_id: "u1", client_id: "c1", opportunity_type: "any", trigger_date: "2026-10-05", kind: "stop", until: "2027-01-05T04:00:00.000Z" };
+    const { supabase, writes } = supabaseFor({ seed: [running] });
+    const out = await holdSuggestion(supabase, args(new Date("2026-10-19T16:00:00.000Z")));
+    expect(out).toMatchObject({ ok: true, message: "Suggestions for Sam Lee are already stopped until January 5, 2027." });
+    expect(writes).toHaveLength(0);
+  });
+
+  it("refuses a time that has passed", async () => {
+    vi.useFakeTimers({ now: new Date("2026-10-19T15:00:00.000Z"), toFake: ["Date"] });
+    const { supabase, writes } = supabaseFor();
+    expect(await holdSuggestion(supabase, args(new Date("2026-10-19T14:59:00.000Z")))).toMatchObject({ ok: false, message: "That time has already passed." });
+    expect(writes).toHaveLength(0);
+  });
+
+  it("resumes the signed-in user's holds for that client only", async () => {
+    const hold = (id: string, user_id: string, client_id: string) => ({ id, user_id, client_id, opportunity_type: "any", trigger_date: "2026-10-19", kind: "stop", until: "2027-01-05T04:00:00.000Z" });
+    const { supabase, tables } = supabaseFor({ seed: [hold("h1", "u1", "c1"), hold("h2", "u1", "c2"), hold("h3", "u2", "c1"), skipRow("u1")] });
+    expect(await resumeSuggestion(supabase, "c1")).toMatchObject({ ok: true });
+    expect(tables[TABLE].map((r) => r.id)).toEqual(["h2", "h3", "d-u1"]);
+  });
+
+  it("both refuse when nobody is signed in", async () => {
+    const { supabase, writes } = supabaseFor({ userId: null });
+    expect(await holdSuggestion(supabase, args(new Date(Date.now() + 3_600_000)))).toMatchObject({ ok: false });
+    expect(await resumeSuggestion(supabase, "c1")).toMatchObject({ ok: false });
+    expect(writes).toHaveLength(0);
   });
 });

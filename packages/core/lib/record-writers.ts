@@ -28,6 +28,10 @@
  * `offline: true` when the request never reached the database (no PostgREST
  * code), which the phone queues for later.
  *
+ * The suggestion writers (skip, Later, Stop, the Hangar) are not Flight Crew
+ * capture tools, so applyCaptureWrite doesn't dispatch them; the web Flight
+ * Control cards, the phone's Next up and Flight Crew call them directly.
+ *
  * Deno: imported by the MCP edge function through its copy of core. Relative
  * imports only.
  */
@@ -38,6 +42,8 @@ import { activityRow, clientRow, contactTaskRow, mileageRow, receiptExpenseRow, 
 import { FIELD_LIMITS, validateCommissionPaidDate } from "../validation/input-guards";
 import type { ActivityType, PipelineStage, TaskPriority } from "../types/database";
 import { isIsoDay } from "./capture/dates";
+import { atlanticISODate } from "./local-date";
+import { HOLD_OPPORTUNITY_TYPE, type OpportunityKeyParts } from "./suggestion-dismissals";
 import {
   defaultVehicleFor,
   mileageTripRow,
@@ -670,6 +676,270 @@ export async function writeTransaction(
     return { ok: true, message: `Transaction recorded: ${args.address} (${args.clientName}) closed ${args.closeDate}.`, id, alreadySaved };
   } catch (err) {
     return thrown("record the transaction", err);
+  }
+}
+
+// ── Suggestions: skip, Later, Stop, and the Hangar ───────────────────────────
+//
+// flight_control_dismissals holds a skipped occurrence or a client's Later /
+// Stop (00168, 00188; rules in suggestion-dismissals.ts). Row-level security
+// refuses a client that isn't the user's (the INSERT and UPDATE policies check
+// it), so these writers don't read the client first.
+
+const DISMISSALS = "flight_control_dismissals";
+/** The table's unique key: one row per client, reason and day. A hold uses it too. */
+const OCCURRENCE_CONFLICT = "user_id,client_id,opportunity_type,trigger_date";
+
+const MONTH_WORDS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+/** An instant's Atlantic day in words ("January 19, 2027"), or null when the runtime can't tell. */
+function atlanticDayInWords(ms: number): string | null {
+  try {
+    const [y, m, d] = atlanticISODate(new Date(ms)).split("-").map(Number);
+    return y && m && d ? `${MONTH_WORDS[m - 1]} ${d}, ${y}` : null;
+  } catch {
+    return null;
+  }
+}
+
+/** The occurrence a skip is on, cut to its day, or why it can't be. */
+function skipKey(o: OpportunityKeyParts): { key: OpportunityKeyParts } | { refusal: WriteOutcome } {
+  if (!o?.client_id) return { refusal: fail("Pick the client first.") };
+  if (!o.opportunity_type) return { refusal: fail("The suggestion needs its reason.") };
+  // 'any' is a hold's reason: a skip under it would take the client's hold row's place.
+  if (o.opportunity_type === HOLD_OPPORTUNITY_TYPE) return { refusal: fail("That is a hold, not a suggestion. Resume the client's suggestions instead.") };
+  const day = typeof o.trigger_date === "string" ? o.trigger_date.slice(0, 10) : "";
+  if (!isIsoDay(day)) return { refusal: fail("The suggestion's date isn't a real date.") };
+  return { key: { client_id: o.client_id, opportunity_type: o.opportunity_type, trigger_date: day } };
+}
+
+/**
+ * Skip one occurrence of a suggestion: (client, reason, trigger date). Next
+ * month's idle check-in is a new occurrence and can come back. Skipping the
+ * same occurrence twice is saved once: a clash on the occurrence key, under
+ * this write's id or another device's, counts as saved (`alreadySaved`), and
+ * the id returned is the row that is there, so an undo removes the right one.
+ */
+export async function writeSuggestionSkip(
+  db: DbClient,
+  userId: string,
+  o: OpportunityKeyParts,
+  options: InsertOptions = {},
+): Promise<WriteOutcome> {
+  const checked = skipKey(o);
+  if ("refusal" in checked) return checked.refusal;
+  const { key } = checked;
+  const id = options.id ?? newRecordId();
+  try {
+    // A skip has no end: the table refuses a skip that carries `until`.
+    const { error } = await db.from(DISMISSALS).insert({ id, user_id: userId, ...key, kind: "skip" });
+    if (!error) return { ok: true, message: "Suggestion skipped.", id };
+    if (error.code === "23505") {
+      // insertOnce re-reads by id, which misses a clash on the occurrence key
+      // under another id. Read by the key itself: a row there is saved.
+      const { data: existing, error: readError } = await db
+        .from(DISMISSALS)
+        .select("id")
+        .eq("user_id", userId)
+        .eq("client_id", key.client_id)
+        .eq("opportunity_type", key.opportunity_type)
+        .eq("trigger_date", key.trigger_date)
+        .maybeSingle();
+      if (readError) return refused("skip the suggestion", readError);
+      if (existing) return { ok: true, message: "Suggestion skipped.", id: String((existing as { id: unknown }).id), alreadySaved: true };
+    }
+    return refused("skip the suggestion", error);
+  } catch (err) {
+    return thrown("skip the suggestion", err);
+  }
+}
+
+export interface SuggestionHoldArgs {
+  clientId: string;
+  clientName: string;
+  kind: "later" | "stop";
+  /** When the hold ends. Has to be after `now`. */
+  until: Date;
+}
+
+/**
+ * Put a client's suggestions on hold: Later (a few hours, tonight, tomorrow)
+ * or Stop (3 or 6 months). One row per client per day: it is upserted on the
+ * occurrence key with reason 'any' and `today` (the Atlantic day) as its
+ * date, so a second hold the same day replaces the first. The upsert sends
+ * no row id, since ON CONFLICT DO UPDATE would otherwise rewrite the first
+ * row's id.
+ *
+ * A Stop replaces a Later. A Later never replaces a Stop that is still
+ * running, on the same day or an earlier one: the Stop already hides the
+ * client for longer, so Andrew's "stop" survives a stale Later on another
+ * surface. That is reported as saved, with nothing changed.
+ *
+ * `until` has to be ahead of `now` (a sheet opened at 18:58 and tapped at
+ * 19:01 must not write a hold that has already ended).
+ */
+export async function writeSuggestionHold(
+  db: DbClient,
+  userId: string,
+  args: SuggestionHoldArgs,
+  today: string,
+  now: Date = new Date(),
+): Promise<WriteOutcome> {
+  if (!args.clientId) return fail("Pick the client first.");
+  if (args.kind !== "later" && args.kind !== "stop") return fail("A hold is a Later or a Stop.");
+  if (!isIsoDay(today)) return fail("The day isn't a real date.");
+  const untilMs = args.until instanceof Date ? args.until.getTime() : NaN;
+  if (!Number.isFinite(untilMs)) return fail("The time isn't a real time.");
+  if (untilMs <= now.getTime()) return fail("That time has already passed.");
+  const name = args.clientName || "That client";
+  try {
+    if (args.kind === "later") {
+      // The kind is filtered here, so a row whose kind isn't ours is not a Stop.
+      const { data: stops, error: readError } = await db
+        .from(DISMISSALS)
+        .select("until")
+        .eq("user_id", userId)
+        .eq("client_id", args.clientId)
+        .eq("kind", "stop");
+      if (readError) return refused("check the client's holds", readError);
+      // The latest end among the Stops still running (an unreadable `until` is not running).
+      let running = NaN;
+      for (const r of Array.isArray(stops) ? (stops as Array<{ until?: unknown }>) : []) {
+        const at = typeof r.until === "string" ? Date.parse(r.until) : NaN;
+        if (at > now.getTime() && (Number.isNaN(running) || at > running)) running = at;
+      }
+      if (!Number.isNaN(running)) {
+        const when = atlanticDayInWords(running);
+        return { ok: true, message: `Suggestions for ${name} are already stopped${when ? ` until ${when}` : ""}.` };
+      }
+    }
+    const { error } = await db.from(DISMISSALS).upsert(
+      {
+        user_id: userId,
+        client_id: args.clientId,
+        opportunity_type: HOLD_OPPORTUNITY_TYPE,
+        trigger_date: today,
+        kind: args.kind,
+        until: args.until.toISOString(),
+        dismissed_at: now.toISOString(),
+      },
+      { onConflict: OCCURRENCE_CONFLICT },
+    );
+    if (error) return refused(args.kind === "stop" ? "stop the suggestions" : "hold the suggestion", error);
+    if (args.kind === "later") return { ok: true, message: `${name} will come back later.` };
+    const when = atlanticDayInWords(untilMs);
+    return { ok: true, message: `Suggestions for ${name} are stopped${when ? ` until ${when}` : ""}.` };
+  } catch (err) {
+    return thrown(args.kind === "stop" ? "stop the suggestions" : "hold the suggestion", err);
+  }
+}
+
+/** Undo a skip, by the id writeSuggestionSkip returned. Already gone is fine. */
+export async function removeSuggestionDismissal(db: DbClient, userId: string, id: string): Promise<WriteOutcome> {
+  if (!id) return fail("Pick the skip to undo first.");
+  try {
+    const { error } = await db.from(DISMISSALS).delete().eq("id", id).eq("user_id", userId);
+    if (error) return refused("undo the skip", error);
+    return { ok: true, message: "Skip undone.", id };
+  } catch (err) {
+    return thrown("undo the skip", err);
+  }
+}
+
+/** Undo a skip when only the occurrence is known (the web card). Never takes out a hold. */
+export async function removeSuggestionSkipByKey(db: DbClient, userId: string, o: OpportunityKeyParts): Promise<WriteOutcome> {
+  const checked = skipKey(o);
+  if ("refusal" in checked) return checked.refusal;
+  const { key } = checked;
+  try {
+    const { error } = await db
+      .from(DISMISSALS)
+      .delete()
+      .eq("user_id", userId)
+      .eq("client_id", key.client_id)
+      .eq("opportunity_type", key.opportunity_type)
+      .eq("trigger_date", key.trigger_date);
+    if (error) return refused("undo the skip", error);
+    return { ok: true, message: "Skip undone." };
+  } catch (err) {
+    return thrown("undo the skip", err);
+  }
+}
+
+/** Undo a Later or Stop: the client's holds are removed and they can be suggested again. */
+export async function resumeSuggestions(db: DbClient, userId: string, clientId: string): Promise<WriteOutcome> {
+  if (!clientId) return fail("Pick the client first.");
+  try {
+    const { error } = await db
+      .from(DISMISSALS)
+      .delete()
+      .eq("user_id", userId)
+      .eq("client_id", clientId)
+      .in("kind", ["later", "stop"]);
+    if (error) return refused("resume the suggestions", error);
+    return { ok: true, message: "Suggestions are back on for this client." };
+  } catch (err) {
+    return thrown("resume the suggestions", err);
+  }
+}
+
+/**
+ * "Move to the Hangar" from a suggestion: archives the client (archived_at,
+ * with the reason 'other'). Refuses a client who is already there, so the
+ * reason they were archived for isn't overwritten.
+ */
+export async function writeClientToHangar(
+  db: DbClient,
+  userId: string,
+  args: { clientId: string; clientName: string },
+): Promise<WriteOutcome> {
+  if (!args.clientId) return fail("Pick the client first.");
+  const name = args.clientName || "That client";
+  try {
+    const { data: found, error: readError } = await db
+      .from("clients")
+      .select("id, archived_at")
+      .eq("id", args.clientId)
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (readError) return refused("find the client", readError);
+    if (!found) return fail(`${name} wasn't found in your clients.`);
+    if ((found as { archived_at?: unknown }).archived_at) return fail(`${name} is already in the Hangar.`);
+    const { data, error } = await db
+      .from("clients")
+      .update({ archived_at: new Date().toISOString(), archive_reason: "other" })
+      .eq("id", args.clientId)
+      .eq("user_id", userId)
+      .is("archived_at", null)
+      .select("id");
+    if (error) return refused("move the client to the Hangar", error);
+    if (Array.isArray(data) && data.length === 0) return fail(`${name} changed just now. Try again.`);
+    return { ok: true, message: `${name} moved to the Hangar.`, id: args.clientId };
+  } catch (err) {
+    return thrown("move the client to the Hangar", err);
+  }
+}
+
+/** Undo for writeClientToHangar: clears archived_at and archive_reason. */
+export async function restoreClientFromHangar(
+  db: DbClient,
+  userId: string,
+  args: { clientId: string; clientName: string },
+): Promise<WriteOutcome> {
+  if (!args.clientId) return fail("Pick the client first.");
+  const name = args.clientName || "That client";
+  try {
+    const { data, error } = await db
+      .from("clients")
+      .update({ archived_at: null, archive_reason: null })
+      .eq("id", args.clientId)
+      .eq("user_id", userId)
+      .select("id");
+    if (error) return refused("bring the client back from the Hangar", error);
+    if (Array.isArray(data) && data.length === 0) return fail(`${name} wasn't found in your clients.`);
+    return { ok: true, message: `${name} is back from the Hangar.`, id: args.clientId };
+  } catch (err) {
+    return thrown("bring the client back from the Hangar", err);
   }
 }
 
