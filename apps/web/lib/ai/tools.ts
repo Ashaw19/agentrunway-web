@@ -470,7 +470,7 @@ const EXPENSE_ITEM_KEY_GUIDE =
   RECEIPT_CATEGORY_GROUPS
     .map((g) => `${g.group}: ${g.items.map((i) => `${i.key} (${i.label})`).join(", ")}`)
     .join("; ") +
-  ". Pick the closest item; other_misc only when nothing fits. A meal or coffee is meals_client (with a client or prospect) or meals_team, and tickets or an event are ent_client or ent_events: CRA's 50% limit follows those keys, so never file a meal under other_misc. Parking and car washes are vehicle_service. Legal fees are prof_accounting. Business insurance (E&O, liability) is prof_eo; insurance on the vehicle is vehicle_insurance. There is no travel item: flights and hotels are other_misc unless the agent names another item. " +
+  ". Pick the closest item; other_misc only when nothing fits. A meal or coffee is meals_client (with a client or prospect) or meals_team, and tickets or an event are ent_client or ent_events: CRA's 50% limit follows those keys, so never file a meal under other_misc. Parking for business is vehicle_parking (CRA lets it be deducted in full, not by the vehicle business-use share); car washes are vehicle_service. Legal fees are prof_accounting. Business insurance (E&O, liability) is prof_eo; insurance on the vehicle is vehicle_insurance, except an extra premium or rider the agent says is for business use, which is vehicle_business_insurance (deducted in full too). There is no travel item: flights and hotels are other_misc unless the agent names another item. " +
   HOME_OFFICE_KEY_HINT;
 /** GST/HST is recorded as stated. The app never infers it from a rate (expense-totals-engine). */
 const EXPENSE_TAX_AMOUNT_HINT =

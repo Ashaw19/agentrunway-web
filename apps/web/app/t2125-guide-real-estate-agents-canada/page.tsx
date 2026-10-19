@@ -218,10 +218,10 @@ const EXPENSE_LINES: {
     tip: "Agent tip: If you use one phone for both personal and business, estimate the business-use percentage and apply it consistently.",
   },
   {
-    line: "9180",
+    line: "9281",
     label: "Motor vehicle expenses",
     description:
-      "Gas, insurance, maintenance, lease payments, parking \u2014 multiplied by your business-use percentage from your vehicle logbook.",
+      "Gas, insurance, maintenance and lease payments, multiplied by your business-use percentage from your vehicle logbook. Per CRA, parking fees related to business activities and supplementary business insurance are deductible in full.",
     tip: "Agent tip: A logbook is required by CRA. Without one, the CRA can deny the entire vehicle claim on audit.",
   },
   {

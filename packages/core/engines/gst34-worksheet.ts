@@ -17,7 +17,7 @@
 
 import { isMealOrEntertainmentKey, isVehicleKey, itcForExpense } from "./gst34-engine";
 import type { RecurringHSTDetail } from "./recurring-expense-engine";
-import { isHomeOfficeKey } from "./t2125-engine";
+import { isFullVehicleDeductionKey, isHomeOfficeKey } from "./t2125-engine";
 
 type Numeric = number | string | null | undefined;
 
@@ -82,7 +82,7 @@ const cents = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100 || 0; 
 function ruleFor(categoryKey: string | null | undefined, vehicleUse: boolean): GST34ItcRule {
   if (isHomeOfficeKey(categoryKey)) return "home";
   if (isMealOrEntertainmentKey(categoryKey)) return "meals";
-  if (vehicleUse || isVehicleKey(categoryKey)) return "vehicle";
+  if ((vehicleUse || isVehicleKey(categoryKey)) && !isFullVehicleDeductionKey(categoryKey)) return "vehicle";
   return "full";
 }
 

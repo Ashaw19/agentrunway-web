@@ -693,8 +693,9 @@ export default function FirstYearTaxFilingRealEstateAgentsCanadaPage() {
                 <li>
                   <strong>Vehicle expenses (Line 9281, motor vehicle
                   expenses):</strong> business-use percentage of fuel,
-                  insurance, repairs, lease or interest, parking, plus
-                  capital cost allowance for owned vehicles. For the
+                  insurance, repairs, lease or interest; business parking
+                  and supplementary business insurance in full, per CRA;
+                  plus capital cost allowance for owned vehicles. For the
                   full mechanic — logbook requirements, Class 10.1
                   ceiling, lease and interest caps, and the 90%
                   GST/HST ITC threshold — see the{" "}

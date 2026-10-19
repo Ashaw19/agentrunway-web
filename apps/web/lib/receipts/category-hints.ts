@@ -11,6 +11,8 @@
  * receipt_expenses.category_key; totals are built from those rows.
  */
 
+import { RECEIPT_CATEGORY_KEYS } from "@agent-runway/core/lib/expense-items";
+
 interface HintRule {
   /** Pattern tested against lowercased vendor name + any receipt text */
   pattern: RegExp;
@@ -42,13 +44,22 @@ const HINT_RULES: HintRule[] = [
     categoryKey: "home_condo_fees",
   },
 
+  // ── Vehicle / Parking ──────────────────────────────────────────────────────
+  // Its own item since 2026-10-19: CRA lets business parking be deducted in
+  // full, not by the vehicle business-use share. Before fuel, so a parking
+  // lot's receipt never reads as a gas bar's.
+  {
+    pattern: /parking|impark|indigo park|precise parklink|paybyphone|pay by phone|honk mobile|hotspot parking|easypark|green p\b|parkplus/i,
+    categoryKey: "vehicle_parking",
+  },
+
   // ── Vehicle / Fuel ─────────────────────────────────────────────────────────
   {
     pattern: /shell|(?<![a-z])esso(?![a-z])|petro.?canada|irving oil|husky|(?<![a-z])pioneer(?![a-z])|ultramar|sunoco|chevron|exxon|(?<![a-z])mobil(?![a-z])|bp\s|co-op gas|fas gas|cardlock|circle\s*k|couche.?tard|flying j|pilot travel|kwik trip|fuel|gasoline|diesel|gas station|gas bar|car wash/i,
     categoryKey: "vehicle_fuel",
   },
   {
-    pattern: /auto parts|napa auto|midas|jiffy lube|mr lube|oil change|tire shop|firestone|pep boys|o'reilly|advance auto|speedy auto|muffler|brake|mechanic|service centre|service center|detailing|parking|impark|precise parklink/i,
+    pattern: /auto parts|napa auto|midas|jiffy lube|mr lube|oil change|tire shop|firestone|pep boys|o'reilly|advance auto|speedy auto|muffler|brake|mechanic|service centre|service center|detailing/i,
     categoryKey: "vehicle_service",
   },
 
@@ -125,20 +136,12 @@ const HINT_RULES: HintRule[] = [
 ];
 
 /**
- * All valid sub-item keys (expense_items.key) — used to validate Groq suggestions.
+ * All valid sub-item keys: the canonical item list (RECEIPT_CATEGORY_KEYS),
+ * used to validate the model's suggestion. This file kept its own copy until
+ * 2026-10-19, so a key added to the canonical list (Business Parking) was
+ * dropped to Miscellaneous when the model suggested it.
  */
-const VALID_KEYS = new Set([
-  "vehicle_fuel", "vehicle_service", "vehicle_insurance", "vehicle_payment",
-  "marketing_ads", "marketing_photography", "marketing_print", "marketing_gifts",
-  "office_supplies", "office_software", "office_phone", "office_hardware",
-  "prof_board_mls", "prof_licensing", "prof_eo", "prof_accounting",
-  "edu_courses", "edu_conferences", "edu_books",
-  "meals_client", "meals_team",
-  "ent_client", "ent_events",
-  "home_utilities", "home_internet", "home_insurance", "home_maintenance",
-  "home_property_tax", "home_mortgage_interest", "home_rent", "home_condo_fees",
-  "other_misc",
-]);
+const VALID_KEYS: ReadonlySet<string> = new Set(RECEIPT_CATEGORY_KEYS);
 
 /**
  * Suggest a category key from vendor name + any receipt text.

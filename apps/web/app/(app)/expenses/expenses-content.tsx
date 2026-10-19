@@ -53,7 +53,8 @@ interface PriorYearRow {
   annual_mileage_deduct: number;
 }
 import { survivalResult, riskColorBand, type RiskColorBand } from "@/lib/engines/survival-engine";
-import { HOME_OFFICE_CATEGORY_KEY, isHomeOfficeKey } from "@/lib/engines/t2125-engine";
+import { HOME_OFFICE_CATEGORY_KEY, isFullVehicleDeductionKey, isHomeOfficeKey } from "@/lib/engines/t2125-engine";
+import { VEHICLE_FULL_DEDUCTION_RULE } from "@agent-runway/core/tax-copy";
 import { clampSalePrice, clampCommissionPct, clampGci } from "@/lib/import/clamp-db-range";
 import { readImportError, ImportRequestError } from "@/lib/import/client-error";
 import dynamic from "next/dynamic";
@@ -648,7 +649,8 @@ export function ExpensesContent({
         const total = parseFloat(reAmount) || 0;
         return total > 0 && rate > 0 ? Math.round((total - total / (1 + rate)) * 100) / 100 : 0;
       })() : 0,
-      vehicle_pct_applicable: reVehicle,
+      // Never ticked for an item CRA lets be deducted in full (the box isn't shown for it).
+      vehicle_pct_applicable: reVehicle && !isFullVehicleDeductionKey(reCategory),
       start_date: reStartDate,
       // The row stays active: its charges up to this date keep counting.
       end_date: reEndDate || null,
@@ -3250,18 +3252,27 @@ export function ExpensesContent({
               })()}
             </div>
 
-            <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                id="re-vehicle"
-                checked={reVehicle}
-                onChange={(e) => setReVehicle(e.target.checked)}
-                className="h-4 w-4 rounded border-gray-300"
-              />
-              <Label htmlFor="re-vehicle" className="text-xs cursor-pointer">
-                Apply vehicle business-use % to this expense
-              </Label>
-            </div>
+            {isFullVehicleDeductionKey(reCategory) ? (
+              // Business parking and supplementary business insurance are
+              // counted in full whatever this box says (t2125ExpenseLine,
+              // itcForExpense), so it isn't offered for them.
+              <p className="text-xs text-muted-foreground">
+                {VEHICLE_FULL_DEDUCTION_RULE} Agent Runway counts this one in full.
+              </p>
+            ) : (
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="re-vehicle"
+                  checked={reVehicle}
+                  onChange={(e) => setReVehicle(e.target.checked)}
+                  className="h-4 w-4 rounded border-gray-300"
+                />
+                <Label htmlFor="re-vehicle" className="text-xs cursor-pointer">
+                  Apply vehicle business-use % to this expense
+                </Label>
+              </div>
+            )}
 
             <div className="space-y-1">
               <Label className="text-xs">Started from</Label>

@@ -57,6 +57,7 @@ import {
   ALLOWANCE_RATE_NOTE,
   CRA_MOTOR_VEHICLE_SOURCES,
   VEHICLE_BUSINESS_PART_RULE,
+  VEHICLE_FULL_DEDUCTION_RULE,
   VEHICLE_LOGBOOK_RULE,
   allowanceRatesSentence,
 } from "@agent-runway/core/tax-copy";
@@ -621,7 +622,7 @@ export function ExpensesMileageTab({
           <div className="text-xs text-amber-800 space-y-1.5">
             <p>{ALLOWANCE_RATE_NOTE}</p>
             <p>
-              {VEHICLE_BUSINESS_PART_RULE} The share Agent Runway applies to vehicle costs is the logbook&apos;s figure for a year it
+              {VEHICLE_BUSINESS_PART_RULE} {VEHICLE_FULL_DEDUCTION_RULE} The share Agent Runway applies to the other vehicle costs is the logbook&apos;s figure for a year it
               covers, and the{" "}
               <Link href="/settings" className="underline underline-offset-2 font-medium">
                 declared vehicle business use %

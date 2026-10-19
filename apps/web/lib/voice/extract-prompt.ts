@@ -68,6 +68,7 @@ new_expense: money the agent spent for the business (fuel, a client coffee, sign
 Never work out GST/HST from a rate.
 category_key values:
   vehicle_fuel, vehicle_service, vehicle_insurance, vehicle_payment,
+  vehicle_parking, vehicle_business_insurance,
   marketing_ads, marketing_photography, marketing_print, marketing_gifts,
   office_supplies, office_software, office_phone, office_hardware,
   prof_board_mls, prof_licensing, prof_eo, prof_accounting,
@@ -79,7 +80,7 @@ category_key values:
     (home_* are bills for the agent's own home: power, heat, water, internet,
     home insurance, repairs, property tax, mortgage interest, rent, condo fees),
   other_misc
-A meal or coffee with a client is meals_client; parking and car washes are vehicle_service.
+A meal or coffee with a client is meals_client; parking is vehicle_parking; a car wash is vehicle_service; vehicle_business_insurance only for an extra premium the agent says is for business use.
 
 new_client: a person the agent says is new ("met a new buyer, Dana Whitfield").
 { "intent": "new_client", "full_name": "<first and last name>", "email": "<or null>", "phone": "<as said, or null>", "city": "<where they live, or null>", "side": "buyer" | "seller" | null, "lead_source": "referral" | "sphere" | "open_house" | "online" | "sign_call" | "cold_call" | "door_knock" | "social_media" | "repeat" | "other" | null, "notes": "<other details or null>" }

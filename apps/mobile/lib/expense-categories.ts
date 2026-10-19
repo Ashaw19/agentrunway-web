@@ -11,6 +11,8 @@ export const EXPENSE_CATEGORY_LABELS: Record<string, string> = {
   vehicle_service:       "Service & Repairs",
   vehicle_insurance:     "Vehicle Insurance",
   vehicle_payment:       "Vehicle Payment",
+  vehicle_parking:       "Business Parking",
+  vehicle_business_insurance: "Supplementary Business Insurance",
   marketing_ads:         "Ads (Meta/Google)",
   marketing_photography: "Photography & Video",
   marketing_print:       "Print (Signs, Flyers)",

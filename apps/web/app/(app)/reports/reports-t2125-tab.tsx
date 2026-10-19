@@ -29,7 +29,7 @@ import {
   vehicleBusinessUseFor,
   type VehicleBusinessUse,
 } from "@agent-runway/core/engines/vehicle-logbook-engine";
-import { VEHICLE_BUSINESS_PART_RULE } from "@agent-runway/core/tax-copy";
+import { VEHICLE_BUSINESS_PART_RULE, VEHICLE_FULL_DEDUCTION_RULE } from "@agent-runway/core/tax-copy";
 import { TAX_YEAR } from "@agent-runway/core/engines/canadian-tax-engine";
 import { earlierYearT2125Notes } from "@/lib/t2125-tax-year";
 import type { YearMileageTotals } from "@/lib/vehicle-logbook/load";
@@ -633,7 +633,7 @@ export function ReportsT2125Tab({
                 {localSettings.vehicle_type === "own" ? " Owned vehicle" : localSettings.vehicle_type === "lease" ? " Leased vehicle" : " No vehicle"}
               </p>
               <p className={cn("mt-1 text-[10px]", vehicleDeclared ? "text-amber-600/90" : "text-muted-foreground")}>
-                * {vehicleUse.label}. {VEHICLE_BUSINESS_PART_RULE}
+                * {vehicleUse.label}. {VEHICLE_BUSINESS_PART_RULE} {VEHICLE_FULL_DEDUCTION_RULE}
               </p>
             </div>
 

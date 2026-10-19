@@ -76,7 +76,9 @@ const ROWS: Row[] = [
   ["Golf Town", "ent_events", "ent_events"],
   ["Cineplex Movie", "ent_events", "ent_events"],
   ["NB Power", "home_utilities", "home_utilities"],
-  ["Impark Parking", "vehicle_service", "vehicle_service"],
+  ["Impark Parking", "vehicle_service", "vehicle_parking"],  // changed 2026-10-19: parking is its own item
+  ["INDIGO PARK CANADA", "edu_books", "vehicle_parking"],  // changed
+  ["PAYBYPHONE SAINT JOHN", null, "vehicle_parking"],  // changed
   ["Midas Auto", "vehicle_service", "vehicle_service"],
 ];
 
@@ -91,6 +93,8 @@ describe("suggestCategoryFromText on realistic vendor strings", () => {
       "ESPRESSO BAR", "THAILAND TRAVEL CO", "LISTING PHOTO STUDIO", "Photography Studio Inc",
       "Rogers Wireless", "ROGERS CABLE", "Bell Aliant", "BELL MOBILITY IPHONE", "Telus", "Freedom Mobile", "Eastlink",
       "QuickBooks Online", "Intuit Canada", "KOREA HOUSE", "TERREIN LANDSCAPING", "SPACE STORAGE",
+      // 2026-10-19: parking is its own item (deducted in full, per CRA).
+      "Impark Parking", "INDIGO PARK CANADA", "PAYBYPHONE SAINT JOHN",
     ]);
   });
 });
