@@ -485,6 +485,7 @@ What comes off one expense (always the same ITC the GST34 summary claims, via it
 | Meals & entertainment | Half (CRA's 50% ITC limit) | Amount before GST/HST plus the other half; the 50% deduction limit then applies to that |
 | Vehicle, business use over 10% | All of it: the business share is the ITC, the personal share is a personal cost | Amount before GST/HST; the business-use % then applies to that |
 | Vehicle, business use 10% or less | None (no ITC) | Full amount paid |
+| Business Parking (any business use) | All of it (a business cost in full, per CRA) | Amount before GST/HST, deductible in full |
 | Home Office bill, home office % over 10% | All of it: the home office share is the ITC, the rest is a household cost | The home office share of the amount before GST/HST. Nothing else: the household share of the bill is not a business expense |
 | Home Office bill, home office % 10% or less | None (no ITC) | The home office share of the full amount paid |
 | No GST/HST amount entered (tax blank or 0) | None | Full amount paid |
@@ -517,7 +518,7 @@ What it counts, to date only (no future month or charge):
 
 Limits applied (the app's estimate of CRA's rules, for review with an accountant):
 - Meals & entertainment: 50%.
-- Vehicle costs: x vehicle business-use %. A recurring expense with "Apply vehicle business-use % to this expense" ticked takes the vehicle % whatever its category and shows on line 9281. A Vehicle category takes it whether or not the box is ticked. The GST34 summary applies the same rule to its GST/HST.
+- Vehicle costs: x vehicle business-use %. A recurring expense with "Apply vehicle business-use % to this expense" ticked takes the vehicle % whatever its category and shows on line 9281. A Vehicle item takes it whether or not the box is ticked, except Business Parking and Supplementary Business Insurance: per CRA they are deductible in full, so they count at 100% on line 9281 and the box isn't offered for them. The GST34 summary applies the same rule to its GST/HST.
 - Home Office bills: already at the home office share; 100% of that.
 - Everything else: 100%.
 
@@ -539,7 +540,7 @@ Source of truth: packages/core/engines/t2125-engine.ts (t2125LineForExpenseKey, 
 | CRA Line | Category | Notes |
 |----------|----------|-------|
 | 8521 | Advertising | Photography, video, print, signage, online ads |
-| 9281 | Motor Vehicle Expenses | Fuel, insurance, lease/payments, repairs/maintenance — combined and multiplied by vehicle business-use % |
+| 9281 | Motor Vehicle Expenses | Fuel, insurance, lease/payments, repairs/maintenance, combined and multiplied by vehicle business-use %; plus Business Parking and Supplementary Business Insurance in full |
 | 8811 | Office Supplies & Stationery | Supplies, software subscriptions, hardware/equipment |
 | 9220 | Utilities (Phone & Internet) | Business phone and internet line |
 | 8523 | Meals & Entertainment | 50% deductible per CRA — engine tracks gross and 50%-deductible amounts |
@@ -558,7 +559,7 @@ Common "wrong line number" question: legacy notes/screenshots may cite 8210/8211
 
 ### Expense items: what a receipt or recurring expense is filed under
 Every receipt and recurring expense is filed under an expense ITEM (receipt_expenses.category_key / recurring_expenses.category_key), not a whole category. One list, shared by the receipt form, the recurring expense form, voice capture and Flight Crew (apps/web/lib/types/receipt.ts, RECEIPT_CATEGORY_GROUPS):
-- Vehicle: Fuel / Gas, Service & Repairs, Insurance, Vehicle Payment
+- Vehicle: Fuel / Gas, Service & Repairs, Insurance, Vehicle Payment, Business Parking, Supplementary Business Insurance (the last two in full, not by the business-use %)
 - Marketing: Ads, Photography & Video, Print, Client Gifts
 - Office & Tech: Office Supplies, Software Subscriptions, Phone & Internet, Hardware & Equipment
 - Professional Fees: Board / MLS Dues, Licensing & Renewals, E&O Insurance, Accounting & Bookkeeping (legal fees go here)
@@ -675,7 +676,7 @@ If a user asks "what are these tips?" or "why is Agent Runway showing me this?" 
 1. Since 2026-10-13 active entries in the Recurring Expenses list count on both. Before that date they did not, which was a bug.
 2. Check the entry is active and its start date has passed.
 3. Quarterly and annual entries count only once their charge date has passed this year.
-4. A vehicle entry counts at the vehicle business-use %, and a meal at 50%, so its Deductible amount is lower than its YTD amount. That is the limit, not a missing expense.
+4. A vehicle entry counts at the vehicle business-use % (Business Parking and Supplementary Business Insurance count in full), and a meal at 50%, so its Deductible amount is lower than its YTD amount. That is the limit, not a missing expense.
 5. Home Office bills count at the home office share and sit on line 9945, not in line 9369.
 
 **"My Est. Tax Deductible / T2125 expenses went up on October 13" / "My T2125 net income dropped"**
@@ -2260,7 +2261,7 @@ An entry in the Recurring Expenses list (Expenses page) is an expense that repea
 - End date (optional): the last day the expense applies. Empty while it is still being paid. The form rejects an end date before the start date
 - Optional notes
 - "This amount includes HST" with the HST amount, for a GST/HST registrant. On this form, ticking the box fills the amount in from the province rate unless one is typed in the Override box
-- "Apply vehicle business-use % to this expense", for a vehicle cost
+- "Apply vehicle business-use % to this expense", for a vehicle cost (not offered for Business Parking or Supplementary Business Insurance, which count in full)
 
 **How an entry is counted:**
 There is no confirm or skip step. An active entry counts by its charge dates: every charge that has happened so far this year is in YTD Expenses, Est. Tax Deductible and the T2125 lines (packages/core/engines/recurring-expense-engine.ts, recurringYTD). Nothing appears in the receipt log for it.

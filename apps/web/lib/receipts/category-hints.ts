@@ -49,7 +49,7 @@ const HINT_RULES: HintRule[] = [
   // full, not by the vehicle business-use share. Before fuel, so a parking
   // lot's receipt never reads as a gas bar's.
   {
-    pattern: /parking|impark|indigo park|precise parklink|paybyphone|pay by phone|honk mobile|hotspot parking|easypark|green p\b|parkplus/i,
+    pattern: /parking|impark|indigo park|precise parklink|paybyphone|honk mobile|hotspot parking|easypark|green p\b|parkplus/i,
     categoryKey: "vehicle_parking",
   },
 

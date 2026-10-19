@@ -20,6 +20,9 @@
 --   account that has one. SECURITY DEFINER with EXECUTE for service_role only:
 --   it takes a user id.
 -- seed_default_expenses: prod's body (read 2026-10-19) plus the one call.
+--   EXECUTE is revoked from clients here: it is SECURITY DEFINER, takes any
+--   user id, and was executable by PUBLIC. Its one caller is the sign-up
+--   trigger handle_new_user (SECURITY DEFINER, owned by postgres).
 -- fn_confirm_statement_lines: 00185's body with the two keys added to its
 --   list (statement-import-keys.test.ts holds it to RECEIPT_CATEGORY_KEYS and
 --   checks nothing else changed).
@@ -132,6 +135,9 @@ BEGIN
   PERFORM public.seed_vehicle_full_deduction_items(p_user_id);
 END;
 $function$;
+
+REVOKE ALL ON FUNCTION public.seed_default_expenses(uuid) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.seed_default_expenses(uuid) TO service_role;
 
 -- Every account that already has a Vehicle category.
 DO $$

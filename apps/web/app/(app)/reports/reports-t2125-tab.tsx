@@ -623,7 +623,7 @@ export function ReportsT2125Tab({
                   Motor Vehicle (Line 9281): {fmtPct(vehicleUse.pct)} business use applied
                 </p>
               </div>
-              <LineRow indent lineNum="9281" label="All Vehicle Expenses (lease, insurance, fuel, maintenance)" value={result.line9281_motorVehicle} />
+              <LineRow indent lineNum="9281" label="All Vehicle Expenses (lease, insurance, fuel, maintenance; business parking and supplementary insurance in full)" value={result.line9281_motorVehicle} />
               <p className="mt-2 text-[10px] text-muted-foreground">
                 {vehicleDeclared ? (
                   <>Declared business-use % set in <a href="/settings" className="underline">Settings</a></>
