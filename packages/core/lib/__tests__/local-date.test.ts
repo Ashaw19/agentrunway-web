@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   addDaysISO,
   atlanticDayStart,
+  atlanticHour,
   atlanticISODate,
   atlanticMonth,
   atlanticNoon,
@@ -329,5 +330,32 @@ describe("localDaysSince (what \"Today / Yesterday / 3 days ago\" counts)", () =
       expect(localDaysSince(bad, now), String(bad)).toBeNull();
     }
     expect(localDaysSince(new Date(NaN), now)).toBeNull();
+  });
+});
+
+describe("atlanticHour", () => {
+  it("reads the Halifax wall clock", () => {
+    expect(atlanticHour(new Date("2026-10-19T15:30:00Z"))).toBe(12); // ADT, UTC-3
+    expect(atlanticHour(new Date("2026-11-02T15:30:00Z"))).toBe(11); // AST, UTC-4
+  });
+
+  it("is 0-23, with midnight 0 and the last hour 23", () => {
+    expect(atlanticHour(new Date("2026-10-19T03:00:00Z"))).toBe(0); // 00:00 ADT
+    expect(atlanticHour(new Date("2026-10-19T02:59:00Z"))).toBe(23); // 23:59 ADT the day before
+    expect(atlanticHour(new Date("2026-11-02T04:00:00Z"))).toBe(0); // 00:00 AST
+  });
+
+  it("reads the Atlantic hour whatever zone the server runs in", () => {
+    vi.stubEnv("TZ", "America/Vancouver");
+    expect(atlanticHour(new Date("2026-10-19T22:00:00Z"))).toBe(19); // 15:00 PDT is 19:00 ADT
+    vi.stubEnv("TZ", "UTC");
+    expect(atlanticHour(new Date("2026-10-19T22:00:00Z"))).toBe(19);
+  });
+
+  it("marks the band edges: 12:00 and 17:00 sharp", () => {
+    expect(atlanticHour(new Date("2026-10-19T15:00:00Z"))).toBe(12); // 12:00 ADT
+    expect(atlanticHour(new Date("2026-10-19T14:59:59Z"))).toBe(11);
+    expect(atlanticHour(new Date("2026-10-19T20:00:00Z"))).toBe(17); // 17:00 ADT
+    expect(atlanticHour(new Date("2026-10-19T19:59:59Z"))).toBe(16);
   });
 });

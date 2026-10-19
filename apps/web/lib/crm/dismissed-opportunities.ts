@@ -16,25 +16,12 @@
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { OpportunityKeyParts } from "@agent-runway/core/lib/suggestion-dismissals";
 
-export interface OpportunityKeyParts {
-  client_id:        string;
-  opportunity_type: string;
-  trigger_date:     string;
-}
-
-export function opportunityKey(o: OpportunityKeyParts): string {
-  return `${o.client_id}|${o.opportunity_type}|${o.trigger_date.slice(0, 10)}`;
-}
-
-export function withoutDismissed<T extends OpportunityKeyParts>(
-  candidates: readonly T[],
-  dismissals: readonly OpportunityKeyParts[],
-): T[] {
-  if (dismissals.length === 0) return [...candidates];
-  const dismissed = new Set(dismissals.map(opportunityKey));
-  return candidates.filter((c) => !dismissed.has(opportunityKey(c)));
-}
+// The key and the skip filter live in core (suggestion-dismissals) so web,
+// the phone, the nightly drafts and MCP share one rule.
+export { opportunityKey, withoutDismissed } from "@agent-runway/core/lib/suggestion-dismissals";
+export type { OpportunityKeyParts } from "@agent-runway/core/lib/suggestion-dismissals";
 
 const OCCURRENCE_CONFLICT = "user_id,client_id,opportunity_type,trigger_date";
 
