@@ -15,7 +15,14 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { confirmationOutcome, expenseRowForStatementLine } from "@agent-runway/core/engines/statement-import-engine";
+import {
+  DUPLICATE_AMOUNT_TOLERANCE,
+  MERCHANT_STOP_WORDS,
+  NEAR_MATCH_AMOUNT_SHARE,
+  NEAR_MATCH_DAYS,
+  confirmationOutcome,
+  expenseRowForStatementLine,
+} from "@agent-runway/core/engines/statement-import-engine";
 
 const SQL = readFileSync(path.join(__dirname, "../../../supabase/migrations/00185_statement_import.sql"), "utf8");
 
@@ -94,6 +101,40 @@ describe("fn_confirm_statement_lines mirrors confirmationOutcome", () => {
   });
 });
 
+describe("the receipt trigger uses the engine's near-miss rule", () => {
+  const body = fnBody("fn_receipt_replaces_statement_copy");
+
+  it("its merchant words leave out the engine's stop words, exactly", () => {
+    const words = fnBody("fn_statement_merchant_words");
+    const list = words.slice(words.indexOf("ARRAY["), words.indexOf("]", words.indexOf("ARRAY[")));
+    const sqlWords = [...list.matchAll(/'([a-z]+)'/g)].map((m) => m[1]);
+    expect(new Set(sqlWords)).toEqual(new Set(MERCHANT_STOP_WORDS));
+    expect(words).toContain("'([a-z]{3,})'"); // the engine's WORD
+  });
+
+  it("flags the same amount, or the same merchant within the amount share, within NEAR_MATCH_DAYS", () => {
+    expect(body).toContain(`c.expense_date BETWEEN NEW.expense_date - ${NEAR_MATCH_DAYS} AND NEW.expense_date + ${NEAR_MATCH_DAYS}`);
+    expect(body).toContain(`abs(c.total_amount - NEW.total_amount) <= ${DUPLICATE_AMOUNT_TOLERANCE}`);
+    expect(body).toContain(`<= ${NEAR_MATCH_AMOUNT_SHARE} * greatest(c.total_amount, NEW.total_amount)`);
+    expect(body).toContain("v_words && fn_statement_merchant_words(coalesce(l.merchant, '') || ' ' || l.description)");
+  });
+
+  it("reads and writes the agent's own lines only", () => {
+    const flag = body.slice(body.indexOf("v_words := fn_statement_merchant_words(NEW.vendor);"));
+    expect(flag).toContain("AND l.user_id = NEW.user_id");
+    expect(flag).not.toMatch(/abs\(c\.expense_date/); // a range the index can use
+  });
+
+  it("fires on insert, and on an edit of the date or amount of an expense no line records yet", () => {
+    expect(SQL).toMatch(/CREATE TRIGGER trg_receipt_expenses_replace_statement_copy\s+AFTER INSERT ON public\.receipt_expenses/);
+    expect(SQL).toMatch(
+      /CREATE TRIGGER trg_receipt_expenses_replace_statement_copy_on_edit\s+AFTER UPDATE OF expense_date, total_amount ON public\.receipt_expenses\s+FOR EACH ROW\s+WHEN \(NEW\.source IS NULL AND NEW\.statement_line_id IS NULL/,
+    );
+    // An edit clears what the receipt flagged before asking again.
+    expect(body).toMatch(/IF TG_OP = 'UPDATE' THEN\s+UPDATE statement_lines\s+SET hold_reason = NULL, related_receipt_id = NULL/);
+  });
+});
+
 describe("migration 00185 is additive and RLS-guarded", () => {
   it("adds only nullable columns to receipt_expenses, and drops nothing", () => {
     const alter = SQL.slice(SQL.indexOf("ALTER TABLE public.receipt_expenses"), SQL.indexOf(";", SQL.indexOf("ALTER TABLE public.receipt_expenses")));
@@ -127,6 +168,10 @@ describe("the database behaviour checks run each function as the signed-in agent
     ["DELETE FROM receipt_expenses WHERE id = v_copy", "a deleted expense sends its line back"],
     ["INSERT INTO receipt_expenses (user_id, vendor, expense_date, total_amount, tax_amount, receipt_path)", "a receipt saved later takes over the line"],
     ["UPDATE recurring_expenses SET day_of_month", "a changed recurring expense sends its line back"],
+    ["VALUES (v_user, NULL, NULL, NULL, NULL, 'ci/ocr-failed.jpg')", "a receipt saved with nothing read, then corrected (an UPDATE), replaces the copy"],
+    ["UPDATE receipt_expenses SET expense_date = '2026-09-24'", "a corrected date replaces the copy"],
+    ["a same-merchant receipt within 25%% saved after the confirm was not flagged", "a near miss saved after the confirm is flagged"],
+    ["a receipt from another merchant flagged a line", "another merchant at a nearby amount is not"],
     ["generate_series(1, 5000)", "5,000 lines inside the statement timeout"],
     ["another agent''s line was confirmable", "row level security"],
   ])("covers %s (%s)", (needle) => {

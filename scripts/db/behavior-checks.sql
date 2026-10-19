@@ -330,7 +330,8 @@ END $$;
 -- call these functions. A charge counts once: a line for a charge already on
 -- file is linked, never added; a held line is refused; any other line is
 -- added once with GST/HST empty; a deleted expense sends its line back; a
--- receipt saved after its charge was confirmed replaces the statement copy;
+-- receipt saved, or corrected, after its charge was confirmed replaces the
+-- statement copy, and one that only comes close flags the line;
 -- a recurring expense that changes sends its lines back; another agent's
 -- lines can't be seen or confirmed. And 5,000 lines stay inside the
 -- statement timeout.
@@ -361,6 +362,14 @@ DECLARE
   v_big       uuid;
   v_flags     jsonb;
   v_ids       jsonb;
+  v_ocr_line  uuid;
+  v_ocr       uuid;
+  v_date_line uuid;
+  v_dated     uuid;
+  v_keg_line  uuid;
+  v_keg       uuid;
+  v_gas_line  uuid;
+  v_book      uuid;
 BEGIN
   -- ── Set-up, as the database owner ────────────────────────────────────────
   INSERT INTO auth.users (id, email) VALUES (v_other, 'someone-else@example.test') ON CONFLICT (id) DO NOTHING;
@@ -539,6 +548,76 @@ BEGIN
   v_result := fn_reopen_statement_lines(ARRAY[v_new]);
   IF (v_result->>'reopened')::int <> 1 OR (SELECT statement_line_id FROM receipt_expenses WHERE id = v_late) IS NOT NULL THEN
     RAISE EXCEPTION 'behaviour check: fn_reopen_statement_lines %', v_result;
+  END IF;
+
+  -- A receipt saved with nothing read (OCR failed), then corrected by hand:
+  -- the correction is an UPDATE, and it replaces the statement copy too.
+  INSERT INTO statement_lines (user_id, statement_id, line_date, description, amount, direction, fingerprint, suggested_category_key)
+  VALUES (v_user, v_stmt, '2026-09-22', 'CI ESSO 1234', 60.00, 'out', repeat('7', 64), 'vehicle_fuel')
+  RETURNING id INTO v_ocr_line;
+  v_result := fn_confirm_statement_lines(jsonb_build_array(jsonb_build_object('id', v_ocr_line)));
+  INSERT INTO receipt_expenses (user_id, vendor, expense_date, total_amount, tax_amount, receipt_path)
+  VALUES (v_user, NULL, NULL, NULL, NULL, 'ci/ocr-failed.jpg')
+  RETURNING id INTO v_ocr;
+  IF (SELECT statement_line_id FROM receipt_expenses WHERE id = v_ocr) IS NOT NULL THEN
+    RAISE EXCEPTION 'behaviour check: a receipt with nothing read was linked to a line';
+  END IF;
+  UPDATE receipt_expenses SET vendor = 'CI Esso', expense_date = '2026-09-22', total_amount = 60.00, tax_amount = 7.83 WHERE id = v_ocr;
+  IF (SELECT count(*) FROM receipt_expenses WHERE user_id = v_user AND expense_date = '2026-09-22') <> 1
+     OR (SELECT statement_line_id FROM receipt_expenses WHERE id = v_ocr) IS DISTINCT FROM v_ocr_line
+     OR (SELECT match_receipt_id FROM statement_lines WHERE id = v_ocr_line) IS DISTINCT FROM v_ocr
+     OR (SELECT status FROM statement_lines WHERE id = v_ocr_line) <> 'confirmed'
+     OR (SELECT category_key FROM receipt_expenses WHERE id = v_ocr) IS DISTINCT FROM 'vehicle_fuel' THEN
+    RAISE EXCEPTION 'behaviour check: a receipt corrected after an OCR failure did not replace the statement copy (the charge counts twice)';
+  END IF;
+
+  -- Saved with the wrong date, then the date corrected: the same.
+  INSERT INTO statement_lines (user_id, statement_id, line_date, description, amount, direction, fingerprint, suggested_category_key)
+  VALUES (v_user, v_stmt, '2026-09-24', 'CI STAPLES', 33.33, 'out', repeat('8', 64), 'office_supplies')
+  RETURNING id INTO v_date_line;
+  v_result := fn_confirm_statement_lines(jsonb_build_array(jsonb_build_object('id', v_date_line)));
+  INSERT INTO receipt_expenses (user_id, vendor, expense_date, total_amount, tax_amount)
+  VALUES (v_user, 'CI Staples', '2026-07-24', 33.33, 4.35)
+  RETURNING id INTO v_dated;
+  IF (SELECT hold_reason FROM statement_lines WHERE id = v_date_line) IS NOT NULL THEN
+    RAISE EXCEPTION 'behaviour check: a receipt two months away flagged a line';
+  END IF;
+  UPDATE receipt_expenses SET expense_date = '2026-09-24' WHERE id = v_dated;
+  IF (SELECT count(*) FROM receipt_expenses WHERE user_id = v_user AND total_amount = 33.33) <> 1
+     OR (SELECT statement_line_id FROM receipt_expenses WHERE id = v_dated) IS DISTINCT FROM v_date_line THEN
+    RAISE EXCEPTION 'behaviour check: a receipt whose date was corrected did not replace the statement copy';
+  END IF;
+
+  -- A near miss saved after the confirm: the same merchant, a pre-tip amount
+  -- within 25%. The line is flagged for the agent, not left to count twice
+  -- unnoticed.
+  INSERT INTO statement_lines (user_id, statement_id, line_date, description, amount, direction, fingerprint, suggested_category_key)
+  VALUES (v_user, v_stmt, '2026-09-25', 'CI THE KEG STEAKHOUSE', 75.00, 'out', repeat('9', 64), 'meals_client')
+  RETURNING id INTO v_keg_line;
+  v_result := fn_confirm_statement_lines(jsonb_build_array(jsonb_build_object('id', v_keg_line)));
+  INSERT INTO receipt_expenses (user_id, vendor, expense_date, total_amount, tax_amount)
+  VALUES (v_user, 'The Keg', '2026-09-25', 62.50, 7.19)
+  RETURNING id INTO v_keg;
+  SELECT hold_reason INTO v_hold FROM statement_lines WHERE id = v_keg_line;
+  IF v_hold IS DISTINCT FROM 'later_receipt' OR (SELECT related_receipt_id FROM statement_lines WHERE id = v_keg_line) IS DISTINCT FROM v_keg THEN
+    RAISE EXCEPTION 'behaviour check: a same-merchant receipt within 25%% saved after the confirm was not flagged (hold %)', v_hold;
+  END IF;
+  -- Edited to an amount that no longer comes close: the flag goes.
+  UPDATE receipt_expenses SET total_amount = 20.00 WHERE id = v_keg;
+  IF (SELECT hold_reason FROM statement_lines WHERE id = v_keg_line) IS NOT NULL THEN
+    RAISE EXCEPTION 'behaviour check: a receipt edited away from a flagged line left the flag';
+  END IF;
+
+  -- Another merchant at a nearby amount is not a near miss.
+  INSERT INTO statement_lines (user_id, statement_id, line_date, description, amount, direction, fingerprint, suggested_category_key)
+  VALUES (v_user, v_stmt, '2026-09-26', 'CI COSTCO GAS', 50.00, 'out', repeat('0', 64), 'vehicle_fuel')
+  RETURNING id INTO v_gas_line;
+  v_result := fn_confirm_statement_lines(jsonb_build_array(jsonb_build_object('id', v_gas_line)));
+  INSERT INTO receipt_expenses (user_id, vendor, expense_date, total_amount, tax_amount)
+  VALUES (v_user, 'CI Bookstore', '2026-09-26', 45.00, 5.87)
+  RETURNING id INTO v_book;
+  IF (SELECT hold_reason FROM statement_lines WHERE id = v_gas_line) IS NOT NULL THEN
+    RAISE EXCEPTION 'behaviour check: a receipt from another merchant flagged a line';
   END IF;
 
   -- Changing the recurring expense's charge day sends its confirmed line back, held.

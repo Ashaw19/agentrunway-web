@@ -2,7 +2,7 @@
  * POST /api/statement-import/lines: what the agent does with staged lines
  * on Expenses → Imports. Body: { action, ... }
  *
- *   confirm        { lines: [{ id, categoryKey? }] }  add to the expense records
+ *   confirm        { lines: [{ id, categoryKey? }], bulk? }  add to the expense records
  *                  (lines already on file are linked, never added twice)
  *   skip           { lineIds }                        not a business expense
  *   reopen         { lineIds }                        back to review
@@ -19,6 +19,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import {
   REFUSAL_COPY,
+  MAX_CONFIRM_LINES,
   confirmStatementLines,
   markNotDuplicate,
   keepLaterReceipt,
@@ -30,10 +31,15 @@ import {
 } from "@/lib/statement-import/server";
 import { isReceiptCategoryKey } from "@/lib/types/receipt";
 
-const ids = z.array(z.string().uuid()).min(1).max(2000);
+const ids = z.array(z.string().uuid()).min(1).max(MAX_CONFIRM_LINES);
 
 const Body = z.discriminatedUnion("action", [
-  z.object({ action: z.literal("confirm"), lines: z.array(z.object({ id: z.string().uuid(), categoryKey: z.string().max(60).nullable().optional() })).min(1).max(2000) }),
+  z.object({
+    action: z.literal("confirm"),
+    lines: z.array(z.object({ id: z.string().uuid(), categoryKey: z.string().max(60).nullable().optional() })).min(1).max(MAX_CONFIRM_LINES),
+    // One batch of a larger "Confirm all": judged as a confirm of several even when it holds one line.
+    bulk: z.boolean().optional(),
+  }),
   z.object({ action: z.literal("skip"), lineIds: ids }),
   z.object({ action: z.literal("reopen"), lineIds: ids }),
   z.object({ action: z.literal("category"), lineIds: ids, categoryKey: z.string().max(60) }),
@@ -60,7 +66,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   try {
     switch (body.action) {
       case "confirm": {
-        const result = await confirmStatementLines(supabase, user.id, body.lines);
+        const result = await confirmStatementLines(supabase, user.id, body.lines, { bulk: body.bulk });
         return NextResponse.json({
           ok: true,
           ...result,

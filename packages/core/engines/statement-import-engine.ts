@@ -185,14 +185,19 @@ interface Candidate {
 }
 
 const WORD = /[a-z]{3,}/g;
-const STOP_WORDS = new Set([
+/**
+ * Words that say nothing about the merchant. fn_statement_merchant_words
+ * (00185) holds the same list for the receipt trigger's near-miss test;
+ * statement-import-confirm-sql.test.ts keeps the two equal.
+ */
+export const MERCHANT_STOP_WORDS: ReadonlySet<string> = new Set([
   "the", "and", "inc", "ltd", "llc", "com", "www", "pos", "purchase", "payment", "visa", "debit", "credit", "card",
   "store", "canada", "can", "sale", "pre", "authorized", "interac", "retail", "online", "bill", "pay", "refund",
   "return", "returned", "reversal", "mastercard", "amex", "tst", "fpos", "opos", "apos",
 ]);
 
 function words(text: string | null | undefined): Set<string> {
-  return new Set(((text ?? "").toLowerCase().match(WORD) ?? []).filter((w) => !STOP_WORDS.has(w)));
+  return new Set(((text ?? "").toLowerCase().match(WORD) ?? []).filter((w) => !MERCHANT_STOP_WORDS.has(w)));
 }
 
 function lineWords(line: { merchant?: string | null; description?: string | null }): Set<string> {
@@ -623,12 +628,19 @@ export interface StatementLineForBulk extends StatementLineForConfirm {
  * its expense was deleted before, when it is under 50% business and the agent
  * didn't choose its category, or when its import is an unverified PDF. Those
  * are confirmed one at a time.
+ *
+ * `categoryOverride` is the category passed with the confirm (Flight Crew's or
+ * the MCP client's draft): it decides whether the line would be added, as it
+ * does in fn_confirm_statement_lines, but it is not the agent's own choice,
+ * so the 50% rule still applies (only `category_source = 'agent'`, saved on
+ * the Imports tab, lifts it).
  */
 export function bulkConfirmExclusion(
   line: StatementLineForBulk,
   statementVerification: StatementVerification | string | null | undefined,
+  categoryOverride?: string | null,
 ): BulkExclusion | null {
-  const outcome = confirmationOutcome(line);
+  const outcome = confirmationOutcome(line, categoryOverride);
   if (outcome.action === "refuse") return "not_confirmable";
   if (outcome.action !== "create") return null;
   if (line.expense_deleted_at) return "expense_deleted";
@@ -638,6 +650,34 @@ export function bulkConfirmExclusion(
     return "low_likelihood";
   }
   return null;
+}
+
+/** Why a line is left out of a confirm of several, in the confirm's refusal words. */
+export type BulkConfirmRefusal =
+  | ConfirmRefusal
+  | "not_found"
+  | "bulk_expense_deleted"
+  | "bulk_low_likelihood"
+  | "bulk_unverified_statement";
+
+/**
+ * One line of a confirm of several lines (after the duplicate check has run):
+ * null when it goes to fn_confirm_statement_lines, else why it is left out.
+ * A line confirming would refuse is refused here with that reason: on a bulk
+ * confirm nothing is left for the database to decide, so a category passed
+ * with the confirm can never carry a line past the bulk rules. A line that
+ * wasn't loaded (not the agent's, or gone) is not_found.
+ */
+export function bulkConfirmRefusal(
+  line: StatementLineForBulk | null | undefined,
+  statementVerification: StatementVerification | string | null | undefined,
+  categoryOverride?: string | null,
+): BulkConfirmRefusal | null {
+  if (!line) return "not_found";
+  const outcome = confirmationOutcome(line, categoryOverride);
+  if (outcome.action === "refuse") return outcome.reason;
+  const why = bulkConfirmExclusion(line, statementVerification, categoryOverride);
+  return why && why !== "not_confirmable" ? `bulk_${why}` : null;
 }
 
 // ── 3. The expense row ────────────────────────────────────────────────────

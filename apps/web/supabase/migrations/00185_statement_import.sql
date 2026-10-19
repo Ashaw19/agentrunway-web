@@ -16,9 +16,10 @@
 -- (packages/core/engines/statement-import-engine.ts, findStatementDuplicates)
 -- and written with fn_set_statement_line_flags before every confirm;
 -- fn_confirm_statement_lines acts on what is stored, branch for branch the
--- same as confirmationOutcome in that engine. A receipt saved AFTER its
--- charge was confirmed replaces the statement copy (trigger below), so the
--- charge still counts once whichever screen saved it.
+-- same as confirmationOutcome in that engine. A receipt saved, or corrected,
+-- AFTER its charge was confirmed replaces the statement copy, or flags the
+-- line when it only comes close (triggers below), so the charge still counts
+-- once whichever screen saved it.
 --
 -- GST/HST: a statement line does not show it. Rows added from a line have
 -- tax_amount NULL: no input tax credit is claimed and nothing comes off the
@@ -31,7 +32,8 @@
 -- deletes the statement and its lines and leaves confirmed expenses in place.
 --
 -- Additive only: two new tables, two nullable columns on receipt_expenses,
--- four functions callable over RPC, and triggers. No existing row changes.
+-- four functions callable over RPC, a helper, and triggers. No existing row
+-- changes.
 -- ============================================================================
 
 -- ── imported_statements: one row per uploaded file ─────────────────────────
@@ -364,14 +366,46 @@ CREATE TRIGGER trg_receipt_expenses_statement_line_reset
 -- ── A receipt saved after its charge was confirmed ─────────────────────────
 -- Every screen that saves an expense (receipt capture on the web and the
 -- phone, the Expenses form, Flight Crew, the MCP server, imports) inserts
--- into receipt_expenses, so this is the one place that sees them all.
+-- into receipt_expenses, and every screen that corrects one (the phone's
+-- scan saves what OCR read, then the agent's fixes; the web edit dialog;
+-- Flight Crew's updateExpense) updates it, so these two triggers see them
+-- all: on insert, and when an expense's date or amount is edited.
 --
 -- Exactly one expense added from a confirmed statement line for the same
--- amount (within $0.02) on the same day: the new receipt is that charge. It
+-- amount (within $0.02) on the same day: the receipt is that charge. It
 -- takes the line over (with its printed GST/HST and image), takes the copy's
 -- category when it has none, and the copy is removed: the charge counts once.
--- Within 2 days, or more than one copy on the day: the lines are flagged
--- (hold_reason 'later_receipt') for the agent to match or keep both.
+-- Otherwise, close but not certain (the engine's near-miss rule,
+-- NEAR_MATCH_DAYS and NEAR_MATCH_AMOUNT_SHARE in statement-import-engine):
+-- the same amount within 5 days, or the same merchant within 5 days at an
+-- amount within 25% (a pre-tip restaurant receipt, a charge in US dollars),
+-- or more than one copy on the day. Those lines are flagged (hold_reason
+-- 'later_receipt') for the agent to match or keep both. An edit first clears
+-- what the receipt flagged before, then asks again for its new values.
+
+-- The merchant words of a text, as the engine's near-miss test reads them:
+-- runs of 3+ letters, lower case, without words that say nothing about the
+-- merchant (MERCHANT_STOP_WORDS; statement-import-confirm-sql.test.ts keeps
+-- the two lists equal).
+CREATE OR REPLACE FUNCTION public.fn_statement_merchant_words(p_text text)
+RETURNS text[]
+LANGUAGE sql
+IMMUTABLE
+SET search_path = public
+AS $$
+  SELECT coalesce(array_agg(DISTINCT m[1]), '{}'::text[])
+    FROM regexp_matches(lower(coalesce(p_text, '')), '([a-z]{3,})', 'g') AS m
+   WHERE m[1] <> ALL (ARRAY[
+     'the', 'and', 'inc', 'ltd', 'llc', 'com', 'www', 'pos', 'purchase', 'payment', 'visa', 'debit', 'credit', 'card',
+     'store', 'canada', 'can', 'sale', 'pre', 'authorized', 'interac', 'retail', 'online', 'bill', 'pay', 'refund',
+     'return', 'returned', 'reversal', 'mastercard', 'amex', 'tst', 'fpos', 'opos', 'apos'
+   ]);
+$$;
+
+-- The receipt trigger runs as whoever saves the receipt (the signed-in agent,
+-- or the service role for server-side saves). A pure text function: nothing
+-- it can read.
+GRANT EXECUTE ON FUNCTION public.fn_statement_merchant_words(text) TO authenticated, service_role;
 
 CREATE OR REPLACE FUNCTION public.fn_receipt_replaces_statement_copy()
 RETURNS trigger
@@ -379,11 +413,25 @@ LANGUAGE plpgsql
 SET search_path = public
 AS $$
 DECLARE
-  v_copy receipt_expenses%ROWTYPE;
-  v_n    integer;
+  v_copy  receipt_expenses%ROWTYPE;
+  v_n     integer;
+  v_words text[];
 BEGIN
-  IF NEW.source IS NOT NULL OR NEW.statement_line_id IS NOT NULL
-     OR NEW.expense_date IS NULL OR coalesce(NEW.total_amount, 0) <= 0 THEN
+  IF NEW.source IS NOT NULL OR NEW.statement_line_id IS NOT NULL THEN
+    RETURN NULL;
+  END IF;
+
+  -- An edit of the date or amount: what this receipt flagged before is
+  -- cleared, then asked again for the new values below.
+  IF TG_OP = 'UPDATE' THEN
+    UPDATE statement_lines
+       SET hold_reason = NULL, related_receipt_id = NULL
+     WHERE user_id = NEW.user_id
+       AND related_receipt_id = NEW.id
+       AND hold_reason = 'later_receipt';
+  END IF;
+
+  IF NEW.expense_date IS NULL OR coalesce(NEW.total_amount, 0) <= 0 THEN
     RETURN NULL;
   END IF;
 
@@ -391,6 +439,7 @@ BEGIN
     FROM receipt_expenses c
     JOIN statement_lines l ON l.id = c.statement_line_id
    WHERE c.user_id = NEW.user_id
+     AND l.user_id = NEW.user_id
      AND c.id <> NEW.id
      AND c.source = 'statement_import'
      AND c.receipt_path IS NULL
@@ -403,6 +452,7 @@ BEGIN
       FROM receipt_expenses c
       JOIN statement_lines l ON l.id = c.statement_line_id
      WHERE c.user_id = NEW.user_id
+       AND l.user_id = NEW.user_id
        AND c.id <> NEW.id
        AND c.source = 'statement_import'
        AND c.receipt_path IS NULL
@@ -426,22 +476,30 @@ BEGIN
            related_receipt_id        = NULL,
            expense_deleted_at        = NULL,
            confirmed_at              = now()
-     WHERE id = v_copy.statement_line_id;
+     WHERE id = v_copy.statement_line_id
+       AND user_id = NEW.user_id;
     RETURN NULL;
   END IF;
 
+  -- Close but not certain: flag the confirmed line for the agent.
+  v_words := fn_statement_merchant_words(NEW.vendor);
   UPDATE statement_lines l
      SET hold_reason = 'later_receipt', related_receipt_id = NEW.id
     FROM receipt_expenses c
    WHERE c.statement_line_id = l.id
+     AND l.user_id = NEW.user_id
      AND c.user_id = NEW.user_id
      AND c.id <> NEW.id
      AND c.source = 'statement_import'
      AND c.receipt_path IS NULL
      AND l.status = 'confirmed'
      AND l.hold_reason IS NULL
-     AND abs(c.total_amount - NEW.total_amount) <= 0.02
-     AND abs(c.expense_date - NEW.expense_date) <= 2;
+     AND c.expense_date BETWEEN NEW.expense_date - 5 AND NEW.expense_date + 5
+     AND (
+       abs(c.total_amount - NEW.total_amount) <= 0.02
+       OR (abs(c.total_amount - NEW.total_amount) <= 0.25 * greatest(c.total_amount, NEW.total_amount)
+           AND v_words && fn_statement_merchant_words(coalesce(l.merchant, '') || ' ' || l.description))
+     );
 
   RETURN NULL;
 END;
@@ -451,6 +509,18 @@ DROP TRIGGER IF EXISTS trg_receipt_expenses_replace_statement_copy ON public.rec
 CREATE TRIGGER trg_receipt_expenses_replace_statement_copy
   AFTER INSERT ON public.receipt_expenses
   FOR EACH ROW EXECUTE FUNCTION public.fn_receipt_replaces_statement_copy();
+
+-- The edit: only when the date or amount changes, on an expense that isn't
+-- a statement line's record already. The function's own UPDATE of the
+-- receipt (its link and category) doesn't fire it again.
+DROP TRIGGER IF EXISTS trg_receipt_expenses_replace_statement_copy_on_edit ON public.receipt_expenses;
+CREATE TRIGGER trg_receipt_expenses_replace_statement_copy_on_edit
+  AFTER UPDATE OF expense_date, total_amount ON public.receipt_expenses
+  FOR EACH ROW
+  WHEN (NEW.source IS NULL AND NEW.statement_line_id IS NULL
+        AND (OLD.expense_date IS DISTINCT FROM NEW.expense_date
+             OR OLD.total_amount IS DISTINCT FROM NEW.total_amount))
+  EXECUTE FUNCTION public.fn_receipt_replaces_statement_copy();
 
 -- ── A recurring expense deleted or changed ─────────────────────────────────
 -- Deleted: it no longer counts its charges, so lines confirmed as one of them

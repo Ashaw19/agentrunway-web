@@ -41,6 +41,7 @@ import {
   loadActiveRecurring,
   loadLinesById,
   loadReceiptsBetween,
+  loadStatementVerification,
   loadStatementReview,
   matchReceiptToLine as matchReceiptToLineWrite,
   skipStatementLines,
@@ -175,6 +176,7 @@ export function createStatementImportTools(supabase: SupabaseClient, userId: str
             : (await loadStatementReview(supabase, userId)).lines;
           const pending = lines.filter((l) => l.status === "pending" && l.direction === "out").slice(0, 200);
           if (pending.length === 0) return "No statement lines are waiting for review.";
+          const verification = await loadStatementVerification(supabase, userId, [...new Set(pending.map((l) => l.statement_id))]);
           const drafts = pending.map((l) => {
             let key = categoryOf(l);
             let likelihood = l.business_likelihood;
@@ -191,9 +193,15 @@ export function createStatementImportTools(supabase: SupabaseClient, userId: str
               }
             }
             const outcome = confirmationOutcome(l, key);
-            const bulk = bulkConfirmExclusion(l, null);
+            // With the drafted key, as confirmImportLines would pass it: a key
+            // from here is not the agent's own choice, so the 50% rule stays.
+            const bulk = bulkConfirmExclusion(l, verification.get(l.statement_id), key);
             const bulkNote = bulk === "expense_deleted" ? "; its expense was deleted earlier, so it is confirmed only on its own"
-              : bulk === "low_likelihood" ? "; under 50% business, so a confirm of several lines leaves it out"
+              : bulk === "unverified_statement" ? "; its PDF didn't check out against the statement's totals, so it is confirmed only on its own"
+              : bulk === "low_likelihood"
+                ? l.business_likelihood == null
+                  ? "; the import holds no business estimate for it, so a confirm of several lines leaves it out"
+                  : "; under 50% business, so a confirm of several lines leaves it out"
               : "";
             const when = outcome.action === "link_receipt" ? "already on file: confirming links it, nothing added"
               : outcome.action === "recurring" ? "a recurring charge: confirming adds nothing"
@@ -266,7 +274,7 @@ export function createStatementImportTools(supabase: SupabaseClient, userId: str
       needsApproval: true,
       execute: async ({ lineId, receiptId, lineDescription, receiptDescription }) => {
         try {
-          const result = await matchReceiptToLineWrite(supabase, lineId, receiptId);
+          const result = await matchReceiptToLineWrite(supabase, lineId, receiptId, userId);
           if (!result.ok) return `Not matched: ${REFUSAL_COPY[result.reason]}`;
           return `✓ Matched ${receiptDescription} to ${lineDescription}. The charge counts once, as that receipt${result.replacedReceiptId ? "; the copy added from the statement was removed" : ""}.`;
         } catch {

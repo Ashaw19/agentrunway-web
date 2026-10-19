@@ -3,6 +3,7 @@ import type { McpTool, McpToolResult } from "./index.ts";
 import { CANONICAL_TAX_DISCLAIMER } from "../lib/constants.ts";
 import {
   bulkConfirmExclusion,
+  bulkConfirmRefusal,
   confirmationOutcome,
   duplicateFlagUpdates,
   duplicateSearchWindow,
@@ -323,10 +324,13 @@ export function getStatementImportTools(supabase: SupabaseClient, userId: string
       handler: async (args) => {
         const a = (args ?? {}) as { line_ids?: string[] };
         const ids = (a.line_ids ?? []).filter((id) => UUID.test(id)).slice(0, 500);
+        const statements = await loadStatements(supabase, userId);
         const lines = ids.length > 0
           ? await loadLines(supabase, userId, "id", ids)
-          : await loadLines(supabase, userId, "statement_id", (await loadStatements(supabase, userId)).map((s) => s.id));
+          : await loadLines(supabase, userId, "statement_id", statements.map((s) => s.id));
         const pending = lines.filter((l) => l.status === "pending" && l.direction === "out").slice(0, 500);
+        // How each import was checked: a PDF that didn't add up is confirmed a line at a time.
+        const verification = new Map(statements.map((st) => [st.id, st.verification]));
         return ok({
           saved: false,
           drafts: pending.map((l) => {
@@ -341,7 +345,7 @@ export function getStatementImportTools(supabase: SupabaseClient, userId: string
               business_likelihood: l.business_likelihood,
               business_likelihood_label: businessLikelihoodLabel(l.business_likelihood),
               indicated_as_personal: l.business_likelihood != null && l.business_likelihood < PERSONAL_LIKELIHOOD_BELOW,
-              left_out_of_a_bulk_confirm: bulkConfirmExclusion(l, null),
+              left_out_of_a_bulk_confirm: bulkConfirmExclusion(l, verification.get(l.statement_id), key),
               reason: l.likelihood_reason,
             };
           }),
@@ -473,8 +477,12 @@ export function getStatementImportTools(supabase: SupabaseClient, userId: string
             }
           }
 
-          // Several at once is a bulk confirm (bulkConfirmExclusion), as on the
-          // web, judged after the check: a line that now links is never left out.
+          // Several at once is a bulk confirm (bulkConfirmRefusal), as on the
+          // web, judged after the check: a line that now links is never left
+          // out. The category passed with a line decides whether it would be
+          // added, but isn't the agent's own choice, so the 50% rule and the
+          // unverified-PDF rule still apply; a line confirming would refuse is
+          // refused here, never left for the database to decide.
           if (send.length > 1) {
             const fresh = await loadLines(supabase, userId, "id", send.map((i) => i.line_id!));
             const { data: stmts, error: stErr } = await supabase
@@ -487,9 +495,9 @@ export function getStatementImportTools(supabase: SupabaseClient, userId: string
             const byId = new Map(fresh.map((l) => [l.id, l]));
             send = send.filter((i) => {
               const line = byId.get(i.line_id!);
-              const why = line ? bulkConfirmExclusion(line, verification.get(line.statement_id)) : null;
-              if (why && why !== "not_confirmable") {
-                refusedEarly.push({ line_id: i.line_id!, reason: `bulk_${why}`, message: REFUSALS[`bulk_${why}`] });
+              const why = bulkConfirmRefusal(line, line ? verification.get(line.statement_id) : null, i.category_key ?? null);
+              if (why) {
+                refusedEarly.push({ line_id: i.line_id!, reason: why, message: REFUSALS[why] ?? why });
                 return false;
               }
               return true;
@@ -512,15 +520,20 @@ export function getStatementImportTools(supabase: SupabaseClient, userId: string
           result.not_confirmed = refusedEarly;
         }
         if (skips.length > 0) {
-          const { data, error } = await supabase
-            .from("statement_lines")
-            .update({ status: "skipped", skip_reason: "user" })
-            .eq("user_id", userId)
-            .eq("status", "pending")
-            .in("id", skips)
-            .select("id");
-          if (error) throw error;
-          result.skipped = data?.length ?? 0;
+          // 200 ids per request: a long id list doesn't fit in one URL.
+          let skipped = 0;
+          for (let k = 0; k < skips.length; k += 200) {
+            const { data, error } = await supabase
+              .from("statement_lines")
+              .update({ status: "skipped", skip_reason: "user" })
+              .eq("user_id", userId)
+              .eq("status", "pending")
+              .in("id", skips.slice(k, k + 200))
+              .select("id");
+            if (error) throw error;
+            skipped += data?.length ?? 0;
+          }
+          result.skipped = skipped;
         }
         result.gst_hst = STATEMENT_GST_HST_NOTE;
         result.disclaimer = CANONICAL_TAX_DISCLAIMER;

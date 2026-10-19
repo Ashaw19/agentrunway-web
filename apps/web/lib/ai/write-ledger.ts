@@ -27,7 +27,9 @@
  *   - The ledger's own reads carry the request's abort signal.
  *
  * Not captured: RPC calls (fn_delete_clients and friends), Storage, and
- * writes made through the service-role client. AI-written message text in
+ * writes made through the service-role client. A tool whose write is an RPC
+ * can read the rows it touches before and after and hand them to
+ * recordToolRpcWrites (statement imports' confirm and match do). AI-written message text in
  * draft tables is stored as a length and hash (redactRow).
  *
  * Capture never changes what the caller sees or blocks the reply: every
@@ -103,6 +105,57 @@ function record(rows: AiRunWriteInsert[]): void {
     recordWrites(rows);
   } catch {
     // never reaches the tool
+  }
+}
+
+// ── Writes made through an RPC ──────────────────────────────────────────────
+
+/** One row an RPC changed, as the tool read it before and after. */
+export interface RpcWriteEntry {
+  table: string;
+  action: AiWriteAction;
+  rowId: string;
+  before: Row | null;
+  after: Row | null;
+}
+
+/**
+ * Rows a tool changed through an RPC function, which the ledger fetch can't
+ * see inside: the tool reads them before and after the call and hands them
+ * here. They are recorded under the running tool call as one step, each
+ * marked irreversible with `irreversible`: undo replays row images, not an
+ * RPC's own logic, so it isn't offered. Outside a tool call this does
+ * nothing. More than MAX_CAPTURED_ROWS rows are recorded without images.
+ */
+export function recordToolRpcWrites(entries: readonly RpcWriteEntry[], irreversible: string): void {
+  const ctx = toolContext.getStore();
+  if (!ctx || entries.length === 0) return;
+  try {
+    const seq = ctx.seq;
+    ctx.seq += 1;
+    const aiRunId = latestRunIdForRequest(ctx.requestId);
+    const images = entries.length <= MAX_CAPTURED_ROWS;
+    record(
+      entries.map((e) => ({
+        user_id: ctx.userId,
+        ai_run_id: aiRunId,
+        request_id: ctx.requestId,
+        tool_call_id: ctx.toolCallId,
+        tool_name: ctx.toolName,
+        source: ctx.source,
+        seq,
+        table_name: e.table,
+        row_id: String(e.rowId).slice(0, 100),
+        action: e.action,
+        before_image: images ? redactRow(e.table, e.before) : null,
+        after_image: images ? redactRow(e.table, e.after) : null,
+        outcome: "ok" as const,
+        error_class: null,
+        irreversible_reason: irreversible.slice(0, 300),
+      })),
+    );
+  } catch {
+    // capture only
   }
 }
 

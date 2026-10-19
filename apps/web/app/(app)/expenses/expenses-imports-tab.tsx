@@ -57,6 +57,7 @@ import {
 } from "@agent-runway/core/tax-copy";
 import { daysBetweenISO } from "@agent-runway/core/lib/local-date";
 import type { StatementReview, StatementLineRow, ReceiptRow } from "@/lib/statement-import/server";
+import { LINE_BATCH, batches, confirmRequests } from "@/lib/statement-import/batches";
 
 type Filter = "pending" | "skipped" | "confirmed" | "all";
 
@@ -306,7 +307,13 @@ export function ExpensesImportsTab({ onExpensesChanged }: { onExpensesChanged?: 
   async function run(body: Record<string, unknown>, success: string, changedExpenses: boolean) {
     setBusy(true);
     try {
-      await postLines(body);
+      // A long selection goes in batches the server takes.
+      const lineIds = Array.isArray(body.lineIds) ? (body.lineIds as string[]) : null;
+      if (lineIds && lineIds.length > LINE_BATCH) {
+        for (const chunk of batches(lineIds)) await postLines({ ...body, lineIds: chunk });
+      } else {
+        await postLines(body);
+      }
       toast.success(success);
       await after(changedExpenses);
     } catch (e) {
@@ -357,17 +364,31 @@ export function ExpensesImportsTab({ onExpensesChanged }: { onExpensesChanged?: 
 
   async function doConfirm() {
     setBusy(true);
+    let created = 0;
+    let linked = 0;
+    const refused: { message?: string }[] = [];
     try {
-      const data = await postLines({ action: "confirm", lines: confirmPlan.send.map((id) => ({ id })) });
-      const created = (data.created as unknown[] | undefined)?.length ?? 0;
-      const linked = ((data.linked as unknown[] | undefined)?.length ?? 0) + ((data.recurring as unknown[] | undefined)?.length ?? 0);
-      const refused = (data.refused as { message?: string }[] | undefined) ?? [];
+      // More than the server takes at once ("Confirm all" on a big import) goes
+      // in batches, each judged as a confirm of several lines (bulk), so a
+      // batch of one never skips the bulk rules.
+      for (const request of confirmRequests(confirmPlan.send, confirmPlan.single)) {
+        const data = await postLines(request);
+        created += (data.created as unknown[] | undefined)?.length ?? 0;
+        linked += ((data.linked as unknown[] | undefined)?.length ?? 0) + ((data.recurring as unknown[] | undefined)?.length ?? 0);
+        refused.push(...((data.refused as { message?: string }[] | undefined) ?? []));
+      }
       toast.success(`${created} added to your expenses${linked ? `, ${linked} already on file and linked` : ""}.`);
       if (refused.length > 0) toast.info(`${refused.length} not confirmed: ${refused[0]?.message ?? ""}`);
       setConfirmOpen(false);
       await after(true);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Nothing was added. Try again.");
+      const done = created + linked;
+      toast.error(
+        done > 0
+          ? `${done} were confirmed before this stopped: ${e instanceof Error ? e.message : "try again"}. Confirm again for the rest.`
+          : e instanceof Error ? e.message : "Nothing was added. Try again.",
+      );
+      if (done > 0) await after(true);
     } finally {
       setBusy(false);
     }

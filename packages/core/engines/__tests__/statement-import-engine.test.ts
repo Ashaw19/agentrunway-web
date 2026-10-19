@@ -6,6 +6,7 @@
 import { describe, expect, it } from "vitest";
 import {
   bulkConfirmExclusion,
+  bulkConfirmRefusal,
   confirmationOutcome,
   duplicateColumns,
   duplicateFlagUpdates,
@@ -331,6 +332,47 @@ describe("bulkConfirmExclusion", () => {
     // Linking adds nothing, so it is never left out.
     expect(bulkConfirmExclusion({ ...base, match_receipt_id: "r1", business_likelihood: 0.1 }, "unverified")).toBeNull();
     expect(bulkConfirmExclusion({ ...base, hold_reason: "refund" }, "reconciled")).toBe("not_confirmable");
+  });
+
+  it("judges a line with the category passed for it, which never lifts the 50% rule", () => {
+    // The model call failed: no estimate, no likelihood.
+    const bare = { status: "pending" as const, direction: "out" as const, suggested_category_key: null, business_likelihood: null, category_source: null };
+    expect(bulkConfirmExclusion(bare, "unverified")).toBe("not_confirmable");
+    // Flight Crew's drafted category makes it addable, so the bulk rules apply.
+    expect(bulkConfirmExclusion(bare, "unverified", "office_supplies")).toBe("unverified_statement");
+    expect(bulkConfirmExclusion(bare, "reconciled", "office_supplies")).toBe("low_likelihood");
+    expect(bulkConfirmExclusion({ ...bare, business_likelihood: 0.9 }, "reconciled", "office_supplies")).toBeNull();
+  });
+});
+
+describe("bulkConfirmRefusal (one line of a confirm of several)", () => {
+  const bare = { status: "pending" as const, direction: "out" as const, suggested_category_key: null, business_likelihood: null, category_source: null };
+
+  it("an unverified PDF whose model call failed, with Flight Crew's categories, sends nothing", () => {
+    const lines = [bare, { ...bare, business_likelihood: 0.9 }, { ...bare, suggested_category_key: "vehicle_fuel", business_likelihood: 0.8 }];
+    const sent = lines.filter((l) => bulkConfirmRefusal(l, "unverified", "office_supplies") === null);
+    expect(sent).toHaveLength(0);
+    expect(lines.map((l) => bulkConfirmRefusal(l, "unverified", "office_supplies"))).toEqual([
+      "bulk_unverified_statement",
+      "bulk_unverified_statement",
+      "bulk_unverified_statement",
+    ]);
+  });
+
+  it("never leaves a line for the database to decide: confirming's own refusal comes back", () => {
+    expect(bulkConfirmRefusal(bare, "reconciled")).toBe("needs_category");
+    expect(bulkConfirmRefusal({ ...bare, suggested_category_key: "x", hold_reason: "near_match" }, "reconciled", "office_supplies")).toBe("needs_decision");
+    expect(bulkConfirmRefusal({ ...bare, status: "confirmed" }, "reconciled", "office_supplies")).toBe("not_pending");
+    expect(bulkConfirmRefusal({ ...bare, direction: "in" }, "reconciled", "office_supplies")).toBe("not_a_charge");
+    expect(bulkConfirmRefusal(undefined, "reconciled", "office_supplies")).toBe("not_found");
+  });
+
+  it("lets through what links, and what adds within the rules", () => {
+    expect(bulkConfirmRefusal({ ...bare, match_receipt_id: "r1" }, "unverified", "office_supplies")).toBeNull();
+    expect(bulkConfirmRefusal({ ...bare, recurring_expense_id: "re1" }, "mismatch")).toBeNull();
+    expect(bulkConfirmRefusal({ ...bare, business_likelihood: 0.6 }, "reconciled", "office_supplies")).toBeNull();
+    expect(bulkConfirmRefusal({ ...bare, business_likelihood: 0.2, category_source: "agent", category_key: "office_supplies" }, "not_applicable")).toBeNull();
+    expect(bulkConfirmRefusal({ ...bare, business_likelihood: 0.2 }, "not_applicable", "office_supplies")).toBe("bulk_low_likelihood");
   });
 });
 

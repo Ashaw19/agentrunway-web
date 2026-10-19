@@ -110,10 +110,10 @@ describe("confirm_import_lines", () => {
     const db = fakeSupabase(t, {
       rpc: (name, args) => {
         if (name === "fn_set_statement_line_flags") return applyFlags(t, args);
-        return { created: [{ id: L_PHOTO, receipt_id: "new" }], linked: [{ id: L_FUEL }, { id: L_LATE }], recurring: [], refused: [] };
+        return { created: [], linked: [{ id: L_FUEL }, { id: L_LATE }], recurring: [], refused: [] };
       },
     });
-    const out = await callTool<{ added_to_expenses: number; already_on_file_linked: number }>(await tools(db), "confirm_import_lines", {
+    const out = await callTool<{ added_to_expenses: number; already_on_file_linked: number; not_confirmed: { line_id: string; reason: string }[] }>(await tools(db), "confirm_import_lines", {
       lines: [{ line_id: L_FUEL }, { line_id: L_PHOTO, category_key: "marketing_photography" }, { line_id: L_LATE }],
     });
     // The late receipt is now this line's duplicate: written in one batch
@@ -123,12 +123,45 @@ describe("confirm_import_lines", () => {
       id: L_LATE, match_receipt_id: R_LATE, match_method: "exact", match_confidence: 1, recurring_expense_id: null,
       recurring_charge_date: null, duplicate_candidate_count: 1, hold_reason: null, related_line_id: null, related_receipt_id: null,
     }] });
+    // The photographer's line has no business estimate: the category passed
+    // makes it addable, but isn't the agent's own choice, so a confirm of
+    // several leaves it out.
     expect(db.rpcs[1].args).toEqual({ p_lines: [
       { id: L_FUEL, category_key: null },
-      { id: L_PHOTO, category_key: "marketing_photography" },
       { id: L_LATE, category_key: null },
     ] });
-    expect(out).toMatchObject({ added_to_expenses: 1, already_on_file_linked: 2 });
+    expect(out).toMatchObject({ added_to_expenses: 0, already_on_file_linked: 2 });
+    expect(out.not_confirmed).toEqual([{ line_id: L_PHOTO, reason: "bulk_low_likelihood", message: expect.stringMatching(/under 50% business/) }]);
+  });
+
+  it("an unverified PDF whose model call failed, with the client's categories, confirms nothing in bulk", async () => {
+    const t = tables();
+    Object.assign(t.imported_statements[0], { verification: "unverified" });
+    // No estimates at all: the model call failed.
+    t.statement_lines = [
+      line({ id: L_PHOTO, line_date: "2026-09-09", description: "LISTING PHOTO STUDIO", merchant: "Listing Photo Studio", amount: 250, suggested_category_key: null, business_likelihood: null, category_source: null }),
+      line({ id: L_LATE, line_date: "2026-09-25", description: "STAPLES 123", merchant: "Staples", amount: 41, suggested_category_key: null, business_likelihood: null, category_source: null }),
+    ];
+    const db = fakeSupabase(t, { rpc: (name, args) => (name === "fn_set_statement_line_flags" ? applyFlags(t, args) : { created: [], linked: [], recurring: [], refused: [] }) });
+    const out = await callTool<{ added_to_expenses: number; not_confirmed: { line_id: string; reason: string }[] }>(await tools(db), "confirm_import_lines", {
+      lines: [{ line_id: L_PHOTO, category_key: "marketing_photography" }, { line_id: L_LATE, category_key: "office_supplies" }],
+    });
+    expect(db.rpcs.filter((r) => r.name === "fn_confirm_statement_lines")).toEqual([]);
+    expect(out.added_to_expenses).toBe(0);
+    expect(out.not_confirmed.map((r) => r.reason)).toEqual(["bulk_unverified_statement", "bulk_unverified_statement"]);
+  });
+
+  it("refuses a line confirming would refuse, instead of leaving it to the database", async () => {
+    const t = tables();
+    const db = fakeSupabase(t, { rpc: (name, args) => (name === "fn_set_statement_line_flags" ? applyFlags(t, args) : { created: [], linked: [{ id: L_FUEL }], recurring: [], refused: [] }) });
+    const out = await callTool<{ not_confirmed: { line_id: string; reason: string }[] }>(await tools(db), "confirm_import_lines", {
+      lines: [{ line_id: L_FUEL }, { line_id: L_PHOTO }, { line_id: "20000000-0000-4000-8000-0000000000ff" }],
+    });
+    expect(out.not_confirmed.map((r) => [r.line_id, r.reason])).toEqual([
+      [L_PHOTO, "needs_category"],
+      ["20000000-0000-4000-8000-0000000000ff", "not_found"],
+    ]);
+    expect(db.rpcs.find((r) => r.name === "fn_confirm_statement_lines")?.args).toEqual({ p_lines: [{ id: L_FUEL, category_key: null }] });
   });
 
   it("checks the item key as the web does, and leaves an under-50% line out of a bulk confirm", async () => {
