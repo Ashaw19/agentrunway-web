@@ -62,6 +62,8 @@ const EXPORT_TABLES: readonly ExportTable[] = [
   { table: "recurring_expenses", filename: "recurring-expenses.csv", description: "Recurring expense templates" },
   { table: "recurring_expense_entries", filename: "recurring-expense-entries.csv", description: "Recurring expense ledger entries" },
   { table: "receipt_expenses", filename: "receipt-expenses.csv", description: "Expenses parsed from uploaded receipts" },
+  { table: "imported_statements", filename: "imported-statements.csv", description: "Bank and card statements imported on Expenses → Imports (no account numbers)" },
+  { table: "statement_lines", filename: "statement-lines.csv", description: "Lines of imported statements, with their review status" },
   {
     table: "mileage_logs",
     filename: "mileage-logs.csv",

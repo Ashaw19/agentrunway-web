@@ -56,8 +56,13 @@
  *                         deleteCCAAsset, deleteReferral,
  *                         deleteListingAppointment, deletePropertyShowing,
  *                         deleteContactActivity, deleteContactTask,
- *                         recordConsent, withdrawConsent, undoAIChange
+ *                         recordConsent, withdrawConsent, undoAIChange,
+ *                         confirmImportLines, matchReceiptToLine
  *   CASL consent (read) — listConsentLapsing
+ *   Statement imports   — listImportReviewLines, draftLineCategories,
+ *                         explainImportLine (read); matchReceiptToLine,
+ *                         confirmImportLines (approval). In
+ *                         lib/ai/statement-import-tools.ts.
  *
  * The record writes (logContactActivity, createContactTask, the two deal
  * updates, logMileage, logExpense, createClient, recordTransaction) save
@@ -163,6 +168,11 @@ import {
   RECEIPT_CATEGORY_KEYS,
   receiptCategoryFullLabel,
 } from "@/lib/types/receipt";
+import {
+  STATEMENT_IMPORT_APPROVAL_DESCRIPTIONS,
+  STATEMENT_IMPORT_APPROVAL_TOOLS,
+  createStatementImportTools,
+} from "@/lib/ai/statement-import-tools";
 
 /**
  * The instants bounding the Atlantic days `first` to `last` (YYYY-MM-DD), for
@@ -234,6 +244,8 @@ export const NEEDS_APPROVAL_TOOLS = new Set([
   "withdrawConsent",
   // AI activity
   "undoAIChange",
+  // Statement imports (Expenses → Imports)
+  ...STATEMENT_IMPORT_APPROVAL_TOOLS,
 ]);
 
 // Human-readable descriptions for approval cards
@@ -393,6 +405,8 @@ export const APPROVAL_DESCRIPTIONS: Record<string, (args: Record<string, unknown
   // Never the model's words: the chat route replaces this with a card built
   // from the ledger (lib/ai/undo-approval.ts). This is only the fallback.
   undoAIChange: () => "Undo a change Flight Crew made",
+  // Statement imports
+  ...STATEMENT_IMPORT_APPROVAL_DESCRIPTIONS,
 };
 
 /** Tools whose approval card names the client from the database, not the model's text. */
@@ -4444,6 +4458,9 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
       },
     }),
 
+    // ── STATEMENT IMPORTS (Expenses → Imports): list, draft, explain, match, confirm
+    ...createStatementImportTools(supabase, userId),
+
   };
 }
 
@@ -4602,6 +4619,13 @@ export function createPersonaAgentTools(
       // AI activity
       getAIActivity: all.getAIActivity,
       undoAIChange: all.undoAIChange,
+      // Statement imports (Expenses → Imports): review lines, draft categories,
+      // explain a line, match a receipt, confirm (the last two on approval).
+      listImportReviewLines: all.listImportReviewLines,
+      draftLineCategories: all.draftLineCategories,
+      explainImportLine: all.explainImportLine,
+      matchReceiptToLine: all.matchReceiptToLine,
+      confirmImportLines: all.confirmImportLines,
     };
   }
 

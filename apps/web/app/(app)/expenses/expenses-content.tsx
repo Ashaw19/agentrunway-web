@@ -104,6 +104,7 @@ import { computeEffectiveCashForSurvival, computePipelineMonthlyIncome } from "@
 import { toPlanDeals } from "@/lib/engines/real-compensation-engine";
 import { ExpensesMileageTab }     from "./expenses-mileage-tab";
 import { ExpensesBankImportsTab } from "./expenses-bank-imports-tab";
+import { ExpensesImportsTab } from "./expenses-imports-tab";
 import { TaxDisclaimer } from "@/components/tax-disclaimer";
 import {
   getFilingPeriods,
@@ -1558,11 +1559,12 @@ export function ExpensesContent({
       )}
 
       {/* ── Tab bar ──────────────────────────────────────────────────────── */}
-      {/* "Bank Imports" tab is hidden — bank-account connectivity is a planned
-          future capability and is not currently offered. See
-          memory/project_plaid_status.md. */}
+      {/* "Imports" is statement upload (bank and card statements, migration
+          00185). The Plaid "Bank Imports" inbox stays hidden: bank-account
+          connectivity is a planned future capability and is not currently
+          offered. See memory/project_plaid_status.md. */}
       <div className="flex flex-wrap items-center gap-1 border-b border-border/60">
-        {(["receipts", "mileage"] as const).map((t) => (
+        {(["receipts", "imports", "mileage"] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -1573,6 +1575,7 @@ export function ExpensesContent({
             }`}
           >
             {t === "receipts" && "Receipts"}
+            {t === "imports"  && "Imports"}
             {t === "mileage"  && "Mileage"}
           </button>
         ))}
@@ -1602,7 +1605,10 @@ export function ExpensesContent({
         />
       )}
 
-      {/* ── Tab: Bank Imports — HIDDEN (Plaid not currently offered) ────── */}
+      {/* ── Tab: Imports (bank and card statements) ─────────────────────── */}
+      {tab === "imports" && <ExpensesImportsTab onExpensesChanged={handleReceiptSaved} />}
+
+      {/* ── Plaid Bank Imports inbox — HIDDEN (Plaid not currently offered) ── */}
       {false && tab === "imports" && (
         <ExpensesBankImportsTab
           items={plaidItems}

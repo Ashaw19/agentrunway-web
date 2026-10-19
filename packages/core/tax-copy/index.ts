@@ -22,6 +22,15 @@ export {
 export { alreadyCapturingNote } from "./deduction-estimate";
 
 export {
+  STATEMENT_GST_HST_NOTE,
+  STATEMENT_ESTIMATE_NOTE,
+  STATEMENT_DUPLICATE_NOTE,
+  STATEMENT_RECORDS_NOTE,
+  businessLikelihoodLabel,
+  statementConfirmSummary,
+} from "./statement-import";
+
+export {
   FORBIDDEN_VERBS,
   FORBIDDEN_PHRASES,
   QUALITATIVE_ADJECTIVES,

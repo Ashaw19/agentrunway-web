@@ -118,6 +118,10 @@ export default async function OAuthConsentPage({ searchParams }: PageProps) {
                 <span className="text-[#1A6EF0]">✓</span>
                 <span>Log trips, vehicle logbook periods and odometer readings</span>
               </li>
+              <li className="flex items-center gap-2 text-sm">
+                <span className="text-[#1A6EF0]">✓</span>
+                <span>Confirm your imported bank and card statement lines into your expenses, and match receipts to them</span>
+              </li>
             </ul>
           </div>
 

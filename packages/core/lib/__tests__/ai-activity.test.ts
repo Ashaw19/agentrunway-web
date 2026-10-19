@@ -153,6 +153,33 @@ describe("actionUndoBlocker", () => {
     expect(actionUndoBlocker(action([write({ table_name: "outreach_queue", after_image: { id: "r1", ai_body: redacted } })]), NOW)).toBeNull();
   });
 
+  it("leaves an expense that records a statement line alone (00185): created, deleted or relinked", () => {
+    const re = (over: Partial<AiRunWrite>) => write({ tool_name: "logExpense", table_name: "receipt_expenses", row_id: "re1", ...over });
+    // A receipt Flight Crew logged that the trigger made a line's record.
+    expect(actionUndoBlocker(action([re({ after_image: { id: "re1", vendor: "Shell", statement_line_id: "l1" } })]), NOW)).toMatch(
+      /can't remove the expense: it is the record of a charge on an imported statement/,
+    );
+    // Deleting one that recorded a line.
+    expect(
+      actionUndoBlocker(action([re({ tool_name: "deleteExpense", action: "delete", before_image: { id: "re1", statement_line_id: "l1" }, after_image: null })]), NOW),
+    ).toMatch(/can't bring back the expense/);
+    // An edit the trigger answered by linking it to the line.
+    expect(
+      actionUndoBlocker(
+        action([re({ tool_name: "updateExpense", action: "update", before_image: { id: "re1", total_amount: null, statement_line_id: null }, after_image: { id: "re1", total_amount: 40, statement_line_id: "l1" } })]),
+        NOW,
+      ),
+    ).toMatch(/statement line id: it is the record of a charge/);
+    // An expense with no statement line is undone as before.
+    expect(actionUndoBlocker(action([re({ after_image: { id: "re1", vendor: "Shell", statement_line_id: null } })]), NOW)).toBeNull();
+    expect(
+      actionUndoBlocker(action([re({ tool_name: "updateExpense", action: "update", before_image: { id: "re1", total_amount: 30, statement_line_id: "l1" }, after_image: { id: "re1", total_amount: 40, statement_line_id: "l1" } })]), NOW),
+    ).toBeNull();
+    // The statement tables themselves: Reopen on the Imports tab.
+    expect(actionUndoBlocker(action([write({ table_name: "statement_lines", action: "update", before_image: { id: "l1" }, after_image: { id: "l1" } })]), NOW)).toMatch(/"Back to review" on Expenses → Imports/);
+    expect(undoTableBlocker("imported_statements")).toMatch(/Expenses → Imports/);
+  });
+
   it("every table Flight Crew writes is either reviewed for undo or excluded with a reason", () => {
     for (const t of ["clients", "transactions", "receipt_expenses", "recurring_expenses", "mileage_logs", "t2125_cca_assets", "user_settings", "outreach_queue"]) {
       expect(undoTableBlocker(t), t).toBeNull();

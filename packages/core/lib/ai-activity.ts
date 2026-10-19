@@ -113,8 +113,31 @@ export const TRIGGER_SIDE_EFFECTS: Readonly<Record<string, readonly TriggerSideE
  *   user_settings → income_goals (00169, UPDATE OF goal_gci): undo refuses a
  *     goal_gci change (UNDO_BLOCKED_COLUMNS).
  *   income_goals → user_settings (00169): income_goals is excluded from undo.
+ *   receipt_expenses → statement_lines (00185): a receipt saved, or its date
+ *     or amount edited, after its card charge was confirmed from a statement
+ *     takes the line over (the statement copy is removed) or flags the line
+ *     for the agent; deleting a receipt sends its line back to review. Undo
+ *     refuses any change to a receipt that is, or was, the record of a
+ *     statement line (UNDO_BLOCKED_COLUMNS, UNDO_BLOCKED_LINKS), and removing
+ *     a created receipt a line now points at (fn_ai_row_references). Undoing
+ *     any other receipt change fires the same triggers, which keep a charge
+ *     counted once.
+ *   recurring_expenses → statement_lines (00185): changing a recurring
+ *     expense's amount or schedule, or deleting it, sends the lines counted
+ *     as its charges back to review. Undoing the change leaves them in review
+ *     (held, counted by neither until the agent decides); deleting one a line
+ *     points at is marked irreversible (fn_ai_row_references).
  */
-export const TRIGGER_SIDE_EFFECTS_REVIEWED: ReadonlySet<string> = new Set(["user_settings", "income_goals"]);
+export const TRIGGER_SIDE_EFFECTS_REVIEWED: ReadonlySet<string> = new Set([
+  "user_settings",
+  "income_goals",
+  "receipt_expenses",
+  "recurring_expenses",
+]);
+
+/** Why undo leaves an expense that a statement line records alone. */
+const STATEMENT_LINK_REASON =
+  "it is the record of a charge on an imported statement. Send that line back to review, or match it again, on Expenses → Imports";
 
 /** Columns undo won't put back, and why (a trigger writes another table from them). */
 const OPT_OUT_REASON =
@@ -124,10 +147,22 @@ export const UNDO_BLOCKED_COLUMNS: Readonly<Record<string, Readonly<Record<strin
   user_settings: {
     goal_gci: "the income goal is saved by year, so change it in Settings → Annual Goal instead",
   },
+  // The statement link (00185): set by a confirm, a match or the receipt
+  // trigger, together with the line's own status. Undo can't put the line back.
+  receipt_expenses: { statement_line_id: STATEMENT_LINK_REASON, source: STATEMENT_LINK_REASON },
   // The per-channel opt-outs (00173, 00183). fn_ai_undo_apply refuses them too.
   clients: Object.fromEntries(
     ["email", "sms"].flatMap((ch) => ["at", "source", "method", "note"].map((f) => [`${ch}_opt_out_${f}`, OPT_OUT_REASON])),
   ),
+};
+
+/**
+ * Columns that, when set on a record undo would remove (created) or bring
+ * back (deleted), make undo refuse: removing or re-adding the row alone
+ * would leave the record linked to it out of step.
+ */
+export const UNDO_BLOCKED_LINKS: Readonly<Record<string, Readonly<Record<string, string>>>> = {
+  receipt_expenses: { statement_line_id: STATEMENT_LINK_REASON },
 };
 
 /**
@@ -190,6 +225,11 @@ export const UNDO_EXCLUDED: Readonly<Record<string, string>> = {
     "a year's income goal is saved by year and the dashboard reads it straight away; change it in Settings instead",
   ai_runs: "the AI ledger itself",
   ai_run_writes: "the AI ledger itself",
+  // Statement imports (00185): a line's status, links and counts move
+  // together (fn_confirm_statement_lines, fn_reopen_statement_lines).
+  statement_lines:
+    "a statement line goes back with \"Back to review\" on Expenses → Imports, which also removes the expense it added",
+  imported_statements: "an import is removed on Expenses → Imports",
 };
 
 /** Why a table can't be undone, or null when it can. */
@@ -421,6 +461,14 @@ export function actionUndoBlocker(action: AIAction, now: Date = new Date()): str
   // What the undo would write: refuse here, before anything is offered, if
   // any part of it can't be done.
   for (const c of netRowChanges(pending)) {
+    if (c.kind === "created" || c.kind === "deleted") {
+      const image = (c.kind === "created" ? c.after : c.before) ?? {};
+      for (const [col, why] of Object.entries(UNDO_BLOCKED_LINKS[c.table] ?? {})) {
+        if (image[col] !== null && image[col] !== undefined) {
+          return `Undo can't ${c.kind === "created" ? "remove" : "bring back"} the ${tableLabel(c.table)}: ${why}.`;
+        }
+      }
+    }
     if (c.kind === "deleted") {
       if (Object.values(insertableImage(c.table, c.before ?? {})).some(isRedactedText)) {
         return `Agent Runway doesn't keep AI-written text, so it can't bring back the ${tableLabel(c.table)}.`;
@@ -483,6 +531,8 @@ const TABLE_LABELS: Readonly<Record<string, [singular: string, plural: string]>>
   user_settings: ["setting", "settings"],
   workflow_drafts: ["Flight Plan draft", "Flight Plan drafts"],
   income_goals: ["income goal", "income goals"],
+  statement_lines: ["statement line", "statement lines"],
+  imported_statements: ["imported statement", "imported statements"],
 };
 
 export function tableLabel(table: string, plural = false): string {
@@ -556,6 +606,8 @@ const TOOL_LABELS: Readonly<Record<string, string>> = {
   withdrawConsent: "Recorded that a client asked to stop",
   captureNote: "Saved items from a note",
   startLogbookPeriod: "Started a logbook period",
+  confirmImportLines: "Confirmed statement lines",
+  matchReceiptToLine: "Matched a receipt to a statement line",
   recordOdometerReading: "Recorded an odometer reading",
 };
 
@@ -727,6 +779,8 @@ const FEATURE_LABELS: Readonly<Record<string, string>> = {
   "weekly-digest": "Weekly digest",
   morning_briefing: "Morning briefing",
   "cockpit-director-chat": "Director Cockpit",
+  "statement-import-pdf": "Statement reading (PDF)",
+  "statement-import-classify": "Statement line estimates",
   unknown: "Other AI",
 };
 

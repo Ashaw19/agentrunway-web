@@ -84,6 +84,16 @@ export const MCP_TOOL_CATALOG: McpCatalogGroup[] = [
     ],
   },
   {
+    category: "Statement imports",
+    tools: [
+      { name: "list_import_review_lines", desc: "Imported bank and card statement lines waiting for review, with estimates, duplicates and the reconciliation lists", access: "read" },
+      { name: "draft_line_categories", desc: "Drafts an expense item and business likelihood for each line, nothing saved", access: "read" },
+      { name: "explain_import_line", desc: "Why a line got its estimate, and what confirming it does", access: "read" },
+      { name: "match_receipt_to_line", desc: "Matches a receipt on file to a card charge, so it counts once", access: "write" },
+      { name: "confirm_import_lines", desc: "Adds agreed lines to the expense records; a charge already on file is linked, not added again", access: "write" },
+    ],
+  },
+  {
     category: "Outreach & Settings",
     tools: [
       { name: "get_flight_control_priorities", desc: "Outreach queue: clients due for follow-up, with drafted messages waiting for review", access: "read" },

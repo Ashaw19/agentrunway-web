@@ -22,7 +22,7 @@ const { total: TOOL_TOTAL, read: READ_TOOLS, write: WRITE_TOOLS } = MCP_TOOL_COU
 
 export const metadata: Metadata = {
   title: "MCP Server: Connect AI to Your Real Estate Data",
-  description: `Connect an MCP client such as Claude or Cursor to your Agent Runway business data. ${READ_TOOLS} read tools for transactions, pipeline, CRM, expenses, forecasts and Canadian tax estimates, plus ${WRITE_TOOLS} write tools for pipeline opportunities, approved notes from a call or showing, CASL consent and the vehicle logbook.`,
+  description: `Connect an MCP client such as Claude or Cursor to your Agent Runway business data. ${READ_TOOLS} read tools for transactions, pipeline, CRM, expenses, imported statements, forecasts and Canadian tax estimates, plus ${WRITE_TOOLS} write tools for pipeline opportunities, approved notes from a call or showing, CASL consent, the vehicle logbook and imported statement lines.`,
   openGraph: {
     url: "https://agentrunway.ca/mcp",
     images: [{ url: "/og-image-v2.png", width: 1200, height: 630 }],
@@ -34,7 +34,7 @@ export const metadata: Metadata = {
 
 const mcpWebPage = webPageSchema({
   name: "Agent Runway MCP Server: Connect AI to Your Real Estate Data",
-  description: `The Agent Runway MCP server has ${TOOL_TOTAL} tools. ${READ_TOOLS} read transactions, pipeline, CRM, expenses, forecasts and Canadian tax estimates. ${WRITE_TOOLS} write tools create and update pipeline opportunities, save approved notes from a call or showing, record CASL consent, and log trips, logbook periods and odometer readings. It works with MCP clients that can send a Bearer token, such as Claude or Cursor.`,
+  description: `The Agent Runway MCP server has ${TOOL_TOTAL} tools. ${READ_TOOLS} read transactions, pipeline, CRM, expenses, imported statements, forecasts and Canadian tax estimates. ${WRITE_TOOLS} write tools create and update pipeline opportunities, save approved notes from a call or showing, record CASL consent, log trips, logbook periods and odometer readings, and confirm imported statement lines. It works with MCP clients that can send a Bearer token, such as Claude or Cursor.`,
   url: "/mcp",
   lastReviewed: "2026-10-07",
 });
@@ -87,11 +87,12 @@ export default function McpPage() {
               Agent Runway&apos;s MCP server lets an AI assistant such as
               Claude or Cursor work with your business data directly.{" "}
               {READ_TOOLS} tools read your transactions, pipeline, CRM,
-              expenses, forecasts and Canadian tax estimates. {WRITE_TOOLS}{" "}
-              tools create or update pipeline opportunities, save the
-              changes you approve from a pasted call or showing note, record
-              CASL consent, and log trips, vehicle logbook periods and
-              odometer readings.
+              expenses, imported statements, forecasts and Canadian tax
+              estimates. {WRITE_TOOLS} tools create or update pipeline
+              opportunities, save the changes you approve from a pasted call
+              or showing note, record CASL consent, log trips, vehicle logbook
+              periods and odometer readings, and confirm imported statement
+              lines.
             </p>
             <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
               <Link
@@ -208,8 +209,9 @@ export default function McpPage() {
               Every tool returns JSON. {READ_TOOLS} tools only read data. The{" "}
               {WRITE_TOOLS} marked <span className="text-amber-300">write</span>{" "}
               create or change pipeline opportunities, save approved notes,
-              record CASL consent or log trips, logbook periods and odometer
-              readings, and mark_opportunity_lost is flagged destructive.
+              record CASL consent, log trips, logbook periods and odometer
+              readings or confirm imported statement lines, and
+              mark_opportunity_lost is flagged destructive.
             </p>
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
               {MCP_TOOL_CATALOG.map((group) => {

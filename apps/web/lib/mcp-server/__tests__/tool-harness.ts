@@ -22,6 +22,8 @@
  *     so a test can assert which table, columns, filters and pages a tool
  *     read, and every write, so a test can assert what a tool saved. Writes
  *     change the fixture tables, so a later read in the same test sees them.
+ *   - `client.rpc(name, args)` records the call and returns what the test's
+ *     `rpc` option returns, so a write tool's RPC can be asserted and faked.
  *   - Like PostgREST, one response holds at most `max_rows` rows (1000,
  *     `maxRows` to change it) whatever `.limit()` asks for, so a tool that
  *     reads a long list in one request loses rows here as it does live.
@@ -82,6 +84,17 @@ export interface FakeSupabaseOptions {
   columnDefaults?: Record<string, Row>;
   /** PostgREST's `max_rows`: the most rows one response holds. Default 1000. */
   maxRows?: number;
+  /** What `supabase.rpc(name, args)` returns as `data` (a write tool's RPC). */
+  rpc?: (name: string, args: Record<string, unknown>) => unknown;
+}
+
+/** An `update(...)` a tool made: the values, and the filters that picked the rows. */
+export interface RecordedUpdate {
+  table: string;
+  values: Row;
+  filters: string[];
+  /** How many fixture rows it changed. */
+  rows: number;
 }
 
 interface QueryBuilder extends PromiseLike<QueryResult> {
@@ -104,7 +117,10 @@ interface QueryBuilder extends PromiseLike<QueryResult> {
 }
 
 export interface FakeSupabase {
-  client: { from(table: string): QueryBuilder };
+  client: {
+    from(table: string): QueryBuilder;
+    rpc(name: string, args: Record<string, unknown>): Promise<QueryResult>;
+  };
   queries: RecordedQuery[];
   /** Queries against one table, in call order. */
   queriesFor(table: string): RecordedQuery[];
@@ -114,6 +130,10 @@ export interface FakeSupabase {
   writesTo(table: string): RecordedWrite[];
   /** The fixture tables as they are now (writes applied). */
   tables: Record<string, Row[]>;
+  /** Every `rpc(...)` call, in order. */
+  rpcs: { name: string; args: Record<string, unknown> }[];
+  /** Every `update(...)`, in order, applied to the fixture rows. */
+  updates: RecordedUpdate[];
 }
 
 /** Split a select list on top-level commas: `a, b, rel(c, d)` → [a, b, rel(c, d)]. */
@@ -182,10 +202,12 @@ function sortRows(rows: Row[], keys: OrderKey[]): Row[] {
 
 export function fakeSupabase(
   tables: Record<string, Row[]>,
-  { failTables = [], failWrites = [], columnDefaults = {}, maxRows = 1000 }: FakeSupabaseOptions = {},
+  { failTables = [], failWrites = [], columnDefaults = {}, maxRows = 1000, rpc }: FakeSupabaseOptions = {},
 ): FakeSupabase {
   const queries: RecordedQuery[] = [];
   const writes: RecordedWrite[] = [];
+  const rpcs: FakeSupabase["rpcs"] = [];
+  const updates: RecordedUpdate[] = [];
   let nextId = 1;
 
   const from = (table: string): QueryBuilder => {
@@ -241,6 +263,7 @@ export function fakeSupabase(
         const patch = write.rows[0];
         for (const r of rows) Object.assign(r, patch);
         recorded.rows = [{ ...patch }];
+        updates.push({ table, values: { ...patch }, filters: [...query.filters], rows: rows.length });
         writeResult = rows;
       } else {
         const keys = (write.onConflict ?? "id").split(",").map((c) => c.trim());
@@ -377,13 +400,20 @@ export function fakeSupabase(
     return builder;
   };
 
+  const callRpc = (name: string, args: Record<string, unknown>): Promise<QueryResult> => {
+    rpcs.push({ name, args });
+    return Promise.resolve({ data: rpc ? rpc(name, args) : null, error: null });
+  };
+
   return {
-    client: { from },
+    client: { from, rpc: callRpc },
     queries,
     queriesFor: (table) => queries.filter((q) => q.table === table),
     writes,
     writesTo: (table) => writes.filter((w) => w.table === table),
     tables,
+    rpcs,
+    updates,
   };
 }
 

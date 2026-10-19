@@ -324,3 +324,360 @@ BEGIN
 
   RAISE NOTICE 'behaviour checks: AI undo passed';
 END $$;
+
+-- 00185: statement import. Run as the signed-in agent (role authenticated,
+-- row level security on), the way the web, Flight Crew and the MCP server
+-- call these functions. A charge counts once: a line for a charge already on
+-- file is linked, never added; a held line is refused; any other line is
+-- added once with GST/HST empty; a deleted expense sends its line back; a
+-- receipt saved, or corrected, after its charge was confirmed replaces the
+-- statement copy, and one that only comes close flags the line;
+-- a recurring expense that changes sends its lines back; another agent's
+-- lines can't be seen or confirmed. And 5,000 lines stay inside the
+-- statement timeout.
+DO $$
+DECLARE
+  v_user      uuid := '00000000-0000-0000-0000-000000000132';
+  v_other     uuid := '00000000-0000-0000-0000-000000000185';
+  v_cat       uuid;
+  v_stmt      uuid;
+  v_stmt2     uuid;
+  v_theirs    uuid;
+  v_new       uuid;
+  v_dup       uuid;
+  v_rec_line  uuid;
+  v_held      uuid;
+  v_twin      uuid;
+  v_their_line uuid;
+  v_receipt   uuid;
+  v_late      uuid;
+  v_recurring uuid;
+  v_result    jsonb;
+  v_copy      uuid;
+  v_n         integer;
+  v_status    text;
+  v_hold      text;
+  v_t0        timestamptz;
+  v_ms        numeric;
+  v_big       uuid;
+  v_flags     jsonb;
+  v_ids       jsonb;
+  v_ocr_line  uuid;
+  v_ocr       uuid;
+  v_date_line uuid;
+  v_dated     uuid;
+  v_keg_line  uuid;
+  v_keg       uuid;
+  v_gas_line  uuid;
+  v_book      uuid;
+BEGIN
+  -- ── Set-up, as the database owner ────────────────────────────────────────
+  INSERT INTO auth.users (id, email) VALUES (v_other, 'someone-else@example.test') ON CONFLICT (id) DO NOTHING;
+  -- A throwaway database: make sure the signed-in role can reach the tables
+  -- the functions touch (production grants these already).
+  GRANT SELECT, INSERT, UPDATE, DELETE ON receipt_expenses, recurring_expenses, expense_items, expense_categories TO authenticated;
+
+  INSERT INTO expense_categories (user_id, key, title, sort_order)
+  VALUES (v_user, 'vehicle', 'Vehicle', 0)
+  ON CONFLICT (user_id, key) DO NOTHING;
+  SELECT id INTO v_cat FROM expense_categories WHERE user_id = v_user AND key = 'vehicle';
+  INSERT INTO expense_items (user_id, category_id, key, title, sort_order)
+  VALUES (v_user, v_cat, 'vehicle_fuel', 'Fuel', 0)
+  ON CONFLICT (user_id, key) DO NOTHING;
+
+  INSERT INTO receipt_expenses (user_id, vendor, expense_date, total_amount, tax_amount, category_key)
+  VALUES (v_user, 'CI Shell', '2026-09-10', 54.20, 7.07, 'vehicle_fuel')
+  RETURNING id INTO v_receipt;
+  INSERT INTO recurring_expenses (user_id, name, amount, category_key, day_of_month, start_date)
+  VALUES (v_user, 'CI lease', 575, 'vehicle_payment', 15, '2026-01-01')
+  RETURNING id INTO v_recurring;
+
+  INSERT INTO imported_statements (user_id, kind, source_format, account_label, file_hash, period_start, period_end)
+  VALUES (v_user, 'credit_card', 'csv:generic', 'CI card', repeat('a', 64), '2026-09-01', '2026-09-30')
+  RETURNING id INTO v_stmt;
+  INSERT INTO imported_statements (user_id, kind, source_format, account_label, file_hash, period_start, period_end, verification)
+  VALUES (v_user, 'credit_card', 'pdf', 'CI card', repeat('b', 64), '2026-09-01', '2026-09-30', 'unverified')
+  RETURNING id INTO v_stmt2;
+  INSERT INTO imported_statements (user_id, kind, source_format, account_label, file_hash, period_start, period_end)
+  VALUES (v_other, 'bank', 'csv:generic', 'Not mine', repeat('c', 64), '2026-09-01', '2026-09-30')
+  RETURNING id INTO v_theirs;
+
+  -- Lines as the upload stages them, with the duplicate check's columns.
+  INSERT INTO statement_lines (user_id, statement_id, line_date, description, amount, direction, fingerprint, suggested_category_key)
+  VALUES (v_user, v_stmt, '2026-09-12', 'CI PETRO', 40.00, 'out', repeat('1', 64), 'vehicle_fuel')
+  RETURNING id INTO v_new;
+  INSERT INTO statement_lines (user_id, statement_id, line_date, description, amount, direction, fingerprint, match_receipt_id, match_method, duplicate_candidate_count)
+  VALUES (v_user, v_stmt, '2026-09-10', 'CI SHELL', 54.20, 'out', repeat('2', 64), v_receipt, 'exact', 1)
+  RETURNING id INTO v_dup;
+  INSERT INTO statement_lines (user_id, statement_id, line_date, description, amount, direction, fingerprint, recurring_expense_id, recurring_charge_date, duplicate_candidate_count)
+  VALUES (v_user, v_stmt, '2026-09-15', 'CI LEASE', 575, 'out', repeat('3', 64), v_recurring, '2026-09-15', 1)
+  RETURNING id INTO v_rec_line;
+  INSERT INTO statement_lines (user_id, statement_id, line_date, description, amount, direction, fingerprint, suggested_category_key)
+  VALUES (v_user, v_stmt, '2026-09-20', 'CI HELD', 30, 'out', repeat('4', 64), 'vehicle_fuel')
+  RETURNING id INTO v_held;
+  -- The PDF of the same month: its copy of the 40.00 charge.
+  INSERT INTO statement_lines (user_id, statement_id, line_date, description, amount, direction, fingerprint, suggested_category_key)
+  VALUES (v_user, v_stmt2, '2026-09-12', 'CI PETRO CANADA', 40.00, 'out', repeat('5', 64), 'vehicle_fuel')
+  RETURNING id INTO v_twin;
+  INSERT INTO statement_lines (user_id, statement_id, line_date, description, amount, direction, fingerprint, suggested_category_key)
+  VALUES (v_other, v_theirs, '2026-09-12', 'NOT MINE', 9.99, 'out', repeat('6', 64), 'vehicle_fuel')
+  RETURNING id INTO v_their_line;
+
+  IF (SELECT line_count FROM imported_statements WHERE id = v_stmt) <> 4
+     OR (SELECT pending_count FROM imported_statements WHERE id = v_stmt) <> 4 THEN
+    RAISE EXCEPTION 'behaviour check: statement counts were not kept by the statement-level trigger';
+  END IF;
+
+  -- ── As the signed-in agent ──────────────────────────────────────────────
+  -- auth.uid(): older definitions read request.jwt.claim.sub, newer ones
+  -- request.jwt.claims. Set both.
+  PERFORM set_config('request.jwt.claims', json_build_object('sub', v_user, 'role', 'authenticated')::text, true);
+  PERFORM set_config('request.jwt.claim.sub', v_user::text, true);
+  SET LOCAL ROLE authenticated;
+  IF auth.uid() IS DISTINCT FROM v_user THEN
+    RAISE EXCEPTION 'behaviour check setup: auth.uid() is %, expected the CI user', auth.uid();
+  END IF;
+
+  -- Row level security: another agent's lines can't be seen, flagged or confirmed.
+  IF EXISTS (SELECT 1 FROM statement_lines WHERE id = v_their_line) OR EXISTS (SELECT 1 FROM imported_statements WHERE id = v_theirs) THEN
+    RAISE EXCEPTION 'behaviour check: an agent can read another agent''s statement lines';
+  END IF;
+  IF fn_set_statement_line_flags(jsonb_build_array(jsonb_build_object('id', v_their_line, 'hold_reason', 'several'))) <> 0 THEN
+    RAISE EXCEPTION 'behaviour check: fn_set_statement_line_flags changed another agent''s line';
+  END IF;
+  v_result := fn_confirm_statement_lines(jsonb_build_array(jsonb_build_object('id', v_their_line)));
+  IF (v_result->'refused'->0->>'reason') IS DISTINCT FROM 'not_found' THEN
+    RAISE EXCEPTION 'behaviour check: another agent''s line was confirmable: %', v_result;
+  END IF;
+
+  -- The duplicate check's results, in one statement: the held line, and the
+  -- other import's copy of the 40.00 charge.
+  v_n := fn_set_statement_line_flags(jsonb_build_array(
+    jsonb_build_object('id', v_held, 'hold_reason', 'near_match', 'duplicate_candidate_count', 1, 'related_receipt_id', v_receipt),
+    jsonb_build_object('id', v_twin, 'hold_reason', 'other_import', 'duplicate_candidate_count', 1, 'related_line_id', v_new)));
+  IF v_n <> 2 THEN
+    RAISE EXCEPTION 'behaviour check: fn_set_statement_line_flags wrote % lines, expected 2', v_n;
+  END IF;
+
+  v_result := fn_confirm_statement_lines(jsonb_build_array(
+    jsonb_build_object('id', v_new), jsonb_build_object('id', v_dup),
+    jsonb_build_object('id', v_rec_line), jsonb_build_object('id', v_held), jsonb_build_object('id', v_twin)));
+
+  IF jsonb_array_length(v_result->'created') <> 1 OR jsonb_array_length(v_result->'linked') <> 1
+     OR jsonb_array_length(v_result->'recurring') <> 1 OR jsonb_array_length(v_result->'refused') <> 2 THEN
+    RAISE EXCEPTION 'behaviour check: fn_confirm_statement_lines outcome %', v_result;
+  END IF;
+  IF (SELECT count(*) FROM jsonb_array_elements(v_result->'refused') r WHERE r->>'reason' = 'needs_decision') <> 2 THEN
+    RAISE EXCEPTION 'behaviour check: held lines (near match, other import) were not refused: %', v_result;
+  END IF;
+
+  SELECT count(*) INTO v_n FROM receipt_expenses WHERE user_id = v_user AND source = 'statement_import';
+  IF v_n <> 1 THEN
+    RAISE EXCEPTION 'behaviour check: confirming added % expenses, expected 1 (duplicates are linked or held, not added)', v_n;
+  END IF;
+  SELECT id INTO v_copy FROM receipt_expenses WHERE statement_line_id = v_new AND tax_amount IS NULL AND total_amount = 40.00;
+  IF v_copy IS NULL THEN
+    RAISE EXCEPTION 'behaviour check: the added expense is not the line as paid with GST/HST empty';
+  END IF;
+  IF (SELECT statement_line_id FROM receipt_expenses WHERE id = v_receipt) IS DISTINCT FROM v_dup THEN
+    RAISE EXCEPTION 'behaviour check: the duplicate line was not linked to its receipt';
+  END IF;
+  IF (SELECT confirmed_count FROM imported_statements WHERE id = v_stmt) <> 3
+     OR (SELECT pending_count FROM imported_statements WHERE id = v_stmt) <> 1 THEN
+    RAISE EXCEPTION 'behaviour check: counts after confirm are wrong';
+  END IF;
+
+  -- An item key that isn't one: refused, whatever expense_items holds.
+  v_result := fn_confirm_statement_lines(jsonb_build_array(jsonb_build_object('id', v_held, 'category_key', 'travel_meals')));
+  IF (v_result->'refused'->0->>'reason') NOT IN ('needs_decision', 'unknown_category') THEN
+    RAISE EXCEPTION 'behaviour check: unexpected outcome for a bad key %', v_result;
+  END IF;
+
+  -- Confirming again changes nothing.
+  v_result := fn_confirm_statement_lines(jsonb_build_array(jsonb_build_object('id', v_new)));
+  IF (SELECT count(*) FROM receipt_expenses WHERE statement_line_id = v_new) <> 1 THEN
+    RAISE EXCEPTION 'behaviour check: confirming twice added a second expense';
+  END IF;
+
+  -- Deleting the added expense sends the line back, marked so bulk confirm leaves it out.
+  DELETE FROM receipt_expenses WHERE id = v_copy;
+  SELECT status INTO v_status FROM statement_lines WHERE id = v_new;
+  IF v_status <> 'pending' OR (SELECT expense_deleted_at FROM statement_lines WHERE id = v_new) IS NULL THEN
+    RAISE EXCEPTION 'behaviour check: a line whose expense was deleted is % and unmarked', v_status;
+  END IF;
+
+  -- Confirmed again, then a receipt for the same charge saved later (any
+  -- screen): it replaces the statement copy, keeps its printed tax, takes the category.
+  v_result := fn_confirm_statement_lines(jsonb_build_array(jsonb_build_object('id', v_new)));
+  INSERT INTO receipt_expenses (user_id, vendor, expense_date, total_amount, tax_amount, receipt_path)
+  VALUES (v_user, 'CI Petro', '2026-09-12', 40.00, 5.22, 'ci/receipt.jpg')
+  RETURNING id INTO v_late;
+  IF (SELECT count(*) FROM receipt_expenses WHERE user_id = v_user AND expense_date = '2026-09-12') <> 1 THEN
+    RAISE EXCEPTION 'behaviour check: a receipt saved after its charge was confirmed doubled the expense';
+  END IF;
+  IF (SELECT statement_line_id FROM receipt_expenses WHERE id = v_late) IS DISTINCT FROM v_new
+     OR (SELECT tax_amount FROM receipt_expenses WHERE id = v_late) <> 5.22
+     OR (SELECT category_key FROM receipt_expenses WHERE id = v_late) IS DISTINCT FROM 'vehicle_fuel'
+     OR (SELECT status FROM statement_lines WHERE id = v_new) <> 'confirmed' THEN
+    RAISE EXCEPTION 'behaviour check: the later receipt did not take over the line';
+  END IF;
+
+  -- A receipt two days off is only flagged for the agent.
+  v_result := fn_reopen_statement_lines(ARRAY[v_new]);
+  UPDATE statement_lines SET match_receipt_id = NULL, match_method = NULL, duplicate_candidate_count = 0, duplicate_dismissed = true WHERE id = v_new;
+  DELETE FROM receipt_expenses WHERE id = v_late;
+  v_result := fn_confirm_statement_lines(jsonb_build_array(jsonb_build_object('id', v_new)));
+  INSERT INTO receipt_expenses (user_id, vendor, expense_date, total_amount, tax_amount)
+  VALUES (v_user, 'CI Petro', '2026-09-14', 40.00, 5.22)
+  RETURNING id INTO v_late;
+  SELECT hold_reason INTO v_hold FROM statement_lines WHERE id = v_new;
+  IF v_hold IS DISTINCT FROM 'later_receipt' OR (SELECT related_receipt_id FROM statement_lines WHERE id = v_new) IS DISTINCT FROM v_late THEN
+    RAISE EXCEPTION 'behaviour check: a receipt two days off was not flagged (hold %)', v_hold;
+  END IF;
+
+  -- Matching it by hand replaces the statement copy.
+  v_result := fn_match_statement_line(v_new, v_late);
+  IF NOT (v_result->>'ok')::boolean OR (v_result->>'replaced_receipt_id') IS NULL THEN
+    RAISE EXCEPTION 'behaviour check: fn_match_statement_line %', v_result;
+  END IF;
+  IF (SELECT count(*) FROM receipt_expenses WHERE user_id = v_user AND total_amount = 40.00) <> 1 THEN
+    RAISE EXCEPTION 'behaviour check: after matching, the charge is recorded more than once';
+  END IF;
+
+  -- Back to review keeps the receipt and unlinks it.
+  v_result := fn_reopen_statement_lines(ARRAY[v_new]);
+  IF (v_result->>'reopened')::int <> 1 OR (SELECT statement_line_id FROM receipt_expenses WHERE id = v_late) IS NOT NULL THEN
+    RAISE EXCEPTION 'behaviour check: fn_reopen_statement_lines %', v_result;
+  END IF;
+
+  -- A receipt saved with nothing read (OCR failed), then corrected by hand:
+  -- the correction is an UPDATE, and it replaces the statement copy too.
+  INSERT INTO statement_lines (user_id, statement_id, line_date, description, amount, direction, fingerprint, suggested_category_key)
+  VALUES (v_user, v_stmt, '2026-09-22', 'CI ESSO 1234', 60.00, 'out', repeat('7', 64), 'vehicle_fuel')
+  RETURNING id INTO v_ocr_line;
+  v_result := fn_confirm_statement_lines(jsonb_build_array(jsonb_build_object('id', v_ocr_line)));
+  INSERT INTO receipt_expenses (user_id, vendor, expense_date, total_amount, tax_amount, receipt_path)
+  VALUES (v_user, NULL, NULL, NULL, NULL, 'ci/ocr-failed.jpg')
+  RETURNING id INTO v_ocr;
+  IF (SELECT statement_line_id FROM receipt_expenses WHERE id = v_ocr) IS NOT NULL THEN
+    RAISE EXCEPTION 'behaviour check: a receipt with nothing read was linked to a line';
+  END IF;
+  UPDATE receipt_expenses SET vendor = 'CI Esso', expense_date = '2026-09-22', total_amount = 60.00, tax_amount = 7.83 WHERE id = v_ocr;
+  IF (SELECT count(*) FROM receipt_expenses WHERE user_id = v_user AND expense_date = '2026-09-22') <> 1
+     OR (SELECT statement_line_id FROM receipt_expenses WHERE id = v_ocr) IS DISTINCT FROM v_ocr_line
+     OR (SELECT match_receipt_id FROM statement_lines WHERE id = v_ocr_line) IS DISTINCT FROM v_ocr
+     OR (SELECT status FROM statement_lines WHERE id = v_ocr_line) <> 'confirmed'
+     OR (SELECT category_key FROM receipt_expenses WHERE id = v_ocr) IS DISTINCT FROM 'vehicle_fuel' THEN
+    RAISE EXCEPTION 'behaviour check: a receipt corrected after an OCR failure did not replace the statement copy (the charge counts twice)';
+  END IF;
+
+  -- Saved with the wrong date, then the date corrected: the same.
+  INSERT INTO statement_lines (user_id, statement_id, line_date, description, amount, direction, fingerprint, suggested_category_key)
+  VALUES (v_user, v_stmt, '2026-09-24', 'CI STAPLES', 33.33, 'out', repeat('8', 64), 'office_supplies')
+  RETURNING id INTO v_date_line;
+  v_result := fn_confirm_statement_lines(jsonb_build_array(jsonb_build_object('id', v_date_line)));
+  INSERT INTO receipt_expenses (user_id, vendor, expense_date, total_amount, tax_amount)
+  VALUES (v_user, 'CI Staples', '2026-07-24', 33.33, 4.35)
+  RETURNING id INTO v_dated;
+  IF (SELECT hold_reason FROM statement_lines WHERE id = v_date_line) IS NOT NULL THEN
+    RAISE EXCEPTION 'behaviour check: a receipt two months away flagged a line';
+  END IF;
+  UPDATE receipt_expenses SET expense_date = '2026-09-24' WHERE id = v_dated;
+  IF (SELECT count(*) FROM receipt_expenses WHERE user_id = v_user AND total_amount = 33.33) <> 1
+     OR (SELECT statement_line_id FROM receipt_expenses WHERE id = v_dated) IS DISTINCT FROM v_date_line THEN
+    RAISE EXCEPTION 'behaviour check: a receipt whose date was corrected did not replace the statement copy';
+  END IF;
+
+  -- A near miss saved after the confirm: the same merchant, a pre-tip amount
+  -- within 25%. The line is flagged for the agent, not left to count twice
+  -- unnoticed.
+  INSERT INTO statement_lines (user_id, statement_id, line_date, description, amount, direction, fingerprint, suggested_category_key)
+  VALUES (v_user, v_stmt, '2026-09-25', 'CI THE KEG STEAKHOUSE', 75.00, 'out', repeat('9', 64), 'meals_client')
+  RETURNING id INTO v_keg_line;
+  v_result := fn_confirm_statement_lines(jsonb_build_array(jsonb_build_object('id', v_keg_line)));
+  INSERT INTO receipt_expenses (user_id, vendor, expense_date, total_amount, tax_amount)
+  VALUES (v_user, 'The Keg', '2026-09-25', 62.50, 7.19)
+  RETURNING id INTO v_keg;
+  SELECT hold_reason INTO v_hold FROM statement_lines WHERE id = v_keg_line;
+  IF v_hold IS DISTINCT FROM 'later_receipt' OR (SELECT related_receipt_id FROM statement_lines WHERE id = v_keg_line) IS DISTINCT FROM v_keg THEN
+    RAISE EXCEPTION 'behaviour check: a same-merchant receipt within 25%% saved after the confirm was not flagged (hold %)', v_hold;
+  END IF;
+  -- Edited to an amount that no longer comes close: the flag goes.
+  UPDATE receipt_expenses SET total_amount = 20.00 WHERE id = v_keg;
+  IF (SELECT hold_reason FROM statement_lines WHERE id = v_keg_line) IS NOT NULL THEN
+    RAISE EXCEPTION 'behaviour check: a receipt edited away from a flagged line left the flag';
+  END IF;
+
+  -- Another merchant at a nearby amount is not a near miss.
+  INSERT INTO statement_lines (user_id, statement_id, line_date, description, amount, direction, fingerprint, suggested_category_key)
+  VALUES (v_user, v_stmt, '2026-09-26', 'CI COSTCO GAS', 50.00, 'out', repeat('0', 64), 'vehicle_fuel')
+  RETURNING id INTO v_gas_line;
+  v_result := fn_confirm_statement_lines(jsonb_build_array(jsonb_build_object('id', v_gas_line)));
+  INSERT INTO receipt_expenses (user_id, vendor, expense_date, total_amount, tax_amount)
+  VALUES (v_user, 'CI Bookstore', '2026-09-26', 45.00, 5.87)
+  RETURNING id INTO v_book;
+  IF (SELECT hold_reason FROM statement_lines WHERE id = v_gas_line) IS NOT NULL THEN
+    RAISE EXCEPTION 'behaviour check: a receipt from another merchant flagged a line';
+  END IF;
+
+  -- Changing the recurring expense's charge day sends its confirmed line back, held.
+  UPDATE recurring_expenses SET day_of_month = 20 WHERE id = v_recurring;
+  SELECT status, hold_reason INTO v_status, v_hold FROM statement_lines WHERE id = v_rec_line;
+  IF v_status <> 'pending' OR v_hold IS DISTINCT FROM 'recurring_changed' THEN
+    RAISE EXCEPTION 'behaviour check: a line counted by a changed recurring expense is % (%)', v_status, v_hold;
+  END IF;
+  -- Renaming it does not.
+  UPDATE statement_lines SET recurring_expense_id = v_recurring, recurring_charge_date = '2026-09-20', hold_reason = NULL WHERE id = v_rec_line;
+  v_result := fn_confirm_statement_lines(jsonb_build_array(jsonb_build_object('id', v_rec_line)));
+  UPDATE recurring_expenses SET name = 'CI lease, renamed' WHERE id = v_recurring;
+  IF (SELECT status FROM statement_lines WHERE id = v_rec_line) <> 'confirmed' THEN
+    RAISE EXCEPTION 'behaviour check: renaming a recurring expense sent its line back';
+  END IF;
+  -- Deleting it sends the line back too.
+  DELETE FROM recurring_expenses WHERE id = v_recurring;
+  IF (SELECT status FROM statement_lines WHERE id = v_rec_line) <> 'pending' THEN
+    RAISE EXCEPTION 'behaviour check: a line confirmed as a deleted recurring charge stayed confirmed';
+  END IF;
+
+  -- ── 5,000 lines: staging, the duplicate check's write and a confirm ─────
+  RESET ROLE;
+  INSERT INTO imported_statements (user_id, kind, source_format, account_label, file_hash, period_start, period_end)
+  VALUES (v_user, 'bank', 'csv:generic', 'CI big', repeat('d', 64), '2020-01-01', '2026-09-30')
+  RETURNING id INTO v_big;
+  SET LOCAL ROLE authenticated;
+
+  v_t0 := clock_timestamp();
+  INSERT INTO statement_lines (user_id, statement_id, line_date, description, amount, direction, fingerprint, suggested_category_key, business_likelihood)
+  SELECT v_user, v_big, date '2020-01-01' + (g % 2000), 'CI LINE ' || g, 10 + (g % 50), 'out', md5('big' || g) || md5('line' || g), 'vehicle_fuel', 0.6
+    FROM generate_series(1, 5000) g
+  ON CONFLICT (user_id, fingerprint) DO NOTHING;
+  v_ms := extract(epoch FROM clock_timestamp() - v_t0) * 1000;
+  IF v_ms > 8000 OR (SELECT line_count FROM imported_statements WHERE id = v_big) <> 5000 THEN
+    RAISE EXCEPTION 'behaviour check: staging 5,000 lines took % ms (counts %)', round(v_ms), (SELECT line_count FROM imported_statements WHERE id = v_big);
+  END IF;
+
+  SELECT jsonb_agg(jsonb_build_object('id', id, 'duplicate_candidate_count', 0)) INTO v_flags
+    FROM statement_lines WHERE statement_id = v_big;
+  v_t0 := clock_timestamp();
+  v_n := fn_set_statement_line_flags(v_flags);
+  v_ms := extract(epoch FROM clock_timestamp() - v_t0) * 1000;
+  IF v_n <> 5000 OR v_ms > 8000 THEN
+    RAISE EXCEPTION 'behaviour check: flagging 5,000 lines wrote % in % ms', v_n, round(v_ms);
+  END IF;
+
+  SELECT jsonb_agg(jsonb_build_object('id', id)) INTO v_ids
+    FROM (SELECT id FROM statement_lines WHERE statement_id = v_big ORDER BY id LIMIT 2000) x;
+  v_t0 := clock_timestamp();
+  v_result := fn_confirm_statement_lines(v_ids);
+  v_ms := extract(epoch FROM clock_timestamp() - v_t0) * 1000;
+  IF jsonb_array_length(v_result->'created') <> 2000 OR v_ms > 8000 THEN
+    RAISE EXCEPTION 'behaviour check: confirming 2,000 lines created % in % ms', jsonb_array_length(v_result->'created'), round(v_ms);
+  END IF;
+  IF (SELECT confirmed_count FROM imported_statements WHERE id = v_big) <> 2000
+     OR (SELECT pending_count FROM imported_statements WHERE id = v_big) <> 3000 THEN
+    RAISE EXCEPTION 'behaviour check: counts after a 2,000-line confirm are wrong';
+  END IF;
+
+  RESET ROLE;
+  RAISE NOTICE 'behaviour checks (00185 statement import): all passed';
+END $$;

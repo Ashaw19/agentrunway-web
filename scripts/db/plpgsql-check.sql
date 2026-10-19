@@ -12,7 +12,7 @@ do $$
 declare
   r       record;
   e       record;
-  rel     regclass;
+  trg     record;
   checked int := 0;
   skipped int := 0;
   errors  int := 0;
@@ -31,13 +31,20 @@ begin
         skipped := skipped + 1;
         continue;
       end if;
-      for rel in
-        select distinct t.tgrelid::regclass from pg_trigger t
-         where t.tgfoid = r.oid and not t.tgisinternal
+      -- A statement-level trigger with transition tables (REFERENCING OLD/NEW
+      -- TABLE) is checked with those names, or its queries on them would
+      -- read as missing tables.
+      for trg in
+        select distinct tg.tgrelid::regclass as rel, tg.tgoldtable as oldtable, tg.tgnewtable as newtable
+          from pg_trigger tg
+         where tg.tgfoid = r.oid and not tg.tgisinternal
       loop
-        for e in select * from plpgsql_check_function_tb(r.oid::regprocedure, rel) where level = 'error' loop
+        for e in
+          select * from plpgsql_check_function_tb(r.oid::regprocedure, trg.rel, oldtable => trg.oldtable, newtable => trg.newtable)
+           where level = 'error'
+        loop
           errors := errors + 1;
-          raise warning 'plpgsql_check: % (trigger on %): [%] %', r.proname, rel, e.sqlstate, e.message;
+          raise warning 'plpgsql_check: % (trigger on %): [%] %', r.proname, trg.rel, e.sqlstate, e.message;
         end loop;
       end loop;
     else
