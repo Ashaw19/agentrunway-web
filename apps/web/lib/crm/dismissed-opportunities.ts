@@ -22,7 +22,10 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { atlanticISODate } from "@agent-runway/core/lib/local-date";
 import {
   removeSuggestionSkipByKey,
+  reopenHandfulPin,
+  restoreClientFromHangar,
   resumeSuggestions,
+  writeClientToHangar,
   writeSuggestionHold,
   writeSuggestionSkip,
   type HoldOutcome,
@@ -94,5 +97,45 @@ export async function resumeSuggestion(
   if (!userId) return SIGNED_OUT;
   const out = await resumeSuggestions(supabase, userId, clientId);
   if (!out.ok) console.error("[flight-control] hold undo failed:", out.message);
+  return out;
+}
+
+/** "Move to the Hangar" from a card: archives the client (reason 'other'). */
+export async function moveToHangar(
+  supabase: SupabaseClient,
+  args:     { clientId: string; clientName: string },
+): Promise<WriteOutcome> {
+  const userId = await signedInUserId(supabase);
+  if (!userId) return SIGNED_OUT;
+  const out = await writeClientToHangar(supabase, userId, args);
+  if (!out.ok) console.error("[flight-control] Hangar move failed:", out.message);
+  return out;
+}
+
+/** Undo for moveToHangar. Only brings back a client this move archived. */
+export async function bringBackFromHangar(
+  supabase: SupabaseClient,
+  args:     { clientId: string; clientName: string },
+): Promise<WriteOutcome> {
+  const userId = await signedInUserId(supabase);
+  if (!userId) return SIGNED_OUT;
+  const out = await restoreClientFromHangar(supabase, userId, args);
+  if (!out.ok) console.error("[flight-control] Hangar undo failed:", out.message);
+  return out;
+}
+
+/**
+ * After the Undo of a skip, a Stop or the Hangar: a sync may have already
+ * closed the client's pin for it today, which would keep them off today's
+ * list. Reopens that pin (never one closed as contacted or expired).
+ */
+export async function reopenTodaysPin(
+  supabase: SupabaseClient,
+  clientId: string,
+): Promise<WriteOutcome> {
+  const userId = await signedInUserId(supabase);
+  if (!userId) return SIGNED_OUT;
+  const out = await reopenHandfulPin(supabase, userId, clientId);
+  if (!out.ok) console.error("[flight-control] pin reopen failed:", out.message);
   return out;
 }

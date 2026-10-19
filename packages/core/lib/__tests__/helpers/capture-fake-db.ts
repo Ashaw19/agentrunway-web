@@ -1,7 +1,7 @@
 /**
  * A small in-memory stand-in for the Supabase query builder, for the capture
  * writer and name-search tests. It keeps rows per table, applies the filters
- * the capture code uses (eq, is, in, ilike, limit) and records every write.
+ * the capture code uses (eq, is, in, gte, ilike, limit) and records every write.
  * Synthetic data only.
  *
  * `fail` makes a table's writes return a PostgREST-style error; `offline`
@@ -129,6 +129,11 @@ export function fakeDb(seed: Record<string, Row[]> = {}, options: FakeDbOptions 
           return builder;
         },
         in(k: string, vs: unknown[]) { filters.push((r) => vs.includes(r[k])); return builder; },
+        // ISO timestamps and dates compare as instants; a null never matches.
+        gte(k: string, v: string) {
+          filters.push((r) => r[k] != null && Date.parse(String(r[k])) >= Date.parse(v));
+          return builder;
+        },
         ilike(k: string, pattern: string) {
           const needle = pattern.replace(/%/g, "").toLowerCase();
           filters.push((r) => String(r[k] ?? "").toLowerCase().includes(needle));

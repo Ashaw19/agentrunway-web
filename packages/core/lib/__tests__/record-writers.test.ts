@@ -3,7 +3,7 @@
  * (applyCaptureWrites). Each writer takes a Flight Crew tool's argument
  * shape and writes the row that tool writes. Synthetic rows only.
  */
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   activityTimestampFor,
   applyCaptureWrite,
@@ -11,6 +11,7 @@ import {
   newRecordId,
   removeSuggestionDismissal,
   removeSuggestionSkipByKey,
+  reopenHandfulPin,
   restoreClientFromHangar,
   resumeSuggestions,
   writeClient,
@@ -906,4 +907,129 @@ describe("the Hangar writers", () => {
     const refused = fakeDb(seed(), { fail: { clients: { code: "42501", message: "rls" } } });
     expect(await writeClientToHangar(refused.db, USER, sam)).toMatchObject({ ok: false, offline: false, code: "42501" });
   });
+});
+
+// ── Reopening today's pin after an Undo (R11) ────────────────────────────────
+//
+// A sync may already have closed the client's pin for the skip, stop or Hangar
+// move the agent is now undoing. The client is then "handled today" and
+// wouldn't be picked again until tomorrow, so the Undo reopens that pin.
+
+describe("reopenHandfulPin", () => {
+  const PINS = "next_up_handful";
+  /** The Atlantic day of NOW (2026-10-19, ADT) begins at 03:00 UTC. */
+  const pin = (id: string, how: string | null, at: string | null, extra: Row = {}) => ({
+    id, user_id: USER, client_id: "c-1", opportunity_type: "idle_client", trigger_date: "2026-10-01",
+    rank: 0, added_at: "2026-10-19T04:00:00.000Z", handled_at: at, handled_how: how, ...extra,
+  });
+  const pins = (rows: Row[], options: Parameters<typeof fakeDb>[1] = {}) => fakeDb({ ...seed(), [PINS]: rows }, options);
+
+  it.each(["skipped", "stopped", "archived"])("reopens the pin a sync closed today as %s", async (how) => {
+    const { db, tables, writes } = pins([pin("p-1", how, "2026-10-19T14:00:00.000Z")]);
+    const out = await reopenHandfulPin(db, USER, "c-1", NOW);
+    expect(out).toMatchObject({ ok: true, id: "p-1" });
+    expect(tables[PINS][0]).toMatchObject({ handled_at: null, handled_how: null });
+    // Only the two fields change, and the history stays on the row.
+    expect(writes).toEqual([{ table: PINS, op: "update", payload: { handled_at: null, handled_how: null } }]);
+    expect(tables[PINS][0]).toMatchObject({ opportunity_type: "idle_client", rank: 0, added_at: "2026-10-19T04:00:00.000Z" });
+  });
+
+  it.each(["contacted", "expired"])("never reopens a pin closed as %s", async (how) => {
+    const { db, tables, writes } = pins([pin("p-1", how, "2026-10-19T14:00:00.000Z")]);
+    expect(await reopenHandfulPin(db, USER, "c-1", NOW)).toMatchObject({ ok: true });
+    expect(writes).toEqual([]);
+    expect(tables[PINS][0]).toMatchObject({ handled_how: how });
+  });
+
+  it("only looks at pins closed today in Atlantic time", async () => {
+    // 02:59:59 UTC is still the evening of the 18th in Atlantic time; 03:00:00 UTC is midnight.
+    const before = pins([pin("p-1", "skipped", "2026-10-19T02:59:59.000Z")]);
+    await reopenHandfulPin(before.db, USER, "c-1", NOW);
+    expect(before.writes).toEqual([]);
+    const edge = pins([pin("p-1", "skipped", "2026-10-19T03:00:00.000Z")]);
+    await reopenHandfulPin(edge.db, USER, "c-1", NOW);
+    expect(edge.tables[PINS][0]).toMatchObject({ handled_at: null });
+    // 22:30 on the 19th in Atlantic time is already the 20th in UTC.
+    const late = pins([pin("p-1", "skipped", "2026-10-19T14:00:00.000Z")]);
+    expect((await reopenHandfulPin(late.db, USER, "c-1", new Date("2026-10-20T01:30:00.000Z"))).id).toBe("p-1");
+    // And the same pin is yesterday's once Atlantic time reaches the 20th.
+    const next = pins([pin("p-1", "skipped", "2026-10-19T14:00:00.000Z")]);
+    await reopenHandfulPin(next.db, USER, "c-1", new Date("2026-10-20T03:00:00.000Z"));
+    expect(next.writes).toEqual([]);
+  });
+
+  it("leaves a client who already has an open pin alone", async () => {
+    const { db, tables, writes } = pins([
+      pin("p-open", null, null, { added_at: "2026-10-19T16:00:00.000Z" }),
+      pin("p-skip", "skipped", "2026-10-19T14:00:00.000Z"),
+    ]);
+    expect(await reopenHandfulPin(db, USER, "c-1", NOW)).toMatchObject({ ok: true });
+    expect(writes).toEqual([]);
+    expect(tables[PINS].find((r) => r.id === "p-skip")).toMatchObject({ handled_how: "skipped" });
+  });
+
+  it("a second open pin from a race (23505) counts as already open", async () => {
+    const { db, tables } = pins([pin("p-1", "skipped", "2026-10-19T14:00:00.000Z")], {
+      fail: { [PINS]: { code: "23505", message: "duplicate key value violates unique constraint \"next_up_handful_open_client\"" } },
+    });
+    expect(await reopenHandfulPin(db, USER, "c-1", NOW)).toMatchObject({ ok: true });
+    expect(tables[PINS][0]).toMatchObject({ handled_how: "skipped" });
+  });
+
+  it("the latest pin closed today decides: a later contact is not undone, a later skip is", async () => {
+    const contactedAfter = pins([
+      pin("p-1", "skipped", "2026-10-19T10:00:00.000Z"),
+      pin("p-2", "contacted", "2026-10-19T14:00:00.000Z"),
+    ]);
+    await reopenHandfulPin(contactedAfter.db, USER, "c-1", NOW);
+    expect(contactedAfter.writes).toEqual([]);
+
+    const skippedAfter = pins([
+      pin("p-1", "expired", "2026-10-19T10:00:00.000Z"),
+      pin("p-2", "skipped", "2026-10-19T14:00:00.000Z"),
+      pin("p-3", "skipped", "2026-10-19T12:00:00.000Z"),
+    ]);
+    expect((await reopenHandfulPin(skippedAfter.db, USER, "c-1", NOW)).id).toBe("p-2");
+    expect(skippedAfter.tables[PINS].map((r) => r.handled_how)).toEqual(["expired", null, "skipped"]);
+  });
+
+  it("touches only this user's pin for this client", async () => {
+    const { db, tables } = pins([
+      pin("p-other-client", "skipped", "2026-10-19T14:00:00.000Z", { client_id: "c-2" }),
+      pin("p-other-user", "skipped", "2026-10-19T14:00:00.000Z", { user_id: "someone-else" }),
+    ]);
+    expect(await reopenHandfulPin(db, USER, "c-1", NOW)).toMatchObject({ ok: true });
+    expect(tables[PINS].map((r) => r.handled_how)).toEqual(["skipped", "skipped"]);
+  });
+
+  it("nothing pinned is nothing to reopen", async () => {
+    const { db, writes } = pins([]);
+    expect(await reopenHandfulPin(db, USER, "c-1", NOW)).toMatchObject({ ok: true });
+    expect(writes).toEqual([]);
+  });
+
+  it("asks for the client", async () => {
+    const { db } = pins([]);
+    expect(await reopenHandfulPin(db, USER, "", NOW)).toEqual({ ok: false, message: "Pick the client first." });
+  });
+
+  it("never throws: a dropped connection is offline, a refusal is not, a throw is reported", async () => {
+    const rows = [pin("p-1", "skipped", "2026-10-19T14:00:00.000Z")];
+    const offline = pins(rows, { offline: [PINS] });
+    expect(await reopenHandfulPin(offline.db, USER, "c-1", NOW)).toMatchObject({ ok: false, offline: true });
+    const refused = pins(rows, { fail: { [PINS]: { code: "42501", message: "rls" } } });
+    expect(await reopenHandfulPin(refused.db, USER, "c-1", NOW)).toMatchObject({ ok: false, offline: false, code: "42501" });
+    const broken = { from() { throw new Error("boom"); } };
+    expect(await reopenHandfulPin(broken, USER, "c-1", NOW)).toMatchObject({ ok: false });
+  });
+
+  it("reads the clock itself when it isn't given one", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+    const { db, tables } = pins([pin("p-1", "skipped", "2026-10-19T14:00:00.000Z")]);
+    expect(await reopenHandfulPin(db, USER, "c-1")).toMatchObject({ ok: true, id: "p-1" });
+    expect(tables[PINS][0]).toMatchObject({ handled_at: null, handled_how: null });
+  });
+
+  afterEach(() => { vi.useRealTimers(); });
 });

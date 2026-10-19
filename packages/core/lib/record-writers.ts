@@ -42,7 +42,7 @@ import { activityRow, clientRow, contactTaskRow, mileageRow, receiptExpenseRow, 
 import { FIELD_LIMITS, validateCommissionPaidDate } from "../validation/input-guards";
 import type { ActivityType, PipelineStage, TaskPriority } from "../types/database";
 import { isIsoDay } from "./capture/dates";
-import { atlanticISODate } from "./local-date";
+import { atlanticDayStart, atlanticISODate } from "./local-date";
 import { HOLD_OPPORTUNITY_TYPE, type OpportunityKeyParts } from "./suggestion-dismissals";
 import {
   defaultVehicleFor,
@@ -967,6 +967,83 @@ export async function restoreClientFromHangar(
     return { ok: true, message: `${name} is back from the Hangar.`, id: args.clientId };
   } catch (err) {
     return thrown("bring the client back from the Hangar", err);
+  }
+}
+
+/** How a sync closes a pin when the agent skips, stops or archives the client. */
+const REOPENABLE_HOWS: readonly string[] = ["skipped", "stopped", "archived"];
+
+/**
+ * Undo's second half (R11): puts the client back on today's handful.
+ *
+ * A sync can close the client's pin as `skipped`, `stopped` or `archived`
+ * (next_up_handful, 00188) before the agent taps Undo. Undoing the skip, the
+ * Stop or the Hangar move then removes the dismissal, but the client counts as
+ * handled today and isn't picked again until tomorrow. This clears
+ * handled_at and handled_how on the client's latest pin closed since the
+ * Atlantic day began, when that pin was closed one of those three ways. A pin
+ * closed as `contacted` (the agent did reach them) or `expired` is never
+ * reopened, and neither is an earlier pin when a later one was closed another
+ * way.
+ *
+ * Nothing to do (no such pin, or the client already has an open pin) is
+ * `ok: true`. The partial unique index allows one open pin per client, so a
+ * pin another surface opened between the read and the update (23505) also
+ * counts as already open. Call it after the undo writer succeeded; a failure
+ * here is reported, never thrown.
+ */
+export async function reopenHandfulPin(
+  db: DbClient,
+  userId: string,
+  clientId: string,
+  now: Date = new Date(),
+): Promise<WriteOutcome> {
+  if (!clientId) return fail("Pick the client first.");
+  try {
+    const { data: open, error: openError } = await db
+      .from("next_up_handful")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("client_id", clientId)
+      .is("handled_at", null)
+      .limit(1);
+    if (openError) return refused("check today's list", openError);
+    if (Array.isArray(open) && open.length > 0) return { ok: true, message: "They are already on today's list." };
+
+    const dayStart = atlanticDayStart(atlanticISODate(now)).toISOString();
+    const { data: closed, error: closedError } = await db
+      .from("next_up_handful")
+      .select("id, handled_at, handled_how")
+      .eq("user_id", userId)
+      .eq("client_id", clientId)
+      .gte("handled_at", dayStart);
+    if (closedError) return refused("check today's list", closedError);
+
+    // Newest close first; a row whose time can't be read can't be the latest.
+    const latest = (Array.isArray(closed) ? (closed as Array<{ id?: unknown; handled_at?: unknown; handled_how?: unknown }>) : [])
+      .map((r) => ({ id: typeof r.id === "string" ? r.id : "", at: typeof r.handled_at === "string" ? Date.parse(r.handled_at) : NaN, how: r.handled_how }))
+      .filter((r) => r.id && Number.isFinite(r.at))
+      .sort((a, b) => b.at - a.at)[0];
+    if (!latest || typeof latest.how !== "string" || !REOPENABLE_HOWS.includes(latest.how)) {
+      return { ok: true, message: "Nothing to put back on today's list." };
+    }
+
+    const { data, error } = await db
+      .from("next_up_handful")
+      .update({ handled_at: null, handled_how: null })
+      .eq("id", latest.id)
+      .eq("user_id", userId)
+      // Only while it is still closed, so a pin another surface already opened isn't rewritten.
+      .not("handled_at", "is", null)
+      .select("id");
+    if (error) {
+      if (error.code === "23505") return { ok: true, message: "They are already on today's list." };
+      return refused("put them back on today's list", error);
+    }
+    if (Array.isArray(data) && data.length === 0) return { ok: true, message: "Nothing to put back on today's list." };
+    return { ok: true, message: "Back on today's list.", id: latest.id };
+  } catch (err) {
+    return thrown("put them back on today's list", err);
   }
 }
 

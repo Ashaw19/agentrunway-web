@@ -2,6 +2,7 @@ import { afterEach, describe, it, expect, vi } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   opportunityKey, withoutDismissed, dismissOpportunity, undismissOpportunity, holdSuggestion, resumeSuggestion,
+  moveToHangar, bringBackFromHangar, reopenTodaysPin,
 } from "../dismissed-opportunities";
 import { fakeDb, type FakeDbOptions, type Row } from "../../../../../packages/core/lib/__tests__/helpers/capture-fake-db";
 
@@ -188,6 +189,55 @@ describe("holdSuggestion and resumeSuggestion", () => {
     const { supabase, writes } = supabaseFor({ userId: null });
     expect(await holdSuggestion(supabase, args(new Date(Date.now() + 3_600_000)))).toMatchObject({ ok: false });
     expect(await resumeSuggestion(supabase, "c1")).toMatchObject({ ok: false });
+    expect(writes).toHaveLength(0);
+  });
+});
+
+// ── The Hangar and today's pin: the same hand-off for the rest of the menu ──
+
+describe("moveToHangar, bringBackFromHangar and reopenTodaysPin", () => {
+  const CLIENTS = "clients";
+  const PINS = "next_up_handful";
+  const sam = { clientId: "c1", clientName: "Sam Lee" };
+
+  function supabaseWith(seed: Record<string, Row[]>, userId: string | null = "u1") {
+    const fake = fakeDb(seed);
+    const supabase = {
+      from: fake.db.from,
+      auth: { getUser: async () => ({ data: { user: userId === null ? null : { id: userId } } }) },
+    } as unknown as SupabaseClient;
+    return { supabase, ...fake };
+  }
+  const client = (extra: Row = {}) => ({ id: "c1", user_id: "u1", name: "Sam Lee", archived_at: null, archive_reason: null, ...extra });
+
+  it("moves the signed-in user's client to the Hangar with the reason 'other'", async () => {
+    const { supabase, tables } = supabaseWith({ [CLIENTS]: [client()] });
+    expect(await moveToHangar(supabase, sam)).toMatchObject({ ok: true, message: "Sam Lee moved to the Hangar." });
+    expect(tables[CLIENTS][0]).toMatchObject({ archive_reason: "other", archived_at: expect.any(String) });
+  });
+
+  it("brings back only a client moved by this menu", async () => {
+    const mine = supabaseWith({ [CLIENTS]: [client({ archived_at: "2026-10-19T15:00:00.000Z", archive_reason: "other" })] });
+    expect(await bringBackFromHangar(mine.supabase, sam)).toMatchObject({ ok: true });
+    expect(mine.tables[CLIENTS][0]).toMatchObject({ archived_at: null, archive_reason: null });
+    const theirs = supabaseWith({ [CLIENTS]: [client({ archived_at: "2026-10-19T15:00:00.000Z", archive_reason: "do_not_contact" })] });
+    expect(await bringBackFromHangar(theirs.supabase, sam)).toMatchObject({ ok: false });
+    expect(theirs.tables[CLIENTS][0]).toMatchObject({ archive_reason: "do_not_contact" });
+  });
+
+  it("reopens today's pin for the signed-in user", async () => {
+    vi.useFakeTimers({ now: new Date("2026-10-19T15:00:00.000Z"), toFake: ["Date"] });
+    const pin = { id: "p1", user_id: "u1", client_id: "c1", handled_at: "2026-10-19T14:00:00.000Z", handled_how: "skipped" };
+    const { supabase, tables } = supabaseWith({ [PINS]: [pin] });
+    expect(await reopenTodaysPin(supabase, "c1")).toMatchObject({ ok: true, id: "p1" });
+    expect(tables[PINS][0]).toMatchObject({ handled_at: null, handled_how: null });
+  });
+
+  it("all three refuse when nobody is signed in", async () => {
+    const { supabase, writes } = supabaseWith({ [CLIENTS]: [client()], [PINS]: [] }, null);
+    expect(await moveToHangar(supabase, sam)).toMatchObject({ ok: false });
+    expect(await bringBackFromHangar(supabase, sam)).toMatchObject({ ok: false });
+    expect(await reopenTodaysPin(supabase, "c1")).toMatchObject({ ok: false });
     expect(writes).toHaveLength(0);
   });
 });
