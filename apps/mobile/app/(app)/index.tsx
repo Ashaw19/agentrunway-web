@@ -8,88 +8,50 @@ import {
   RefreshControl,
   StyleSheet,
   TextInput,
-  type DimensionValue,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter, useFocusEffect } from "expo-router";
 import { useAuth } from "@/lib/auth-context";
 import { useDataStore } from "@/stores/data-store";
-import type { Client, BriefingItem, ContactTask } from "@/stores/data-store";
-import { useToastStore } from "@/stores/toast-store";
-import { CompleteTaskSheet } from "@/components/CompleteTaskSheet";
-import {
-  RUNWAY_SCORE_BANDS,
-  bandColorHexForScore,
-  stateLabel as runwayStateLabel,
-} from "@agent-runway/core/engines/runway-score-engine";
-import { BriefingRow } from "@/components/BriefingRow";
-import { ScoreBreakdownSheet } from "@/components/ScoreBreakdownSheet";
+import type { Client } from "@/stores/data-store";
+import { useNextUpStore } from "@/stores/next-up-store";
 import { useOfflineQueueStore } from "@/stores/offline-queue";
-import { AnimatedGauge } from "@/components/ui/AnimatedGauge";
-import Animated, {
-  Easing,
-  useAnimatedStyle,
-  useReducedMotion,
-  useSharedValue,
-  withDelay,
-  withSpring,
-  withTiming,
-} from "react-native-reanimated";
-import {
-  AlertCircle,
-  Clock,
-  Mail,
-  Handshake,
-  UserCheck,
-  CheckCircle2,
-  Plus,
-  TrendingUp,
-  ArrowRight,
-  Briefcase,
-  Users,
-  Sparkles,
-  Send,
-  Receipt,
-} from "lucide-react-native";
+import { Plus } from "lucide-react-native";
 import {
   useColors,
   useTheme,
-  gradients,
   shadows,
-  shiftHex,
   Space,
   Radius,
   Type,
-  fmtCurrency,
-  fmtCompact,
 } from "@/lib/theme";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Sheet } from "@/components/ui/Sheet";
 import { Avatar } from "@/components/ui/Avatar";
 import { FadeIn } from "@/components/ui/FadeIn";
-import { Sparkline } from "@/components/ui/Sparkline";
 import * as Haptics from "expo-haptics";
 import { useTranslation } from "react-i18next";
-import { computeGCI } from "@agent-runway/core/types/database";
+import {
+  buildNextUp,
+  type NextUpAction,
+  type NextUpCard as NextUpCardData,
+  type SectionKey,
+} from "@agent-runway/core/lib/next-up/build";
+import { nextUpClock } from "@/lib/next-up-clock";
+import {
+  ACTION_ROUTES,
+  SECTION_ROUTES,
+  checklistRowHasOverdue,
+  nextUpInput,
+  snoozeEndedBetween,
+} from "@/lib/next-up-view";
+import { WelcomeHeader } from "@/components/next-up/WelcomeHeader";
+import { NextUpStack } from "@/components/next-up/NextUpStack";
+import { AlsoWaitingList } from "@/components/next-up/AlsoWaitingList";
+import { AllClearCard } from "@/components/next-up/AllClearCard";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
-
-function getGreetingKey(): string {
-  const h = new Date().getHours();
-  if (h < 12) return "greeting.morning";
-  if (h < 17) return "greeting.afternoon";
-  return "greeting.evening";
-}
-
-function isOverdue(dateStr: string): boolean {
-  // `contact_tasks.due_date` is date-only. Parsed bare it becomes UTC midnight —
-  // which is the previous day locally in every Canadian zone — so a task due
-  // TODAY compared against local midnight reads as overdue. Anchor at local noon.
-  // Web decides this by string compare against today's ISO date
-  // (dashboard-content.tsx:1936, crm-dashboard-tab.tsx:985); same semantics.
-  return new Date(dateStr + "T12:00:00") < new Date(new Date().toDateString());
-}
 
 function formatLastSyncedKey(ts: number): { key: string; count?: number } {
   const ago = Date.now() - ts;
@@ -98,286 +60,8 @@ function formatLastSyncedKey(ts: number): { key: string; count?: number } {
   return { key: "status.updatedMinAgo", count: mins };
 }
 
-// Two parallel band schemes — both derived from canonical engine constants in
-// `packages/core/engines/runway-score-engine.ts`. See
-// `memory/spec_runway_score_canonical_bands.md` §4.4 for why.
-//
-// - `grade` (visual-shorthand glyph: A+ / A / B / C / D / F) is keyed off
-//   stricter thresholds (92/85/75/62/50). Allowed ONLY in the gauge chip.
-// - `label` (prose: Strong / On Track / Building / At Risk) is keyed off
-//   stateLabel thresholds (81/61/41). The ONLY scheme allowed in prose, and
-//   the scheme the band COLOR follows.
-//
-// Score 76 → grade "B" + label "On Track" + blue color (not Strong/emerald).
-// Score 80 → grade "B" + label "On Track" + blue (boundary case — intentional).
-const SCORE_LABEL_KEY: Record<"Strong" | "On Track" | "Building" | "At Risk", string> = {
-  "Strong": "score.strong",
-  "On Track": "score.onTrack",
-  "Building": "score.building",
-  "At Risk": "score.atRisk",
-};
-
-function gradeGlyph(score: number): string {
-  if (!isFinite(score)) return "—";
-  for (const band of RUNWAY_SCORE_BANDS.grade) {
-    if (score >= band.min) return band.glyph;
-  }
-  return RUNWAY_SCORE_BANDS.grade[RUNWAY_SCORE_BANDS.grade.length - 1].glyph;
-}
-
-function runwayScoreMeta(
-  score: number,
-  snapshotGrade: string | undefined,
-  snapshotStateLabel: "Strong" | "On Track" | "Building" | "At Risk" | undefined,
-): { grade: string; labelKey: string; color: string } {
-  // Prefer the values the web engine emitted into the snapshot. Fall back to
-  // engine-backed derivation when reading a legacy snapshot pre-PR #147.
-  const grade = snapshotGrade ?? gradeGlyph(score);
-  const label = snapshotStateLabel ?? runwayStateLabel(score);
-  return {
-    grade,
-    labelKey: SCORE_LABEL_KEY[label],
-    color: bandColorHexForScore(score),
-  };
-}
-
-// ── Runway Score Gauge ────────────────────────────────────────────────────
-//
-// The cockpit instrument. Thin wrapper over AnimatedGauge so the hero card
-// call-site stays declarative. The gauge arc gradient + glow follow the
-// canonical band color (was a fixed gold ring pre-redesign — now band-aware
-// so the instrument reads "amber/Building" vs "blue/On Track" at a glance).
-// All motion + reduced-motion handling lives in AnimatedGauge.
-
-function RunwayGauge({
-  score,
-  bandColor,
-  textColor,
-  dimColor,
-  mode,
-}: {
-  score: number;
-  bandColor: string;
-  textColor: string;
-  dimColor: string;
-  mode: "light" | "dark";
-}) {
-  return (
-    <AnimatedGauge
-      score={score}
-      bandColor={bandColor}
-      textColor={textColor}
-      dimColor={dimColor}
-      mode={mode}
-    />
-  );
-}
-
-// ── Quick Access Shortcut Tile ──────────────────────────────────────────────
-//
-// Surfaces high-frequency screens currently buried two-deep under the More
-// tab (Profile → sub-route). Cheap option for parity-audit red flag #5 —
-// purely additive navigation, the long-path More-tab routes still work.
-
-const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
-
-const TILE_STAGGER_MS = 60;
-
-function QuickAccessTile({
-  label,
-  icon: Icon,
-  color,
-  onPress,
-  accessibilityLabel,
-  index,
-  c,
-  sh,
-}: {
-  label: string;
-  icon: typeof Sparkles;
-  color: string;
-  onPress: () => void;
-  accessibilityLabel: string;
-  index: number;
-  c: ReturnType<typeof useColors>;
-  sh: ReturnType<typeof shadows>;
-}) {
-  const reduceMotion = useReducedMotion();
-  // Entrance: fade + translateY up, staggered by index.
-  const enter = useSharedValue(reduceMotion ? 1 : 0);
-  // Press: spring scale-down for tactile feedback.
-  const pressScale = useSharedValue(1);
-
-  useEffect(() => {
-    if (reduceMotion) {
-      enter.value = 1;
-      return;
-    }
-    enter.value = 0;
-    enter.value = withDelay(
-      index * TILE_STAGGER_MS,
-      withTiming(1, { duration: 360, easing: Easing.out(Easing.cubic) })
-    );
-  }, [reduceMotion, index, enter]);
-
-  const animStyle = useAnimatedStyle(() => ({
-    opacity: enter.value,
-    transform: [
-      { translateY: (1 - enter.value) * 12 },
-      { scale: pressScale.value },
-    ],
-  }));
-
-  return (
-    <AnimatedPressable
-      onPress={() => {
-        try { Haptics.selectionAsync(); } catch {}
-        onPress();
-      }}
-      onPressIn={() => {
-        if (!reduceMotion) pressScale.value = withSpring(0.96, { damping: 15, stiffness: 400 });
-      }}
-      onPressOut={() => {
-        if (!reduceMotion) pressScale.value = withSpring(1, { damping: 12, stiffness: 320 });
-      }}
-      accessibilityRole="button"
-      accessibilityLabel={accessibilityLabel}
-      style={[
-        {
-          flex: 1,
-          minHeight: 64, // > 44pt tap target floor
-          backgroundColor: c.card,
-          borderRadius: Radius.lg,
-          borderWidth: 1,
-          borderColor: c.cardBorder,
-          paddingVertical: Space.md,
-          paddingHorizontal: Space.sm,
-          alignItems: "center",
-          justifyContent: "center",
-          gap: 6,
-        },
-        sh.card,
-        animStyle,
-      ]}
-    >
-      {/* Icon chip with a subtle gradient (band tint → deeper) for inner depth
-          instead of a flat tint disc. */}
-      <LinearGradient
-        colors={[color + "44", color + "22"]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={{
-          width: 28,
-          height: 28,
-          borderRadius: 14,
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        <Icon size={15} color={color} strokeWidth={2.2} />
-      </LinearGradient>
-      <Text
-        style={{ fontSize: 11, fontWeight: "700", color: c.text, letterSpacing: 0.2 }}
-        numberOfLines={1}
-      >
-        {label}
-      </Text>
-    </AnimatedPressable>
-  );
-}
-
-// ── Action Pill ─────────────────────────────────────────────────────────────
-
-function ActionPill({
-  count,
-  label,
-  color,
-  icon: Icon,
-  onPress,
-}: {
-  count: number;
-  label: string;
-  color: string;
-  icon: typeof AlertCircle;
-  onPress: () => void;
-}) {
-  const reduceMotion = useReducedMotion();
-  const pressScale = useSharedValue(1);
-  const pressStyle = useAnimatedStyle(() => ({ transform: [{ scale: pressScale.value }] }));
-
-  return (
-    <AnimatedPressable
-      onPress={onPress}
-      onPressIn={() => {
-        if (!reduceMotion) pressScale.value = withSpring(0.95, { damping: 15, stiffness: 400 });
-      }}
-      onPressOut={() => {
-        if (!reduceMotion) pressScale.value = withSpring(1, { damping: 12, stiffness: 320 });
-      }}
-      style={[
-        {
-          height: 36,
-          borderRadius: 18,
-          overflow: "hidden",
-          marginRight: Space.sm,
-          borderWidth: 1,
-          borderColor: color + "99",
-        },
-        pressStyle,
-      ]}
-    >
-      {/* Gradient tint (deeper → lighter band sibling) so the pill reads as a
-          lit control surface, not a flat chip. */}
-      <LinearGradient
-        colors={[color + "66", color + "33"]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={{
-          flex: 1,
-          flexDirection: "row",
-          alignItems: "center",
-          paddingHorizontal: Space.md,
-          gap: 6,
-        }}
-      >
-        <Icon size={13} color={color} />
-        <Text style={{ color, fontSize: 12, fontWeight: "800" }}>
-          {count} {label}
-        </Text>
-      </LinearGradient>
-    </AnimatedPressable>
-  );
-}
-
-function AllCaughtUpPill({ color, label }: { color: string; label: string }) {
-  return (
-    <View
-      style={{
-        height: 36,
-        borderRadius: 18,
-        overflow: "hidden",
-        borderWidth: 1,
-        borderColor: color + "99",
-      }}
-    >
-      <LinearGradient
-        colors={[color + "66", color + "33"]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={{
-          flex: 1,
-          flexDirection: "row",
-          alignItems: "center",
-          paddingHorizontal: Space.md,
-          gap: 6,
-        }}
-      >
-        <CheckCircle2 size={13} color={color} />
-        <Text style={{ color, fontSize: 12, fontWeight: "800" }}>{label}</Text>
-      </LinearGradient>
-    </View>
-  );
-}
+/** How often the dashboard re-reads the clock: the band, what comes back from Later, "Updated". */
+const CLOCK_TICK_MS = 30_000;
 
 // ── Activity Type Pill Selector ─────────────────────────────────────────────
 
@@ -624,50 +308,52 @@ function DashboardSkeleton() {
   const c = useColors();
   return (
     <View style={{ flex: 1, backgroundColor: c.bg, paddingHorizontal: Space.xl, paddingTop: Space.lg }}>
-      <Skeleton width={180} height={20} borderRadius={Radius.sm} />
-      <Skeleton width={260} height={36} borderRadius={Radius.sm} style={{ marginTop: Space.sm }} />
-      <Skeleton width={100} height={12} borderRadius={Radius.sm} style={{ marginTop: Space.sm, marginBottom: Space.xl }} />
-      {/* Score card skeleton */}
-      <Skeleton width="100%" height={200} borderRadius={Radius.xl} style={{ marginBottom: Space.xl }} />
-      {/* Metrics row */}
-      <View style={{ flexDirection: "row", gap: Space.md, marginBottom: Space.xl }}>
-        <Skeleton width="48%" height={80} borderRadius={Radius.lg} />
-        <Skeleton width="48%" height={80} borderRadius={Radius.lg} />
-      </View>
-      <Skeleton width="100%" height={6} borderRadius={3} style={{ marginBottom: Space.xl }} />
-      <Skeleton width="100%" height={72} borderRadius={Radius.lg} />
+      <Skeleton width={90} height={10} borderRadius={Radius.sm} />
+      <Skeleton width={240} height={30} borderRadius={Radius.sm} style={{ marginTop: Space.sm }} />
+      <Skeleton width={150} height={24} borderRadius={Radius.pill} style={{ marginTop: Space.sm }} />
+      <Skeleton width={170} height={12} borderRadius={Radius.sm} style={{ marginTop: Space.sm, marginBottom: Space.xl }} />
+      {/* Next up card */}
+      <Skeleton width="100%" height={176} borderRadius={22} style={{ marginBottom: Space.xl }} />
+      {/* Also waiting */}
+      <Skeleton width="100%" height={168} borderRadius={Radius.xl} />
     </View>
   );
 }
 
 // ── Main ─────────────────────────────────────────────────────────────────────
+//
+// Top to bottom: the welcome (mark, greeting, one line of context, the day's
+// progress and streak), the sync status, the Next up stack, "Also waiting",
+// the all-clear card when the stack is empty, and the "+" Quick Capture.
+// Everything renders from the cached stores at once and refreshes behind.
 
 export default function DashboardScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const { mode } = useTheme();
   const c = useColors();
-  const g = gradients(mode);
   const sh = shadows(mode);
   const { t } = useTranslation("home");
   const { t: tCommon } = useTranslation("common");
 
   const {
     fetchAll, fetchOutreach, fetchReceipts, isLoading, lastFetched,
-    settings, transactions, pipeline, tasks, clients, briefings,
-    outreachReadyCount, ytdGci, ytdDealCount, pipelineValue, runwayScore,
-    todayBriefing, todayActivityCount, contactStreak, markTaskDone,
+    settings, transactions, pipeline, tasks, clients, clientRecords, briefings,
+    receipts, outreachQueue, schedule, tripsLoggedToday,
+    todayBriefing, contactStreak,
   } = useDataStore();
+  const { payload, localSnoozes, voiceNoteDoneOn, fetchNextUp } = useNextUpStore();
   const [refreshing, setRefreshing] = useState(false);
-  const [, setTick] = useState(0);
+  const [now, setNow] = useState(() => new Date());
   const [showCapture, setShowCapture] = useState(false);
-  const [showScoreBreakdown, setShowScoreBreakdown] = useState(false);
+  // False only for the first frame, before the first refresh has begun.
+  const [started, setStarted] = useState(false);
 
-  useEffect(() => { fetchAll(); fetchOutreach(); fetchReceipts(); }, []);
+  useEffect(() => { fetchAll(); fetchOutreach(); fetchReceipts(); setStarted(true); }, []);
   useFocusEffect(useCallback(() => { fetchAll(); fetchOutreach(); fetchReceipts(); }, []));
 
   useEffect(() => {
-    const interval = setInterval(() => setTick((t) => t + 1), 30_000);
+    const interval = setInterval(() => setNow(new Date()), CLOCK_TICK_MS);
     return () => clearInterval(interval);
   }, []);
 
@@ -675,6 +361,8 @@ export default function DashboardScreen() {
   useEffect(() => {
     const sub = AppState.addEventListener("change", (nextState) => {
       if (appStateRef.current.match(/inactive|background/) && nextState === "active") {
+        // Back in front: the band may have moved and a Later may have run out.
+        setNow(new Date());
         const lf = useDataStore.getState().lastFetched;
         if (!lf || Date.now() - lf > 2 * 60 * 1000) {
           fetchAll();
@@ -689,111 +377,65 @@ export default function DashboardScreen() {
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await Promise.all([fetchAll(), fetchOutreach(), fetchReceipts()]);
+    await Promise.all([fetchAll(), fetchOutreach(), fetchReceipts(), fetchNextUp({ force: true })]);
     setRefreshing(false);
   };
 
-  const gci = ytdGci();
-  const deals = ytdDealCount();
-  const pending = transactions.filter((t) => t.status === "pending").length;
-  const pipVal = pipelineValue();
-  const goalGci = settings?.goal_gci ?? 0;
-  const goalPct = goalGci > 0 ? Math.round((gci / goalGci) * 100) : 0;
+  // Next up, rebuilt from the stores on every change and every clock tick.
+  // `briefings` is listed because todayBriefing() reads it.
+  const { clock, view } = useMemo(() => {
+    const clock = nextUpClock(now);
+    const view = buildNextUp(nextUpInput({
+      clients, tasks, pipeline, clientRecords, receipts, outreachQueue, schedule, tripsLoggedToday,
+      briefingCount: todayBriefing().length,
+      payload, localSnoozes, voiceNoteDoneOn,
+    }, clock, now));
+    return { clock, view };
+  }, [now, clients, tasks, pipeline, clientRecords, receipts, outreachQueue, schedule, tripsLoggedToday,
+      briefings, todayBriefing, payload, localSnoozes, voiceNoteDoneOn]);
+
+  // A handful client's Later ran out while the screen was open: ask the
+  // server again, so their card gets its Text button and Skip back.
+  const laterCheckedAt = useRef(Date.now());
+  useEffect(() => {
+    const nowMs = now.getTime();
+    if (snoozeEndedBetween(payload?.snoozed ?? [], laterCheckedAt.current, nowMs)) void fetchNextUp({ force: true });
+    laterCheckedAt.current = Math.max(laterCheckedAt.current, nowMs);
+  }, [now, payload, fetchNextUp]);
+
   const displayName = settings?.display_name ?? user?.email?.split("@")[0] ?? "Agent";
-  const outreachCount = outreachReadyCount;
-  const score = runwayScore();
-  const snapshot = settings?.runway_score_snapshot;
-  const meta = runwayScoreMeta(score, snapshot?.grade, snapshot?.stateLabel);
+  const streak = contactStreak();
+  const checklistOverdue = checklistRowHasOverdue(view, tasks, clock.today);
 
   const { pendingCount: offlinePending, isOnline } = useOfflineQueueStore();
 
-  const nextTask = tasks[0] ?? null;
-  const overdueTasks = tasks.filter((t) => t.due_date && isOverdue(t.due_date));
+  // The skeleton only covers a first open with nothing cached at all, until
+  // that first refresh ends (an empty "all caught up" would be wrong there).
+  const hasCache = !!settings || clients.length > 0 || tasks.length > 0 || transactions.length > 0
+    || pipeline.length > 0 || !!payload;
+  const showSkeleton = !lastFetched && !hasCache && (isLoading || !started);
 
-  // Tick off the next Checklist item: a client item opens the tick-off sheet
-  // (contact logged on their profile); a general one is done in one tap.
-  const [tickingTask, setTickingTask] = useState<ContactTask | null>(null);
-  const tickNextTask = async (task: ContactTask) => {
-    if (task.client_id) {
-      setTickingTask(task);
+  const handleAction = useCallback((action: NextUpAction, card: NextUpCardData) => {
+    const href = ACTION_ROUTES[action];
+    if (href) {
+      router.push(href);
       return;
     }
-    if (await markTaskDone(task)) useToastStore.getState().show(t("nextUp.ticked"), "success");
-  };
-
-  const followUpsDue = useMemo(() => {
-    const cutoff = Date.now() - 14 * 24 * 60 * 60 * 1000;
-    return clients.filter((cl) => {
-      if (!cl.last_contact_at) return true;
-      return new Date(cl.last_contact_at).getTime() < cutoff;
-    }).length;
-  }, [clients]);
-
-  const actionItems = useMemo(() => {
-    const items: { key: string; count: number; label: string; color: string; icon: typeof AlertCircle; route: string }[] = [];
-    if (overdueTasks.length > 0) items.push({ key: "overdue", count: overdueTasks.length, label: t("actions.overdue"), color: "#EF4444", icon: AlertCircle, route: "/profile/checklist" });
-    if (outreachCount > 0) items.push({ key: "messages", count: outreachCount, label: t("actions.ready"), color: "#6366F1", icon: Mail, route: "/profile/outreach" });
-    if (pending > 0) items.push({ key: "pending", count: pending, label: t("actions.pending"), color: "#F59E0B", icon: Handshake, route: "/deals" });
-    if (followUpsDue > 0) items.push({ key: "followups", count: followUpsDue, label: t("actions.followUps"), color: "#06B6D4", icon: UserCheck, route: "/clients" });
-    return items;
-  }, [overdueTasks.length, outreachCount, pending, followUpsDue]);
-
-  const briefing = useMemo(
-    () => todayBriefing(),
-    // `briefings` is the engine-fetched cache; include so the memo
-    // recomputes when /api/mobile/briefing resolves (audit red flag #3).
-    [clients, pipeline, tasks, briefings, todayBriefing]
-  );
-  const streak = contactStreak();
-  const todayCount = todayActivityCount();
-
-  // Sparkline data: monthly GCI trend from closed transactions
-  const gciSparkData = useMemo(() => {
-    const now = new Date();
-    const year = now.getFullYear();
-    const monthCount = Math.max(now.getMonth() + 1, 2);
-    const months = new Array(monthCount).fill(0);
-    for (const t of transactions) {
-      if (t.status !== "closed") continue;
-      // Local-noon anchor — `transactions.date` is date-only; a bare `new Date()`
-      // resolves to UTC midnight = the previous day in every Canadian zone, so a
-      // Jan 1 close falls out of the year and every 1st-of-month deal lands in the
-      // wrong bucket. Web anchors the same way (dashboard-content.tsx:243).
-      const d = new Date(t.date + "T12:00:00");
-      if (d.getFullYear() === year) {
-        const gci = computeGCI(t);
-        months[d.getMonth()] += gci;
-      }
+    if (action === "open_client") {
+      router.push(card.clientId ? { pathname: "/clients", params: { clientId: card.clientId } } : "/clients");
+      return;
     }
-    return months;
-  }, [transactions]);
+    // Call, Text, Later, Not now, Mark one done and Record a note are not
+    // wired here yet: they come with the card actions and their sheets.
+  }, [router]);
 
-  // Sparkline data: monthly deal count
-  const dealSparkData = useMemo(() => {
-    const now = new Date();
-    const year = now.getFullYear();
-    const monthCount = Math.max(now.getMonth() + 1, 2);
-    const months = new Array(monthCount).fill(0);
-    for (const t of transactions) {
-      if (t.status !== "closed") continue;
-      const d = new Date(t.date + "T12:00:00"); // date-only column — see gciSparkData
-      if (d.getFullYear() === year) months[d.getMonth()]++;
-    }
-    return months;
-  }, [transactions]);
+  const handleOpenSection = useCallback((section: SectionKey) => {
+    try { Haptics.selectionAsync(); } catch {}
+    router.push(SECTION_ROUTES[section]);
+  }, [router]);
 
-  const handleBriefingPress = useCallback(
-    (item: BriefingItem) => {
-      if (item.type === "hot_pipeline") {
-        router.push("/deals");
-      } else if (item.clientId) {
-        router.push("/clients");
-      } else if (item.type === "task_due_today") {
-        router.push("/profile/checklist");
-      }
-    },
-    [router]
-  );
+  // Marking the Checklist row's one task done comes with the card actions.
+  const handleSwipeDone = useCallback((_taskId: string) => {}, []);
 
   const handleFabPress = () => {
     try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
@@ -802,7 +444,7 @@ export default function DashboardScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: c.bg }}>
-      {isLoading && transactions.length === 0 && pipeline.length === 0 && (
+      {showSkeleton && (
         <View style={[StyleSheet.absoluteFill, { zIndex: 10, backgroundColor: c.bg }]}>
           <DashboardSkeleton />
         </View>
@@ -813,23 +455,15 @@ export default function DashboardScreen() {
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={c.primary} />}
       >
-        {/* ── 1. Greeting ── */}
+        {/* ── 1. Welcome: mark, greeting, context, progress (top-right kept for the score badge) ── */}
         <FadeIn delay={0}>
-          <View style={{ paddingTop: Space.lg }}>
-            {/* Agent Runway brand mark */}
-            <View style={{ flexDirection: "row", alignItems: "center", marginBottom: Space.sm }}>
-              <Text style={{ fontSize: 10, fontWeight: "700", letterSpacing: 1.5, color: c.textMuted }}>
-                AGENT
-              </Text>
-              <Text style={{ fontSize: 10, fontWeight: "700", letterSpacing: 1.5, color: c.primary, marginLeft: 4 }}>
-                RUNWAY
-              </Text>
-            </View>
-            <Text style={{ ...Type.caption, color: c.textDim }}>{t(getGreetingKey())}</Text>
-            <Text style={{ ...Type.hero, color: c.text, marginTop: 2 }} numberOfLines={1}>
-              {displayName.split(" ")[0]}
-            </Text>
-          </View>
+          <WelcomeHeader
+            firstName={displayName.split(" ")[0]}
+            band={clock.band}
+            context={view.context}
+            progress={view.progress}
+            streak={streak}
+          />
         </FadeIn>
 
         {/* ── 2. Sync status ── */}
@@ -852,406 +486,34 @@ export default function DashboardScreen() {
                   : ""}
         </Text>
 
-        {/* ── 2b. Activity Streak (positive reinforcement) ── */}
-        {(todayCount > 0 || streak >= 2) && (
-          <View
-            style={{
-              flexDirection: "row",
-              gap: Space.sm,
-              marginBottom: Space.lg,
-            }}
-          >
-            {todayCount > 0 && (
-              <View
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: 5,
-                  backgroundColor: c.successDim,
-                  paddingHorizontal: Space.md,
-                  paddingVertical: Space.xs + 1,
-                  borderRadius: Radius.pill,
-                  borderWidth: 1,
-                  borderColor: "rgba(16,185,129,0.40)",
-                }}
-              >
-                <CheckCircle2 size={12} color={c.success} />
-                <Text
-                  style={{
-                    fontSize: 11,
-                    fontWeight: "700",
-                    color: c.success,
-                  }}
-                >
-                  {t("streak.loggedToday", { count: todayCount })}
-                </Text>
-              </View>
-            )}
-            {streak >= 2 && (
-              <View
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: 5,
-                  backgroundColor: c.goldDim,
-                  paddingHorizontal: Space.md,
-                  paddingVertical: Space.xs + 1,
-                  borderRadius: Radius.pill,
-                  borderWidth: 1,
-                  borderColor: "rgba(240,168,0,0.40)",
-                }}
-              >
-                <Text style={{ fontSize: 11 }}>
-                  {streak >= 7 ? "\uD83D\uDD25" : "\u2B50"}
-                </Text>
-                <Text
-                  style={{
-                    fontSize: 11,
-                    fontWeight: "700",
-                    color: c.gold,
-                  }}
-                >
-                  {t("streak.dayStreak", { count: streak })}
-                </Text>
-              </View>
-            )}
-          </View>
+        {/* ── 3. Next up ── */}
+        {view.stack.length > 0 && (
+          <FadeIn delay={60}>
+            <View style={{ marginBottom: Space.xl }}>
+              <NextUpStack cards={view.stack} onAction={handleAction} />
+            </View>
+          </FadeIn>
         )}
 
-        {/* ── 2c. Quick Access Row (audit red flag #5 cheap option) ─── */}
-        {/* Surfaces high-frequency screens buried two-deep under More    */}
-        {/* tab. Purely additive — long-path Profile routes still work.   */}
-        <FadeIn delay={50}>
-          <View style={{ flexDirection: "row", gap: Space.sm, marginBottom: Space.xl }}>
-            <QuickAccessTile
-              label={t("quickAccess.briefing")}
-              icon={Sparkles}
-              color={c.primary}
-              accessibilityLabel={t("quickAccess.briefing")}
-              onPress={() => router.push("/profile/briefing")}
-              index={0}
-              c={c}
-              sh={sh}
-            />
-            <QuickAccessTile
-              label={t("quickAccess.outreach")}
-              icon={Send}
-              color="#6366F1"
-              accessibilityLabel={t("quickAccess.outreach")}
-              onPress={() => router.push("/profile/outreach")}
-              index={1}
-              c={c}
-              sh={sh}
-            />
-            <QuickAccessTile
-              label={t("quickAccess.forecast")}
-              icon={TrendingUp}
-              color={c.gold}
-              accessibilityLabel={t("quickAccess.forecast")}
-              onPress={() => router.push("/profile/forecast")}
-              index={2}
-              c={c}
-              sh={sh}
-            />
-            <QuickAccessTile
-              label={t("quickAccess.receipt")}
-              icon={Receipt}
-              color={c.success}
-              accessibilityLabel={t("quickAccess.receipt")}
-              onPress={() => router.push("/profile/expenses")}
-              index={3}
-              c={c}
-              sh={sh}
-            />
-          </View>
-        </FadeIn>
-
-        {/* ── 3. Runway Score Hero Card (tap to see breakdown) ── */}
-        <FadeIn delay={100}>
-        <Pressable
-          onPress={() => {
-            try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
-            setShowScoreBreakdown(true);
-          }}
-          style={({ pressed }) => [
-            { borderRadius: Radius.xxl, overflow: "hidden", marginBottom: Space.xxl },
-            sh.cardLg,
-            pressed && { opacity: 0.92, transform: [{ scale: 0.98 }] },
-          ]}
-        >
-          <LinearGradient
-            colors={g.heroCard as [string, string, ...string[]]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={{ paddingVertical: Space.xxl, paddingHorizontal: Space.xxl, alignItems: "center" }}
-          >
-            <RunwayGauge score={score} bandColor={meta.color} textColor={c.text} dimColor={c.textDim} mode={mode} />
-            <View style={{ flexDirection: "row", alignItems: "center", gap: Space.sm, marginTop: Space.md }}>
-              <Text style={{ ...Type.h3, color: c.text }}>{t("score.runwayScore")}</Text>
-              {/* Solid grade chip — pastel tint disappeared on white. Full
-                  saturation + white text reads on both modes. */}
-              <View style={{ backgroundColor: meta.color, paddingHorizontal: Space.sm + 2, paddingVertical: 3, borderRadius: Radius.sm }}>
-                <Text style={{ color: "#FFFFFF", fontSize: 11, fontWeight: "800" }}>{meta.grade}</Text>
-              </View>
-            </View>
-            <Text style={{ ...Type.caption, color: c.textSecondary, marginTop: Space.xs }}>{t("score.tapForDetails", { label: t(meta.labelKey) })}</Text>
-
-            {/* Score component mini-bar */}
-            <View style={{ flexDirection: "row", marginTop: Space.lg, gap: Space.xs, width: "100%" }}>
-              {SCORE_BARS.map((bar, i) => (
-                <ScoreBar
-                  key={bar.component}
-                  label={t(bar.labelKey)}
-                  pct={snapshot?.components?.find((comp) => comp.label === bar.component)?.score ?? 0}
-                  color={bar.color}
-                  index={i}
-                  c={c}
-                />
-              ))}
-            </View>
-          </LinearGradient>
-        </Pressable>
-        </FadeIn>
-
-        {/* ── 4. Action Items Strip ── */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          snapToAlignment="start"
-          decelerationRate="fast"
-          style={{ marginBottom: Space.xxl }}
-          contentContainerStyle={{ paddingRight: Space.md }}
-        >
-          {actionItems.length > 0 ? (
-            actionItems.map((item) => (
-              <ActionPill
-                key={item.key}
-                count={item.count}
-                label={item.label}
-                color={item.color}
-                icon={item.icon}
-                onPress={() => router.push(item.route as any)}
-              />
-            ))
-          ) : (
-            <AllCaughtUpPill color={c.success} label={t("actions.allCaughtUp")} />
-          )}
-        </ScrollView>
-
-        {/* ── 5. Today's Focus ── */}
-        {briefing.length > 0 && (
-          <View style={{ marginBottom: Space.xxl }}>
-            <View
-              style={{
-                flexDirection: "row",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: Space.md,
-              }}
-            >
-              <Text style={{ ...Type.label, color: c.textMuted }}>
-                {t("briefing.title")}
-              </Text>
-              <View
-                style={{
-                  backgroundColor: c.primaryDim,
-                  paddingHorizontal: Space.sm + 2,
-                  paddingVertical: 2,
-                  borderRadius: Radius.sm,
-                }}
-              >
-                <Text
-                  style={{
-                    fontSize: 10,
-                    fontWeight: "700",
-                    color: c.primary,
-                  }}
-                >
-                  {t(briefing.length === 1 ? "briefing.itemCount" : "briefing.itemCount_plural", { count: briefing.length })}
-                </Text>
-              </View>
-            </View>
-            {briefing.map((item) => (
-              <BriefingRow
-                key={item.id}
-                item={item}
-                onPress={() => handleBriefingPress(item)}
-              />
-            ))}
-          </View>
-        )}
-
-        {/* ── 6. Key Metrics Grid (2x2) ── */}
-        <FadeIn delay={250}>
-        <View style={{ marginBottom: Space.xxl }}>
-          <View style={{ flexDirection: "row", gap: Space.md, marginBottom: Space.md }}>
-            <MetricCard
-              label={t("metrics.ytdGci")}
-              value={fmtCompact(gci)}
-              icon={<TrendingUp size={16} color={c.gold} />}
-              color={c.gold}
-              c={c} sh={sh}
-              sparkData={gciSparkData}
-            />
-            <MetricCard
-              label={t("metrics.dealsClosed")}
-              value={String(deals)}
-              icon={<Handshake size={16} color={c.success} />}
-              color={c.success}
-              c={c} sh={sh}
-              sparkData={dealSparkData}
-            />
-          </View>
-          <View style={{ flexDirection: "row", gap: Space.md }}>
-            <MetricCard
-              label={t("metrics.pipeline")}
-              value={fmtCompact(pipVal)}
-              subtitle={t("metrics.deals", { count: pipeline.length })}
-              icon={<Briefcase size={16} color={c.primaryLight} />}
-              color={c.primaryLight}
-              c={c} sh={sh}
-              onPress={() => router.push("/deals")}
-            />
-            <MetricCard
-              label={t("metrics.clients")}
-              value={String(clients.length)}
-              subtitle={followUpsDue > 0 ? t("metrics.needFollowUp", { count: followUpsDue }) : ""}
-              icon={<Users size={16} color={c.cyan} />}
-              color={c.cyan}
-              c={c} sh={sh}
-              onPress={() => router.push("/clients")}
-            />
-          </View>
-        </View>
-        </FadeIn>
-
-        {/* ── 6. Goal Progress ── */}
-        {goalGci > 0 && (
-          <Pressable
-            onPress={() => router.push("/profile/forecast")}
-            style={({ pressed }) => [
-              {
-                marginBottom: Space.xxl,
-                backgroundColor: c.card,
-                borderRadius: Radius.xl,
-                borderWidth: 1,
-                borderColor: c.cardBorder,
-                padding: Space.lg,
-              },
-              sh.card,
-              pressed && { opacity: 0.85 },
-            ]}
-          >
-            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: Space.md }}>
-              <Text style={{ ...Type.label, color: c.textMuted }}>{t("goal.annualGoal")}</Text>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: Space.xs }}>
-                <Text style={{ ...Type.caption, color: c.primary, fontWeight: "700" }}>{goalPct}%</Text>
-                <ArrowRight size={12} color={c.textDim} />
-              </View>
-            </View>
-            <View style={{ height: 8, borderRadius: 4, backgroundColor: "rgba(128,128,128,0.10)", overflow: "hidden" }}>
-              <LinearGradient
-                colors={goalPct >= 100 ? (g.successBar as [string, string, ...string[]]) : (g.progressBar as [string, string, ...string[]])}
-                start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-                style={{ height: 8, borderRadius: 4, width: `${Math.min(goalPct, 100)}%` as DimensionValue }}
+        {/* ── 4. Also waiting ── */}
+        {view.alsoWaiting.length > 0 && (
+          <FadeIn delay={120}>
+            <View style={{ marginBottom: Space.xl }}>
+              <AlsoWaitingList
+                rows={view.alsoWaiting}
+                onOpen={handleOpenSection}
+                onSwipeDone={handleSwipeDone}
+                checklistOverdue={checklistOverdue}
               />
             </View>
-            <Text style={{ ...Type.micro, color: c.textDim, marginTop: Space.sm }}>
-              {t("goal.ofGoal", { current: fmtCurrency(gci), goal: fmtCurrency(goalGci) })}
-            </Text>
-          </Pressable>
+          </FadeIn>
         )}
 
-        {/* ── 7. Next Task Card ── (tap to tick it off; See all opens the Checklist) */}
-        {nextTask && (
-          <View style={{ marginBottom: Space.xl }}>
-            <Pressable
-              onPress={() => router.push("/profile/checklist")}
-              style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: Space.sm }}
-            >
-              <Text style={{ ...Type.label, color: c.textMuted }}>{t("nextUp.title")}</Text>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: Space.xs }}>
-                <Text style={{ ...Type.micro, color: c.primary }}>{t("nextUp.seeAll", { count: tasks.length })}</Text>
-                <ArrowRight size={10} color={c.primary} />
-              </View>
-            </Pressable>
-            <Pressable
-              onPress={() => tickNextTask(nextTask)}
-              accessibilityRole="button"
-              accessibilityLabel={`${nextTask.title}. ${t("nextUp.tickOff")}`}
-              style={[{
-              backgroundColor: c.card, borderRadius: Radius.xl, padding: Space.lg,
-              borderWidth: 1, borderColor: c.cardBorder,
-              flexDirection: "row", alignItems: "center", gap: Space.md,
-            }, sh.card]}>
-              <View style={{ width: 42, height: 42, borderRadius: Radius.md, backgroundColor: c.primaryDim, alignItems: "center", justifyContent: "center" }}>
-                <Clock size={20} color={c.primary} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={{ ...Type.bodyBold, color: c.text }} numberOfLines={1}>{nextTask.title}</Text>
-                {nextTask.due_date && (
-                  <Text style={{ ...Type.caption, color: isOverdue(nextTask.due_date) ? c.danger : c.textDim, marginTop: 2 }}>
-                    {isOverdue(nextTask.due_date) ? t("nextUp.overdue") + " \u00B7 " : ""}
-                    {new Date(nextTask.due_date + "T12:00:00").toLocaleDateString("en-CA", { weekday: "short", month: "short", day: "numeric" })}
-                  </Text>
-                )}
-              </View>
-              {nextTask.priority === "high" && (
-                <View style={{ backgroundColor: c.dangerDim, paddingHorizontal: Space.sm, paddingVertical: Space.xs, borderRadius: Radius.sm }}>
-                  <Text style={{ color: c.danger, fontSize: 10, fontWeight: "700" }}>{t("nextUp.high")}</Text>
-                </View>
-              )}
-              <CheckCircle2 size={24} color={c.primary} />
-            </Pressable>
-          </View>
-        )}
-
-        {/* ── 8. Quick Pipeline Preview ── */}
-        {pipeline.length > 0 && (
-          <View style={{ marginBottom: Space.xl }}>
-            <Pressable
-              onPress={() => router.push("/deals")}
-              style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: Space.sm }}
-            >
-              <Text style={{ ...Type.label, color: c.textMuted }}>{t("pipelinePreview.title")}</Text>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: Space.xs }}>
-                <Text style={{ ...Type.micro, color: c.primary }}>{t("pipelinePreview.seeAll")}</Text>
-                <ArrowRight size={10} color={c.primary} />
-              </View>
-            </Pressable>
-            {pipeline.slice(0, 3).map((deal) => (
-              <View
-                key={deal.id}
-                style={[{
-                  backgroundColor: c.card,
-                  borderRadius: Radius.lg,
-                  padding: Space.md,
-                  marginBottom: Space.sm,
-                  borderWidth: 1,
-                  borderColor: c.cardBorder,
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: Space.md,
-                }, sh.card]}
-              >
-                <View style={{
-                  width: 4, height: 32, borderRadius: 2,
-                  backgroundColor: ({ lead: "#6B7280", showing: "#3B82F6", offer: "#F59E0B", conditional: "#8B5CF6", firm: "#10B981", closed: "#10B981" }[deal.stage] ?? c.textDim),
-                }} />
-                <View style={{ flex: 1 }}>
-                  <Text style={{ ...Type.bodyBold, color: c.text }} numberOfLines={1}>
-                    {deal.address || deal.client_name || t("pipelinePreview.pipelineDeal")}
-                  </Text>
-                  <Text style={{ ...Type.micro, color: c.textDim, marginTop: 2, textTransform: "capitalize" }}>
-                    {deal.stage} {deal.client_name ? `\u00B7 ${deal.client_name}` : ""}
-                  </Text>
-                </View>
-                <Text style={{ ...Type.caption, color: c.gold, fontWeight: "700" }}>
-                  {fmtCompact(deal.estimated_price)}
-                </Text>
-              </View>
-            ))}
-          </View>
+        {/* ── 5. All clear, and what's next ── */}
+        {view.stack.length === 0 && (
+          <FadeIn delay={60}>
+            <AllClearCard allClear={view.allClear} hasRows={view.alsoWaiting.length > 0} today={clock.today} />
+          </FadeIn>
         )}
       </ScrollView>
 
@@ -1282,161 +544,6 @@ export default function DashboardScreen() {
       </Pressable>
 
       <QuickCaptureSheet visible={showCapture} onClose={() => setShowCapture(false)} />
-      <CompleteTaskSheet
-        task={tickingTask}
-        clientName={clients.find((cl) => cl.id === tickingTask?.client_id)?.name ?? ""}
-        onClose={() => setTickingTask(null)}
-      />
-      <ScoreBreakdownSheet
-        visible={showScoreBreakdown}
-        onClose={() => setShowScoreBreakdown(false)}
-        totalScore={score}
-      />
     </SafeAreaView>
-  );
-}
-
-// ── Small Components ─────────────────────────────────────────────────────────
-
-function MetricCard({
-  label,
-  value,
-  subtitle,
-  icon,
-  color,
-  c,
-  sh,
-  onPress,
-  sparkData,
-}: {
-  label: string;
-  value: string;
-  subtitle?: string;
-  icon: React.ReactNode;
-  color: string;
-  c: ReturnType<typeof useColors>;
-  sh: ReturnType<typeof shadows>;
-  onPress?: () => void;
-  sparkData?: number[];
-}) {
-  return (
-    <Pressable
-      onPress={onPress}
-      disabled={!onPress}
-      style={({ pressed }) => [
-        {
-          flex: 1,
-          backgroundColor: c.card,
-          borderRadius: Radius.xl,
-          borderWidth: 1,
-          borderColor: c.cardBorder,
-          padding: Space.lg,
-          overflow: "hidden",
-        },
-        sh.card,
-        pressed && onPress && { opacity: 0.85, transform: [{ scale: 0.97 }] },
-      ]}
-    >
-      {/* Sparkline watermark behind content */}
-      {sparkData && sparkData.length >= 2 && (
-        <View style={{ position: "absolute", bottom: 0, right: 0, opacity: 0.5 }}>
-          <Sparkline data={sparkData} width={90} height={36} color={color} fill />
-        </View>
-      )}
-      <View style={{ flexDirection: "row", alignItems: "center", gap: Space.sm, marginBottom: Space.sm }}>
-        {icon}
-        <Text style={{ ...Type.micro, color: c.textDim }}>{label}</Text>
-      </View>
-      <Text style={{ fontSize: 24, fontWeight: "900", color, letterSpacing: -0.5 }}>{value}</Text>
-      {subtitle ? (
-        <Text style={{ ...Type.micro, color: c.textDim, marginTop: 2 }}>{subtitle}</Text>
-      ) : null}
-    </Pressable>
-  );
-}
-
-// Cockpit-instrument component band: a gradient fill that sweeps left→right on
-// mount, staggered by `index` (band 1 first, band 5 last, ~80ms apart). The
-// gradient (band color → deeper sibling) gives each band depth instead of the
-// flat saturated stroke from pass-2. Reduced motion → full bar, no sweep.
-const BAND_STAGGER_MS = 80;
-const BAND_FILL_MS = 600;
-
-// One bar per Runway Score component, filled to that component's score
-// (0-100) from the web dashboard's saved snapshot. `component` is the label
-// the score engine writes (runway-score-engine.ts). Equal widths keep every
-// label on one line.
-const SCORE_BARS = [
-  { component: "Goal Pace", labelKey: "scoreBar.pace", color: "#6366F1" },
-  { component: "Pipeline", labelKey: "scoreBar.pipeline", color: "#818CF8" },
-  { component: "Expenses", labelKey: "scoreBar.expenses", color: "#10B981" },
-  { component: "Benchmark", labelKey: "scoreBar.bench", color: "#06B6D4" },
-  { component: "Survival", labelKey: "scoreBar.survival", color: "#8B5CF6" },
-] as const;
-
-function ScoreBar({
-  label,
-  pct,
-  color,
-  index,
-  c,
-}: {
-  label: string;
-  pct: number;
-  color: string;
-  index: number;
-  c: ReturnType<typeof useColors>;
-}) {
-  const reduceMotion = useReducedMotion();
-  const fill = useSharedValue(reduceMotion ? 1 : 0);
-
-  useEffect(() => {
-    if (reduceMotion) {
-      fill.value = 1;
-      return;
-    }
-    fill.value = 0;
-    fill.value = withDelay(
-      index * BAND_STAGGER_MS,
-      withTiming(1, { duration: BAND_FILL_MS, easing: Easing.out(Easing.cubic) })
-    );
-  }, [reduceMotion, index, fill]);
-
-  const target = Math.min(Math.max(pct, 0), 100) / 100;
-  const fillStyle = useAnimatedStyle(() => ({
-    width: `${fill.value * target * 100}%`,
-  }));
-
-  return (
-    <View style={{ flex: 1, alignItems: "center" }}>
-      {/* Track + animated gradient fill, masked by overflow:hidden so the
-          gradient reveals left→right as the wrapper width grows. */}
-      <View
-        style={{
-          height: 5,
-          width: "100%",
-          borderRadius: 2.5,
-          backgroundColor: c.divider,
-          overflow: "hidden",
-        }}
-      >
-        <Animated.View style={[{ height: 5 }, fillStyle]}>
-          <LinearGradient
-            colors={[shiftHex(color, 0.14), shiftHex(color, -0.18)]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={{ flex: 1, borderRadius: 2.5 }}
-          />
-        </Animated.View>
-      </View>
-      <Text
-        numberOfLines={1}
-        adjustsFontSizeToFit
-        minimumFontScale={0.75}
-        style={{ fontSize: 9, fontWeight: "700", color: c.textSecondary, marginTop: 4, letterSpacing: 0.2 }}
-      >
-        {label}
-      </Text>
-    </View>
   );
 }
