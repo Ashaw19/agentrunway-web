@@ -20,6 +20,7 @@
     "types/**/*.ts",
     "tax-copy/**/*.ts",
     "lib/**/*.ts",
+    "validation/**/*.ts",
     "formatters.ts"
   ],
   "exclude": [

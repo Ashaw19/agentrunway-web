@@ -77,6 +77,10 @@ import {
   type ClientFormState,
 } from "@/components/ClientFormFields";
 import { computeGCI } from "@agent-runway/core/types/database";
+import type { CaptureProposal } from "@agent-runway/core/lib/capture/types";
+import { VoiceCaptureButton } from "@/components/voice/VoiceCaptureButton";
+import { VoiceCaptureCard } from "@/components/voice/VoiceCaptureCard";
+import { VoiceCaptureSheet } from "@/components/voice/VoiceCaptureSheet";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -173,6 +177,9 @@ export default function ClientsScreen() {
   const [textPurpose, setTextPurpose] = useState<TextPurpose>("check_in");
   const [textNote, setTextNote] = useState("");
   const [drafting, setDrafting] = useState(false);
+
+  // ── Voice note: record → review the proposed writes → confirm ──
+  const [capture, setCapture] = useState<CaptureProposal | null>(null);
 
   useEffect(() => {
     if (clients.length === 0) fetchClients();
@@ -758,6 +765,10 @@ export default function ClientsScreen() {
         />
       )}
 
+      {/* ── Voice note (the profile sheet shows its own card in place) ── */}
+      {!selecting && !selectedClient && <VoiceCaptureButton onProposal={setCapture} />}
+      <VoiceCaptureSheet proposal={capture} onClose={() => setCapture(null)} />
+
       {/* ── Add Client Sheet ── */}
       <AddClientSheet
         visible={showAdd}
@@ -1139,6 +1150,8 @@ function ClientDetailSheet({
   } = useDataStore();
 
   const [quickLogging, setQuickLogging] = useState<string | null>(null);
+  // A voice note recorded on this profile: reviewed here, in place (no second sheet).
+  const [voiceProposal, setVoiceProposal] = useState<CaptureProposal | null>(null);
 
   const [activitiesLoading, setActivitiesLoading] = useState(true);
 
@@ -1224,9 +1237,9 @@ function ClientDetailSheet({
   ];
 
   return (
-    <Sheet visible onClose={onClose} title={editing ? t("editClient.title") : client.name} maxHeight="95%">
+    <Sheet visible onClose={onClose} title={editing ? t("editClient.title") : voiceProposal ? "Review your note" : client.name} maxHeight="95%">
       {/* ── Edit button in header area ── */}
-      {!editing && (
+      {!editing && !voiceProposal && (
         <View style={{ position: "absolute", top: Space.md, right: Space.xl + 44, zIndex: 10 }}>
           <Pressable
             onPress={() => setEditing(true)}
@@ -1390,6 +1403,15 @@ function ClientDetailSheet({
             </Pressable>
           </View>
         </View>
+      ) : voiceProposal ? (
+        /* ── Voice note review: confirm saves, cancel saves nothing ── */
+        <VoiceCaptureCard
+          proposal={voiceProposal}
+          onClose={() => {
+            setVoiceProposal(null);
+            void fetchClientActivities(client.id);
+          }}
+        />
       ) : (
         /* ── View Mode (existing) ── */
         <>
@@ -1507,6 +1529,15 @@ function ClientDetailSheet({
             </Pressable>
           ))}
         </View>
+      </View>
+
+      {/* ── Voice note: "she" is this client ── */}
+      <View style={{ marginBottom: Space.lg }}>
+        <VoiceCaptureButton
+          variant="inline"
+          context={{ clientId: client.id, clientName: client.name }}
+          onProposal={setVoiceProposal}
+        />
       </View>
 
       {/* ── Tags ── */}

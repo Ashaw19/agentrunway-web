@@ -73,6 +73,13 @@ export const MCP_TOOL_CATALOG: McpCatalogGroup[] = [
     ],
   },
   {
+    category: "Note capture",
+    tools: [
+      { name: "capture_note", desc: "Reads a pasted call or showing note into proposed activities, follow-ups, deal changes, trips and expenses. Saves nothing", access: "read" },
+      { name: "save_captured_note", desc: "Saves the note items the agent approved, through the app's own writers", access: "write" },
+    ],
+  },
+  {
     category: "Outreach & Settings",
     tools: [
       { name: "get_flight_control_priorities", desc: "Outreach queue: clients due for follow-up, with drafted messages waiting for review", access: "read" },

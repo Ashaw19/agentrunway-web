@@ -69,6 +69,14 @@
           "contactsPermission": "Agent Runway reads your contacts on this phone to suggest missing phone numbers, emails and birthdays for your clients. Only the details you approve are saved."
         }
       ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Agent Runway uses the microphone only while you record a voice note, to turn it into changes you review before anything is saved. The recording is deleted once it is transcribed.",
+          "recordAudioAndroid": true,
+          "enableBackgroundRecording": false
+        }
+      ],
       "./plugins/with-ios-scene-lifecycle"
     ],
     "experiments": {

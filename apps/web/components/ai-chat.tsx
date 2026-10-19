@@ -551,11 +551,15 @@ function ApprovalCard({
     linkClientReferral: "Link Referral",
     createPipelineDeal: "Add Deal",
     updatePipelineDealStage: "Move Deal",
+    updatePipelineDealCloseDate: "Change Close Date",
     logContactActivity: "Log Activity",
     createContactTask: "Create Task",
     createRecurringExpense: "Add Expense",
     updateRecurringExpense: "Update Recurring Expense",
     deleteRecurringExpense: "Delete Recurring Expense",
+    logExpense: "Log Expense",
+    logMileage: "Log Trip",
+    recordTransaction: "Record Closed Deal",
   };
 
   return (

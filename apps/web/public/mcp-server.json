@@ -3,7 +3,7 @@
   "server_name": "Agent Runway",
   "server_version": "1.0.0",
   "display_name": "Agent Runway: Canadian Real Estate Analytics",
-  "description": "Connect your AI assistant to your Agent Runway real estate business data. 17 read tools cover transactions, pipeline deals, CRM clients, expenses, mileage, tax estimates and forecasts. 4 write tools create and update pipeline opportunities.",
+  "description": "Connect your AI assistant to your Agent Runway real estate business data. 18 read tools cover transactions, pipeline deals, CRM clients, expenses, mileage, tax estimates and forecasts, and read a pasted call or showing note into proposed changes. 5 write tools create and update pipeline opportunities and save the note items the agent approves.",
   "homepage": "https://agentrunway.ca",
   "documentation_url": "https://agentrunway.ca/mcp",
   "logo_url": "https://agentrunway.ca/logo.png",
@@ -15,12 +15,28 @@
     "type": "bearer",
     "description": "The Supabase access token (JWT) from a signed-in Agent Runway session on an account with Pro access, sent as 'Authorization: Bearer <token>'. It expires after about an hour. There are no API keys, and OAuth is not available."
   },
-  "categories": ["real-estate", "analytics", "crm", "finance", "canadian-tax"],
-  "tags": ["real-estate", "canada", "gci", "pipeline", "crm", "expenses", "tax", "mileage", "forecast"],
+  "categories": [
+    "real-estate",
+    "analytics",
+    "crm",
+    "finance",
+    "canadian-tax"
+  ],
+  "tags": [
+    "real-estate",
+    "canada",
+    "gci",
+    "pipeline",
+    "crm",
+    "expenses",
+    "tax",
+    "mileage",
+    "forecast"
+  ],
   "tool_counts": {
-    "total": 21,
-    "read_only": 17,
-    "write": 4
+    "total": 23,
+    "read_only": 18,
+    "write": 5
   },
   "tools": [
     {
@@ -128,6 +144,17 @@
       "name": "get_user_settings",
       "description": "Agent profile, goals, business settings, subscription status.",
       "read_only": true
+    },
+    {
+      "name": "capture_note",
+      "description": "Reads a pasted call or showing note into proposed activities, Checklist follow-ups, deal changes, trips and expenses, with client matches. Saves nothing.",
+      "read_only": true
+    },
+    {
+      "name": "save_captured_note",
+      "description": "Saves the note items the agent approved, through the same writers the Agent Runway app uses.",
+      "read_only": false,
+      "destructive": false
     }
   ],
   "requirements": {

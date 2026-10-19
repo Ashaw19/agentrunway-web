@@ -6,9 +6,8 @@ import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useAppShortcuts } from "@/hooks/use-keyboard-shortcuts";
 import { VoiceRecordButton, type VoiceState } from "@/components/voice-record-button";
-import { useVoiceDraft } from "@/lib/voice/voice-draft-context";
-import type { VoiceDraft } from "@/lib/voice/types";
-import { toast } from "sonner";
+import { VoiceCaptureDialog } from "@/components/voice-capture-dialog";
+import type { CaptureProposal } from "@agent-runway/core/lib/capture/types";
 
 interface QuickAddFabProps {
   /** Whether the AI chat bubble is present (shift position left) */
@@ -26,7 +25,8 @@ export function QuickAddFab({ hasAiChat = false }: QuickAddFabProps) {
   const [voiceActive, setVoiceActive] = useState(false);
   const [voiceState, setVoiceState] = useState<VoiceState>("idle");
   const router = useRouter();
-  const { setDraft } = useVoiceDraft();
+  // A read voice note waiting on the confirm card (nothing saved until Confirm).
+  const [proposal, setProposal] = useState<CaptureProposal | null>(null);
 
   const goTo = useCallback(
     (path: string) => {
@@ -65,34 +65,12 @@ export function QuickAddFab({ hasAiChat = false }: QuickAddFabProps) {
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [showShortcuts, open, voiceActive, voiceBusy]);
 
-  /** Route a completed voice draft to the correct page */
-  const handleVoiceDraft = useCallback((draft: VoiceDraft) => {
-    setDraft(draft);
+  /** A read voice note: show the confirm card. */
+  const handleVoiceProposal = useCallback((p: CaptureProposal) => {
     setVoiceActive(false);
     setOpen(false);
-
-    switch (draft.intent) {
-      case "new_client":
-        router.push("/crm?voice=1");
-        break;
-      case "new_expense":
-        router.push("/expenses?voice=1");
-        break;
-      case "new_transaction":
-        router.push("/transactions?voice=1");
-        break;
-      case "note":
-        router.push("/crm?voice=note");
-        break;
-      case "unknown":
-        toast.info("Couldn't determine what to do", {
-          description: draft.transcript_cleaned
-            ? `"${draft.transcript_cleaned.slice(0, 120)}${draft.transcript_cleaned.length > 120 ? "..." : ""}"`
-            : "Try speaking more clearly.",
-        });
-        break;
-    }
-  }, [setDraft, router]);
+    setProposal(p);
+  }, []);
 
   const handleVoiceStateChange = useCallback((state: VoiceState) => {
     setVoiceState(state);
@@ -125,6 +103,8 @@ export function QuickAddFab({ hasAiChat = false }: QuickAddFabProps) {
 
   return (
     <>
+      <VoiceCaptureDialog proposal={proposal} onClose={() => setProposal(null)} />
+
       {/* Keyboard shortcut hint sheet */}
       {showShortcuts && (
         <div
@@ -195,7 +175,7 @@ export function QuickAddFab({ hasAiChat = false }: QuickAddFabProps) {
             style={{ animation: "fabItemIn 0.2s ease-out both" }}
           >
             <VoiceRecordButton
-              onDraft={handleVoiceDraft}
+              onProposal={handleVoiceProposal}
               onStateChange={handleVoiceStateChange}
             />
           </div>

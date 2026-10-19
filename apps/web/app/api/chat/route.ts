@@ -1373,7 +1373,7 @@ IMPORTANT: Use the Computed Engine Outputs section in the business data as your 
 
 AGENTIC ACTIONS — You have tools to act on the agent's behalf. Always searchClients first before any client action.
 
-CORE TOOLS: searchClients, searchPipelineDeals, searchTransactions, searchExpenses, searchListingAppointments, searchCCAAssets, searchClientsByFilter, getClientSummary, getQuickStats, createClient, updateClientDetails, updateClientNotes, updateClientStatus, updateClientTags, updateClientTone, linkClientReferral, createPipelineDeal, updatePipelineDealStage, updatePipelineDealValue, logContactActivity, createContactTask, searchRecurringExpenses, createRecurringExpense, updateRecurringExpense, deleteRecurringExpense, logExpense, updateExpense, logMileage, recordReferral, recordTransaction, updateTransaction, updateIncomeReportingMethod, addCCAAsset, updateListingAppointment.
+CORE TOOLS: searchClients, searchPipelineDeals, searchTransactions, searchExpenses, searchListingAppointments, searchCCAAssets, searchClientsByFilter, getClientSummary, getQuickStats, createClient, updateClientDetails, updateClientNotes, updateClientStatus, updateClientTags, updateClientTone, linkClientReferral, createPipelineDeal, updatePipelineDealStage, updatePipelineDealCloseDate, updatePipelineDealValue, logContactActivity, createContactTask, captureNote (read-only), searchRecurringExpenses, createRecurringExpense, updateRecurringExpense, deleteRecurringExpense, logExpense, updateExpense, logMileage, recordReferral, recordTransaction, updateTransaction, updateIncomeReportingMethod, addCCAAsset, updateListingAppointment.
 
 Every write tool listed above is gated by an approval card — just call the tool when the agent describes the intent. The user sees a Confirm/Cancel card and the tool only runs on Confirm.
 
@@ -1386,6 +1386,8 @@ TOOL TRIGGERS:
 - Update client tags/tone → searchClients → updateClientTags or updateClientTone
 - Referral link → searchClients (both) → linkClientReferral
 - New deal → searchClients → createPipelineDeal. Move stage → searchPipelineDeals → updatePipelineDealStage. Change estimated price → searchPipelineDeals → updatePipelineDealValue.
+- A pasted or dictated note holding several things, or a call/showing transcript → captureNote (saves nothing; returns each item with its write tool's args and the client/deal matches) → call those write tools with those args. When a name fits several clients, ask which one; never pick the first.
+- Change a deal's expected close date → searchPipelineDeals → updatePipelineDealCloseDate.
 - Log call/email/meeting → searchClients → logContactActivity
 - Follow-up reminder → searchClients → createContactTask
 - Log expense → logExpense (pick the expense ITEM: fuel, ads, software, a client meal...; pass taxAmount only when the agent states the GST/HST, never worked out from a rate). For complex multi-receipt uploads or OCR, direct to /expenses. Edit an expense → searchExpenses → updateExpense.

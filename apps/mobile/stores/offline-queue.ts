@@ -10,12 +10,15 @@ import { storage } from "../lib/mmkv";
 import { supabase } from "../lib/supabase";
 import { useToastStore } from "./toast-store";
 import { activityRow, clientRow, transactionRow } from "@agent-runway/core/lib/write-rows";
+import { applyCaptureWrite, type CaptureWriteCall } from "@agent-runway/core/lib/record-writers";
+import { localISODate } from "@agent-runway/core/lib/local-date";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
 export interface QueuedMutation {
   id: string;
-  type: "addClient" | "addTransaction" | "addActivity" | "advanceStage";
+  /** captureWrite: one confirmed voice-capture write ({ tool, args, id? }), replayed by its Flight Crew writer. */
+  type: "addClient" | "addTransaction" | "addActivity" | "advanceStage" | "captureWrite";
   payload: any;
   createdAt: number;
   retryCount: number;
@@ -115,6 +118,13 @@ async function executeMutation(mutation: QueuedMutation): Promise<boolean> {
         .from("contact_activities")
         .insert(activityRow({ ...mutation.payload, user_id: user.id }));
       return !error;
+    }
+    case "captureWrite": {
+      // The same writer the confirm card used (core record-writers). A new
+      // client queued here carries its id, so the writes queued after it
+      // (FIFO) land on it.
+      const out = await applyCaptureWrite(supabase, user.id, mutation.payload as CaptureWriteCall, localISODate());
+      return out.ok || (out as { duplicateOf?: unknown }).duplicateOf !== undefined;
     }
     case "advanceStage": {
       const { dealId, newStage } = mutation.payload;
