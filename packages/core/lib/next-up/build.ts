@@ -22,12 +22,17 @@
  * or schedule card whose every item is theirs. The first such card claims
  * the client. A later card for them is dropped, and its items ride on the
  * first card (appended to its itemIds, after the card's own, so itemIds[0]
- * stays the card's own first item), so no row counts them either. A card on
- * Later still claims its client: Later on a client keeps all their cards
- * away, and their items wait in the rows.
+ * stays the card's own first item), so no row counts them either. A deal
+ * deadline never rides on another card: the client's card doesn't show it,
+ * so a dropped one waits in the Deals row. A card on Later still claims its
+ * client: Later on a client keeps all their cards away, and their items
+ * wait in the rows.
  *
  * Rows count, per section, the items no card on the stack covers (by id),
- * so an item is never on a card and in a row. A row at 0 is left out.
+ * so an item is never on a card and in a row, and nothing waiting is left
+ * off the dashboard. A row at 0 is left out. The Deals row holds passed
+ * close dates and the deal deadlines that have no card (cut by STACK_LIMIT,
+ * on Later, or their client already has a card).
  *
  * Relative imports only: the MCP build copies packages/core into Deno.
  */
@@ -76,8 +81,9 @@ export interface NextUpCard {
 /**
  * One "Also waiting" row. swipeTaskId: the checklist row's task when it holds
  * exactly one (swipe marks it done). A row holding one item names it:
- * firstName of its client; days overdue (checklist, 0 = due today) or since
- * the close date passed (deals).
+ * firstName of its client, and days: overdue for the checklist (0 = due
+ * today); for deals, days from today to the date (negative once passed:
+ * -3 is a close date 3 days ago; 0 to 7 is a deadline).
  */
 export interface AlsoWaitingRow { section: SectionKey; count: number; swipeTaskId: string | null; firstName?: string; days?: number }
 
@@ -104,7 +110,7 @@ export interface NextUpInput {
   outreachReady: readonly { client_id: string; channel: "email" | "sms" }[];
   payload: NextUpPayload | null;
   schedule: readonly { kind: "showing" | "appointment"; client_id: string | null; date: string }[]; // today..+14
-  tripsLoggedToday: number; activitiesToday: number; briefingCount: number;
+  tripsLoggedToday: number; briefingCount: number;
   localSnoozes: Readonly<Record<string, string>>; voiceNoteDoneOn: string | null;
 }
 
@@ -164,7 +170,9 @@ export function messagesReadyCount(
 /**
  * A card's buttons. Text only where a text can go: a handful card whose text
  * status is ready or draftable (checked under CASL on the server), or a new
- * lead with a number. No number: Open client instead of Call.
+ * lead with a number. No number: Open client instead of Call. Later on a
+ * card about tasks is a phone-only snooze, as on the other non-client cards
+ * (correction 15).
  */
 export function cardActions(card: NextUpCard): NextUpAction[] {
   const phone = hasPhone(card.phone);
@@ -178,7 +186,7 @@ export function cardActions(card: NextUpCard): NextUpAction[] {
     }
     case "overdue_tasks":
     case "tasks_today":
-      return ["open_checklist", "mark_one_done"];
+      return ["open_checklist", "mark_one_done", "later"];
     case "deal_deadline":    return ["open_deals", "later"];
     case "briefing":         return ["open_briefing", "later"];
     case "schedule":         return ["open_client", "later"];
@@ -255,11 +263,12 @@ export function buildNextUp(input: NextUpInput): NextUpView {
     .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))
     .map((c) => make("new_lead", c.id, { clientId: c.id, clientName: c.name, phone: c.phone, itemIds: [c.id] }));
 
-  const deadlines: { days: number; card: NextUpCard }[] = [];
+  // Every deadline, with its date and client, for its card and the Deals row.
+  const deadlines: { id: string; days: number; date: string; card: NextUpCard }[] = [];
   for (const d of input.pipeline) {
     const days = dealDeadlineDays(d, today);
     if (days === null) continue;
-    deadlines.push({ days, card: make("deal_deadline", d.id, {
+    deadlines.push({ id: d.id, days, date: day(d.expected_close_date!), card: make("deal_deadline", d.id, {
       clientName: d.client_name, itemIds: [d.id],
       detail: { address: d.address ?? undefined, days, label: "close" },
     }) });
@@ -267,7 +276,7 @@ export function buildNextUp(input: NextUpInput): NextUpView {
   for (const r of input.clientRecords) {
     const days = conditionDeadlineDays(r, today);
     if (days === null) continue;
-    deadlines.push({ days, card: make("deal_deadline", r.id, {
+    deadlines.push({ id: r.id, days, date: day(r.condition_date!), card: make("deal_deadline", r.id, {
       ...forClient(r.client_id), itemIds: [r.id],
       detail: { address: r.address ?? undefined, days, label: "conditions" },
     }) });
@@ -323,7 +332,7 @@ export function buildNextUp(input: NextUpInput): NextUpView {
     if (card.clientId) {
       if (claimed.has(card.clientId)) {
         const first = claimed.get(card.clientId);
-        if (first) first.itemIds = [...new Set([...first.itemIds, ...card.itemIds])];
+        if (first && card.kind !== "deal_deadline") first.itemIds = [...new Set([...first.itemIds, ...card.itemIds])];
         continue;
       }
       claimed.set(card.clientId, away ? null : card);
@@ -339,7 +348,10 @@ export function buildNextUp(input: NextUpInput): NextUpView {
 
   const checklist = byDue(left([...overdue, ...dueToday], (t) => t.id));
   const leads = left(uncontacted, (c) => c.id);
-  const deals = left(pastClose, (d) => d.id);
+  const deals = left([
+    ...pastClose.map((d) => ({ id: d.id, name: d.client_name, date: day(d.expected_close_date!) })),
+    ...deadlines.map((d) => ({ id: d.id, name: d.card.clientName, date: d.date })),
+  ], (d) => d.id);
   const restOfHandful = left(handful, (h) => h.clientId);
 
   // A row holding one item names it; only the checklist's one task swipes.
@@ -352,8 +364,8 @@ export function buildNextUp(input: NextUpInput): NextUpView {
           days: daysBetweenISO(day(soleTask.due_date), today) }
       : { count: checklist.length },
     new_leads: { count: leads.length, firstName: firstName(only(leads)?.name) },
-    deals: soleDeal?.expected_close_date
-      ? { count: 1, firstName: firstName(soleDeal.client_name), days: daysBetweenISO(day(soleDeal.expected_close_date), today) }
+    deals: soleDeal
+      ? { count: 1, firstName: firstName(soleDeal.name), days: daysBetweenISO(today, soleDeal.date) }
       : { count: deals.length },
     handful:  { count: restOfHandful.length, firstName: firstName(only(restOfHandful)?.clientName) },
     messages: { count: messages - onStack("messages_ready") },

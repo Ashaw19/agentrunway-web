@@ -12,7 +12,15 @@ import {
   type NextUpView,
   type SectionKey,
 } from "../next-up/build";
-import { isOverdueTask, isDueToday, isPastCloseDate, isUncontactedLead, type TimeBand } from "../next-up/rules";
+import {
+  conditionDeadlineDays,
+  dealDeadlineDays,
+  isDueToday,
+  isOverdueTask,
+  isPastCloseDate,
+  isUncontactedLead,
+  type TimeBand,
+} from "../next-up/rules";
 import type { HandfulItem, NextUpPayload } from "../next-up/types";
 
 /**
@@ -73,7 +81,7 @@ function input(over: Partial<NextUpInput> = {}): NextUpInput {
     now: NOW, today: TODAY, band: "midday",
     clients: [], tasks: [], pipeline: [], clientRecords: [],
     undatedReceipts: 0, outreachReady: [], payload: null, schedule: [],
-    tripsLoggedToday: 0, activitiesToday: 0, briefingCount: 0,
+    tripsLoggedToday: 0, briefingCount: 0,
     localSnoozes: {}, voiceNoteDoneOn: null,
     ...over,
   };
@@ -244,7 +252,8 @@ describe("buildNextUp: always on top", () => {
       ["deal_deadline:r-null-status", 3],
       ["deal_deadline:d-7", 7],
     ]);
-    expect(row(v, "deals")).toMatchObject({ count: 1, firstName: "Pam", days: 3, swipeTaskId: null });
+    // Days run from today to the date: a close date 3 days ago is -3.
+    expect(row(v, "deals")).toMatchObject({ count: 1, firstName: "Pam", days: -3, swipeTaskId: null });
   });
 });
 
@@ -280,6 +289,24 @@ describe("buildNextUp: one client, one card", () => {
     }));
     expect(card(v, `overdue_tasks:${TODAY}`)).toMatchObject({ clientId: "z", clientName: "Zoe Other", phone: "506-555-0177" });
   });
+
+  it("a deal deadline whose client already has a card waits in the Deals row", () => {
+    const v = buildNextUp(input({
+      clients: [lead("x", "Xena Lead", 3), client("y", "Yan Two")],
+      clientRecords: [
+        { id: "r-x", client_id: "x", address: "1 X St", condition_date: "2026-10-21", condition_status: "pending" },
+        { id: "r-y1", client_id: "y", address: "2 Y St", condition_date: "2026-10-22", condition_status: "pending" },
+        { id: "r-y2", client_id: "y", address: "3 Y St", condition_date: "2026-10-24", condition_status: "pending" },
+      ],
+    }));
+    // X's lead card wins; Y's sooner deadline is Y's card.
+    expect(v.stack.map((c) => c.key)).toEqual(["new_lead:x", "deal_deadline:r-y1"]);
+    // Neither dropped deadline rides on a card the client's card doesn't show.
+    expect(card(v, "new_lead:x").itemIds).toEqual(["x"]);
+    expect(card(v, "deal_deadline:r-y1").itemIds).toEqual(["r-y1"]);
+    // Both wait in the Deals row, so nothing waiting leaves the dashboard.
+    expect(row(v, "deals")).toMatchObject({ count: 2, swipeTaskId: null });
+  });
 });
 
 describe("buildNextUp: rows", () => {
@@ -305,6 +332,10 @@ describe("buildNextUp: rows", () => {
         { id: "p-past1", address: "1 Past St", client_name: null, expected_close_date: "2026-10-01" },
         { id: "p-past2", address: "2 Past St", client_name: null, expected_close_date: "2026-10-17" },
         { id: "p-soon", address: "3 Soon St", client_name: null, expected_close_date: "2026-10-22" },
+      ],
+      // Ann (lead-1) already has her lead card, so this deadline waits in the Deals row.
+      clientRecords: [
+        { id: "r-lead", client_id: "lead-1", address: "5 Lead Ln", condition_date: "2026-10-21", condition_status: "pending" },
       ],
       payload: payload({
         done_today: 1,
@@ -336,7 +367,10 @@ describe("buildNextUp: rows", () => {
     return {
       checklist: i.tasks.filter((t) => isOverdueTask(t, i.today) || isDueToday(t, i.today)).map((t) => t.id),
       new_leads: i.clients.filter((c) => isUncontactedLead(c)).map((c) => c.id),
-      deals:     i.pipeline.filter((d) => isPastCloseDate(d, i.today)).map((d) => d.id),
+      deals: [
+        ...i.pipeline.filter((d) => isPastCloseDate(d, i.today) || dealDeadlineDays(d, i.today) !== null).map((d) => d.id),
+        ...i.clientRecords.filter((r) => conditionDeadlineDays(r, i.today) !== null).map((r) => r.id),
+      ],
       handful,
       messages:  messagesReadyCount(i.outreachReady, handfulIds),
       receipts:  i.undatedReceipts,
@@ -381,7 +415,8 @@ describe("buildNextUp: rows", () => {
     expect(row(midday, "checklist")).toMatchObject({ count: 2, swipeTaskId: null });
     // Cy is too old for a card; Dee is covered by her handful card.
     expect(row(midday, "new_leads")).toMatchObject({ count: 1, firstName: "Cy" });
-    expect(row(midday, "deals")).toMatchObject({ count: 2 });
+    // Two passed close dates, and Ann's deadline (her lead card came first).
+    expect(row(midday, "deals")).toMatchObject({ count: 3 });
     // Stack: the two new leads, the deadline, the overdue card, then the handful,
     // the client back from Later first, cut at 7.
     expect(midday.stack.map((c) => c.key)).toEqual([
@@ -438,11 +473,14 @@ describe("buildNextUp: rows", () => {
     const v = buildNextUp(input({
       clients: leads,
       tasks: [task("t-o1", "2026-10-10"), task("t-o2", "2026-10-11")],
+      pipeline: [{ id: "p-soon", address: "3 Soon St", client_name: "Pia Deal", expected_close_date: "2026-10-22" }],
       outreachReady: [{ client_id: "c-x", channel: "sms" }],
     }));
     expect(v.stack).toHaveLength(STACK_LIMIT);
     expect(v.stack.map((c) => c.key)).toEqual(leads.slice(0, 7).map((l) => `new_lead:${l.id}`));
     expect(row(v, "new_leads")).toMatchObject({ count: 2 });
+    // The deadline cut by the limit waits in the Deals row.
+    expect(row(v, "deals")).toEqual({ section: "deals", count: 1, swipeTaskId: null, firstName: "Pia", days: 3 });
     expect(row(v, "checklist")).toMatchObject({ count: 2, swipeTaskId: null });
     expect(row(v, "messages")).toMatchObject({ count: 1 });
   });
@@ -688,8 +726,9 @@ describe("cardActions", () => {
   it("each card's buttons suit its job", () => {
     expect(of({ kind: "new_lead", phone: "506-555-0101" })).toEqual(["call", "text", "later"]);
     expect(of({ kind: "new_lead", phone: null })).toEqual(["open_client", "later"]);
-    expect(of({ kind: "overdue_tasks" })).toEqual(["open_checklist", "mark_one_done"]);
-    expect(of({ kind: "tasks_today" })).toEqual(["open_checklist", "mark_one_done"]);
+    // Later on a task card is a phone-only snooze (correction 15).
+    expect(of({ kind: "overdue_tasks" })).toEqual(["open_checklist", "mark_one_done", "later"]);
+    expect(of({ kind: "tasks_today" })).toEqual(["open_checklist", "mark_one_done", "later"]);
     expect(of({ kind: "deal_deadline" })).toEqual(["open_deals", "later"]);
     expect(of({ kind: "briefing" })).toEqual(["open_briefing", "later"]);
     expect(of({ kind: "schedule" })).toEqual(["open_client", "later"]);

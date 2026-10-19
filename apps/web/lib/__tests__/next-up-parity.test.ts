@@ -111,7 +111,7 @@ describe("Next up parity: /api/next-up and the phone's stack", () => {
       pipeline:      activePipelineDeals(mine(pipeline) as { stage: string }[]) as unknown as NextUpInput["pipeline"],
       clientRecords: mine(clientRecords) as unknown as NextUpInput["clientRecords"],
       undatedReceipts: 0, outreachReady: [], payload, schedule: [],
-      tripsLoggedToday: 0, activitiesToday: 0, briefingCount: 0,
+      tripsLoggedToday: 0, briefingCount: 0,
       localSnoozes: {}, voiceNoteDoneOn: null,
     };
     expect(input.today).toBe(TODAY);
