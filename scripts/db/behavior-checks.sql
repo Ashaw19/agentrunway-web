@@ -693,6 +693,11 @@ DECLARE
   v_b      uuid;
   v_pin_b  uuid;
   v_open   integer;
+  v_other  uuid := '00000000-0000-0000-0000-000000000188';
+  v_c      uuid;
+  v_theirs uuid;
+  v_hist   uuid;
+  v_hold   uuid;
 BEGIN
   -- fn_merge_clients checks auth.uid().
   PERFORM set_config('request.jwt.claim.sub', v_user::text, true);
@@ -786,6 +791,48 @@ BEGIN
   IF NOT EXISTS (SELECT 1 FROM next_up_handful WHERE client_id = v_a AND handled_at IS NULL) THEN
     RAISE EXCEPTION 'behaviour check: the open pin is not on the surviving client';
   END IF;
+
+  -- A row can't be pointed at another agent's client. Set-up as the owner:
+  -- another agent with a client, one more client of the CI user, a handled
+  -- pin and a hold to move.
+  INSERT INTO auth.users (id, email) VALUES (v_other, 'handful-other@example.test') ON CONFLICT (id) DO NOTHING;
+  INSERT INTO clients (user_id, name, name_search)
+  VALUES (v_other, 'CI Handful Theirs', 'ci handful theirs') RETURNING id INTO v_theirs;
+  INSERT INTO clients (user_id, name, name_search)
+  VALUES (v_user, 'CI Handful C', 'ci handful c') RETURNING id INTO v_c;
+  SELECT id INTO v_hist FROM next_up_handful WHERE client_id = v_a AND handled_at IS NOT NULL LIMIT 1;
+  SELECT id INTO v_hold FROM flight_control_dismissals WHERE client_id = v_a AND kind = 'later';
+  -- A throwaway database: make sure the signed-in role can read clients, as
+  -- the policies' client check does (production grants this already).
+  GRANT SELECT ON clients TO authenticated;
+
+  PERFORM set_config('request.jwt.claims', json_build_object('sub', v_user, 'role', 'authenticated')::text, true);
+  PERFORM set_config('request.jwt.claim.sub', v_user::text, true);
+  SET LOCAL ROLE authenticated;
+
+  -- Moving to one of the agent's own clients works, so the refusals below
+  -- come from the policy and not from a missing grant or a hidden row.
+  UPDATE next_up_handful SET client_id = v_c WHERE id = v_hist;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'behaviour check: an agent could not move their own pin to their own client';
+  END IF;
+  UPDATE flight_control_dismissals SET client_id = v_c WHERE id = v_hold;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'behaviour check: an agent could not move their own hold to their own client';
+  END IF;
+
+  BEGIN
+    UPDATE next_up_handful SET client_id = v_theirs WHERE id = v_hist;
+    RAISE EXCEPTION 'behaviour check: a pin was pointed at another agent''s client';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+  BEGIN
+    UPDATE flight_control_dismissals SET client_id = v_theirs WHERE id = v_hold;
+    RAISE EXCEPTION 'behaviour check: a hold was pointed at another agent''s client';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+
+  RESET ROLE;
 
   RAISE NOTICE 'behaviour checks (00188 handful): all passed';
 END $$;

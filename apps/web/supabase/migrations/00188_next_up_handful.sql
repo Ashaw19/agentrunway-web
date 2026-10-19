@@ -48,11 +48,17 @@ ALTER TABLE public.flight_control_dismissals
   ADD CONSTRAINT flight_control_dismissals_hold_covers_client
     CHECK (kind = 'skip' OR opportunity_type = 'any');
 
--- Upserting a hold (ON CONFLICT DO UPDATE) needs UPDATE.
+-- Upserting a hold (ON CONFLICT DO UPDATE) needs UPDATE. WITH CHECK is the
+-- INSERT policy's check, so an update can't point a row at another user's
+-- client either.
 CREATE POLICY "flight_control_dismissals_update_own"
   ON public.flight_control_dismissals FOR UPDATE TO authenticated
   USING (user_id = (select auth.uid()))
-  WITH CHECK (user_id = (select auth.uid()));
+  WITH CHECK (
+    user_id = (select auth.uid())
+    AND EXISTS (SELECT 1 FROM public.clients c
+                 WHERE c.id = client_id AND c.user_id = (select auth.uid()))
+  );
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.flight_control_dismissals TO authenticated, service_role;
 
@@ -84,6 +90,12 @@ CREATE UNIQUE INDEX next_up_handful_open_client
 CREATE INDEX next_up_handful_user_handled
   ON public.next_up_handful (user_id, handled_at);
 
+-- The client FK's covering index: deleting a client, and fn_merge_clients'
+-- loop (WHERE client_id = $1), find its pins without a scan. The partial
+-- unique index above leads with user_id and skips handled rows.
+CREATE INDEX next_up_handful_client_id
+  ON public.next_up_handful (client_id);
+
 ALTER TABLE public.next_up_handful ENABLE ROW LEVEL SECURITY;
 
 -- (select auth.uid()) form per 00130/00131 (initplan, evaluated once per query).
@@ -99,10 +111,15 @@ CREATE POLICY "next_up_handful_insert_own"
                  WHERE c.id = client_id AND c.user_id = (select auth.uid()))
   );
 
+-- WITH CHECK as on INSERT: an update can't point a row at another user's client.
 CREATE POLICY "next_up_handful_update_own"
   ON public.next_up_handful FOR UPDATE TO authenticated
   USING (user_id = (select auth.uid()))
-  WITH CHECK (user_id = (select auth.uid()));
+  WITH CHECK (
+    user_id = (select auth.uid())
+    AND EXISTS (SELECT 1 FROM public.clients c
+                 WHERE c.id = client_id AND c.user_id = (select auth.uid()))
+  );
 
 CREATE POLICY "next_up_handful_delete_own"
   ON public.next_up_handful FOR DELETE TO authenticated
