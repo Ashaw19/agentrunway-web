@@ -448,11 +448,14 @@ describe("log_mileage — core's trip writer", () => {
     expect(summary.total_km).toBe(3_060 + 42.5);
   });
 
-  it("no date: today, Atlantic time; no vehicle: none sent (the trip counts for the default vehicle)", async () => {
+  // Since 2026-10-19 (review): a new trip is stamped with the default vehicle
+  // (the oldest active one), so it never depends on which car is oldest later.
+  it("no date: today, Atlantic time; no vehicle: the default vehicle is stamped on the trip", async () => {
     const db = fakeSupabase(craExample());
     const res = await callRaw(await logbookTools(db), "log_mileage", { description: "Open house", km: 18 });
-    expect(JSON.parse(res.content[0].text)).toMatchObject({ trip_date: "2026-10-18", km: 18, km_from: "km given", vehicle_id: null });
-    expect(db.writesTo("mileage_logs")[0].rows[0]).not.toHaveProperty("vehicle_id", expect.anything());
+    const stamped = db.writesTo("mileage_logs")[0].rows[0].vehicle_id;
+    expect(stamped).toBe("car"); // the agent's own, never another account's
+    expect(JSON.parse(res.content[0].text)).toMatchObject({ trip_date: "2026-10-18", km: 18, km_from: "km given", vehicle_id: stamped });
   });
 
   it("km that disagree with the odometer, no description, or another account's vehicle: refused, nothing saved", async () => {
@@ -526,7 +529,7 @@ describe("start_logbook_period — core's period writer", () => {
     const db = fakeSupabase({ ...noLogbook(), vehicles: [vehicle("car")] });
     const sample = await callRaw(await logbookTools(db), "start_logbook_period", { kind: "sample", start_date: "2026-11-01", vehicle_id: "car" });
     expect(sample).toMatchObject({ isError: true });
-    expect(sample.content[0].text).toMatch(/simplified method compares a sample period with a base year/);
+    expect(sample.content[0].text).toMatch(/simplified method uses a sample in a later year than the base year/);
 
     const overlap = await callRaw(await logbookTools(fakeSupabase(craExample())), "start_logbook_period", { kind: "base", start_date: "2026-06-01", vehicle_id: "car" });
     expect(overlap.content[0].text).toMatch(/overlaps this vehicle's/);

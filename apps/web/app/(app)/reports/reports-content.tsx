@@ -159,7 +159,10 @@ interface Props {
    * the page's expenseTaxContext(settings, logbook).vehicleBusinessUse.
    */
   vehicleBusinessUse: VehicleBusinessUse | null;
+  /** The T2125 tab's tax year (?taxYear=); the other tabs are the current year. */
   taxYear?: number;
+  /** The years the T2125 tab offers, newest first. */
+  taxYearOptions?: number[];
   userId?: string;
   /** Referral summary for PDF Page 7 */
   referralSummary?: { inboundCount: number; outboundCount: number; feesEarned: number; feesPaid: number };
@@ -270,6 +273,7 @@ export function ReportsContent({
   mileageTotals = { km: 0, tripCount: 0 },
   vehicleBusinessUse,
   taxYear,
+  taxYearOptions,
   userId = "",
   referralSummary,
   expensesRemaining,
@@ -278,7 +282,10 @@ export function ReportsContent({
   const [histReportOpen, setHistReportOpen] = useState(false);
 
   // ── Tab state ────────────────────────────────────────────────────────────
-  const [tab, setTab] = useState<"overview" | "t2125">("overview");
+  // A T2125 year other than this one was picked (?taxYear=): open that tab.
+  const [tab, setTab] = useState<"overview" | "t2125">(
+    taxYear != null && taxYearOptions?.[0] != null && taxYear !== taxYearOptions[0] ? "t2125" : "overview",
+  );
 
   if (!settings) {
     return (
@@ -780,6 +787,7 @@ export function ReportsContent({
           mileageTotals={mileageTotals}
           vehicleBusinessUse={vehicleBusinessUse}
           taxYear={taxYear ?? new Date().getFullYear()}
+          taxYearOptions={taxYearOptions ?? [taxYear ?? new Date().getFullYear()]}
           userId={userId}
           referralSummary={referralSummary}
         />

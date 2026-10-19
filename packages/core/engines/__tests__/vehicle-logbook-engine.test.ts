@@ -26,6 +26,7 @@
  */
 import { describe, expect, it } from "vitest";
 import {
+  unassignedTripVehicleId,
   DEFAULT_VEHICLE_BUSINESS_USE_PCT,
   SIMPLIFIED_LOGBOOK_RANGE,
   allowanceRateFigure,
@@ -295,7 +296,7 @@ describe("several vehicles", () => {
     expect(r.pct).toBe(0.52);
   });
 
-  it("a trip with no vehicle counts for the default vehicle (the first one added)", () => {
+  it("a trip with no vehicle counts for the oldest vehicle", () => {
     expect(defaultVehicleId([TRUCK, CAR])).toBe("car");
     const r = vehicleBusinessUse({
       vehicles: [CAR, TRUCK], periods: [carBase, truckBase], readings: [],
@@ -305,8 +306,27 @@ describe("several vehicles", () => {
     expect(r.vehicles.find((v) => v.vehicleId === "car")!.businessKm).toBe(12_000);
   });
 
-  it("an inactive first vehicle is not the default", () => {
+  it("an inactive first vehicle is not the default for NEW trips, but keeps the trips that have no vehicle", () => {
     expect(defaultVehicleId([{ ...CAR, is_active: false }, TRUCK])).toBe("truck");
+    expect(unassignedTripVehicleId([{ ...CAR, is_active: false }, TRUCK])).toBe("car");
+  });
+
+  // Reviewer's reproduction (2026-10-19): car A had a finished 2026 logbook at
+  // 55%; after adding car B and marking A inactive, 2026 flipped to the
+  // declared 80% because A's unassigned trips moved to B.
+  it("marking a car inactive and adding another never moves a finished year's figure", () => {
+    const base2026 = period({ kind: "base", start_date: "2026-01-01", odometer_start: 0, odometer_end: 20_000 });
+    const trips = [trip("2026-03-01", 6_000, null), trip("2026-09-01", 5_000, null)];
+    const before = vehicleBusinessUse({ vehicles: [CAR], periods: [base2026], readings: [], trips, year: 2026, declaredPct: 0.8, today: "2027-02-01" });
+    expect(before.method).toBe("full");
+    expect(before.pct).toBe(0.55);
+    const carB = { id: "b", name: "New car", is_active: true, created_at: "2027-01-20T12:00:00Z" };
+    const after = vehicleBusinessUse({
+      vehicles: [{ ...CAR, is_active: false }, carB], periods: [base2026], readings: [], trips,
+      year: 2026, declaredPct: 0.8, today: "2027-02-01",
+    });
+    expect(after.method).toBe("full");
+    expect(after.pct).toBe(0.55);
   });
 
   it("one vehicle driven for business without a logbook: the declared setting stays", () => {
@@ -360,6 +380,27 @@ describe("odometer readings due and progress", () => {
   });
 });
 
+// ── Readings that disagree ─────────────────────────────────────────────────
+
+describe("odometer readings that disagree", () => {
+  it("a sample's start reading that differs from the base year's Dec 31 reading is flagged, not used", () => {
+    // Base 2025 ends at 34,000 on Dec 31; a Jan to Mar 2026 sample says 34,500 as it begins (the same moment).
+    const sample = period({ kind: "sample", start_date: "2026-01-01", odometer_start: 34_500, odometer_end: 40_000 });
+    const r2025 = vehicleBusinessUse({ vehicles: [CAR], periods: [BASE_2025, sample], readings: BASE_2025_READINGS, trips: BASE_2025_TRIPS, year: 2025, declaredPct: 0.8, today: TODAY });
+    expect(r2025.conflicts).toEqual([{ vehicleId: "car", date: "2025-12-31", values: [34_000, 34_500] }]);
+    expect(r2025.method).toBe("declared");
+    expect(r2025.vehicles[0].reason).toMatch(/Two different odometer readings for the end of 2025-12-31/);
+    expect(r2025.notes.join(" ")).toMatch(/two different odometer readings/);
+  });
+
+  it("readings that agree are one reading", () => {
+    const sample = period({ kind: "sample", start_date: "2026-01-01", odometer_start: 34_000, odometer_end: 40_000 });
+    const r = vehicleBusinessUse({ vehicles: [CAR], periods: [BASE_2025, sample], readings: [...BASE_2025_READINGS, reading("2025-12-31", 34_000)], trips: BASE_2025_TRIPS, year: 2025, declaredPct: 0.8, today: TODAY });
+    expect(r.conflicts).toEqual([]);
+    expect(r.method).toBe("full");
+  });
+});
+
 // ── Period shapes ──────────────────────────────────────────────────────────
 
 describe("period shapes", () => {
@@ -373,6 +414,20 @@ describe("period shapes", () => {
     expect(logbookPeriodProblem({ kind: "base", start_date: "2026-11-01", end_date: "2027-10-31" })).toBeNull();
     expect(logbookPeriodProblem({ kind: "base", start_date: "2026-11-15", end_date: "2027-11-14" })).toMatch(/1st/);
     expect(logbookPeriodProblem({ kind: "sample", start_date: "2026-04-01", end_date: "2026-05-31" })).toMatch(/3 months/);
+  });
+
+  it("a sample period is in a LATER year than the base year (CRA: \"in a subsequent year\")", () => {
+    // Base year Jul 2025 to Jun 2026; a sample Oct to Dec 2026 is in the base year's own calendar year.
+    const base = period({ kind: "base", start_date: "2025-07-01", odometer_start: 0, odometer_end: 12_000 });
+    const sample = period({ kind: "sample", start_date: "2026-10-01", odometer_start: 15_000, odometer_end: 16_000 });
+    const r = vehicleBusinessUse({
+      vehicles: [CAR], periods: [base, sample], readings: [],
+      trips: [trip("2025-08-01", 6_000), trip("2026-11-01", 500)], year: 2026, declaredPct: 0.8, today: "2027-01-10",
+    });
+    expect(r.method).toBe("declared");
+    expect(r.vehicles[0].reason).toMatch(/later year/);
+    expect(logbookPeriodProblem({ kind: "sample", start_date: "2026-10-01", end_date: "2026-12-31", vehicle_id: "car" }, [base])).toMatch(/later year/);
+    expect(logbookPeriodProblem({ kind: "sample", start_date: "2027-04-01", end_date: "2027-06-30", vehicle_id: "car" }, [base])).toBeNull();
   });
 
   it("a sample period needs a completed base year before it", () => {

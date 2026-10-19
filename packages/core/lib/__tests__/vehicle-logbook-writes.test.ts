@@ -22,6 +22,7 @@ import {
   ensureDefaultVehicle,
   mileageTripRow,
   recordOdometerReading,
+  saveMileagePlace,
   startLogbookPeriod,
 } from "../vehicle-logbook-writes";
 
@@ -108,6 +109,19 @@ describe("mileageTripRow", () => {
     expect(mileageTripRow("u", { tripDate: "2026-03-01", description: " ", km: 10 }).ok).toBe(false);
     expect(mileageTripRow("u", { tripDate: "2026-03-01", description: "x" }).ok).toBe(false);
     expect(mileageTripRow("u", { tripDate: "2026-3-1", description: "x", km: 5 }).ok).toBe(false);
+  });
+});
+
+describe("saved places", () => {
+  it("saves a place once, whatever its case, and checks the name and km", async () => {
+    const db = fakeClient({ mileage_places: [] });
+    const first = await saveMileagePlace(db.client, "u", { name: "Board office", defaultKm: 12.44 });
+    expect(first.ok && first.value?.name).toBe("Board office");
+    expect(db.tables.mileage_places[0]).toMatchObject({ user_id: "u", name: "Board office", address: null, default_km: 12.4 });
+    const again = await saveMileagePlace(db.client, "u", { name: " board OFFICE " });
+    expect(again.ok && again.value).toBeNull();
+    expect(db.tables.mileage_places).toHaveLength(1);
+    expect((await saveMileagePlace(db.client, "u", { name: " " })).ok).toBe(false);
   });
 });
 

@@ -30,7 +30,7 @@ import * as ImagePicker from "expo-image-picker";
 import * as Haptics from "expo-haptics";
 import { useDataStore, type ReceiptExpense } from "@/stores/data-store";
 import { useMileageStore } from "@/stores/mileage-store";
-import { localISODate } from "@agent-runway/core/lib/local-date";
+import { atlanticISODate } from "@agent-runway/core/lib/local-date";
 import { supabase } from "@/lib/supabase";
 import { validateExpenseAmount } from "@agent-runway/core/validation/input-guards";
 import { expenseTaxContext, receiptTotalsToDate } from "@agent-runway/core/engines/expense-totals-engine";
@@ -169,7 +169,8 @@ export default function ScanScreen() {
   // load, or when they fail to, it is the declared setting, as on the web
   // pages that use loadLogbookRowsOrNull.
   const { logbook, logbookYear, fetchLogbook } = useMileageStore();
-  const today = localISODate();
+  // The tax year and the logbook's "today": the Atlantic calendar, as on the web.
+  const today = atlanticISODate();
   const taxYear = Number(today.slice(0, 4));
   const logbookRows = logbook && logbookYear === taxYear ? logbook : null;
   const expenseTaxCtx = useMemo(

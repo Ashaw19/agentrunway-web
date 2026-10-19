@@ -50,7 +50,7 @@ import {
   type VehicleBusinessUse,
 } from "@agent-runway/core/engines/vehicle-logbook-engine";
 import { loadLogbookRows } from "@agent-runway/core/lib/vehicle-logbook-rows";
-import { MILEAGE_TRIP_PURPOSES } from "@agent-runway/core/lib/vehicle-logbook-writes";
+import { MILEAGE_TRIP_PURPOSES, saveMileagePlace } from "@agent-runway/core/lib/vehicle-logbook-writes";
 import { logTrip } from "@agent-runway/core/lib/record-writers";
 import {
   ALLOWANCE_RATE_NOTE,
@@ -227,14 +227,14 @@ export function ExpensesMileageTab({
     }
 
     const to = form.to_location.trim();
-    if (form.save_place && to && !places.some((p) => p.name === to)) {
-      const { data: place, error } = await supabase
-        .from("mileage_places")
-        .insert({ user_id: user.id, name: to.slice(0, 80), default_km: Number(saved.km) || null })
-        .select("*")
-        .single();
-      if (error || !place) toast.error("Trip saved. The place was not saved.");
-      else setPlaces((prev) => [...prev, place as MileagePlace].sort((a, b) => a.name.localeCompare(b.name)));
+    if (form.save_place && to) {
+      // Core writer (vehicle-logbook-writes), the one the phone uses.
+      const placed = await saveMileagePlace(supabase, user.id, { name: to.slice(0, 80), defaultKm: Number(saved.km) || null });
+      if (!placed.ok) toast.error(`Trip saved. The place was not saved: ${placed.error}`);
+      else if (placed.value) {
+        const place = placed.value;
+        setPlaces((prev) => [...prev, place].sort((a, b) => a.name.localeCompare(b.name)));
+      }
     }
 
     setSaving(false);

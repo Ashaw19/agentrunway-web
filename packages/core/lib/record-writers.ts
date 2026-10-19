@@ -26,7 +26,13 @@ import { activityRow, clientRow, contactTaskRow, mileageRow, receiptExpenseRow, 
 import { FIELD_LIMITS, validateCommissionPaidDate } from "../validation/input-guards";
 import type { ActivityType, PipelineStage, TaskPriority } from "../types/database";
 import { isIsoDay } from "./capture/dates";
-import { mileageTripRow, ownsVehicle, type TripInput, type WriteResult } from "./vehicle-logbook-writes";
+import {
+  defaultVehicleFor,
+  mileageTripRow,
+  ownsVehicle,
+  type TripInput,
+  type WriteResult,
+} from "./vehicle-logbook-writes";
 import type { MileageLog } from "../types/database";
 import type {
   CaptureTool,
@@ -276,7 +282,10 @@ export const MAX_TRIP_KM = 5000;
  * the odometer when only the two readings are given (and refused when both
  * are given and disagree), CRA's allowance rate for the trip's year in
  * `cra_rate_per_km`, the vehicle and odometer columns only when set. A
- * vehicle id has to be the agent's own. Returns the saved row.
+ * vehicle id has to be the agent's own. With none given and the agent has a
+ * vehicle, the trip is stamped with the default vehicle (`defaultVehicleId`,
+ * the oldest active one), so a new trip never depends on which car is the
+ * oldest later. Returns the saved row.
  */
 export async function writeMileage(db: DbClient, userId: string, args: LogMileageArgs): Promise<WriteOutcome> {
   const description = (args.description ?? "").trim();
@@ -303,6 +312,9 @@ export async function writeMileage(db: DbClient, userId: string, args: LogMileag
     if (args.vehicleId) {
       const owned = await ownsVehicle(db, userId, args.vehicleId);
       if (!owned.ok) return fail(owned.error);
+    } else {
+      const stamped = await defaultVehicleFor(db, userId);
+      if (stamped) row.value.vehicle_id = stamped;
     }
     const { data, error } = await db
       .from("mileage_logs")
@@ -337,6 +349,82 @@ export async function logTrip(db: DbClient, userId: string, t: TripInput): Promi
   });
   if (!out.ok || !out.row) return { ok: false, error: out.message };
   return { ok: true, value: out.row as unknown as MileageLog };
+}
+
+/** updateMileage: what can change on a trip. Omitted = unchanged; null clears a text or odometer field. */
+export interface UpdateMileageArgs {
+  mileageId: string;
+  tripDate?: string;
+  km?: number;
+  description?: string;
+  fromLocation?: string | null;
+  toLocation?: string | null;
+  purpose?: string | null;
+  odometerStart?: number | null;
+  odometerEnd?: number | null;
+  vehicleId?: string;
+  notes?: string | null;
+}
+
+/**
+ * updateMileage. The trip after the change is checked with the same rules
+ * as a new one (mileageTripRow: a real date, km over 0 and at most 5,000,
+ * km and odometer readings that agree), and `cra_rate_per_km` follows the
+ * trip's year when the date moves. Km that no longer agree with the trip's
+ * odometer readings are refused (change or clear the readings with them).
+ */
+export async function updateMileage(db: DbClient, userId: string, args: UpdateMileageArgs): Promise<WriteOutcome> {
+  try {
+    const { data: current, error: readErr } = await db
+      .from("mileage_logs")
+      .select("*")
+      .eq("id", args.mileageId)
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (readErr) return refused("read the trip", readErr);
+    if (!current) return fail("That trip wasn't found in your mileage log.");
+    const cur = current as Record<string, unknown>;
+    const numOrNull = (v: unknown) => (v == null || v === "" ? null : Number(v));
+    const merged: TripInput = {
+      tripDate: args.tripDate ?? String(cur.trip_date),
+      description: args.description ?? String(cur.description ?? ""),
+      km: args.km ?? numOrNull(cur.km),
+      odometerStart: args.odometerStart !== undefined ? args.odometerStart : numOrNull(cur.odometer_start),
+      odometerEnd: args.odometerEnd !== undefined ? args.odometerEnd : numOrNull(cur.odometer_end),
+      vehicleId: args.vehicleId ?? (cur.vehicle_id as string | null) ?? null,
+      fromLocation: args.fromLocation !== undefined ? args.fromLocation : (cur.from_location as string | null),
+      toLocation: args.toLocation !== undefined ? args.toLocation : (cur.to_location as string | null),
+      purpose: args.purpose !== undefined ? args.purpose : (cur.purpose as string | null),
+      notes: args.notes !== undefined ? args.notes : (cur.notes as string | null),
+    };
+    if (args.km !== undefined && !(args.km > 0)) return fail("A trip needs its km, more than 0.");
+    if (args.km !== undefined && args.km > MAX_TRIP_KM) return fail(`${args.km} km is more than one trip line takes (${MAX_TRIP_KM} km).`);
+    const row = mileageTripRow(userId, merged);
+    if (!row.ok) return fail(row.error);
+    if (args.vehicleId) {
+      const owned = await ownsVehicle(db, userId, args.vehicleId);
+      if (!owned.ok) return fail(owned.error);
+    }
+    const next = mileageRow(row.value);
+    const updates: Record<string, unknown> = {
+      trip_date: next.trip_date,
+      description: next.description,
+      km: next.km,
+      cra_rate_per_km: next.cra_rate_per_km,
+      from_location: next.from_location ?? null,
+      to_location: next.to_location ?? null,
+      purpose: next.purpose ?? null,
+      notes: next.notes ?? null,
+      odometer_start: next.odometer_start ?? null,
+      odometer_end: next.odometer_end ?? null,
+    };
+    if (next.vehicle_id) updates.vehicle_id = next.vehicle_id;
+    const { error } = await db.from("mileage_logs").update(updates).eq("id", args.mileageId).eq("user_id", userId);
+    if (error) return refused("update the trip", error);
+    return { ok: true, message: `Trip updated: ${next.km} km on ${next.trip_date}.`, id: args.mileageId, row: { ...cur, ...updates } };
+  } catch (err) {
+    return thrown("update the trip", err);
+  }
 }
 
 // ── Expense ──────────────────────────────────────────────────────────────────

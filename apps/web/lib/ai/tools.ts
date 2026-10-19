@@ -121,6 +121,7 @@ import {
   writeDealStage,
   writeExpense,
   writeMileage,
+  updateMileage as updateMileageWrite,
   writeTransaction,
 } from "@agent-runway/core/lib/record-writers";
 import { CaptureParseError } from "@agent-runway/core/lib/capture/parse";
@@ -2743,8 +2744,9 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
           const taxCtx = await getExpenseTaxCtx();
           const totalExpenses = aggregateReceiptTotals(expenses, taxCtx).total;
           const totalKm = mileage.reduce((s: number, m: { km: number }) => s + Number(m.km || 0), 0);
-          // km × CRA's per-km allowance rate: an employer-allowance benchmark, not a deduction.
-          const mileageAllowance = allowanceRateFigure(totalKm, Number(start.slice(0, 4)));
+          // Km only. km × CRA's per-km allowance rate is an employer-allowance
+          // benchmark, not a deduction, and its 5,000 km tier counts from
+          // January 1, so a period's km alone can't price it.
           const pipelineValue = newDeals.reduce((s: number, d: { estimated_price: number }) => s + Number(d.estimated_price || 0), 0);
 
           // Activity breakdown
@@ -2783,7 +2785,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
 
           // Mileage
           if (mileage.length > 0) {
-            sections.push(`🚗 **Mileage**: ${totalKm.toFixed(1)} business km across ${mileage.length} trips (at CRA's ${mileageAllowance.rates.year} per-km allowance rates, $${mileageAllowance.amount.toFixed(2)}: an employer-allowance benchmark, not the T2125 vehicle deduction)`);
+            sections.push(`🚗 **Mileage**: ${totalKm.toFixed(1)} business km across ${mileage.length} trips`);
           }
 
           // Net
@@ -3674,7 +3676,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
 
     // ── UPDATE: Mileage entry ─────────────────────────────────────────────────
     updateMileage: tool({
-      description: "Update a mileage log entry — change km, date, locations, or purpose. Use searchMileageLogs first to find the entry ID.",
+      description: "Update a mileage log entry: km, date, locations, purpose or the odometer at its start and end. Use searchMileageLogs first to find the entry ID. The trip after the change is checked like a new one (km over 0 and at most 5,000, km that agree with the odometer readings), and CRA's allowance rate stored on it follows the trip's year.",
       inputSchema: z.object({
         mileageId: z.string().uuid().describe("The mileage log UUID"),
         km: z.number().optional().describe("Updated kilometres"),
@@ -3682,27 +3684,31 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
         fromLocation: z.string().optional().describe("Updated from location"),
         toLocation: z.string().optional().describe("Updated to location"),
         purpose: z.string().optional().describe("Updated purpose"),
+        odometerStart: z.number().nonnegative().optional().describe("Updated odometer at the start of the trip, in km"),
+        odometerEnd: z.number().nonnegative().optional().describe("Updated odometer at the end of the trip, in km"),
       }),
-      execute: async ({ mileageId, km, tripDate, fromLocation, toLocation, purpose }) => {
+      execute: async ({ mileageId, km, tripDate, fromLocation, toLocation, purpose, odometerStart, odometerEnd }) => {
         try {
-          const updates: Record<string, unknown> = {};
           const changed: string[] = [];
-
-          if (km !== undefined) { updates.km = km; changed.push(`km → ${km}`); }
-          if (tripDate) { updates.trip_date = tripDate; changed.push(`date → ${tripDate}`); }
-          if (fromLocation) { updates.from_location = fromLocation; changed.push(`from → ${fromLocation}`); }
-          if (toLocation) { updates.to_location = toLocation; changed.push(`to → ${toLocation}`); }
-          if (purpose) { updates.purpose = purpose; changed.push(`purpose → ${purpose}`); }
-
+          if (km !== undefined) changed.push(`km → ${km}`);
+          if (tripDate) changed.push(`date → ${tripDate}`);
+          if (fromLocation) changed.push(`from → ${fromLocation}`);
+          if (toLocation) changed.push(`to → ${toLocation}`);
+          if (purpose) changed.push(`purpose → ${purpose}`);
+          if (odometerStart !== undefined || odometerEnd !== undefined) changed.push("odometer");
           if (changed.length === 0) return "No changes specified.";
-
-          const { error } = await supabase
-            .from("mileage_logs")
-            .update(updates)
-            .eq("id", mileageId)
-            .eq("user_id", userId);
-
-          if (error) return `Failed to update mileage: ${error.message}`;
+          // Core writer (record-writers): the same checks as a new trip.
+          const out = await updateMileageWrite(supabase, userId, {
+            mileageId,
+            km,
+            tripDate: tripDate || undefined,
+            fromLocation: fromLocation || undefined,
+            toLocation: toLocation || undefined,
+            purpose: purpose || undefined,
+            odometerStart,
+            odometerEnd,
+          });
+          if (!out.ok) return `Failed to update mileage: ${out.message}`;
           return `✓ Mileage entry updated: ${changed.join(", ")}. The year's km and the logbook figures use the new value.`;
         } catch { return "Failed to update mileage. Please try again."; }
       },

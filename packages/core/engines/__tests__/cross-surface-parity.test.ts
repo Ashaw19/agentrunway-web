@@ -53,7 +53,7 @@ import { buildGST34Worksheet } from "../gst34-worksheet";
 import type { LogbookRows } from "../vehicle-logbook-engine";
 import { buildT2125Expenses, ytdExpenseTotals } from "../t2125-expenses-engine";
 import { computeT2125 } from "../t2125-engine";
-import { createTestSettings } from "./test-data";
+import { createTestSettings, withDeclaredShare } from "./test-data";
 
 // Pinned mid-year so seasonal fraction + remaining-months math is stable and
 // well past the early-year dampening threshold (fraction >= 0.10).
@@ -434,14 +434,14 @@ describe("YTD expenses: the Expenses page total equals the dashboard's", () => {
   it("the T2125 tab is built from the same lines: line 9369 is their deductible total", () => {
     const totals = dashboard();
     // reports/page.tsx hands `tracked.entries` to the T2125 tab.
-    const t2125 = computeT2125({
+    const t2125 = computeT2125(withDeclaredShare({
       settings: createTestSettings({ ...SETTINGS_ROW, province: "newBrunswick" }),
       transactions: CLOSED_TX,
       expenses: totals.tracked.entries,
       homeOfficeCosts: totals.tracked.homeOfficeCosts,
       ccaAssets: [],
       taxYear: 2026,
-    });
+    }));
     expect(t2125.line9369_totalExpenses).toBeCloseTo(totals.tracked.deductibleTotal - totals.tracked.byRule.home, 10);
     // Before the limits (50% on the meal, 80% on fuel and the two lease
     // entries) those lines are YTD Expenses.

@@ -256,7 +256,7 @@ export function ExpensesContent({
   // applies is `vehiclePct` below: the logbook's figure for the year when it
   // covers it (vehicle-logbook-engine), else this one.
   const [declaredVehiclePct, setDeclaredVehiclePct] = useState<number>(
-    settings?.vehicle_business_use_pct != null ? Number(settings.vehicle_business_use_pct) : 0.80,
+    settings?.vehicle_business_use_pct != null ? Number(settings.vehicle_business_use_pct) : 0.80, // vehicle-share-ok: the declared setting, edited on this page
   );
 
   // ── Home office % (editable, persisted to user_settings) ─────────────────
@@ -280,7 +280,7 @@ export function ExpensesContent({
   const [logbookState, setLogbookState] = useState<ExpenseTaxLogbook>(logbook);
   const expenseTaxCtx = useMemo(
     () => expenseTaxContext(
-      { gst_hst_registered: gstHstRegistered, vehicle_business_use_pct: declaredVehiclePct, home_office_business_use_pct: homePct },
+      { gst_hst_registered: gstHstRegistered, vehicle_business_use_pct: declaredVehiclePct, home_office_business_use_pct: homePct }, // vehicle-share-ok: the declared setting, handed to the resolver
       logbookState,
     ),
     [gstHstRegistered, declaredVehiclePct, homePct, logbookState],
@@ -1164,7 +1164,7 @@ export function ExpensesContent({
     if (!user) return;
     const { error } = await supabase
       .from("user_settings")
-      .update({ vehicle_business_use_pct: pct })
+      .update({ vehicle_business_use_pct: pct }) // vehicle-share-ok: saving the declared setting
       .eq("user_id", user.id);
     if (error) {
       toast.error("Couldn't save vehicle % — please try again.");

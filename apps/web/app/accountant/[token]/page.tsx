@@ -240,7 +240,10 @@ export default function AccountantPage() {
                       {fmtCurrency(mileageTotal)}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      {data.mileageLogs.length} trips logged
+                      {data.mileageLogs.length} trips logged · {mileageKm.toLocaleString("en-CA", { maximumFractionDigits: 0 })} business km
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      An employer allowance benchmark, not a deduction. The T2125 vehicle deduction is the business part of actual vehicle costs.
                     </p>
                   </div>
                 </div>

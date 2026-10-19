@@ -16,6 +16,7 @@ import {
   writeDealStage,
   writeExpense,
   writeMileage,
+  updateMileage,
   writeTransaction,
 } from "../record-writers";
 import { applyCaptureWrites, summarizeSave } from "../capture/proposals";
@@ -116,6 +117,58 @@ describe("writeMileage (logMileage)", () => {
     expect((await writeMileage(db, USER, { tripDate: TODAY, km: 0, description: "x" })).ok).toBe(false);
     expect((await writeMileage(db, USER, { tripDate: TODAY, km: 18000, description: "x" })).ok).toBe(false);
     expect(writes).toEqual([]);
+  });
+});
+
+describe("writeMileage and the vehicle logbook (2026-10-19)", () => {
+  const car = { id: "car", user_id: USER, name: "Car", is_active: false, created_at: "2024-01-01T12:00:00Z" };
+  const truck = { id: "truck", user_id: USER, name: "Truck", is_active: true, created_at: "2025-01-01T12:00:00Z" };
+
+  it("stamps the default vehicle (the oldest active one) when none is given", async () => {
+    const { db, writes } = fakeDb({ vehicles: [car, truck] });
+    const out = await writeMileage(db, USER, { tripDate: "2026-10-17", km: 18, description: "Showing" });
+    expect(out.ok).toBe(true);
+    expect(writes[0].payload.vehicle_id).toBe("truck");
+  });
+
+  it("works the km out from the odometer, and refuses another agent's vehicle", async () => {
+    const { db, writes } = fakeDb({ vehicles: [truck] });
+    const out = await writeMileage(db, USER, { tripDate: "2026-10-17", km: 0, description: "Showing", odometerStart: 100, odometerEnd: 123.5, vehicleId: "truck" });
+    expect(out.ok).toBe(true);
+    expect(writes[0].payload).toMatchObject({ km: 23.5, odometer_start: 100, odometer_end: 123.5, vehicle_id: "truck" });
+    const theirs = await writeMileage(db, USER, { tripDate: "2026-10-17", km: 5, description: "x", vehicleId: "someone-elses" });
+    expect(theirs).toMatchObject({ ok: false, message: "That vehicle was not found." });
+  });
+});
+
+describe("updateMileage", () => {
+  const trip = { id: "t1", user_id: USER, trip_date: "2025-12-30", km: 20, description: "Showing", cra_rate_per_km: 0.72, odometer_start: 1_000, odometer_end: 1_020, vehicle_id: null };
+
+  it("checks the trip as a new one would be: km over 0 and at most 5,000", async () => {
+    const { db, writes } = fakeDb({ mileage_logs: [{ ...trip, odometer_start: null, odometer_end: null }] });
+    expect((await updateMileage(db, USER, { mileageId: "t1", km: 0 })).ok).toBe(false);
+    expect((await updateMileage(db, USER, { mileageId: "t1", km: 9_000 })).ok).toBe(false);
+    expect(writes).toEqual([]);
+  });
+
+  it("refuses km that no longer agree with the trip's odometer readings", async () => {
+    const { db, writes } = fakeDb({ mileage_logs: [trip] });
+    const out = await updateMileage(db, USER, { mileageId: "t1", km: 35 });
+    expect(out.ok).toBe(false);
+    expect(out.message).toMatch(/do not agree/);
+    expect(writes).toEqual([]);
+  });
+
+  it("moving a trip into another year takes that year's CRA rate", async () => {
+    const { db, writes } = fakeDb({ mileage_logs: [trip] });
+    const out = await updateMileage(db, USER, { mileageId: "t1", tripDate: "2026-01-02" });
+    expect(out.ok).toBe(true);
+    expect(writes[0].payload).toMatchObject({ trip_date: "2026-01-02", cra_rate_per_km: 0.73, km: 20 });
+  });
+
+  it("a trip that isn't the agent's is not found", async () => {
+    const { db } = fakeDb({ mileage_logs: [{ ...trip, user_id: "someone-else" }] });
+    expect(await updateMileage(db, USER, { mileageId: "t1", km: 5 })).toMatchObject({ ok: false });
   });
 });
 

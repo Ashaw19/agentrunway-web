@@ -35,8 +35,8 @@ import {
   type ReadingDueKind,
 } from "../engines/vehicle-logbook-engine";
 import { craAllowanceRates } from "../tax-copy/cra-rules";
-import type { Vehicle, VehicleLogbookPeriod } from "../types/database";
-import { loadLogbookPeriods, loadVehicles, type LogbookClient } from "./vehicle-logbook-rows";
+import type { MileagePlace, Vehicle, VehicleLogbookPeriod } from "../types/database";
+import { loadLogbookPeriods, loadMileagePlaces, loadVehicles, type LogbookClient } from "./vehicle-logbook-rows";
 
 export type WriteResult<T> = { ok: true; value: T } | { ok: false; error: string };
 
@@ -59,6 +59,20 @@ const ISO = /^\d{4}-\d{2}-\d{2}$/;
 /** The name a vehicle gets when the agent has not named one. */
 export const DEFAULT_VEHICLE_NAME = "My vehicle";
 
+/**
+ * The vehicle a new trip is stamped with when none is picked
+ * (`defaultVehicleId`), or null when the agent has no vehicle or the list
+ * can't be read (before migration 00184; the trip is then saved with no
+ * vehicle and counts for the oldest one later).
+ */
+export async function defaultVehicleFor(supabase: LogbookClient, userId: string): Promise<string | null> {
+  try {
+    return defaultVehicleId(await loadVehicles(supabase, userId));
+  } catch {
+    return null;
+  }
+}
+
 /** The default vehicle's id, adding "My vehicle" when the agent has none. */
 export async function ensureDefaultVehicle(supabase: LogbookClient, userId: string): Promise<WriteResult<string>> {
   let vehicles: Vehicle[];
@@ -76,6 +90,39 @@ export async function ensureDefaultVehicle(supabase: LogbookClient, userId: stri
     .single();
   if (error || !data) return { ok: false, error: error?.message ?? "The vehicle was not saved." };
   return { ok: true, value: (data as { id: string }).id };
+}
+
+export interface NewPlace {
+  name: string;
+  address?: string | null;
+  /** The usual km for a trip there. */
+  defaultKm?: number | null;
+}
+
+/**
+ * Save a place for quick trip entry (web Mileage tab, phone). A name already
+ * saved (any case) is not saved again: `value` is null then.
+ */
+export async function saveMileagePlace(supabase: LogbookClient, userId: string, p: NewPlace): Promise<WriteResult<MileagePlace | null>> {
+  const name = p.name?.trim() ?? "";
+  if (name.length < 1 || name.length > 80) return { ok: false, error: "A place needs a name of 1 to 80 characters." };
+  const address = p.address?.trim() || null;
+  if (address && address.length > 200) return { ok: false, error: "The address is at most 200 characters." };
+  const km = p.defaultKm != null && Number.isFinite(p.defaultKm) && p.defaultKm > 0 && p.defaultKm <= 5_000 ? Math.round(p.defaultKm * 10) / 10 : null;
+  let places: MileagePlace[];
+  try {
+    places = await loadMileagePlaces(supabase, userId);
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+  if (places.some((x) => x.name.trim().toLowerCase() === name.toLowerCase())) return { ok: true, value: null };
+  const { data, error } = await supabase
+    .from("mileage_places")
+    .insert({ user_id: userId, name, address, default_km: km })
+    .select("*")
+    .single();
+  if (error || !data) return { ok: false, error: error?.message ?? "The place was not saved." };
+  return { ok: true, value: data as MileagePlace };
 }
 
 export interface NewVehicle {

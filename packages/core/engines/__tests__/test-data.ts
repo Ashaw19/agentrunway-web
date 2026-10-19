@@ -420,3 +420,15 @@ export const TEST_EXPENSES = {
   ytdExpenses: 8_500,
   monthlyRecurring: 800,
 };
+
+/**
+ * A computeT2125 input with the vehicle share the old fallback gave
+ * (settings.vehicle_business_use_pct, 0 when unset). Since 2026-10-19 the
+ * engine takes the share as a required argument (the apps pass
+ * expenseTaxContext's); these tests are about other lines.
+ */
+export function withDeclaredShare<T extends { settings: { vehicle_business_use_pct?: number | null } }>(
+  input: T,
+): T & { vehicleBusinessUsePct: number } {
+  return { ...input, vehicleBusinessUsePct: Math.min(1, Math.max(0, input.settings.vehicle_business_use_pct ?? 0)) };
+}

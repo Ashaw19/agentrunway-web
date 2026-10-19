@@ -565,7 +565,7 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
 
   // ── Section 7: Claiming (Home Office + Vehicle) ──────────────────────────
   const [vehiclePct, setVehiclePct] = useState<string>(
-    settings.vehicle_business_use_pct != null
+    settings.vehicle_business_use_pct != null // vehicle-share-ok: the declared setting's editor
       ? String(Math.round(Number(settings.vehicle_business_use_pct) * 100))
       : "0",
   );
@@ -579,7 +579,7 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
     const { error } = await supabase
       .from("user_settings")
       .update({
-        vehicle_business_use_pct:    vPct,
+        vehicle_business_use_pct:    vPct, // vehicle-share-ok: saving the declared setting
         home_office_business_use_pct: hPct,
       })
       .eq("user_id", settings.user_id);

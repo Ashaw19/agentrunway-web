@@ -35,7 +35,7 @@ import {
   totalRecurringYTD,
 } from "../recurring-expense-engine";
 import { computeT2125, t2125EntriesFromAmounts } from "../t2125-engine";
-import { createTestSettings } from "./test-data";
+import { createTestSettings, withDeclaredShare } from "./test-data";
 import type { RecurringExpense } from "../../types/database";
 
 const REGISTRANT = { gstHstRegistered: true, vehicleBusinessUsePct: 0.8, homeOfficeBusinessUsePct: 0.15 };
@@ -334,7 +334,7 @@ describe("T2125 lines from net amounts", () => {
   it("registrant: lines are net of ITCs before the 50% and business-use limits", () => {
     const settings = createTestSettings({ gst_hst_registered: true, vehicle_business_use_pct: 0.8, province: "newBrunswick" });
     const { byKey } = aggregateReceiptTotals(rows, expenseTaxContext(settings));
-    const t = computeT2125({ settings, transactions: [], expenses: t2125EntriesFromAmounts(byKey), ccaAssets: [], taxYear: 2026 });
+    const t = computeT2125(withDeclaredShare({ settings, transactions: [], expenses: t2125EntriesFromAmounts(byKey), ccaAssets: [], taxYear: 2026 }));
 
     expect(t.line8811_officeSupplies).toBe(100);
     // 50% of ($115 − the $7.50 ITC)
@@ -347,7 +347,7 @@ describe("T2125 lines from net amounts", () => {
   it("non-registrant: lines carry the GST/HST, as before", () => {
     const settings = createTestSettings({ gst_hst_registered: false, vehicle_business_use_pct: 0.8, province: "newBrunswick" });
     const { byKey } = aggregateReceiptTotals(rows, expenseTaxContext(settings));
-    const t = computeT2125({ settings, transactions: [], expenses: t2125EntriesFromAmounts(byKey), ccaAssets: [], taxYear: 2026 });
+    const t = computeT2125(withDeclaredShare({ settings, transactions: [], expenses: t2125EntriesFromAmounts(byKey), ccaAssets: [], taxYear: 2026 }));
 
     expect(t.line8811_officeSupplies).toBe(115);
     expect(t.line8523_mealsEntertainment50pct).toBe(57.5);
@@ -358,8 +358,8 @@ describe("T2125 lines from net amounts", () => {
   it("the old HST-inclusive input overstated a registrant's T2125 expenses", () => {
     const settings = createTestSettings({ gst_hst_registered: true, vehicle_business_use_pct: 0.8, province: "newBrunswick" });
     const net = aggregateReceiptTotals(rows, expenseTaxContext(settings));
-    const before = computeT2125({ settings, transactions: [], expenses: t2125EntriesFromAmounts({ office_supplies: 115, meals_client: 115, vehicle_fuel: 115 }), ccaAssets: [], taxYear: 2026 });
-    const after = computeT2125({ settings, transactions: [], expenses: t2125EntriesFromAmounts(net.byKey), ccaAssets: [], taxYear: 2026 });
+    const before = computeT2125(withDeclaredShare({ settings, transactions: [], expenses: t2125EntriesFromAmounts({ office_supplies: 115, meals_client: 115, vehicle_fuel: 115 }), ccaAssets: [], taxYear: 2026 }));
+    const after = computeT2125(withDeclaredShare({ settings, transactions: [], expenses: t2125EntriesFromAmounts(net.byKey), ccaAssets: [], taxYear: 2026 }));
     expect(before.line9369_totalExpenses - after.line9369_totalExpenses).toBeCloseTo(30.75, 10);
   });
 });

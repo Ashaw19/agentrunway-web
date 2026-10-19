@@ -30,6 +30,7 @@ import {
   type VehicleBusinessUse,
 } from "@agent-runway/core/engines/vehicle-logbook-engine";
 import { VEHICLE_BUSINESS_PART_RULE } from "@agent-runway/core/tax-copy";
+import { TAX_YEAR } from "@agent-runway/core/engines/canadian-tax-engine";
 import type { YearMileageTotals } from "@/lib/vehicle-logbook/load";
 import { toast } from "sonner";
 
@@ -54,6 +55,8 @@ interface Props {
    */
   vehicleBusinessUse: VehicleBusinessUse | null;
   taxYear: number;
+  /** Tax years to pick from, newest first (the first is the current year). */
+  taxYearOptions: number[];
   userId: string;
   referralSummary?: { inboundCount: number; outboundCount: number; feesEarned: number; feesPaid: number };
 }
@@ -169,6 +172,7 @@ export function ReportsT2125Tab({
   mileageTotals,
   vehicleBusinessUse,
   taxYear,
+  taxYearOptions,
   userId,
   referralSummary: _referralSummary,
 }: Props) {
@@ -414,8 +418,28 @@ export function ReportsT2125Tab({
           <p className="text-sm text-muted-foreground mt-1">
             Statement of Business Activities · {taxYear} · Pre-filled from your Agent Runway data
           </p>
+          {taxYear !== taxYearOptions[0] && (
+            <p className="text-xs text-muted-foreground mt-1 max-w-xl">
+              {taxYear}: receipts dated in {taxYear}, the monthly estimates for 12 months and the active Recurring
+              Expenses&apos; {taxYear} charges (one deleted since is not included), the {taxYear} logbook&apos;s vehicle
+              share, and CCA assets as recorded now.
+              {taxYear !== TAX_YEAR && ` Tax figures use the engine's ${TAX_YEAR} tables.`}
+            </p>
+          )}
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          {taxYearOptions.length > 1 && (
+            <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              Tax year
+              <select
+                className="h-8 rounded-md border border-input bg-background px-2 text-sm text-foreground"
+                value={taxYear}
+                onChange={(e) => router.push(`/reports?taxYear=${e.target.value}`)}
+              >
+                {taxYearOptions.map((y) => <option key={y} value={y}>{y}</option>)}
+              </select>
+            </label>
+          )}
           <Button
             variant="outline"
             size="sm"

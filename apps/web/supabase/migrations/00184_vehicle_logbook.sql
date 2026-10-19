@@ -26,9 +26,19 @@
 --   mileage_logs               + vehicle_id, odometer_start, odometer_end.
 --
 -- ADDITIVE ONLY. No existing row is rewritten: trips logged before this have
--- vehicle_id NULL and count for the agent's default vehicle (the first active
--- one added), worked out in code (defaultVehicleId). A vehicle is created
--- when the agent first adds one or starts a logbook period.
+-- vehicle_id NULL and count for the agent's OLDEST vehicle, active or not,
+-- worked out in code (unassignedTripVehicleId), so marking a car inactive or
+-- adding one never moves them. New trips carry their vehicle: the writers
+-- stamp the default one (the oldest active vehicle) when none is picked. A
+-- vehicle is created when the agent first adds one or starts a period.
+--
+-- OWNERSHIP IN THE DATABASE. Every vehicle reference is a composite foreign
+-- key (user_id, vehicle_id) → vehicles (user_id, id), so a row can only point
+-- at a vehicle of the same account, whatever client writes it (RLS alone
+-- does not check a foreign key's target). mileage_logs' reference is NO
+-- ACTION: a vehicle with trips cannot be deleted (the app marks it inactive
+-- instead), while deleting the account still cascades (NO ACTION is checked
+-- at the end of the statement, after the cascades; RESTRICT would not be).
 --
 -- Data API: from 2026-10-30 Supabase stops exposing new tables without
 -- explicit grants (supabase.com/changelog/45329); each table is granted below.
@@ -45,7 +55,9 @@ CREATE TABLE IF NOT EXISTS public.vehicles (
   model       text        CHECK (model IS NULL OR char_length(model) <= 60),
   is_active   boolean     NOT NULL DEFAULT true,
   created_at  timestamptz NOT NULL DEFAULT now(),
-  updated_at  timestamptz NOT NULL DEFAULT now()
+  updated_at  timestamptz NOT NULL DEFAULT now(),
+  -- The target of the (user_id, vehicle_id) foreign keys below.
+  CONSTRAINT vehicles_user_id_id_key UNIQUE (user_id, id)
 );
 
 CREATE INDEX IF NOT EXISTS vehicles_user_idx ON public.vehicles (user_id, created_at);
@@ -74,7 +86,7 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON public.vehicles TO authenticated, servic
 CREATE TABLE IF NOT EXISTS public.vehicle_logbook_periods (
   id              uuid          PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id         uuid          NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  vehicle_id      uuid          NOT NULL REFERENCES public.vehicles(id) ON DELETE CASCADE,
+  vehicle_id      uuid          NOT NULL,
   kind            text          NOT NULL CHECK (kind IN ('base', 'sample')),
   start_date      date          NOT NULL,
   end_date        date          NOT NULL,
@@ -89,7 +101,10 @@ CREATE TABLE IF NOT EXISTS public.vehicle_logbook_periods (
   CONSTRAINT vehicle_logbook_periods_length
     CHECK (end_date = (start_date + (CASE WHEN kind = 'base' THEN 12 ELSE 3 END) * interval '1 month' - interval '1 day')::date),
   CONSTRAINT vehicle_logbook_periods_odometer_order
-    CHECK (odometer_start IS NULL OR odometer_end IS NULL OR odometer_end >= odometer_start)
+    CHECK (odometer_start IS NULL OR odometer_end IS NULL OR odometer_end >= odometer_start),
+  -- The vehicle is the same account's.
+  CONSTRAINT vehicle_logbook_periods_vehicle_fk
+    FOREIGN KEY (user_id, vehicle_id) REFERENCES public.vehicles (user_id, id) ON DELETE CASCADE
 );
 
 CREATE INDEX IF NOT EXISTS vehicle_logbook_periods_user_idx
@@ -129,13 +144,16 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON public.vehicle_logbook_periods TO authen
 CREATE TABLE IF NOT EXISTS public.vehicle_odometer_readings (
   id            uuid          PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id       uuid          NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  vehicle_id    uuid          NOT NULL REFERENCES public.vehicles(id) ON DELETE CASCADE,
+  vehicle_id    uuid          NOT NULL,
   -- The odometer at the END of this day.
   reading_date  date          NOT NULL,
   odometer_km   numeric(9,1)  NOT NULL CHECK (odometer_km >= 0),
   created_at    timestamptz   NOT NULL DEFAULT now(),
   updated_at    timestamptz   NOT NULL DEFAULT now(),
-  CONSTRAINT vehicle_odometer_readings_vehicle_day_key UNIQUE (vehicle_id, reading_date)
+  CONSTRAINT vehicle_odometer_readings_vehicle_day_key UNIQUE (vehicle_id, reading_date),
+  -- The vehicle is the same account's.
+  CONSTRAINT vehicle_odometer_readings_vehicle_fk
+    FOREIGN KEY (user_id, vehicle_id) REFERENCES public.vehicles (user_id, id) ON DELETE CASCADE
 );
 
 CREATE INDEX IF NOT EXISTS vehicle_odometer_readings_user_idx
@@ -203,13 +221,20 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON public.mileage_places TO authenticated, 
 -- ── mileage_logs: vehicle and odometer (nullable, no rewrite) ───────────────
 
 ALTER TABLE public.mileage_logs
-  ADD COLUMN IF NOT EXISTS vehicle_id     uuid         REFERENCES public.vehicles(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS vehicle_id     uuid,
   ADD COLUMN IF NOT EXISTS odometer_start numeric(9,1) CHECK (odometer_start IS NULL OR odometer_start >= 0),
   ADD COLUMN IF NOT EXISTS odometer_end   numeric(9,1) CHECK (odometer_end IS NULL OR odometer_end >= 0);
 
 ALTER TABLE public.mileage_logs
   ADD CONSTRAINT mileage_logs_odometer_order
     CHECK (odometer_start IS NULL OR odometer_end IS NULL OR odometer_end >= odometer_start);
+
+-- The trip's vehicle is the same account's (a NULL vehicle_id, every trip
+-- before this, is not checked: MATCH SIMPLE). NO ACTION: a vehicle with trips
+-- cannot be deleted, and an account deletion still cascades.
+ALTER TABLE public.mileage_logs
+  ADD CONSTRAINT mileage_logs_vehicle_fk
+    FOREIGN KEY (user_id, vehicle_id) REFERENCES public.vehicles (user_id, id) ON DELETE NO ACTION;
 
 CREATE INDEX IF NOT EXISTS mileage_logs_vehicle_date_idx
   ON public.mileage_logs (vehicle_id, trip_date)

@@ -118,7 +118,7 @@ export function expenseTaxContext(
   settings:
     | {
         gst_hst_registered?: boolean | null;
-        vehicle_business_use_pct?: number | string | null;
+        vehicle_business_use_pct?: number | string | null; // vehicle-share-ok: the resolver's input type
         /** Required key: a typed slice that didn't select it won't compile. */
         home_office_business_use_pct: number | string | null | undefined;
       }

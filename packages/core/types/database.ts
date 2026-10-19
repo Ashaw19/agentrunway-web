@@ -270,7 +270,7 @@ export interface UserSettings {
 
   // Claiming
   home_office_business_use_pct: number;
-  vehicle_business_use_pct: number;
+  vehicle_business_use_pct: number; // vehicle-share-ok: the declared setting's column
 
   // T2125 — Home office
   home_office_method: string;            // 'simplified' | 'detailed'

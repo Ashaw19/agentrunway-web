@@ -42,7 +42,15 @@
  * year has its own figure, the declared setting stays.
  *
  * A trip with no vehicle (every trip logged before 2026-10-18) counts for the
- * default vehicle: the first active one added. Nothing rewrites those rows.
+ * OLDEST vehicle, active or not (unassignedTripVehicleId), so marking a car
+ * inactive or adding another never moves those trips or a finished year's
+ * figure. Nothing rewrites those rows. New trips carry their vehicle: the
+ * writers stamp `defaultVehicleId` (the oldest active one) when none is
+ * picked.
+ *
+ * Readings that disagree (two values for the end of the same day, e.g. a
+ * base year's Dec 31 end reading and the next sample's start reading) are
+ * flagged in `conflicts`; a span that needs one is not worked out.
  *
  * ESTIMATE ONLY. Not tax advice: the app states CRA's rule and the figure
  * the agent's records give; what to claim is the agent's and their
@@ -203,6 +211,8 @@ export interface VehicleBusinessUse {
   tenPercentTest: TenPercentTest | null;
   progress: LogbookProgress[];
   readingsDue: ReadingDue[];
+  /** Odometer readings that disagree for the same moment (each also in `notes`). */
+  conflicts: OdometerConflict[];
   /** One line: what the share is and where it comes from. */
   label: string;
   notes: string[];
@@ -282,8 +292,11 @@ export function logbookPeriodProblem(
   const same = existing.filter((e) => e.vehicle_id === p.vehicle_id && e.id !== p.id);
   const overlap = same.find((e) => e.start_date <= p.end_date && e.end_date >= p.start_date);
   if (overlap) return `It overlaps this vehicle's ${periodName(overlap)}.`;
-  if (p.kind === "sample" && !same.some((e) => e.kind === "base" && e.end_date < p.start_date)) {
-    return "CRA's simplified method compares a sample period with a base year kept before it, and this vehicle has no base year ending before this sample.";
+  // CRA: the sample is kept "in a subsequent year", so the base year ends
+  // before the calendar year the sample is in.
+  const sampleYearStart = `${p.start_date.slice(0, 4)}-01-01`;
+  if (p.kind === "sample" && !same.some((e) => e.kind === "base" && e.end_date < sampleYearStart)) {
+    return `CRA's simplified method uses a sample in a later year than the base year, and this vehicle has no base year ending before ${p.start_date.slice(0, 4)}.`;
   }
   return null;
 }
@@ -292,19 +305,34 @@ export function logbookPeriodProblem(
 
 /** `user_settings.vehicle_business_use_pct` as every surface has read it: 0–1, 0.8 when unset. */
 export function declaredVehicleBusinessUsePct(
-  settings: { vehicle_business_use_pct?: number | string | null } | null | undefined,
+  settings: { vehicle_business_use_pct?: number | string | null } | null | undefined, // vehicle-share-ok: the resolver reads the declared setting
 ): number {
-  const raw = settings?.vehicle_business_use_pct;
+  const raw = settings?.vehicle_business_use_pct; // vehicle-share-ok: the resolver reads the declared setting
   const pct = raw == null || raw === "" ? DEFAULT_VEHICLE_BUSINESS_USE_PCT : Number(raw);
   return Number.isFinite(pct) ? Math.min(1, Math.max(0, pct)) : DEFAULT_VEHICLE_BUSINESS_USE_PCT;
 }
 
 // ── Helpers over the rows ──────────────────────────────────────────────────
 
-/** The vehicle a trip with no vehicle belongs to: the first active one added (else the first). */
+const byAge = (vehicles: readonly LogbookVehicle[]) =>
+  [...vehicles].sort((a, b) => a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id));
+
+/**
+ * The vehicle a trip with NO vehicle belongs to (trips logged before
+ * vehicles existed): the oldest vehicle, active or not. Marking it inactive
+ * or adding another vehicle never moves those trips.
+ */
+export function unassignedTripVehicleId(vehicles: readonly LogbookVehicle[]): string | null {
+  return byAge(vehicles)[0]?.id ?? null;
+}
+
+/**
+ * The vehicle a NEW trip or period goes on when none is picked: the oldest
+ * active vehicle, else the oldest. Writers stamp it on the row.
+ */
 export function defaultVehicleId(vehicles: readonly LogbookVehicle[]): string | null {
-  const byAge = [...vehicles].sort((a, b) => a.created_at.localeCompare(b.created_at));
-  return (byAge.find((v) => v.is_active) ?? byAge[0])?.id ?? null;
+  const sorted = byAge(vehicles);
+  return (sorted.find((v) => v.is_active) ?? sorted[0])?.id ?? null;
 }
 
 /** The trips `vehicleBusinessUse` needs for `year`: the year, and every base year on or before it. */
@@ -327,22 +355,55 @@ const num = (v: number | string | null | undefined): number | null => {
 
 const round4 = (n: number) => Math.round(n * 10_000) / 10_000;
 
-/** The odometer readings of each vehicle: boundary day (end of) → km. */
+/** Two or more different odometer readings for the end of the same day. */
+export interface OdometerConflict {
+  vehicleId: string;
+  /** The day the readings are the end of. */
+  date: string;
+  /** The different values, in km. */
+  values: number[];
+}
+
+/**
+ * The odometer readings of each vehicle: boundary day (end of) → km. Every
+ * source counts the same (a period's start and end, a separate reading):
+ * when they disagree the day has no single value and is a conflict, never
+ * silently one of them.
+ */
 function odometerIndex(periods: readonly LogbookPeriod[], readings: readonly LogbookReading[]) {
-  const idx = new Map<string, Map<string, number>>();
-  const put = (vehicle: string, day: string, km: number | null, overwrite: boolean) => {
+  const idx = new Map<string, Map<string, Set<number>>>();
+  const put = (vehicle: string, day: string, km: number | null) => {
     if (km == null) return;
     let m = idx.get(vehicle);
     if (!m) idx.set(vehicle, (m = new Map()));
-    if (overwrite || !m.has(day)) m.set(day, km);
+    let values = m.get(day);
+    if (!values) m.set(day, (values = new Set()));
+    values.add(Math.round(km * 10) / 10);
   };
-  for (const r of readings) put(r.vehicle_id, r.reading_date, num(r.odometer_km), false);
-  // A period's own readings win over a separate reading for the same moment.
+  for (const r of readings) put(r.vehicle_id, r.reading_date, num(r.odometer_km));
   for (const p of periods) {
-    put(p.vehicle_id, addDaysISO(p.start_date, -1), num(p.odometer_start), true);
-    put(p.vehicle_id, p.end_date, num(p.odometer_end), true);
+    put(p.vehicle_id, addDaysISO(p.start_date, -1), num(p.odometer_start));
+    put(p.vehicle_id, p.end_date, num(p.odometer_end));
   }
-  return (vehicle: string, endOfDay: string): number | null => idx.get(vehicle)?.get(endOfDay) ?? null;
+  const conflicts: OdometerConflict[] = [];
+  for (const [vehicleId, days] of idx) {
+    for (const [date, values] of days) {
+      if (values.size > 1) conflicts.push({ vehicleId, date, values: [...values].sort((a, b) => a - b) });
+    }
+  }
+  conflicts.sort((a, b) => a.date.localeCompare(b.date) || a.vehicleId.localeCompare(b.vehicleId));
+  /** The reading, or null when there is none or the readings disagree. */
+  const at = (vehicle: string, endOfDay: string): number | null => {
+    const values = idx.get(vehicle)?.get(endOfDay);
+    return values && values.size === 1 ? [...values][0] : null;
+  };
+  /** A reading is on file for that moment (agreeing or not). */
+  const recorded = (vehicle: string, endOfDay: string): boolean => (idx.get(vehicle)?.get(endOfDay)?.size ?? 0) > 0;
+  const conflictAt = (vehicle: string, endOfDay: string): number[] | null => {
+    const values = idx.get(vehicle)?.get(endOfDay);
+    return values && values.size > 1 ? [...values].sort((a, b) => a - b) : null;
+  };
+  return { at, recorded, conflictAt, conflicts };
 }
 
 interface SpanUse {
@@ -363,10 +424,12 @@ export function vehicleBusinessUse(input: VehicleBusinessUseInput): VehicleBusin
 
   const vehicles = [...input.vehicles].sort((a, b) => a.created_at.localeCompare(b.created_at));
   const nameOf = (id: string) => vehicles.find((v) => v.id === id)?.name ?? "Vehicle";
-  const fallbackVehicle = defaultVehicleId(vehicles);
-  const vehicleOf = (t: LogbookTrip) => t.vehicle_id ?? fallbackVehicle;
+  const unassignedVehicle = unassignedTripVehicleId(vehicles);
+  const vehicleOf = (t: LogbookTrip) => t.vehicle_id ?? unassignedVehicle;
   const periods = input.periods.filter((p) => logbookPeriodProblem(p) === null);
-  const odometer = odometerIndex(periods, input.readings);
+  const readingIndex = odometerIndex(periods, input.readings);
+  const odometer = readingIndex.at;
+  const recorded = readingIndex.recorded;
 
   const businessKm = (vehicle: string, from: string, to: string) =>
     input.trips.reduce((s, t) => (vehicleOf(t) === vehicle && t.trip_date >= from && t.trip_date <= to ? s + (num(t.km) ?? 0) : s), 0);
@@ -375,6 +438,12 @@ export function vehicleBusinessUse(input: VehicleBusinessUseInput): VehicleBusin
   const span = (vehicle: string, from: string, to: string, what: string): SpanUse => {
     const biz = businessKm(vehicle, from, to);
     const before = addDaysISO(from, -1);
+    for (const day of [before, to]) {
+      const clash = readingIndex.conflictAt(vehicle, day);
+      if (clash) {
+        return { businessKm: biz, totalKm: null, pct: null, problem: `Two different odometer readings for the end of ${day} (${clash.map(fmtKm).join(" and ")}), so ${what} is not worked out until one is corrected.` };
+      }
+    }
     const a = odometer(vehicle, before);
     const b = odometer(vehicle, to);
     const missing = [a == null ? before : null, b == null ? to : null].filter((d): d is string => d !== null);
@@ -427,9 +496,10 @@ export function vehicleBusinessUse(input: VehicleBusinessUseInput): VehicleBusin
       };
     }
     const base = own
-      .filter((p) => p.kind === "base" && complete(p) && p.end_date < sample.start_date)
+      // CRA: a sample "in a subsequent year": the base year ends before the sample's year.
+      .filter((p) => p.kind === "base" && complete(p) && p.end_date < yearStart)
       .sort((a, b) => b.end_date.localeCompare(a.end_date))[0];
-    if (!base) return { ...out, reason: "No completed base year before the sample period." };
+    if (!base) return { ...out, reason: `No completed base year that ends before ${year}; CRA's simplified method uses a sample in a later year than the base year.` };
 
     const sampleUse = span(vehicle, sample.start_date, sample.end_date, "the sample period");
     const baseAnnual = span(vehicle, base.start_date, base.end_date, "the base year");
@@ -509,7 +579,12 @@ export function vehicleBusinessUse(input: VehicleBusinessUseInput): VehicleBusin
     notes.unshift(`The logbook covers ${covered.length} of ${perVehicle.length} vehicles used in ${year}, so the declared setting applies.`);
   }
 
-  const { progress, readingsDue } = progressOf(periods, vehicles, nameOf, odometer, span, complete, today, yearStart, yearEnd);
+  const { progress, readingsDue } = progressOf(periods, vehicles, nameOf, recorded, span, complete, today, yearStart, yearEnd);
+  const known = new Set(vehicles.map((v) => v.id));
+  const conflicts = readingIndex.conflicts.filter((c) => known.has(c.vehicleId));
+  for (const c of conflicts) {
+    notes.push(`${nameOf(c.vehicleId)}: two different odometer readings for the end of ${c.date} (${c.values.map(fmtKm).join(" and ")}). Spans that need that reading are not worked out until one is corrected.`);
+  }
 
   const pct = logbookPct ?? declaredPct;
   return {
@@ -522,6 +597,7 @@ export function vehicleBusinessUse(input: VehicleBusinessUseInput): VehicleBusin
     tenPercentTest: perVehicle.find((v) => v.tenPercentTest)?.tenPercentTest ?? null,
     progress,
     readingsDue,
+    conflicts,
     label: vehicleBusinessUseLabel({ method, pct, year, vehicleCount: perVehicle.length }),
     notes,
   };
@@ -531,7 +607,7 @@ function progressOf(
   periods: readonly LogbookPeriod[],
   vehicles: readonly LogbookVehicle[],
   nameOf: (id: string) => string,
-  odometer: (vehicle: string, endOfDay: string) => number | null,
+  recorded: (vehicle: string, endOfDay: string) => boolean,
   span: (vehicle: string, from: string, to: string, what: string) => SpanUse,
   complete: (p: LogbookPeriod) => boolean,
   today: string,
@@ -560,7 +636,7 @@ function progressOf(
       monthsLogged = 0;
       if (startKnown) {
         months.forEach((m, i) => {
-          if (odometer(p.vehicle_id, m.end) != null) monthsLogged = i + 1;
+          if (recorded(p.vehicle_id, m.end)) monthsLogged = i + 1;
         });
       }
       if (!done && monthsLogged > 0) {
@@ -589,7 +665,7 @@ function progressOf(
     if (!startKnown && today >= p.start_date) due("period_start", p.start_date, `Odometer at the start of ${logbookDateLabel(p.start_date)}`);
     if (p.kind === "base") {
       for (const m of months.slice(0, -1)) {
-        if (m.end <= today && odometer(p.vehicle_id, m.end) == null) due("month_end", m.end, `Odometer at the end of ${logbookDateLabel(m.end)}`);
+        if (m.end <= today && !recorded(p.vehicle_id, m.end)) due("month_end", m.end, `Odometer at the end of ${logbookDateLabel(m.end)}`);
       }
     }
     if (!endKnown && today >= p.end_date) due("period_end", p.end_date, `Odometer at the end of ${logbookDateLabel(p.end_date)}`);
@@ -626,7 +702,7 @@ export function vehicleBusinessUseLabel(r: Pick<VehicleBusinessUse, "method" | "
  * No logbook rows (null): the declared setting.
  */
 export function vehicleBusinessUseFor(
-  settings: { vehicle_business_use_pct?: number | string | null } | null | undefined,
+  settings: { vehicle_business_use_pct?: number | string | null } | null | undefined, // vehicle-share-ok: the resolver's input type
   rows: LogbookRows | null | undefined,
   year: number,
   today?: string,

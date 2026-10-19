@@ -18,7 +18,7 @@ import { describe, it, expect } from "vitest";
 import { computeT2125, t2125EntriesFromAmounts } from "../t2125-engine";
 import { gstHstRate } from "../canadian-tax-engine";
 import type { Transaction } from "../../types/database";
-import { createTestSettings } from "./test-data";
+import { createTestSettings, withDeclaredShare } from "./test-data";
 
 const tx = (id: string, date: string, paid: string | null, gci: number, status = "closed"): Transaction => ({
   id,
@@ -48,13 +48,13 @@ const ROWS: Transaction[] = [
 ];
 
 const t2125 = (method: "accrual" | "cash", taxYear: number) =>
-  computeT2125({
+  computeT2125(withDeclaredShare({
     settings: createTestSettings({ province: "newBrunswick", gst_hst_registered: true, income_reporting_method: method }),
     transactions: ROWS,
     expenses: t2125EntriesFromAmounts({}),
     ccaAssets: [],
     taxYear,
-  });
+  }));
 
 describe("computeT2125: gross commission income is the tax year's", () => {
   it("cash method: the January-paid 2025 listing is 2026 income; the 2027-paid closing is not", () => {

@@ -214,6 +214,9 @@ export function getLogbookTools(supabase: SupabaseClient, userId: string): McpTo
             date: r.date,
             label: r.label,
           })),
+          // Two different odometer readings for the end of the same day: the
+          // spans that need it are not worked out until one is corrected.
+          odometer_conflicts: use.conflicts.map((c) => ({ vehicle_id: c.vehicleId, date: c.date, values_km: c.values })),
           cra_rule: {
             logbook: VEHICLE_LOGBOOK_RULE,
             simplified: SIMPLIFIED_LOGBOOK_RULE,

@@ -107,7 +107,7 @@ describe("computeGST34 — a quarter with no sales and only ITCs", () => {
   });
 
   it("without a vehicle share (older callers) only the meal limit applies", () => {
-    const r = computeGST34({ province: "new_brunswick", period: Q2, frequency: "quarterly", periodTransactions: [], periodReceipts: q2Receipts, instalmentsPaid: 0 });
+    const r = computeGST34({ vehicleBusinessUsePct: 1,  province: "new_brunswick", period: Q2, frequency: "quarterly", periodTransactions: [], periodReceipts: q2Receipts, instalmentsPaid: 0 });
     expect(r.vehicleItcReduction).toBe(0);
     expect(r.mealItcReduction).toBeCloseTo(17.5, 2);
   });

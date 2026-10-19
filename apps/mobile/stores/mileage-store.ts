@@ -7,7 +7,7 @@
  *   loadLogbookRows / loadMileagePlaces   core/lib/vehicle-logbook-rows
  *   logTrip (writeMileage)                core/lib/record-writers
  *   recordOdometerReading                 core/lib/vehicle-logbook-writes
- * Saving a place is a plain insert (core has no writer for it).
+ * Saving a place: saveMileagePlace           core/lib/vehicle-logbook-writes
  *
  * The logbook rows are also what the Expenses screen hands
  * `expenseTaxContext`, so the receipts' ITC split uses the same vehicle
@@ -23,13 +23,14 @@
 import { create } from "zustand";
 import { supabase } from "../lib/supabase";
 import { useToastStore } from "./toast-store";
-import { localISODate } from "@agent-runway/core/lib/local-date";
+import { atlanticYear } from "@agent-runway/core/lib/local-date";
 import {
   loadLogbookRows,
   loadMileagePlaces,
   type LoadedLogbook,
 } from "@agent-runway/core/lib/vehicle-logbook-rows";
 import {
+  saveMileagePlace as coreSaveMileagePlace,
   recordOdometerReading as coreRecordOdometerReading,
   type OdometerReadingInput,
   type TripInput,
@@ -82,7 +83,10 @@ interface MileageStore {
   recordReading: (reading: OdometerReadingInput) => Promise<boolean>;
 }
 
-const currentYear = () => Number(localISODate().slice(0, 4));
+// The tax year is the Atlantic calendar year, the same as the web pages and
+// the server (a phone in another zone near midnight on Dec 31 would
+// otherwise load the other year's logbook). Trip dates stay the phone's own day.
+const currentYear = () => atlanticYear();
 
 const message = (err: unknown) => (err instanceof Error ? err.message : String(err));
 
@@ -194,19 +198,16 @@ export const useMileageStore = create<MileageStore>((set, get) => ({
 
     let placeError: string | null = null;
     if (place && place.name.trim()) {
-      const name = place.name.trim();
-      const exists = get().places.some((p) => p.name.trim().toLowerCase() === name.toLowerCase());
-      if (!exists) {
-        // Not given: the trip's own km as saved (worked out from the odometer when typed that way).
-        const km = place.defaultKm !== undefined ? place.defaultKm : num(saved.value.km);
-        const { error } = await supabase.from("mileage_places").insert({
-          user_id: userId,
-          name: name.slice(0, 80),
-          address: place.address?.trim() ? place.address.trim().slice(0, 200) : null,
-          default_km: km != null && Number.isFinite(km) && km > 0 ? km : null,
-        });
-        if (error) placeError = error.message;
-      }
+      // Core writer (vehicle-logbook-writes): checks the name and km, and
+      // skips a name already saved. Not given: the trip's own km as saved
+      // (worked out from the odometer when typed that way).
+      const km = place.defaultKm !== undefined ? place.defaultKm : num(saved.value.km);
+      const res = await coreSaveMileagePlace(supabase, userId, {
+        name: place.name.trim().slice(0, 80),
+        address: place.address?.trim() ? place.address.trim().slice(0, 200) : null,
+        defaultKm: km,
+      });
+      if (!res.ok) placeError = res.error;
     }
 
     await get().fetch();

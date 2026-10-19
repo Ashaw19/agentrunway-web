@@ -27,7 +27,7 @@ import {
 } from "react-native";
 import { useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { localISODate } from "@agent-runway/core/lib/local-date";
+import { atlanticISODate, localISODate } from "@agent-runway/core/lib/local-date";
 import {
   defaultVehicleId,
   vehicleBusinessUseFor,
@@ -120,7 +120,9 @@ export default function MileageScreen() {
     setRefreshing(false);
   }, [fetch]);
 
-  const today = localISODate();
+  // The tax year and the logbook's "today": the Atlantic calendar, as on the
+  // web. The trip form's default date stays the phone's own day.
+  const today = atlanticISODate();
   const year = Number(today.slice(0, 4));
   // Rows for another year (the app was left open over New Year's) are not this year's.
   const rows = logbook && logbookYear === year ? logbook : null;

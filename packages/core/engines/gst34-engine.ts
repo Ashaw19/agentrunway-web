@@ -75,10 +75,11 @@ export interface GST34Input {
   /** Amount already remitted for this specific period (user-entered) */
   instalmentsPaid: number;
   /**
-   * Share of vehicle use that is business, 0–1 (user_settings.vehicle_business_use_pct).
-   * Omitted = 1 (no vehicle reduction), so older callers keep their numbers.
+   * Share of vehicle use that is business, 0–1: `ctx.vehicleBusinessUsePct`
+   * from expenseTaxContext (the logbook's figure when it covers the year, the
+   * declared setting otherwise). Required, so no caller can skip it.
    */
-  vehicleBusinessUsePct?: number;
+  vehicleBusinessUsePct: number;
   /**
    * Share of the home that is the business workspace, 0–1
    * (user_settings.home_office_business_use_pct). Applies to GST/HST on bills
@@ -228,7 +229,7 @@ export interface ItcSplit {
 export function itcForExpense(
   taxAmount: number,
   categoryKey: string | null | undefined,
-  vehicleBusinessUsePct = 1,
+  vehicleBusinessUsePct: number,
   vehicleUse = false,
   homeOfficeBusinessUsePct = 0,
 ): ItcSplit {
@@ -257,7 +258,7 @@ export function computeGST34(input: GST34Input): GST34Result {
     periodTransactions,
     periodReceipts,
     instalmentsPaid,
-    vehicleBusinessUsePct = 1,
+    vehicleBusinessUsePct,
     homeOfficeBusinessUsePct = 0,
   } = input;
 

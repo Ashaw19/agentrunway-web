@@ -11,7 +11,14 @@ import { atlanticNoon } from "@agent-runway/core/lib/local-date";
 import { loadVehicleLogbook, loadYearMileageTotals } from "@/lib/vehicle-logbook/load";
 
 
-export default async function ReportsPage() {
+/** T2125 years offered: this year and the three before it (2026-10-19). */
+const T2125_PAST_YEARS = 3;
+
+export default async function ReportsPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ taxYear?: string }>;
+}) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
@@ -19,6 +26,12 @@ export default async function ReportsPage() {
   // Atlantic calendar, not the server's UTC clock (local-date.ts).
   const today = atlanticNoon();
   const year = today.getFullYear();
+  // The T2125 tab's tax year (?taxYear=): the year being filed is usually the
+  // one before the current year (2026 is filed in spring 2027). Every other
+  // tab stays on the current year.
+  const taxYearOptions = Array.from({ length: T2125_PAST_YEARS + 1 }, (_, i) => year - i);
+  const requested = Number((await searchParams)?.taxYear);
+  const t2125Year = taxYearOptions.includes(requested) ? requested : year;
   // The vehicle business-use share comes from the logbook when it covers the
   // year (expenseTaxContext → vehicle-logbook-engine), the setting otherwise.
   const logbookPromise = loadVehicleLogbook(supabase, user.id, year);
@@ -119,10 +132,42 @@ export default async function ReportsPage() {
     ctx: expenseCtx,
     now: today,
   });
-  const t2125Expenses = expenseTotals.tracked;
+
+  // The T2125 tab for an earlier year: the same engine call over that year
+  // (receipts dated in it, through December 31), with that year's vehicle
+  // share (its logbook) and business km. The current year uses the call above.
+  const pastT2125 = t2125Year === year
+    ? null
+    : await (async () => {
+        const [logbook, receipts, km] = await Promise.all([
+          loadVehicleLogbook(supabase, user.id, t2125Year),
+          supabase
+            .from("receipt_expenses")
+            .select("category_key, total_amount, tax_amount")
+            .eq("user_id", user.id)
+            .gte("expense_date", `${t2125Year}-01-01`)
+            .lte("expense_date", `${t2125Year}-12-31`)
+            .limit(10000),
+          loadYearMileageTotals(supabase, user.id, t2125Year),
+        ]);
+        const ctx = expenseTaxContext(settingsRaw, logbook);
+        const totals = ytdExpenseTotals({
+          receipts: receipts.data,
+          recurring: (recurringExpResult.data ?? []) as RecurringExpense[],
+          expenseItems: expItemResult.data,
+          ctx,
+          // Noon on December 31 of that year: the whole year "to date".
+          now: new Date(t2125Year, 11, 31, 12),
+        });
+        return { ctx, totals, km };
+      })();
+  const t2125Expenses = (pastT2125?.totals ?? expenseTotals).tracked;
+  const t2125VehicleUse = (pastT2125?.ctx ?? expenseCtx).vehicleBusinessUse ?? null;
+  // The Overview's category rows stay on the current year.
+  const currentLines = expenseTotals.tracked;
   // "Expenses by Category": the engine's lines under their categories, so the
   // rows add up to the totals beneath them (lib/expenses/category-lines).
-  const expenseRows = expenseCategoryRows(t2125Expenses.lines, categories).map((row) => ({
+  const expenseRows = expenseCategoryRows(currentLines.lines, categories).map((row) => ({
     key: row.key,
     title: row.title,
     ytd: row.ytd,
@@ -159,9 +204,10 @@ export default async function ReportsPage() {
       t2125Expenses={t2125Expenses.entries}
       homeOfficeCosts={t2125Expenses.homeOfficeCosts}
       deductionTracking={deductionTrackingFlags(t2125Expenses.lines, categories)}
-      mileageTotals={mileageResult}
-      vehicleBusinessUse={expenseCtx.vehicleBusinessUse ?? null}
-      taxYear={year}
+      mileageTotals={pastT2125?.km ?? mileageResult}
+      vehicleBusinessUse={t2125VehicleUse}
+      taxYear={t2125Year}
+      taxYearOptions={taxYearOptions}
       userId={user.id}
       referralSummary={referralSummary}
       expensesRemaining={expenseTotals.expensesRemaining}

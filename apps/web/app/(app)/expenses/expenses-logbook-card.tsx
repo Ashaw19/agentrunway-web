@@ -28,6 +28,7 @@ import { TaxDisclaimer } from "@/components/tax-disclaimer";
 import { cn } from "@/lib/utils";
 import {
   defaultVehicleId,
+  unassignedTripVehicleId,
   logbookDateLabel,
   logbookPeriodEnd,
   logbookPeriodProblem,
@@ -274,7 +275,7 @@ export function ExpensesLogbookCard({ year, rows, vehicleUse, declaredVehiclePct
             </div>
             {vehicles.length === 0 && !vehicleForm && (
               <p className="text-xs text-muted-foreground">
-                No vehicles yet. Starting a logbook period adds &ldquo;My vehicle&rdquo;; trips logged before then count for it.
+                No vehicles yet. Starting a logbook period adds &ldquo;My vehicle&rdquo;; trips logged before then count for it, and new trips are saved with it.
               </p>
             )}
             <ul className="space-y-1">
@@ -284,7 +285,10 @@ export function ExpensesLogbookCard({ year, rows, vehicleUse, declaredVehiclePct
                     <Car className="h-3.5 w-3.5 text-muted-foreground" />
                     {v.name}
                     {v.id === defaultVehicleId(vehicles) && (
-                      <Badge variant="outline" className="text-[10px] font-normal">default for trips with no vehicle</Badge>
+                      <Badge variant="outline" className="text-[10px] font-normal">new trips go here</Badge>
+                    )}
+                    {vehicles.length > 1 && v.id === unassignedTripVehicleId(vehicles) && (
+                      <Badge variant="outline" className="text-[10px] font-normal">trips logged before vehicles count here</Badge>
                     )}
                     {!v.is_active && <Badge variant="secondary" className="text-[10px]">inactive</Badge>}
                   </span>
