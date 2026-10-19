@@ -10,7 +10,9 @@ import { supabase } from "../lib/supabase";
 import { storage, isStorageReady } from "../lib/mmkv";
 import { useToastStore } from "./toast-store";
 import { useOfflineQueueStore } from "./offline-queue";
-import { safeDateMs, safeParseDate } from "../lib/safe-date";
+import { safeDateMs } from "../lib/safe-date";
+import { activitiesOnDay, activityDays, activityStreak, localDayOf } from "../lib/activity-streak";
+import { useNextUpStore } from "./next-up-store";
 import { isExpectedAuthBootstrapError } from "../lib/auth-context";
 import { addDaysISO, localISODate, nextYearlyDate } from "@agent-runway/core/lib/local-date";
 import {
@@ -273,6 +275,13 @@ export interface UserSettings {
     stateLabel?: "Strong" | "On Track" | "Building" | "At Risk";
     month: string;
     components?: { label: string; score: number; weight: number }[];
+    /**
+     * When the web dashboard saved this score (ISO instant). The score's
+     * trend compares it with the history row a week before this day, and the
+     * score sheet says "as of" when it is more than 3 days old. Absent on
+     * snapshots saved before the web writer included it.
+     */
+    updated_at?: string;
   } | null;
 }
 
@@ -320,6 +329,23 @@ export interface DraftTextResult {
 }
 
 export type TextPurpose = "check_in" | "market_update" | "custom" | "consent_request";
+
+/** A showing or listing appointment on the dashboard's schedule. Dates only: no times are kept. */
+export interface ScheduleItem {
+  kind: "showing" | "appointment";
+  client_id: string | null;
+  /** YYYY-MM-DD. */
+  date: string;
+}
+
+/**
+ * The runway_score_history row the Runway Score's trend compares with: the
+ * latest one at least 7 days older than the day the score was saved.
+ */
+export interface ScoreCompare {
+  captured_on: string;
+  score: number;
+}
 
 // ── Briefing Types ───────────────────────────────────────────────────────────
 //
@@ -408,6 +434,22 @@ interface DataStore {
   /** Timestamp of last fetch per client ID — used for 60s cache */
   _clientActivitiesFetchedAt: Record<string, number>;
 
+  // The dashboard's extras (fetchDashboardExtras), cached with the rest.
+  /** Showings and listing appointments from today through 14 days out, soonest first. */
+  schedule: ScheduleItem[];
+  /** Trips logged today (mileage_logs on the phone's day). */
+  tripsLoggedToday: number;
+  /** The day tripsLoggedToday was counted for: a copy restored the next day doesn't carry it over. */
+  _tripsDay: string | null;
+  /**
+   * activity_date (UTC timestamps) of every contact_activities row from the
+   * last 60 days, newest first. contactStreak and todayActivityCount read it:
+   * clientActivities fills one client at a time, when a profile is opened.
+   */
+  recentActivityDates: string[];
+  /** The history row the Runway Score's trend compares with; null when none is old enough. */
+  scoreCompare: ScoreCompare | null;
+
   // Loading states
   loading: boolean;
   /** Alias for loading — use either */
@@ -427,6 +469,13 @@ interface DataStore {
   fetchClients: () => Promise<void>;
   fetchOutreach: () => Promise<void>;
   fetchReceipts: () => Promise<void>;
+  /**
+   * The dashboard's extras: the schedule, today's trip count, the last 60
+   * days of activity dates and the Runway Score's reading from a week before
+   * the saved one. Runs in the background after a successful fetchAll. Each
+   * part that fails keeps its last value; never throws.
+   */
+  fetchDashboardExtras: () => Promise<void>;
   /** Add Deal. True when saved, or queued to sync because the phone is offline. */
   addTransaction: (tx: TransactionInput) => Promise<boolean>;
   /** Edit Deal: web's Transactions → Deals edit (stamps edited_at so a re-import keeps it). */
@@ -568,9 +617,9 @@ interface DataStore {
   hotPipelineDeals: () => PipelineDeal[];
 
   // Activity Tracking
-  /** Number of activities logged today (across all clients) */
+  /** Number of activities logged today (across all clients), from recentActivityDates. */
   todayActivityCount: () => number;
-  /** Number of consecutive days with at least 1 activity logged */
+  /** Number of consecutive days with at least 1 activity logged, from recentActivityDates. */
   contactStreak: () => number;
   /** Get pipeline context for a client (for smart note suggestions) */
   clientPipelineContext: (clientName: string) => string | null;
@@ -598,7 +647,11 @@ interface DataStore {
 // v9 (2026-10-19): added `clientRecords` (deal history for the Clients
 //   list's top clients). Without the bump, the first launch after the update
 //   would list cached clients by contact order, then reorder on the fetch.
-const CACHE_VERSION = 9;
+// v10 (2026-10-19): added `outreachQueue` (the dashboard's Messages ready
+//   count offline) and the dashboard's extras: `schedule`, `tripsLoggedToday`,
+//   `recentActivityDates`, `scoreCompare`. Without the bump, a cached copy
+//   would restore with no activity dates and the streak would read 0.
+const CACHE_VERSION = 10;
 const CACHE_KEY = "data_store_cache";
 const CACHE_VERSION_KEY = "data_store_cache_version";
 
@@ -744,22 +797,107 @@ function fetchAllClientRecordRows(userId: string) {
   );
 }
 
+// ── The dashboard's extras ───────────────────────────────────────────────────
+//
+// Each loader throws when its read fails, so fetchDashboardExtras can keep
+// that part's last value. "Today" is the phone's own day (localISODate), the
+// day trips are logged on (mileage-store) and the day the Checklist uses.
+
+/** How far ahead the schedule looks, in days after today. */
+const SCHEDULE_DAYS = 14;
+/** How far back the recent activity dates go: the longest streak the dashboard can show. */
+const ACTIVITY_DAYS = 60;
+/** The score's trend compares with a history row at least this many days before the day it was saved. */
+const SCORE_COMPARE_DAYS = 7;
+
+function readFailed(what: string, error: { message: string }): never {
+  throw new Error(`${what}: ${error.message}`);
+}
+
+/** Showings and listing appointments from today through SCHEDULE_DAYS out, soonest first. */
+async function loadSchedule(userId: string, today: string): Promise<ScheduleItem[]> {
+  const last = addDaysISO(today, SCHEDULE_DAYS);
+  const [showings, appointments] = await Promise.all([
+    supabase
+      .from("property_showings")
+      .select("client_id, showing_date")
+      .eq("user_id", userId)
+      .gte("showing_date", today)
+      .lte("showing_date", last),
+    supabase
+      .from("listing_appointments")
+      .select("client_id, appointment_date")
+      .eq("user_id", userId)
+      .in("status", ["scheduled", "active"])
+      .gte("appointment_date", today)
+      .lte("appointment_date", last),
+  ]);
+  if (showings.error) readFailed("property_showings", showings.error);
+  if (appointments.error) readFailed("listing_appointments", appointments.error);
+  const items: ScheduleItem[] = [
+    ...(showings.data ?? []).map((r) => ({ kind: "showing" as const, client_id: (r.client_id as string | null) ?? null, date: String(r.showing_date) })),
+    ...(appointments.data ?? []).map((r) => ({ kind: "appointment" as const, client_id: (r.client_id as string | null) ?? null, date: String(r.appointment_date) })),
+  ];
+  return items.sort((a, b) => a.date.localeCompare(b.date));
+}
+
+/** How many trips are logged for `today`: a head count, no rows read. */
+async function loadTripsLoggedToday(userId: string, today: string): Promise<number> {
+  const { count, error } = await supabase
+    .from("mileage_logs")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", userId)
+    .eq("trip_date", today);
+  if (error) readFailed("mileage_logs", error);
+  if (count == null) throw new Error("mileage_logs: no count came back");
+  return count;
+}
+
+/** activity_date of every activity since midnight ACTIVITY_DAYS ago, newest first. */
+async function loadRecentActivityDates(userId: string): Promise<string[]> {
+  const since = new Date();
+  since.setHours(0, 0, 0, 0);
+  since.setDate(since.getDate() - ACTIVITY_DAYS);
+  const { data, error } = await fetchAllPages<{ activity_date: string }>((from, to, count) =>
+    supabase
+      .from("contact_activities")
+      .select("activity_date", { count: count ? "exact" : undefined })
+      .eq("user_id", userId)
+      .gte("activity_date", since.toISOString())
+      .order("activity_date", { ascending: false })
+      .order("id", { ascending: true }) // stable order across pages
+      .range(from, to),
+  );
+  if (error) readFailed("contact_activities", error);
+  return (data ?? []).map((r) => r.activity_date);
+}
+
+/**
+ * The latest runway_score_history row on or before a week before the day the
+ * score was saved. Null when the score has no save time or no row is that old.
+ */
+async function loadScoreCompare(userId: string, settings: UserSettings | null): Promise<ScoreCompare | null> {
+  const savedAt = settings?.runway_score_snapshot?.updated_at;
+  const savedOn = savedAt ? localDayOf(savedAt) : null;
+  if (!savedOn) return null;
+  const { data, error } = await supabase
+    .from("runway_score_history")
+    .select("captured_on, score")
+    .eq("user_id", userId)
+    .lte("captured_on", addDaysISO(savedOn, -SCORE_COMPARE_DAYS))
+    .order("captured_on", { ascending: false })
+    .limit(1);
+  if (error) readFailed("runway_score_history", error);
+  const row = data?.[0];
+  return row ? { captured_on: String(row.captured_on), score: Number(row.score) } : null;
+}
+
 /**
  * Maps a briefing item type → the action-button CTA. Engine items don't
  * carry `actionLabel` (it's a presentation concern), so mobile derives
  * one per type. Unknown types fall back to a neutral "Review" label so
  * future engine additions don't crash the UI.
  */
-/**
- * The phone's calendar day an activity fell on, as YYYY-MM-DD.
- * activity_date is a UTC timestamp: its first ten characters are the UTC
- * date, which is the next day for anything logged from 9 pm Atlantic.
- */
-function activityDay(a: { activity_date: string }): string | null {
-  const at = safeParseDate(a.activity_date);
-  return at ? localISODate(at) : null;
-}
-
 function actionLabelForType(type: string): string {
   switch (type) {
     case "vip_overdue":
@@ -824,11 +962,36 @@ function saveCache(state: Partial<DataStore>) {
         receipts: state.receipts,
         briefings: state.briefings,
         briefingsFetchedAt: state.briefingsFetchedAt,
+        outreachQueue: state.outreachQueue,
+        schedule: state.schedule,
+        tripsLoggedToday: state.tripsLoggedToday,
+        _tripsDay: state._tripsDay,
+        recentActivityDates: state.recentActivityDates,
+        scoreCompare: state.scoreCompare,
       })
     );
   } catch {
     // ignore
   }
+}
+
+/**
+ * The outreach queue and the dashboard's extras, from the offline copy. A trip
+ * count is for the day it was read: restored on a later day it reads 0 (the
+ * trips card shows, which is better than a stale count hiding it).
+ */
+function extrasFromCache(c: Partial<DataStore>) {
+  const outreachQueue = (c.outreachQueue as OutreachItem[] | undefined) ?? [];
+  const tripsToday = c._tripsDay === localISODate();
+  return {
+    outreachQueue,
+    outreachReadyCount: outreachQueue.filter((i) => i.status === "ready").length,
+    schedule: (c.schedule as ScheduleItem[] | undefined) ?? [],
+    tripsLoggedToday: tripsToday ? (c.tripsLoggedToday as number | undefined) ?? 0 : 0,
+    _tripsDay: tripsToday ? c._tripsDay ?? null : null,
+    recentActivityDates: (c.recentActivityDates as string[] | undefined) ?? [],
+    scoreCompare: (c.scoreCompare as ScoreCompare | null | undefined) ?? null,
+  };
 }
 
 export const useDataStore = create<DataStore>((set, get) => {
@@ -842,12 +1005,31 @@ export const useDataStore = create<DataStore>((set, get) => {
   };
 
   /**
+   * An activity just logged goes onto recentActivityDates at once, so the
+   * streak and the day's count move before the next refresh. Returns the
+   * undo, for a write the database refused.
+   */
+  const noteActivity = (activityDate: string) => {
+    set({ recentActivityDates: [activityDate, ...get().recentActivityDates] });
+    saveCache(get());
+    return () => {
+      const dates = [...get().recentActivityDates];
+      const i = dates.indexOf(activityDate);
+      if (i < 0) return;
+      dates.splice(i, 1);
+      set({ recentActivityDates: dates });
+      saveCache(get());
+    };
+  };
+
+  /**
    * After a contact or note is logged on a client: their memory profile
    * (what Flight Crew knows about them) is marked outdated, as web does, and
    * their row and activity list are re-read (the trigger moves
    * last_contact_at and may promote their status).
    */
   const afterClientContact = async (clientId: string) => {
+    noteActivity(new Date().toISOString());
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -873,7 +1055,6 @@ export const useDataStore = create<DataStore>((set, get) => {
     clientRecords: (cached.clientRecords as ClientRecord[]) ?? [],
     tasks: (cached.tasks as ContactTask[]) ?? [],
     settings: (cached.settings as UserSettings | null) ?? null,
-    outreachQueue: [],
     receipts: (cached.receipts as ReceiptExpense[]) ?? [],
     briefings: (cached.briefings as BriefingItem[]) ?? [],
     briefingsFetchedAt: (cached.briefingsFetchedAt as number | null) ?? null,
@@ -883,7 +1064,7 @@ export const useDataStore = create<DataStore>((set, get) => {
     isLoading: false,
     lastFetched: null,
     nextTask: (cached.tasks as ContactTask[] | undefined)?.[0] ?? null,
-    outreachReadyCount: 0,
+    ...extrasFromCache(cached),
 
     hydrate: () => {
       if (get().lastFetched) return;
@@ -900,6 +1081,7 @@ export const useDataStore = create<DataStore>((set, get) => {
         briefings: (c.briefings as BriefingItem[]) ?? [],
         briefingsFetchedAt: (c.briefingsFetchedAt as number | null) ?? null,
         nextTask: (c.tasks as ContactTask[] | undefined)?.[0] ?? null,
+        ...extrasFromCache(c),
       });
     },
 
@@ -1064,9 +1246,56 @@ export const useDataStore = create<DataStore>((set, get) => {
       // await it, the main UI doesn't block on Today's Focus.
       // (audit red flag #3)
       void get().fetchBriefing();
+      // The dashboard's extras and today's Next up are background reads
+      // too: neither depends on the other, so both start now.
+      void get().fetchDashboardExtras();
+      void useNextUpStore.getState().fetchNextUp();
     },
 
     fetch: async () => get().fetchAll(),
+
+    fetchDashboardExtras: async () => {
+      try {
+        const { data: sess } = await supabase.auth.getSession();
+        if (!sess.session) return;
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (!user) return;
+
+        const today = localISODate();
+        const [schedule, trips, dates, compare] = await withTimeout(
+          Promise.allSettled([
+            loadSchedule(user.id, today),
+            loadTripsLoggedToday(user.id, today),
+            loadRecentActivityDates(user.id),
+            loadScoreCompare(user.id, get().settings),
+          ]),
+          FETCH_TIMEOUT_MS,
+        );
+
+        // A part that failed keeps its last value, on screen and in the cache.
+        const next: Partial<DataStore> = {};
+        if (schedule.status === "fulfilled") next.schedule = schedule.value;
+        if (trips.status === "fulfilled") {
+          next.tripsLoggedToday = trips.value;
+          next._tripsDay = today;
+        }
+        if (dates.status === "fulfilled") next.recentActivityDates = dates.value;
+        if (compare.status === "fulfilled") next.scoreCompare = compare.value;
+        for (const [name, result] of [["schedule", schedule], ["trips", trips], ["activity dates", dates], ["score comparison", compare]] as const) {
+          if (result.status === "rejected") console.warn(`fetchDashboardExtras: ${name} not loaded:`, result.reason);
+        }
+        if (Object.keys(next).length > 0) {
+          set(next);
+          saveCache(get());
+        }
+      } catch (err) {
+        if (isExpectedAuthBootstrapError(err)) return;
+        // Background read: the cached values keep the dashboard useful.
+        console.warn("fetchDashboardExtras error:", err);
+      }
+    },
 
     fetchBriefing: async () => {
       // Engine-fetched briefing — see audit red flag #3. Calls
@@ -1166,6 +1395,7 @@ export const useDataStore = create<DataStore>((set, get) => {
           outreachQueue: items,
           outreachReadyCount: items.filter((i) => i.status === "ready").length,
         });
+        saveCache(get());
       }
     },
 
@@ -1681,6 +1911,9 @@ export const useDataStore = create<DataStore>((set, get) => {
       const priorClient = get().clients.find((c) => c.id === activity.client_id);
       const priorStatus = priorClient?.status;
 
+      // On the streak and the day's count at once; taken back if refused.
+      const undoNote = noteActivity(activity.activity_date);
+
       // A blank description goes as '' (NOT NULL column).
       const { error } = await supabase
         .from("contact_activities")
@@ -1689,11 +1922,12 @@ export const useDataStore = create<DataStore>((set, get) => {
       if (error) {
         console.error("addActivity error:", error.code ?? "", error.message);
         if (isNetworkError(error)) {
-          // Enqueue for retry when online
+          // Enqueue for retry when online; it stays counted.
           useOfflineQueueStore.getState().enqueue("addActivity", activity);
           toast.show("Saved locally \u2014 will sync when online", "info");
           return false; // Signal failure so caller knows sync is pending
         }
+        undoNote();
         toast.show(`Couldn't log the activity: ${writeErrorDetail(error)}`, "error");
         return false;
       }
@@ -1846,6 +2080,8 @@ export const useDataStore = create<DataStore>((set, get) => {
           outreachQueue: queue,
           outreachReadyCount: queue.filter((i) => i.status === "ready").length,
         });
+        // The server logged a Text activity with it.
+        noteActivity(new Date().toISOString());
         return true;
       } catch {
         return false;
@@ -1870,9 +2106,12 @@ export const useDataStore = create<DataStore>((set, get) => {
       }
 
       // Remove from local queue
+      const queue = get().outreachQueue.filter((item) => item.id !== id);
       set({
-        outreachQueue: get().outreachQueue.filter((item) => item.id !== id),
+        outreachQueue: queue,
+        outreachReadyCount: queue.filter((i) => i.status === "ready").length,
       });
+      saveCache(get());
       return true;
     },
 
@@ -2279,48 +2518,15 @@ export const useDataStore = create<DataStore>((set, get) => {
 
     // ── Activity Tracking ───────────────────────────────────────────────────
 
-    // activity_date is a UTC timestamp. Its day is the phone's calendar day
-    // (activityDay), and so is "today". On the UTC day the count restarted
-    // at 9 pm Atlantic and the streak filed an evening's activity under the
-    // next day.
-    todayActivityCount: () => {
-      const todayStr = localISODate();
-      const allActivities = Object.values(get().clientActivities).flat();
-      return allActivities.filter((a) => activityDay(a) === todayStr).length;
-    },
+    // Both read recentActivityDates (the last 60 days, every client), not
+    // clientActivities, which fills one client at a time when a profile is
+    // opened. activity_date is a UTC timestamp: its day is the phone's
+    // calendar day (lib/activity-streak), and so is "today". On the UTC day
+    // the count restarted at 9 pm Atlantic and the streak filed an evening's
+    // activity under the next day.
+    todayActivityCount: () => activitiesOnDay(get().recentActivityDates, localISODate()),
 
-    contactStreak: () => {
-      const allActivities = Object.values(get().clientActivities).flat();
-      if (allActivities.length === 0) return 0;
-
-      // Get unique dates with activity (sorted newest first)
-      const dates = [
-        ...new Set(
-          allActivities
-            .map(activityDay)
-            .filter((day): day is string => day !== null)
-        ),
-      ].sort((a, b) => b.localeCompare(a));
-
-      if (dates.length === 0) return 0;
-
-      // Check if today or yesterday has activity (streak must be current)
-      const today = localISODate();
-      const yesterday = addDaysISO(today, -1);
-      if (dates[0] !== today && dates[0] !== yesterday) return 0;
-
-      let streak = 1;
-      for (let i = 1; i < dates.length; i++) {
-        const prev = new Date(dates[i - 1]).getTime();
-        const curr = new Date(dates[i]).getTime();
-        if (prev - curr <= 86400000 * 1.5) {
-          streak++;
-        } else {
-          break;
-        }
-      }
-      return streak;
-    },
+    contactStreak: () => activityStreak(activityDays(get().recentActivityDates), localISODate()),
 
     clientPipelineContext: (clientName: string) => {
       const state = get();
@@ -2363,6 +2569,10 @@ export const useDataStore = create<DataStore>((set, get) => {
       const priorClient = get().clients.find((c) => c.id === clientId);
       const priorStatus = priorClient?.status;
 
+      // On the streak and the day's count at once; taken back if refused.
+      const activityDate = new Date().toISOString();
+      const undoNote = noteActivity(activityDate);
+
       const { error } = await supabase
         .from("contact_activities")
         .insert({
@@ -2370,12 +2580,13 @@ export const useDataStore = create<DataStore>((set, get) => {
           user_id: user.id,
           type: actType,
           description,
-          activity_date: new Date().toISOString(),
+          activity_date: activityDate,
         });
 
       if (error) {
         console.error("quickLogActivity error:", error.code ?? "", error.message);
         if (!isNetworkError(error)) {
+          undoNote();
           toast.show(`Couldn't log it: ${writeErrorDetail(error)}`, "error");
           return false;
         }
@@ -2383,7 +2594,7 @@ export const useDataStore = create<DataStore>((set, get) => {
           client_id: clientId,
           type: actType,
           description,
-          activity_date: new Date().toISOString(),
+          activity_date: activityDate,
         });
         toast.show("Saved locally — will sync when online", "info");
         return false;
