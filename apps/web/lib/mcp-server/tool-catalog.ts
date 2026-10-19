@@ -69,7 +69,11 @@ export const MCP_TOOL_CATALOG: McpCatalogGroup[] = [
     category: "Expenses & Mileage",
     tools: [
       { name: "get_expenses", desc: "YTD expenses by category with recurring totals", access: "read" },
-      { name: "get_mileage_summary", desc: "Business mileage log with CRA deduction", access: "read" },
+      { name: "get_mileage_summary", desc: "Business km for a year, with CRA's per-km allowance benchmark (not a deduction) and the vehicle business-use share", access: "read" },
+      { name: "get_logbook_status", desc: "CRA vehicle logbook: periods, progress, odometer readings due, the year's business-use share and CRA's 10% test", access: "read" },
+      { name: "log_mileage", desc: "Logs a business trip (km or odometer readings)", access: "write" },
+      { name: "start_logbook_period", desc: "Starts a CRA logbook base year or sample period", access: "write" },
+      { name: "record_odometer_reading", desc: "Records an odometer reading the logbook lists as due", access: "write" },
     ],
   },
   {

@@ -101,6 +101,9 @@ const TOOL_STATUS_LABELS: Record<string, string> = {
   logExpense: "Logging expense…",
   updateExpense: "Updating expense…",
   logMileage: "Logging mileage…",
+  logbookStatus: "Reading the logbook…",
+  startLogbookPeriod: "Starting a logbook period…",
+  recordOdometerReading: "Recording the odometer…",
   recordReferral: "Recording referral…",
   recordTransaction: "Recording transaction…",
   updateTransaction: "Updating transaction…",
@@ -655,7 +658,7 @@ const PAGE_SUGGESTIONS: Record<string, string[]> = {
   ],
   "/expenses": [
     "What's a healthy expense ratio?",
-    "How do CRA mileage deductions work?",
+    "How does CRA's vehicle logbook work?",
     "What expenses are tax-deductible?",
     "What is the meals deduction limit?",
   ],

@@ -48,10 +48,12 @@ import { computeHSTCollected } from "../hst-engine";
 import { calculate as calculateTax, gstHstRate } from "../canadian-tax-engine";
 import { dealCloseTaxPortion, taxPortionOfCommission, yearTaxEstimate } from "../deal-tax-portion";
 import { computeGCI, computeWeightedGCI, activePipelineDeals, type RecurringExpense, type Transaction } from "../../types/database";
-import { aggregateReceiptTotals, expenseTaxContext } from "../expense-totals-engine";
+import { aggregateReceiptTotals, expenseTaxContext, inputTaxCreditsForPeriod } from "../expense-totals-engine";
+import { buildGST34Worksheet } from "../gst34-worksheet";
+import type { LogbookRows } from "../vehicle-logbook-engine";
 import { buildT2125Expenses, ytdExpenseTotals } from "../t2125-expenses-engine";
 import { computeT2125 } from "../t2125-engine";
-import { createTestSettings } from "./test-data";
+import { createTestSettings, withDeclaredShare } from "./test-data";
 
 // Pinned mid-year so seasonal fraction + remaining-months math is stable and
 // well past the early-year dampening threshold (fraction >= 0.10).
@@ -432,14 +434,14 @@ describe("YTD expenses: the Expenses page total equals the dashboard's", () => {
   it("the T2125 tab is built from the same lines: line 9369 is their deductible total", () => {
     const totals = dashboard();
     // reports/page.tsx hands `tracked.entries` to the T2125 tab.
-    const t2125 = computeT2125({
+    const t2125 = computeT2125(withDeclaredShare({
       settings: createTestSettings({ ...SETTINGS_ROW, province: "newBrunswick" }),
       transactions: CLOSED_TX,
       expenses: totals.tracked.entries,
       homeOfficeCosts: totals.tracked.homeOfficeCosts,
       ccaAssets: [],
       taxYear: 2026,
-    });
+    }));
     expect(t2125.line9369_totalExpenses).toBeCloseTo(totals.tracked.deductibleTotal - totals.tracked.byRule.home, 10);
     // Before the limits (50% on the meal, 80% on fuel and the two lease
     // entries) those lines are YTD Expenses.
@@ -686,5 +688,95 @@ describe("survival nets the pipeline income estimate (Flight Crew diagnostics in
     const survivalOf = (months: number) => scoreOn(months).components.find((c) => c.label === "Survival")!.score;
     expect(survivalOf(screens.months)).toBeGreaterThan(survivalOf(withoutEstimate.months));
     expect(scoreOn(screens.months).score).toBeGreaterThan(scoreOn(withoutEstimate.months).score);
+  });
+});
+
+
+// ── One vehicle business-use share on every surface (2026-10-18) ──────────
+//
+// The vehicle share used to be read from user_settings on each surface. With
+// the logbook (vehicle-logbook-engine) the share can be computed, and every
+// surface has to apply the SAME figure: expense totals and Est. Tax
+// Deductible, T2125 line 9281, the GST/HST return's vehicle ITC, the GST34
+// worksheet. They all take it from expenseTaxContext(settings, logbook).
+// CRA's worked example: (51% ÷ 46%) × 49% ≈ 54.3%.
+
+describe("one vehicle business-use share on every surface", () => {
+  const car = { id: "car", name: "Car", is_active: true, created_at: "2024-01-01T12:00:00Z" };
+  const rows: LogbookRows = {
+    vehicles: [car],
+    periods: [
+      { id: "b", vehicle_id: "car", kind: "base", start_date: "2025-01-01", end_date: "2025-12-31", odometer_start: 10_000, odometer_end: 34_000 },
+      { id: "s", vehicle_id: "car", kind: "sample", start_date: "2026-04-01", end_date: "2026-06-30", odometer_start: 40_000, odometer_end: 46_000 },
+    ],
+    readings: [
+      { vehicle_id: "car", reading_date: "2025-03-31", odometer_km: 15_000 },
+      { vehicle_id: "car", reading_date: "2025-06-30", odometer_km: 20_000 },
+    ],
+    trips: [
+      { trip_date: "2025-02-01", km: 2_600, vehicle_id: "car" },
+      { trip_date: "2025-05-01", km: 2_300, vehicle_id: "car" },
+      { trip_date: "2025-08-01", km: 3_510, vehicle_id: null },
+      { trip_date: "2025-11-01", km: 3_350, vehicle_id: "car" },
+      { trip_date: "2026-05-01", km: 3_060, vehicle_id: "car" },
+    ],
+  };
+  const settings = { gst_hst_registered: true, vehicle_business_use_pct: 0.8, home_office_business_use_pct: 0 };
+  // One fuel receipt: $115 paid, $15 HST.
+  const receipts = [{ category_key: "vehicle_fuel", total_amount: 115, tax_amount: 15, expense_date: "2026-07-02" }];
+
+  function surfaces(logbook: { rows: LogbookRows | null; year: number; today: string }) {
+    const ctx = expenseTaxContext(settings, logbook);
+    const totals = ytdExpenseTotals({ receipts, recurring: [], expenseItems: [], ctx, now: NOW });
+    const fuel = totals.tracked.lines.find((l) => l.key === "vehicle_fuel")!;
+    const t2125 = computeT2125({
+      settings: createTestSettings({ ...settings, province: "newBrunswick" }),
+      transactions: [],
+      expenses: totals.tracked.entries,
+      ccaAssets: [],
+      taxYear: 2026,
+      paymentsYear: 2026,
+      vehicleBusinessUsePct: ctx.vehicleBusinessUsePct,
+    });
+    const itcs = inputTaxCreditsForPeriod(receipts, [], ctx, "2026-07-01", "2026-09-30");
+    const worksheet = buildGST34Worksheet({
+      receipts,
+      recurring: [],
+      vehicleBusinessUsePct: ctx.vehicleBusinessUsePct,
+      homeOfficeBusinessUsePct: ctx.homeOfficeBusinessUsePct,
+      line106: itcs.total,
+    });
+    return { ctx, fuel, t2125, itcs, worksheet };
+  }
+
+  it("with the logbook, the computed 54.3% is applied everywhere", () => {
+    const { ctx, fuel, t2125, itcs, worksheet } = surfaces({ rows, year: 2026, today: "2026-10-18" });
+    expect(ctx.vehicleBusinessUse?.method).toBe("simplified");
+    const share = ctx.vehicleBusinessUsePct;
+    expect(Math.round(share * 1000) / 10).toBe(54.3);
+    // The expense is net of the business share of the HST (the ITC) and the
+    // personal share of it; the deductible part is that × the share.
+    expect(fuel.rawAmount).toBeCloseTo(100, 10);
+    expect(fuel.deductibleAmount).toBeCloseTo(100 * share, 10);
+    expect(t2125.line9281_motorVehicle).toBeCloseTo(100 * share, 10);
+    // An ITC is rounded to the cent.
+    expect(itcs.total).toBeCloseTo(15 * share, 2);
+    expect(worksheet.totals.claimable).toBeCloseTo(15 * share, 2);
+  });
+
+  it("without logbook rows, the declared 80% is applied everywhere, as before", () => {
+    const { ctx, fuel, t2125, itcs, worksheet } = surfaces({ rows: null, year: 2026, today: "2026-10-18" });
+    expect(ctx.vehicleBusinessUse?.method).toBe("declared");
+    expect(ctx.vehicleBusinessUsePct).toBe(0.8);
+    expect(fuel.deductibleAmount).toBeCloseTo(80, 10);
+    expect(t2125.line9281_motorVehicle).toBeCloseTo(80, 10);
+    expect(itcs.total).toBeCloseTo(12, 10);
+    expect(worksheet.totals.claimable).toBeCloseTo(12, 10);
+  });
+
+  it("a year the logbook does not cover keeps the declared share", () => {
+    const { ctx } = surfaces({ rows, year: 2027, today: "2027-03-01" });
+    expect(ctx.vehicleBusinessUse?.method).toBe("declared");
+    expect(ctx.vehicleBusinessUsePct).toBe(0.8);
   });
 });

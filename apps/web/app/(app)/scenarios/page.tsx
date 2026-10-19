@@ -6,6 +6,7 @@ import { expenseTaxContext } from "@agent-runway/core/engines/expense-totals-eng
 import { ytdExpenseTotals } from "@agent-runway/core/engines/t2125-expenses-engine";
 import { buildScenarioSeed } from "@/lib/scenario-seed";
 import { atlanticNoon } from "@agent-runway/core/lib/local-date";
+import { loadVehicleLogbook } from "@/lib/vehicle-logbook/load";
 import { loadCapYearCarryOver } from "@/lib/cap-year-carry-over";
 import { loadTaxYearCarryIn } from "@/lib/tax-year-carry-in";
 
@@ -21,6 +22,9 @@ export default async function ScenariosPage() {
   // Atlantic calendar, not the server's UTC clock (local-date.ts).
   const today = atlanticNoon();
   const currentYear = today.getFullYear();
+  // The vehicle business-use share comes from the logbook when it covers the
+  // year (expenseTaxContext → vehicle-logbook-engine), the setting otherwise.
+  const logbookPromise = loadVehicleLogbook(supabase, user.id, currentYear);
 
   // ── Step 1: Fetch settings ──────────────────────────────────────────────
   const { data: settingsRow } = await supabase
@@ -90,11 +94,12 @@ export default async function ScenariosPage() {
   // this year: the dashboard's one engine call (t2125-expenses-engine).
   // Receipts, the per-item monthly figures and the Recurring Expenses list,
   // net of the ITCs a registrant claims.
+  const expenseCtx = expenseTaxContext(settingsRow, await logbookPromise);
   const expenses = ytdExpenseTotals({
     receipts: receiptResult.data,
     recurring: (recurringExpResult.data ?? []) as RecurringExpense[],
     expenseItems: expItemResult.data,
-    ctx: expenseTaxContext(settingsRow),
+    ctx: expenseCtx,
     now: today,
   });
 

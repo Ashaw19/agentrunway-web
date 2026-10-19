@@ -21,11 +21,18 @@ resolve, and `expense-parity.test.ts` runs the real tool handlers.
 
 | Local file | Canonical engines it calls | Notes |
 |---|---|---|
-| `expense-inputs.ts` | `t2125-expenses-engine` (`ytdExpenseTotals`: the one year-to-date total, and the lines it is the sum of), `expense-totals-engine` (`inputTaxCreditsForPeriod`, `expenseTaxContext`), `local-date` | Added 2026-10-13. NOT a mirror: it fetches the dashboard's expense rows (`receipt_expenses` this Atlantic year, active `recurring_expenses`, `expense_items` key and `monthly_recurring`) and hands them to the engine. Every tool that reports an expense figure calls `loadExpenseInputs`. `expense_items.ytd_amount` is never read: the app stopped writing it. |
+| `expense-inputs.ts` | `t2125-expenses-engine` (`ytdExpenseTotals`: the one year-to-date total, and the lines it is the sum of), `expense-totals-engine` (`inputTaxCreditsForPeriod`, `expenseTaxContext`), `vehicle-logbook-engine`, `lib/vehicle-logbook-rows` (`loadLogbookRowsOrNull`), `local-date` | Added 2026-10-13. NOT a mirror: it fetches the dashboard's expense rows (`receipt_expenses` this Atlantic year, active `recurring_expenses`, `expense_items` key and `monthly_recurring`) and hands them to the engine. Every tool that reports an expense figure calls `loadExpenseInputs`. `expense_items.ytd_amount` is never read: the app stopped writing it. Since 2026-10-18 it also reads the vehicle logbook for the year, as the dashboard does, so the vehicle share is the logbook's when it covers the year (`vehicleUse` says which). |
 
 `tools/analytics.ts` also takes the GST/HST filing periods straight from
 `filing-period-engine` (`getFilingPeriods`). Its hand copy had kept Q4's
 deadline at Mar 31 after the engine was corrected to Jan 31.
+
+`tools/logbook.ts` (get_logbook_status, start_logbook_period, log_mileage,
+record_odometer_reading) and `get_mileage_summary` take the vehicle share,
+CRA's allowance-rate benchmark and CRA's logbook wording from
+`vehicle-logbook-engine`, `tax-copy/cra-rules` and `lib/vehicle-logbook-rows`,
+and write through `lib/vehicle-logbook-writes` (the writers the web, Flight
+Crew and the phone share). Added 2026-10-18.
 
 ### Deploying
 

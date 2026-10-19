@@ -265,7 +265,10 @@ describe("where the tax portion is worked out", () => {
       `.select("category_key, total_amount, tax_amount")`,
       `.eq("is_active", true)`,
       `.in("status", ["scheduled", "active"])`,
-      "ctx: expenseTaxContext(",
+      // The context is built from the settings and the vehicle logbook
+      // (expenseTaxContext(settings, await logbookPromise)), then handed in.
+      "await logbookPromise)",
+      "ctx: expenseCtx,",
       "now: today,",
     ];
     for (const read of reads) {

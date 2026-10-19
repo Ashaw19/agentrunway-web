@@ -6,7 +6,10 @@ import { RECEIPT_LIST_COLUMNS, receiptListDateFilter } from "@/lib/expenses/rece
 import { ExpensesContent } from "./expenses-content";
 import { computeIsPro } from "@/lib/compute-is-pro";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { PlaidItem, PlaidTransaction, PipelineDeal, HistoryItem, RecurringExpense } from "@/lib/types/database";
+import type { PlaidItem, PlaidTransaction, PipelineDeal, HistoryItem, RecurringExpense, MileageLog, MileagePlace } from "@/lib/types/database";
+import { fetchAllRows } from "@/lib/supabase/fetch-all";
+import { loadVehicleLogbook } from "@/lib/vehicle-logbook/load";
+import { loadMileagePlaces } from "@agent-runway/core/lib/vehicle-logbook-rows";
 import { atlanticYear } from "@agent-runway/core/lib/local-date";
 import { loadCapYearCarryOver } from "@/lib/cap-year-carry-over";
 
@@ -173,7 +176,12 @@ async function seedDefaultCategories(
   }
 }
 
-export default async function ExpensesPage() {
+export default async function ExpensesPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ tab?: string }>;
+}) {
+  const { tab: tabParam } = (await searchParams) ?? {};
   const supabase = await createClient();
   const {
     data: { user },
@@ -182,6 +190,15 @@ export default async function ExpensesPage() {
 
   // Atlantic calendar, not the server's UTC clock (local-date.ts).
   const year = atlanticYear();
+
+  // The vehicle logbook for the year: the page's vehicle business-use share
+  // (expenseTaxContext in ExpensesContent) and the Mileage tab's logbook.
+  const logbookPromise = loadVehicleLogbook(supabase, user.id, year);
+  // Saved places for the trip form. A failed read is an empty list.
+  const placesPromise: Promise<MileagePlace[]> = loadMileagePlaces(supabase, user.id).catch((err: unknown) => {
+    console.error("[expenses] saved places not loaded:", err instanceof Error ? err.message : String(err));
+    return [];
+  });
 
   // Server-side Plaid credential check
   const plaidConfigured = !!(
@@ -249,14 +266,18 @@ export default async function ExpensesPage() {
       .lt("year", year)
       .order("year", { ascending: false })
       .limit(4),
-    // Current-year mileage logs for the Mileage tab
-    supabase
-      .from("mileage_logs")
-      .select("*")
-      .eq("user_id", user.id)
-      .gte("trip_date", `${year}-01-01`)
-      .order("trip_date", { ascending: false })
-      .limit(10000),
+    // Current-year trips for the Mileage tab, every one (read in pages).
+    fetchAllRows<MileageLog>((from, to) =>
+      supabase
+        .from("mileage_logs")
+        .select("*")
+        .eq("user_id", user.id)
+        .gte("trip_date", `${year}-01-01`)
+        .lte("trip_date", `${year}-12-31`)
+        .order("trip_date", { ascending: false })
+        .order("id", { ascending: true })
+        .range(from, to),
+    ),
     // Connected bank accounts for the Bank Imports tab
     supabase
       .from("plaid_items")
@@ -376,6 +397,9 @@ export default async function ExpensesPage() {
       priorYearHistory={historyResult.data ?? []}
       currentYear={year}
       mileageLogs={mileageResult.data ?? []}
+      logbook={await logbookPromise}
+      mileagePlaces={await placesPromise}
+      initialTab={tabParam === "mileage" ? "mileage" : "receipts"}
       plaidItems={(plaidItemsResult.data ?? []) as PlaidItem[]}
       plaidTransactions={(plaidTxResult.data ?? []) as PlaidTransaction[]}
       plaidExpenseItems={expItemsResult.data ?? []}

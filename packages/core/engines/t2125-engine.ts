@@ -32,7 +32,7 @@ export interface T2125LineMap {
   lineNumber: string;
   lineName: string;
   deductiblePct: number; // 1.0 = fully deductible, 0.5 = 50% meals rule
-  applyVehicleUse: boolean; // multiply by vehicle_business_use_pct
+  applyVehicleUse: boolean; // multiply by the vehicle business-use share
   /**
    * A home bill (heat, insurance, mortgage interest...). Only the home
    * business-use share is a business cost, and it is claimed on line 9945
@@ -329,6 +329,12 @@ export interface InstalmentResult {
 }
 
 export interface T2125Result {
+  /**
+   * False for a year other than `paymentsYear`: GST/HST remitted, paid on
+   * expenses and instalments paid are 0 because they are not stored for that
+   * year, so no balance is shown for them.
+   */
+  paymentsStored: boolean;
   taxYear: number;
 
   // ── Part 1: Identification
@@ -418,6 +424,21 @@ export interface T2125Input {
   ccaAssets: CcaAsset[];
   taxYear?: number;
   otherIncome?: number;                // user-entered other business income (referrals, etc.)
+  /**
+   * The vehicle business-use share for `taxYear`, 0–1: `ctx.vehicleBusinessUsePct`
+   * from expenseTaxContext (the logbook's figure when it covers the year, the
+   * declared setting otherwise; vehicle-logbook-engine). Required: there is
+   * no fallback to the setting here, so no caller can skip the resolver.
+   */
+  vehicleBusinessUsePct: number;
+  /**
+   * The year user_settings' GST/HST remitted (Q1–Q4), GST/HST paid on
+   * expenses and tax instalments paid (Q1–Q4) are for: the current Atlantic
+   * year, the only year they are stored for. For any other `taxYear` they
+   * are left out (0) and `paymentsStored` is false, so an earlier year's
+   * T2125 never shows, totals or saves over this year's figures.
+   */
+  paymentsYear: number;
 }
 
 // ── Main compute function ─────────────────────────────────────────────────────
@@ -438,7 +459,7 @@ export function computeT2125(input: T2125Input): T2125Result {
   const totalGrossIncome = grossCommissionIncome + otherIncome;
 
   // ── 2. Build expense lines ─────────────────────────────────────────────────
-  const vehicleUsePct = Math.min(1, Math.max(0, settings.vehicle_business_use_pct ?? 0));
+  const vehicleUsePct = Math.min(1, Math.max(0, Number.isFinite(input.vehicleBusinessUsePct) ? input.vehicleBusinessUsePct : 0));
 
   const expenseLines: ExpenseLineItem[] = expenses
     // Home bills are not expense lines: they are the costs behind line 9945.
@@ -577,12 +598,16 @@ export function computeT2125(input: T2125Input): T2125Result {
   // reporting method is an income tax rule (closingYearGCI, tax-year.ts).
   const gstGciBase = closingYearGCI(closed, taxYear);
   const collectedOnGCI = gstGciBase * gstRate;
+  // The remittances, the paid-on-expenses figure and the instalments paid are
+  // stored for the current year only (user_settings): any other year leaves them out.
+  const paymentsStored = input.paymentsYear === taxYear;
+  const paid = (v: number | null | undefined) => (paymentsStored ? v ?? 0 : 0);
   const remittedTotal =
-    (settings.gst_hst_remitted_q1 ?? 0) +
-    (settings.gst_hst_remitted_q2 ?? 0) +
-    (settings.gst_hst_remitted_q3 ?? 0) +
-    (settings.gst_hst_remitted_q4 ?? 0);
-  const paidOnExpenses = settings.gst_hst_paid_on_expenses ?? 0;
+    paid(settings.gst_hst_remitted_q1) +
+    paid(settings.gst_hst_remitted_q2) +
+    paid(settings.gst_hst_remitted_q3) +
+    paid(settings.gst_hst_remitted_q4);
+  const paidOnExpenses = paid(settings.gst_hst_paid_on_expenses);
   const netPayable = collectedOnGCI - paidOnExpenses - remittedTotal;
 
   const gstHst: GstHstResult = {
@@ -593,31 +618,32 @@ export function computeT2125(input: T2125Input): T2125Result {
     remittedTotal,
     paidOnExpenses,
     netPayable,
-    remittedQ1: settings.gst_hst_remitted_q1 ?? 0,
-    remittedQ2: settings.gst_hst_remitted_q2 ?? 0,
-    remittedQ3: settings.gst_hst_remitted_q3 ?? 0,
-    remittedQ4: settings.gst_hst_remitted_q4 ?? 0,
+    remittedQ1: paid(settings.gst_hst_remitted_q1),
+    remittedQ2: paid(settings.gst_hst_remitted_q2),
+    remittedQ3: paid(settings.gst_hst_remitted_q3),
+    remittedQ4: paid(settings.gst_hst_remitted_q4),
   };
 
   // ── 8. Instalments ────────────────────────────────────────────────────────
   const recommendedQuarterly = taxResult.quarterlyEstimate;
   const totalPaid =
-    (settings.tax_instalment_paid_q1 ?? 0) +
-    (settings.tax_instalment_paid_q2 ?? 0) +
-    (settings.tax_instalment_paid_q3 ?? 0) +
-    (settings.tax_instalment_paid_q4 ?? 0);
+    paid(settings.tax_instalment_paid_q1) +
+    paid(settings.tax_instalment_paid_q2) +
+    paid(settings.tax_instalment_paid_q3) +
+    paid(settings.tax_instalment_paid_q4);
   const instalments: InstalmentResult = {
     recommendedQuarterly,
-    paidQ1: settings.tax_instalment_paid_q1 ?? 0,
-    paidQ2: settings.tax_instalment_paid_q2 ?? 0,
-    paidQ3: settings.tax_instalment_paid_q3 ?? 0,
-    paidQ4: settings.tax_instalment_paid_q4 ?? 0,
+    paidQ1: paid(settings.tax_instalment_paid_q1),
+    paidQ2: paid(settings.tax_instalment_paid_q2),
+    paidQ3: paid(settings.tax_instalment_paid_q3),
+    paidQ4: paid(settings.tax_instalment_paid_q4),
     totalPaid,
     balance: Math.max(0, taxResult.totalBurden - totalPaid),
   };
 
   return {
     taxYear,
+    paymentsStored,
     agentName: settings.display_name || "",
     businessName: settings.business_name || "",
     businessNumber: settings.business_number || "",

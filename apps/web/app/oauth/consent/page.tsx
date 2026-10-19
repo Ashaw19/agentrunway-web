@@ -114,6 +114,10 @@ export default async function OAuthConsentPage({ searchParams }: PageProps) {
                 <span className="text-[#1A6EF0]">✓</span>
                 <span>Create and update your pipeline opportunities, including marking them lost</span>
               </li>
+              <li className="flex items-center gap-2 text-sm">
+                <span className="text-[#1A6EF0]">✓</span>
+                <span>Log trips, vehicle logbook periods and odometer readings</span>
+              </li>
             </ul>
           </div>
 

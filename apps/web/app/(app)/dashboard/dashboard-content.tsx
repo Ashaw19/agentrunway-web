@@ -206,7 +206,7 @@ import { GuideLink } from "@/components/guide-link";
 import { AiProfilePrompt } from "./ai-profile-prompt";
 import { ClosingDayPrompt } from "./closing-day-prompt";
 import type { CommunicationProfile, BusinessIdentity } from "@/lib/types/database";
-import { localISODate } from "@agent-runway/core/lib/local-date";
+import { atlanticYear, localISODate } from "@agent-runway/core/lib/local-date";
 
 /** Open checklist item with its client's name (dashboard/page.tsx joins clients(name)). */
 type TaskWithClient = ContactTask & { clients?: { name: string } | null };
@@ -261,6 +261,12 @@ interface Props {
   userName?: string;
   openTasks?: ContactTask[];
   mileageKmTotal?: number;
+  /**
+   * The vehicle business-use share applied this year: the page's
+   * expenseTaxContext(settings, logbook).vehicleBusinessUsePct (the logbook's
+   * figure when it covers the year, else the declared setting).
+   */
+  vehicleBusinessUsePct: number;
   ccaAssetCount?: number;
   activeClientCount?: number;
   staleLeadCount?: number;
@@ -381,6 +387,7 @@ export function DashboardContent({
   userName,
   openTasks = [],
   mileageKmTotal = 0,
+  vehicleBusinessUsePct,
   ccaAssetCount = 0,
   activeClientCount: activeClients = 0,
   staleLeadCount = 0,
@@ -1006,7 +1013,9 @@ export function DashboardContent({
         homeOfficeMaintenanceAnnual: settings.home_office_maintenance_annual,
         homeOfficeCondoFeesMonthly: settings.home_office_condo_fees_monthly,
         vehicleType: (settings.vehicle_type as "own" | "lease" | "none") ?? "none",
-        vehicleBusinessUsePct: settings.vehicle_business_use_pct,
+        // The tax cards describe the current (Atlantic) year.
+        taxYear: atlanticYear(),
+        vehicleBusinessUsePct,
         hasTrackedMileage: mileageKmTotal > 0,
         annualMileageKm: mileageKmTotal,
         gstHstRegistered: settings.gst_hst_registered,
@@ -2423,7 +2432,10 @@ export function DashboardContent({
           <div>
             <CardTitle className="text-base">Tax Deduction Estimates</CardTitle>
             <CardDescription>
-              Estimated ~{fmtCurrency(taxOptResult.totalEstimatedSavings)}/yr in potential savings
+              {/* Information-only cards (the vehicle card) count for nothing here. */}
+              {taxOptResult.savingsCardCount > 0
+                ? <>Estimated ~{fmtCurrency(taxOptResult.totalEstimatedSavings)}/yr in potential savings</>
+                : <>Information about your tax set-up</>}
             </CardDescription>
           </div>
           <Link

@@ -64,11 +64,14 @@ import {
 } from "@agent-runway/core/engines/survival-engine";
 import { buildHealthReport } from "@agent-runway/core/engines/health-report";
 import { bandColorHexForScore, compute as computeRunwayScore } from "@agent-runway/core/engines/runway-score-engine";
-import { computeT2125 } from "@agent-runway/core/engines/t2125-engine";
+import { computeT2125, t2125EntriesFromAmounts } from "@agent-runway/core/engines/t2125-engine";
+import { expenseTaxContext } from "@agent-runway/core/engines/expense-totals-engine";
+import { ALLOWANCE_RATE_NOTE, VEHICLE_BUSINESS_PART_RULE } from "@agent-runway/core/tax-copy";
 import { createTestSettings, TEST_TRANSACTIONS, TEST_YEAR } from "@agent-runway/core/engines/__tests__/test-data";
 import type { CcaAsset } from "@agent-runway/core/types/database";
 import { BusinessReportPDF } from "@/components/pdf/business-report-pdf";
 import { T2125Pdf } from "@/components/pdf/t2125-pdf";
+import { earlierYearT2125Notes } from "@/lib/t2125-tax-year";
 import { GuidePdf } from "@/components/pdf/guide-pdf";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -815,8 +818,10 @@ describe("business report PDF: layout at LETTER width", () => {
 
 function t2125Props(ccaAssets: CcaAsset[] = []) {
   const settings = createTestSettings({ gst_hst_registered: true });
-  const result = computeT2125({ settings, transactions: TEST_TRANSACTIONS, expenses: [], ccaAssets, taxYear: TEST_YEAR });
-  return { result, settings, taxYear: TEST_YEAR };
+  // No logbook: the declared setting, as the Reports page resolves it.
+  const use = expenseTaxContext(settings, null).vehicleBusinessUse!;
+  const result = computeT2125({ settings, transactions: TEST_TRANSACTIONS, expenses: [], ccaAssets, taxYear: TEST_YEAR, vehicleBusinessUsePct: use.pct, paymentsYear: TEST_YEAR });
+  return { result, settings, taxYear: TEST_YEAR, vehicleUse: { pct: use.pct, method: use.method, label: use.label } };
 }
 
 // One row in the PDF's Capital Cost Allowance table.
@@ -838,6 +843,94 @@ const OFFICE_ASSET: CcaAsset = {
   created_at: `${TEST_YEAR}-03-01T12:00:00Z`,
   updated_at: `${TEST_YEAR}-03-01T12:00:00Z`,
 };
+
+// The mileage page and line 9281 (2026-10-18). The page-3 tile read "Total
+// Deduction at CRA per-km rate" (km × CRA's employer-allowance rate, not the
+// T2125 deduction), and "Business Use ... of total driving" over a typed
+// setting nothing measured.
+describe("T2125 PDF: vehicle business use and the mileage page", () => {
+  const mileageSummary = { totalKm: 6_000, tripCount: 42, allowanceRateFigure: 4_320, allowanceRatesYear: 2026 };
+  // $1,000 of fuel, so line 9281 and its footnote print.
+  const withFuel = (pct: number) => {
+    const base = t2125Props();
+    return computeT2125({ settings: base.settings, transactions: TEST_TRANSACTIONS, expenses: t2125EntriesFromAmounts({ vehicle_fuel: 1_000 }), ccaAssets: [], taxYear: TEST_YEAR, vehicleBusinessUsePct: pct, paymentsYear: TEST_YEAR });
+  };
+  const declared = { ...t2125Props(), result: withFuel(0.8), vehicleUse: { pct: 0.8, method: "declared" as const, label: "80%, declared in Settings (not computed from a logbook)" } };
+  const declaredText = blocksOf(T2125Pdf, { ...declared, mileageSummary }).join("\n");
+  const logbook = { ...declared, result: withFuel(0.5433), vehicleUse: { pct: 0.5433, method: "simplified" as const, label: "54.3%, computed from the logbook by CRA's simplified method" } };
+  const logbookText = blocksOf(T2125Pdf, { ...logbook, mileageSummary }).join("\n");
+
+  it("never calls the per-km figure a deduction", () => {
+    for (const text of [declaredText, logbookText]) {
+      expect(text).not.toMatch(/Total Deduction/i);
+      expect(text).not.toMatch(/at CRA per-km rate/i);
+      expect(text).toContain("At CRA Per-km Allowance Rates");
+      expect(text).toContain("2026 rates; a benchmark, not a deduction");
+      expect(text.replace(/\s+/g, " ")).toContain(ALLOWANCE_RATE_NOTE);
+    }
+  });
+
+  it("labels a typed share as declared, never as measured driving", () => {
+    expect(declaredText).not.toMatch(/of total driving/);
+    expect(declaredText).toContain("Declared Business Use");
+    expect(declaredText).toContain("typed in Settings, not measured");
+    expect(declaredText).toContain("* Declared %");
+    expect(declaredText.replace(/\s+/g, " ")).toContain("is declared in Settings, not computed from a logbook");
+    expect(declaredText).not.toMatch(/User-declared|CRA requires a contemporaneous/);
+  });
+
+  it("line 9281 is the vehicle costs × the share it prints", () => {
+    expect(declared.result.line9281_motorVehicle).toBeCloseTo(800, 6);
+    expect(logbook.result.line9281_motorVehicle).toBeCloseTo(543.3, 6);
+  });
+
+  it("labels the logbook's share as the logbook's", () => {
+    expect(logbookText).toContain("Motor Vehicle Expenses (54.3% business use)");
+    expect(logbookText).toContain("* % from the logbook");
+    expect(logbookText).toContain("Business Use (Logbook)");
+    expect(logbookText).toContain("CRA's simplified method");
+    expect(logbookText.replace(/\s+/g, " ")).toContain(VEHICLE_BUSINESS_PART_RULE);
+  });
+
+  it("page 3 renders with no text printed over other text", async () => {
+    const boxes = await textBoxes(await renders(T2125Pdf, { ...logbook, mileageSummary }));
+    expect(overprints(boxes)).toEqual([]);
+  });
+});
+
+// An earlier tax year (2026-10-19 review): user_settings' remittances,
+// GST/HST paid on expenses and instalments paid are the current year's, so a
+// 2025 PDF printed 2026's payments and a balance from them.
+describe("T2125 PDF: an earlier tax year", () => {
+  const settings = createTestSettings({ gst_hst_registered: true, gst_hst_remitted_q1: 1_234, tax_instalment_paid_q1: 4_321 });
+  const earlier = TEST_YEAR - 1;
+  const result = computeT2125({ settings, transactions: TEST_TRANSACTIONS, expenses: [], ccaAssets: [], taxYear: earlier, vehicleBusinessUsePct: 0.8, paymentsYear: TEST_YEAR });
+  const notes = earlierYearT2125Notes(earlier, TEST_YEAR, TEST_YEAR);
+  const text = blocksOf(T2125Pdf, { result, settings, taxYear: earlier, vehicleUse: { pct: 0.8, method: "declared", label: "80%, declared" }, yearNotes: notes })
+    .join("\n").replace(/\s+/g, " ");
+
+  it("prints no current-year remittance, instalment paid or balance", () => {
+    expect(text).not.toContain("Already remitted");
+    expect(text).not.toContain("$1,234");
+    expect(text).not.toContain("$4,321");
+    expect(text).not.toMatch(/Estimated balance (owing|remaining)|On track \/ overpaid/);
+    expect(text).toContain(`so no ${earlier} balance is shown`);
+    expect(text).toContain(`so no ${earlier} payments or balance are shown`);
+  });
+
+  it("prints what the year is built from, as the tab does", () => {
+    expect(notes.length).toBeGreaterThanOrEqual(3);
+    for (const note of notes) expect(text).toContain(note.replace(/\s+/g, " "));
+    expect(notes.join(" ")).toMatch(/monthly estimates on expense lines describe the current year and are not counted/);
+  });
+
+  it("the current year prints its payments as before", () => {
+    const current = computeT2125({ settings, transactions: TEST_TRANSACTIONS, expenses: [], ccaAssets: [], taxYear: TEST_YEAR, vehicleBusinessUsePct: 0.8, paymentsYear: TEST_YEAR });
+    const now = blocksOf(T2125Pdf, { result: current, settings, taxYear: TEST_YEAR, vehicleUse: { pct: 0.8, method: "declared", label: "80%" } }).join("\n");
+    expect(now).toContain("Already remitted");
+    expect(earlierYearT2125Notes(TEST_YEAR, TEST_YEAR, TEST_YEAR)).toEqual([]);
+  });
+});
 
 describe("T2125 PDF: instalment tracker", () => {
   const blocks = blocksOf(T2125Pdf, t2125Props());
@@ -922,7 +1015,7 @@ describe("T2125 PDF: layout at LETTER width", () => {
     });
 
     it("a line's note stands clear of the amount beside it", () => {
-      const notes = boxes.filter((box) => /^\* User-declared %$|^Gross: /.test(box.text));
+      const notes = boxes.filter((box) => /^\* Declared %$|^\* % from the logbook$|^Gross: /.test(box.text));
       expect(notes.length).toBeGreaterThan(0);
       for (const note of notes) {
         const amount = boxes.find(

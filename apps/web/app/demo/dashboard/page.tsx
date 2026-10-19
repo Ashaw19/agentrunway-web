@@ -270,7 +270,7 @@ const DEMO_SETTINGS: UserSettings = {
   market_board_name: "TRREB",
   market_metric_focus: "combined",
   home_office_business_use_pct: 0.25,
-  vehicle_business_use_pct: 0.8,
+  vehicle_business_use_pct: 0.8, // vehicle-share-ok: the demo's declared setting
   // T2125 fields
   home_office_method: "simplified",
   home_office_sq_footage: 150,
@@ -525,11 +525,13 @@ export default function DemoDashboardPage() {
   // sample monthly figures above (the demo has no receipts or recurring
   // expenses): year-to-date expenses, the monthly figure, and which expense
   // categories the tax cards treat as tracked.
+  // The demo has no logbook: its vehicle share is the sample settings' declared one.
+  const demoCtx = expenseTaxContext(DEMO_SETTINGS, null); // vehicle-share-ok: the demo has no logbook
   const demoExpenses = ytdExpenseTotals({
     receipts: [],
     recurring: [],
     expenseItems: DEMO_EXPENSE_CATEGORIES.flatMap((cat) => cat.items),
-    ctx: expenseTaxContext(DEMO_SETTINGS),
+    ctx: demoCtx,
     now: atlanticNoon(),
   });
   const demoDeductionTracking = deductionTrackingFlags(demoExpenses.tracked.lines, DEMO_EXPENSE_CATEGORIES);
@@ -579,6 +581,7 @@ export default function DemoDashboardPage() {
               expensesRemaining={demoExpenses.expensesRemaining}
               expensesNextYear={demoExpenses.expensesNextYear}
               deductionTracking={demoDeductionTracking}
+              vehicleBusinessUsePct={demoCtx.vehicleBusinessUsePct}
               initialDashboardView="standard"
               isPro={true}
               showUpgradeBanner={false}

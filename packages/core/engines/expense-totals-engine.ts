@@ -59,15 +59,34 @@
 import { itcForExpense } from "./gst34-engine";
 import { recurringHSTEntriesForPeriod } from "./recurring-expense-engine";
 import { isHomeOfficeKey } from "./t2125-engine";
+import {
+  DEFAULT_VEHICLE_BUSINESS_USE_PCT,
+  vehicleBusinessUseFor,
+  type LogbookRows,
+  type VehicleBusinessUse,
+} from "./vehicle-logbook-engine";
+import { atlanticYear } from "../lib/local-date";
 import type { RecurringExpense } from "../types/database";
+
+export { DEFAULT_VEHICLE_BUSINESS_USE_PCT };
 
 // ── Who claims ITCs ────────────────────────────────────────────────────────
 
 export interface ExpenseTaxContext {
   /** user_settings.gst_hst_registered. Only a registrant claims ITCs. */
   gstHstRegistered: boolean;
-  /** user_settings.vehicle_business_use_pct, 0–1. */
+  /**
+   * The vehicle business-use share applied, 0–1: the logbook's figure for
+   * the year when it covers it (vehicle-logbook-engine), else
+   * user_settings.vehicle_business_use_pct, the declared setting.
+   */
   vehicleBusinessUsePct: number;
+  /**
+   * Where `vehicleBusinessUsePct` comes from: method (full / simplified /
+   * declared), the label surfaces print, the 10% test. Set by
+   * expenseTaxContext; absent only on a context a test builds by hand.
+   */
+  vehicleBusinessUse?: VehicleBusinessUse;
   /**
    * user_settings.home_office_business_use_pct, 0–1: the share of a home
    * bill that is a business cost. 0 (the column default) means home bills
@@ -76,32 +95,51 @@ export interface ExpenseTaxContext {
   homeOfficeBusinessUsePct: number;
 }
 
-/** The column default (migration 00015), for a settings row that isn't loaded. */
-export const DEFAULT_VEHICLE_BUSINESS_USE_PCT = 0.8;
+/**
+ * The logbook rows a context resolves the vehicle share from
+ * (`loadLogbookRows`, core/lib/vehicle-logbook-rows.ts), and the year.
+ */
+export interface ExpenseTaxLogbook {
+  rows: LogbookRows | null;
+  /** The tax year. Defaults to the Atlantic calendar year. */
+  year?: number;
+  /** YYYY-MM-DD, Atlantic. Defaults to today. */
+  today?: string;
+}
 
-/** Build the context from a user_settings row (or the slice a query selected). */
+/**
+ * Build the context from a user_settings row (or the slice a query selected)
+ * and the agent's logbook. The vehicle share is `vehicleBusinessUseFor`'s:
+ * the logbook's when it covers the year, the setting otherwise. Every call in
+ * the apps passes the logbook (`null` when the surface has none to load):
+ * apps/web/lib/__tests__/vehicle-business-use-canonical.test.ts.
+ */
 export function expenseTaxContext(
   settings:
     | {
         gst_hst_registered?: boolean | null;
-        vehicle_business_use_pct?: number | string | null;
+        vehicle_business_use_pct?: number | string | null; // vehicle-share-ok: the resolver's input type
         /** Required key: a typed slice that didn't select it won't compile. */
         home_office_business_use_pct: number | string | null | undefined;
       }
     | null
     | undefined,
+  logbook?: ExpenseTaxLogbook | null,
 ): ExpenseTaxContext {
-  const raw = settings?.vehicle_business_use_pct;
-  const pct = raw == null || raw === "" ? DEFAULT_VEHICLE_BUSINESS_USE_PCT : Number(raw);
+  const vehicleBusinessUse = vehicleBusinessUseFor(
+    settings,
+    logbook?.rows ?? null,
+    logbook?.year ?? atlanticYear(),
+    logbook?.today,
+  );
   // Column default is 0 (migration 00001). A query that selects a slice of
   // user_settings has to include home_office_business_use_pct, or home bills
   // drop out of that surface's totals while the others count them.
   const home = Number(settings?.home_office_business_use_pct ?? 0);
   return {
     gstHstRegistered: settings?.gst_hst_registered === true,
-    vehicleBusinessUsePct: Number.isFinite(pct)
-      ? Math.min(1, Math.max(0, pct))
-      : DEFAULT_VEHICLE_BUSINESS_USE_PCT,
+    vehicleBusinessUsePct: vehicleBusinessUse.pct,
+    vehicleBusinessUse,
     homeOfficeBusinessUsePct: Number.isFinite(home) ? Math.min(1, Math.max(0, home)) : 0,
   };
 }

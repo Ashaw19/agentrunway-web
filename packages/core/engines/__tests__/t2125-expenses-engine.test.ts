@@ -31,7 +31,7 @@ import { aggregateReceiptTotals, recurringExpensesNetOfItc } from "../expense-to
 import { computeGST34, isMealOrEntertainmentKey, isVehicleKey, itcForExpense } from "../gst34-engine";
 import { getFilingPeriods } from "../filing-period-engine";
 import { recurringHSTEntriesForPeriod, recurringYTD, totalRecurringMonthly, totalRecurringYTD } from "../recurring-expense-engine";
-import { createTestSettings } from "./test-data";
+import { createTestSettings, withDeclaredShare } from "./test-data";
 import type { RecurringExpense } from "../../types/database";
 
 const REGISTRANT = { gstHstRegistered: true, vehicleBusinessUsePct: 0.8, homeOfficeBusinessUsePct: 0.15 };
@@ -496,7 +496,7 @@ describe("buildT2125Expenses — Home Office bills", () => {
   it("computeT2125 puts them on line 9945 at the share, and nowhere in line 9369", () => {
     const r = build([internet, recurring({})], REGISTRANT, { receiptTotals });
     const settings = createTestSettings({ gst_hst_registered: true, home_office_business_use_pct: 0.15, vehicle_business_use_pct: 0.8 });
-    const t = computeT2125({ settings, transactions: [], expenses: r.entries, homeOfficeCosts: r.homeOfficeCosts, ccaAssets: [], taxYear: 2026 });
+    const t = computeT2125(withDeclaredShare({ settings, transactions: [], expenses: r.entries, homeOfficeCosts: r.homeOfficeCosts, ccaAssets: [], taxYear: 2026 }));
     expect(t.line9945_homeOfficeDeduction).toBeCloseTo(r.byRule.home, 10);
     expect(t.line9369_totalExpenses).toBeCloseTo(600, 10);
     expect(t.line9369_totalExpenses).toBeCloseTo(r.deductibleTotal - r.byRule.home, 10);
@@ -513,13 +513,13 @@ describe("buildT2125Expenses — Home Office bills", () => {
 
   it("a home entry handed to computeT2125 is never an expense line", () => {
     const settings = createTestSettings({ home_office_business_use_pct: 0.15 });
-    const t = computeT2125({
+    const t = computeT2125(withDeclaredShare({
       settings,
       transactions: [],
       expenses: [{ key: "home_utilities", amount: 45 }, { key: "home_office", amount: 10 }],
       ccaAssets: [],
       taxYear: 2026,
-    });
+    }));
     expect(t.expenseLines).toEqual([]);
     expect(t.line9369_totalExpenses).toBe(0);
   });
@@ -570,7 +570,7 @@ describe("computeT2125 from the built entries", () => {
 
   it("registrant: recurring board dues, a lease and a meal land on lines 8760, 9281 and 8523", () => {
     const built = build(list, REGISTRANT);
-    const t = computeT2125({ settings: settings(true), transactions: [], expenses: built.entries, ccaAssets: [], taxYear: 2026 });
+    const t = computeT2125(withDeclaredShare({ settings: settings(true), transactions: [], expenses: built.entries, ccaAssets: [], taxYear: 2026 }));
     expect(t.line8760_licencesMemberships).toBe(600);
     expect(t.line9281_motorVehicle).toBeCloseTo(480, 10);
     expect(t.line8523_mealsEntertainmentGross).toBe(645);
@@ -580,7 +580,7 @@ describe("computeT2125 from the built entries", () => {
 
   it("non-registrant: the same three, GST/HST included", () => {
     const built = build(list, NOT_REGISTERED);
-    const t = computeT2125({ settings: settings(false), transactions: [], expenses: built.entries, ccaAssets: [], taxYear: 2026 });
+    const t = computeT2125(withDeclaredShare({ settings: settings(false), transactions: [], expenses: built.entries, ccaAssets: [], taxYear: 2026 }));
     expect(t.line8760_licencesMemberships).toBe(690);
     expect(t.line9281_motorVehicle).toBeCloseTo(552, 10);
     expect(t.line8523_mealsEntertainment50pct).toBe(345);
@@ -593,7 +593,7 @@ describe("computeT2125 from the built entries", () => {
         receiptTotals: receiptsByKey({ vehicle: 200, office_supplies: 80, ent_events: 60 }, 40),
         expenseItems: [{ key: "office_phone", monthly_recurring: 100 }],
       });
-      const t = computeT2125({ settings: settings(ctx.gstHstRegistered), transactions: [], expenses: built.entries, ccaAssets: [], taxYear: 2026 });
+      const t = computeT2125(withDeclaredShare({ settings: settings(ctx.gstHstRegistered), transactions: [], expenses: built.entries, ccaAssets: [], taxYear: 2026 }));
       expect(t.line9369_totalExpenses).toBeCloseTo(built.deductibleTotal - built.byRule.home, 10);
       expect(t.expenseLines.reduce((s, l) => s + l.rawAmount, 0)).toBeCloseTo(built.ytdTotal, 10);
     }
@@ -601,34 +601,34 @@ describe("computeT2125 from the built entries", () => {
 
   it("the old input (receipts and legacy figures by key) left every recurring expense out", () => {
     const receiptTotals = receiptsByKey({ office_supplies: 80 });
-    const before = computeT2125({ settings: settings(false), transactions: [], expenses: t2125EntriesFromAmounts(receiptTotals.byKey), ccaAssets: [], taxYear: 2026 });
+    const before = computeT2125(withDeclaredShare({ settings: settings(false), transactions: [], expenses: t2125EntriesFromAmounts(receiptTotals.byKey), ccaAssets: [], taxYear: 2026 }));
     const built = build(list, NOT_REGISTERED, { receiptTotals });
-    const after = computeT2125({ settings: settings(false), transactions: [], expenses: built.entries, ccaAssets: [], taxYear: 2026 });
+    const after = computeT2125(withDeclaredShare({ settings: settings(false), transactions: [], expenses: built.entries, ccaAssets: [], taxYear: 2026 }));
     expect(before.line9369_totalExpenses).toBe(80);
     expect(after.line9369_totalExpenses - before.line9369_totalExpenses).toBeCloseTo(1587, 10);
   });
 
   it("an entry with a key that has no line of its own is on line 9270, not dropped", () => {
-    const t = computeT2125({
+    const t = computeT2125(withDeclaredShare({
       settings: settings(false),
       transactions: [],
       expenses: [{ key: "marketing", amount: 300 }, { key: null, amount: 40 }, { key: "custom_1", amount: 10 }],
       ccaAssets: [],
       taxYear: 2026,
-    });
+    }));
     expect(t.line8521_advertising).toBe(300);
     expect(t.line9270_otherExpenses).toBe(50);
     expect(t.line9369_totalExpenses).toBe(350);
   });
 
   it("ignores zero and negative amounts", () => {
-    const t = computeT2125({
+    const t = computeT2125(withDeclaredShare({
       settings: settings(false),
       transactions: [],
       expenses: [{ key: "office_supplies", amount: 0 }, { key: "office_supplies", amount: -5 }],
       ccaAssets: [],
       taxYear: 2026,
-    });
+    }));
     expect(t.expenseLines).toEqual([]);
     expect(t.line9369_totalExpenses).toBe(0);
   });

@@ -112,7 +112,13 @@ describe("REGRESSION — T2125 expense treatment comes from t2125-expenses-engin
     // The T2125 tab: its `expenses` prop is the Reports page's
     // ytdExpenseTotals(...).tracked.entries, passed through reports-content.
     expect(callers).toEqual(["apps/web/app/(app)/reports/reports-t2125-tab.tsx"]);
-    expect(sources.get("apps/web/app/(app)/reports/page.tsx")).toMatch(/const t2125Expenses = expenseTotals\.tracked;/);
+    // The current year's call, or for an earlier tax year (?taxYear=) the same
+    // call over that year (2026-10-19).
+    expect(sources.get("apps/web/app/(app)/reports/page.tsx")).toMatch(/const t2125Expenses = \(pastT2125\?\.totals \?\? expenseTotals\)\.tracked;/);
+    expect(sources.get("apps/web/app/(app)/reports/page.tsx")).toMatch(/const totals = ytdExpenseTotals\(\{/);
+    // An earlier year counts dated records only: no monthly estimates (they
+    // describe the current year; 12 × today's estimate was added to any year).
+    expect(sources.get("apps/web/app/(app)/reports/page.tsx")).toMatch(/const totals = ytdExpenseTotals\(\{[\s\S]{0,400}expenseItems: \[\],/);
     expect(sources.get("apps/web/app/(app)/reports/page.tsx")).toMatch(/t2125Expenses=\{t2125Expenses\.entries\}/);
     expect(sources.get("apps/web/app/(app)/reports/reports-content.tsx")).toMatch(/expenses=\{t2125Expenses\}/);
   });

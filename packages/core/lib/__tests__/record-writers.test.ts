@@ -16,6 +16,7 @@ import {
   writeDealStage,
   writeExpense,
   writeMileage,
+  updateMileage,
   writeTransaction,
 } from "../record-writers";
 import { applyCaptureWrites, argTypeProblems, checkWrite, isSettled, settleSavedClients, summarizeSave } from "../capture/proposals";
@@ -102,9 +103,12 @@ describe("writeMileage (logMileage)", () => {
     const { db, writes } = fakeDb();
     const out = await writeMileage(db, USER, { tripDate: "2026-10-17", km: 18, description: "Showing at 12 Elm St", toLocation: "12 Elm St", fromLocation: " " });
     expect(out.ok).toBe(true);
+    // cra_rate_per_km: CRA's 2026 allowance rate (the column's default was
+    // 2025's $0.72). No vehicle or odometer columns when none are given.
     expect(writes[0].payload).toEqual({
       id: expect.any(String), user_id: USER, trip_date: "2026-10-17", km: 18, description: "Showing at 12 Elm St",
       from_location: null, to_location: "12 Elm St", purpose: "Showing at 12 Elm St",
+      cra_rate_per_km: 0.73, notes: null,
     });
   });
 
@@ -113,10 +117,74 @@ describe("writeMileage (logMileage)", () => {
     expect((await writeMileage(db, USER, { tripDate: TODAY, km: 0, description: "x" })).ok).toBe(false);
     expect((await writeMileage(db, USER, { tripDate: TODAY, km: Number.NaN, description: "x" })).ok).toBe(false);
     expect(writes).toEqual([]);
-    // Before the shared writer, logMileage saved a long trip and a blank purpose: it still does.
-    expect((await writeMileage(db, USER, { tripDate: TODAY, km: 6200, description: "Drive to Toronto conference" })).ok).toBe(true);
+    // A blank purpose still saves, as the tool always allowed. One trip line
+    // is at most 5,000 km since the vehicle logbook (2026-10-19, review): a
+    // longer figure is far more often a typo (or an odometer reading typed
+    // as km) than one trip, and it would move the year's logbook share.
+    const long = await writeMileage(db, USER, { tripDate: TODAY, km: 6200, description: "Drive to Toronto conference" });
+    expect(long).toMatchObject({ ok: false, message: "6200 km is more than one trip line takes (5000 km)." });
     expect((await writeMileage(db, USER, { tripDate: TODAY, km: 12, description: "" })).ok).toBe(true);
-    expect(writes[1].payload).toMatchObject({ description: "", purpose: null });
+    expect(writes[0].payload).toMatchObject({ description: "", purpose: null });
+  });
+});
+
+describe("writeMileage and the vehicle logbook (2026-10-19)", () => {
+  const car = { id: "car", user_id: USER, name: "Car", is_active: false, created_at: "2024-01-01T12:00:00Z" };
+  const truck = { id: "truck", user_id: USER, name: "Truck", is_active: true, created_at: "2025-01-01T12:00:00Z" };
+
+  it("stamps the default vehicle (the oldest active one) when none is given", async () => {
+    const { db, writes } = fakeDb({ vehicles: [car, truck] });
+    const out = await writeMileage(db, USER, { tripDate: "2026-10-17", km: 18, description: "Showing" });
+    expect(out.ok).toBe(true);
+    expect(writes[0].payload.vehicle_id).toBe("truck");
+  });
+
+  it("when the vehicle list can't be read, the trip is not saved with no vehicle", async () => {
+    const offline = fakeDb({ vehicles: [car, truck] }, { offline: ["vehicles"] });
+    const out = await writeMileage(offline.db, USER, { tripDate: "2026-10-17", km: 18, description: "Showing" });
+    expect(out).toMatchObject({ ok: false, offline: true });
+    expect(out.message).toMatch(/read your vehicles/);
+    expect(offline.writes).toEqual([]);
+  });
+
+  it("works the km out from the odometer, and refuses another agent's vehicle", async () => {
+    const { db, writes } = fakeDb({ vehicles: [truck] });
+    const out = await writeMileage(db, USER, { tripDate: "2026-10-17", km: 0, description: "Showing", odometerStart: 100, odometerEnd: 123.5, vehicleId: "truck" });
+    expect(out.ok).toBe(true);
+    expect(writes[0].payload).toMatchObject({ km: 23.5, odometer_start: 100, odometer_end: 123.5, vehicle_id: "truck" });
+    const theirs = await writeMileage(db, USER, { tripDate: "2026-10-17", km: 5, description: "x", vehicleId: "someone-elses" });
+    expect(theirs).toMatchObject({ ok: false, message: "That vehicle was not found." });
+  });
+});
+
+describe("updateMileage", () => {
+  const trip = { id: "t1", user_id: USER, trip_date: "2025-12-30", km: 20, description: "Showing", cra_rate_per_km: 0.72, odometer_start: 1_000, odometer_end: 1_020, vehicle_id: null };
+
+  it("checks the trip as a new one would be: km over 0 and at most 5,000", async () => {
+    const { db, writes } = fakeDb({ mileage_logs: [{ ...trip, odometer_start: null, odometer_end: null }] });
+    expect((await updateMileage(db, USER, { mileageId: "t1", km: 0 })).ok).toBe(false);
+    expect((await updateMileage(db, USER, { mileageId: "t1", km: 9_000 })).ok).toBe(false);
+    expect(writes).toEqual([]);
+  });
+
+  it("refuses km that no longer agree with the trip's odometer readings", async () => {
+    const { db, writes } = fakeDb({ mileage_logs: [trip] });
+    const out = await updateMileage(db, USER, { mileageId: "t1", km: 35 });
+    expect(out.ok).toBe(false);
+    expect(out.message).toMatch(/do not agree/);
+    expect(writes).toEqual([]);
+  });
+
+  it("moving a trip into another year takes that year's CRA rate", async () => {
+    const { db, writes } = fakeDb({ mileage_logs: [trip] });
+    const out = await updateMileage(db, USER, { mileageId: "t1", tripDate: "2026-01-02" });
+    expect(out.ok).toBe(true);
+    expect(writes[0].payload).toMatchObject({ trip_date: "2026-01-02", cra_rate_per_km: 0.73, km: 20 });
+  });
+
+  it("a trip that isn't the agent's is not found", async () => {
+    const { db } = fakeDb({ mileage_logs: [{ ...trip, user_id: "someone-else" }] });
+    expect(await updateMileage(db, USER, { mileageId: "t1", km: 5 })).toMatchObject({ ok: false });
   });
 });
 
