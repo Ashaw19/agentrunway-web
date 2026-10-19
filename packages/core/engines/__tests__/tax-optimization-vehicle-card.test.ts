@@ -29,6 +29,7 @@ const INPUT: TaxOptimizationInput = {
   homeOfficeInsuranceMonthly: 0,
   homeOfficeMaintenanceAnnual: 0,
   homeOfficeCondoFeesMonthly: 0,
+  taxYear: 2026,
   vehicleType: "lease",
   vehicleBusinessUsePct: 0.8,
   hasTrackedMileage: false,
@@ -60,6 +61,18 @@ describe("the vehicle tax card", () => {
     expect(card!.estimatedSavings).toBe(0);
     expect(card!.estimatedSavingsLabel).toBe("Information");
     expect(card!.evidence.join(" ")).not.toMatch(/of tax|tax reduction|potential deduction/i);
+  });
+
+  it("uses the tax year's CRA rates and names the year", () => {
+    const y2025 = vehicleCard(generateTaxOptimizations({ ...INPUT, taxYear: 2025, hasTrackedMileage: true, annualMileageKm: 6_000 }, 20))!;
+    expect(y2025.title).toBe("Vehicle: Business Kilometres Logged in 2025");
+    expect(y2025.evidence[0]).toMatch(/6,000 business km logged in 2025\. At CRA's 2025 per-km allowance rates that is \$4,260/);
+  });
+
+  it("is not an opportunity: left out of the savings count", () => {
+    const r = generateTaxOptimizations(INPUT, 20);
+    expect(vehicleCard(r)!.informational).toBe(true);
+    expect(r.savingsCardCount).toBe(r.cardCount - 1);
   });
 
   it("adds nothing to the total potential savings", () => {

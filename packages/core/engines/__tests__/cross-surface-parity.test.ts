@@ -735,6 +735,7 @@ describe("one vehicle business-use share on every surface", () => {
       expenses: totals.tracked.entries,
       ccaAssets: [],
       taxYear: 2026,
+      paymentsYear: 2026,
       vehicleBusinessUsePct: ctx.vehicleBusinessUsePct,
     });
     const itcs = inputTaxCreditsForPeriod(receipts, [], ctx, "2026-07-01", "2026-09-30");

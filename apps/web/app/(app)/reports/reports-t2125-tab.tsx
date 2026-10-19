@@ -31,6 +31,7 @@ import {
 } from "@agent-runway/core/engines/vehicle-logbook-engine";
 import { VEHICLE_BUSINESS_PART_RULE } from "@agent-runway/core/tax-copy";
 import { TAX_YEAR } from "@agent-runway/core/engines/canadian-tax-engine";
+import { earlierYearT2125Notes } from "@/lib/t2125-tax-year";
 import type { YearMileageTotals } from "@/lib/vehicle-logbook/load";
 import { toast } from "sonner";
 
@@ -205,6 +206,8 @@ export function ReportsT2125Tab({
     [vehicleBusinessUse, settings, taxYear],
   );
   const vehicleDeclared = vehicleUse.method === "declared";
+  /** The current year (the first option): the only year payments are stored for. */
+  const currentYear = taxYearOptions[0] ?? taxYear;
 
   // ── Compute T2125 ────────────────────────────────────────────────────────────
   const result: T2125Result | null = useMemo(() => {
@@ -218,8 +221,12 @@ export function ReportsT2125Tab({
       taxYear,
       otherIncome,
       vehicleBusinessUsePct: vehicleUse.pct,
+      // Remittances and instalments paid are stored for the current year only.
+      paymentsYear: currentYear,
     });
-  }, [localSettings, transactions, expenses, homeOfficeCosts, ccaAssets, taxYear, otherIncome, vehicleUse.pct]);
+  }, [localSettings, transactions, expenses, homeOfficeCosts, ccaAssets, taxYear, otherIncome, vehicleUse.pct, currentYear]);
+  // An earlier tax year: what it is built from and leaves out (the PDF prints the same list).
+  const yearNotes = earlierYearT2125Notes(taxYear, currentYear, TAX_YEAR);
 
   // Line 9270 also carries expenses whose key has no line of its own (a
   // custom item, or no category at all). Shown so the amount isn't a
@@ -330,14 +337,9 @@ export function ReportsT2125Tab({
       const projectedGCI = result.totalGrossIncome;
       const totalExpenses = result.line9369_totalExpenses + result.line9936_totalCca + result.line9945_homeOfficeDeduction;
       const netIncome = result.line8270_netBusinessIncome;
-      const gstRemitted = (localSettings.gst_hst_remitted_q1 ?? 0) +
-        (localSettings.gst_hst_remitted_q2 ?? 0) +
-        (localSettings.gst_hst_remitted_q3 ?? 0) +
-        (localSettings.gst_hst_remitted_q4 ?? 0);
-      const taxInstalments = (localSettings.tax_instalment_paid_q1 ?? 0) +
-        (localSettings.tax_instalment_paid_q2 ?? 0) +
-        (localSettings.tax_instalment_paid_q3 ?? 0) +
-        (localSettings.tax_instalment_paid_q4 ?? 0);
+      // The engine's figures: 0 for a year the payments aren't stored for.
+      const gstRemitted = result.gstHst.remittedTotal;
+      const taxInstalments = result.instalments.totalPaid;
 
       const optResult = generateTaxOptimizations({
         netIncome,
@@ -358,11 +360,12 @@ export function ReportsT2125Tab({
         homeOfficeMaintenanceAnnual: localSettings.home_office_maintenance_annual ?? 0,
         homeOfficeCondoFeesMonthly: localSettings.home_office_condo_fees_monthly ?? 0,
         vehicleType: (localSettings.vehicle_type as "own" | "lease" | "none") ?? "own",
+        taxYear,
         vehicleBusinessUsePct: vehicleUse.pct,
         hasTrackedMileage: totalKm > 0,
         annualMileageKm: totalKm,
         gstHstRegistered: localSettings.gst_hst_registered ?? false,
-        gstHstPaidOnExpenses: localSettings.gst_hst_paid_on_expenses ?? 0,
+        gstHstPaidOnExpenses: result.gstHst.paidOnExpenses,
         gstHstRemitted: gstRemitted,
         taxInstalmentsPaid: taxInstalments,
         cppInstalmentPaidYTD: localSettings.cpp_instalment_paid_ytd ?? 0,
@@ -382,6 +385,7 @@ export function ReportsT2125Tab({
           vehicleUse={{ pct: vehicleUse.pct, method: vehicleUse.method, label: vehicleUse.label }}
           mileageSummary={mileageSummary}
           taxOptCards={optResult.cards}
+          yearNotes={yearNotes}
           totalEstimatedSavings={optResult.totalEstimatedSavings}
         />
       ).toBlob();
@@ -418,13 +422,10 @@ export function ReportsT2125Tab({
           <p className="text-sm text-muted-foreground mt-1">
             Statement of Business Activities · {taxYear} · Pre-filled from your Agent Runway data
           </p>
-          {taxYear !== taxYearOptions[0] && (
-            <p className="text-xs text-muted-foreground mt-1 max-w-xl">
-              {taxYear}: receipts dated in {taxYear}, the monthly estimates for 12 months and the active Recurring
-              Expenses&apos; {taxYear} charges (one deleted since is not included), the {taxYear} logbook&apos;s vehicle
-              share, and CCA assets as recorded now.
-              {taxYear !== TAX_YEAR && ` Tax figures use the engine's ${TAX_YEAR} tables.`}
-            </p>
+          {yearNotes.length > 0 && (
+            <ul className="mt-1 max-w-xl list-disc space-y-0.5 pl-4 text-xs text-muted-foreground">
+              {yearNotes.map((note) => <li key={note}>{note}</li>)}
+            </ul>
           )}
         </div>
         <div className="flex items-center gap-2 flex-wrap">
@@ -1016,6 +1017,12 @@ export function ReportsT2125Tab({
                     Verify against your actual records.
                   </p>
                 </div>
+                {!result.paymentsStored ? (
+                  <p className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-muted-foreground">
+                    GST/HST remitted and GST/HST paid on expenses are stored for the current year only, so nothing is
+                    entered or saved here for {taxYear}, and no {taxYear} balance is shown.
+                  </p>
+                ) : (<>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <EditableAmount
                     label="Q1 remitted to CRA"
@@ -1072,6 +1079,7 @@ export function ReportsT2125Tab({
                     </span>
                   </div>
                 </div>
+                </>)}
               </>
             )}
           </CardContent>
@@ -1113,6 +1121,7 @@ export function ReportsT2125Tab({
                         <p className="text-[10px] text-muted-foreground mb-1">Estimated</p>
                         <p className="text-sm font-medium">{fmtCurrency(result.instalments.recommendedQuarterly)}</p>
                       </div>
+                      {result.paymentsStored && (
                       <div className="flex-1">
                         <p className="text-[10px] text-muted-foreground mb-1">Paid</p>
                         <Input
@@ -1125,11 +1134,18 @@ export function ReportsT2125Tab({
                           className="h-7 text-sm"
                         />
                       </div>
+                      )}
                     </div>
                   </div>
                 );
               })}
             </div>
+            {!result.paymentsStored ? (
+              <p className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-muted-foreground">
+                Estimated tax for {taxYear}: {fmtCurrency(result.totalTaxBurden)}. Tax instalments paid are stored for the
+                current year only, so nothing is entered or saved here for {taxYear}, and no {taxYear} balance is shown.
+              </p>
+            ) : (
             <div className={cn(
               "rounded-lg border px-4 py-3 text-sm space-y-1",
               result.instalments.balance > 0 ? "border-red-200 bg-red-50" : "border-emerald-200 bg-emerald-50",
@@ -1150,6 +1166,7 @@ export function ReportsT2125Tab({
                 </span>
               </div>
             </div>
+            )}
           </CardContent>
         )}
       </Card>

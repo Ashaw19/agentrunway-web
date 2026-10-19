@@ -365,6 +365,11 @@ interface Props {
   mileageSummary?: MileageSummary;
   taxOptCards?: TaxOptimizationCard[];
   totalEstimatedSavings?: number;
+  /**
+   * For a tax year other than the current one: what it is built from and
+   * leaves out (lib/t2125-tax-year.ts earlierYearT2125Notes, the tab's list).
+   */
+  yearNotes?: string[];
 }
 
 /** "From the logbook" or "Declared": what the vehicle share is, in a few words. */
@@ -374,7 +379,7 @@ function vehicleUseSource(v: VehicleUse, taxYear: number): string {
   return "declared in Settings, not computed from a logbook";
 }
 
-export function T2125Pdf({ result, settings, taxYear, vehicleUse, mileageSummary, taxOptCards, totalEstimatedSavings }: Props) {
+export function T2125Pdf({ result, settings, taxYear, vehicleUse, mileageSummary, taxOptCards, totalEstimatedSavings, yearNotes = [] }: Props) {
   const generatedDate = new Date().toLocaleDateString("en-CA");
   const vehicleDeclared = vehicleUse.method === "declared";
 
@@ -414,6 +419,15 @@ export function T2125Pdf({ result, settings, taxYear, vehicleUse, mileageSummary
             This document does not constitute tax advice. See agentrunway.ca/terms.
           </Text>
         </View>
+
+        {/* An earlier tax year: what it is built from and what it leaves out */}
+        {yearNotes.length > 0 && (
+          <View style={[s.disclaimer, { backgroundColor: "#F8FAFC", borderColor: "#CBD5E1" }]} wrap={false}>
+            {yearNotes.map((note) => (
+              <Text key={note} style={{ color: "#334155", marginBottom: 2 }}>{note}</Text>
+            ))}
+          </View>
+        )}
 
         {/* Identification */}
         <SectionHeader title="Identification" subtitle="Basic business details for your CRA filing" />
@@ -576,27 +590,35 @@ export function T2125Pdf({ result, settings, taxYear, vehicleUse, mileageSummary
               color="#0369A1"
             />
             <View style={s.gstRow}><Text>Collected on GCI</Text><Text style={{ fontFamily: "Helvetica-Bold" }}>{fmt(result.gstHst.collectedOnGCI)}</Text></View>
-            <View style={s.gstRow}><Text>Less: ITCs (tax paid on expenses)</Text><Text>−{fmt(result.gstHst.paidOnExpenses)}</Text></View>
-            <View style={s.gstRow}><Text>Less: Already remitted to CRA</Text><Text>−{fmt(result.gstHst.remittedTotal)}</Text></View>
-            <View style={s.gstBalance}>
-              <Text style={{ fontSize: 9, fontFamily: "Helvetica-Bold", color: result.gstHst.netPayable > 0 ? "#B45309" : "#065F46" }}>
-                {result.gstHst.netPayable > 0 ? "Estimated balance owing" : "Estimated refund / credit"}
+            {result.paymentsStored ? (
+              <>
+                <View style={s.gstRow}><Text>Less: ITCs (tax paid on expenses)</Text><Text>−{fmt(result.gstHst.paidOnExpenses)}</Text></View>
+                <View style={s.gstRow}><Text>Less: Already remitted to CRA</Text><Text>−{fmt(result.gstHst.remittedTotal)}</Text></View>
+                <View style={s.gstBalance}>
+                  <Text style={{ fontSize: 9, fontFamily: "Helvetica-Bold", color: result.gstHst.netPayable > 0 ? "#B45309" : "#065F46" }}>
+                    {result.gstHst.netPayable > 0 ? "Estimated balance owing" : "Estimated refund / credit"}
+                  </Text>
+                  <Text style={{ fontSize: 10, fontFamily: "Helvetica-Bold", color: result.gstHst.netPayable > 0 ? "#B45309" : "#065F46" }}>
+                    {fmt(Math.abs(result.gstHst.netPayable))}
+                  </Text>
+                </View>
+              </>
+            ) : (
+              <Text style={{ fontSize: 8, color: "#475569", marginTop: 4 }}>
+                {`GST/HST remitted and paid on expenses are stored for the current year only, so no ${taxYear} balance is shown.`}
               </Text>
-              <Text style={{ fontSize: 10, fontFamily: "Helvetica-Bold", color: result.gstHst.netPayable > 0 ? "#B45309" : "#065F46" }}>
-                {fmt(Math.abs(result.gstHst.netPayable))}
-              </Text>
-            </View>
+            )}
           </>
         )}
 
         {/* Instalments */}
         {/* Income tax instalments: CRA's dates for individuals, not the GST/HST filing dates. */}
-        <SectionHeader title="CRA Tax Instalment Tracker" subtitle="Estimated tax in four equal parts vs. paid" color="#B45309" />
+        <SectionHeader title="CRA Tax Instalment Tracker" subtitle={result.paymentsStored ? "Estimated tax in four equal parts vs. paid" : "Estimated tax in four equal parts"} color="#B45309" />
         <View style={s.ccaHeader}>
           <Text style={[s.ccaCol1, { flex: 1 }]}>Quarter</Text>
           <Text style={[s.ccaCol2]}>Due Date</Text>
           <Text style={[s.ccaCol2]}>Estimated</Text>
-          <Text style={[s.ccaCol2]}>Paid</Text>
+          {result.paymentsStored && <Text style={[s.ccaCol2]}>Paid</Text>}
         </View>
         {([1, 2, 3, 4] as const).map((q) => {
           const paid = [result.instalments.paidQ1, result.instalments.paidQ2, result.instalments.paidQ3, result.instalments.paidQ4][q - 1];
@@ -605,18 +627,24 @@ export function T2125Pdf({ result, settings, taxYear, vehicleUse, mileageSummary
               <Text style={[s.ccaCol1, { flex: 1, fontSize: 8 }]}>Q{q}</Text>
               <Text style={[s.ccaCol2, { fontSize: 8 }]}>{INCOME_TAX_INSTALMENT_DUE_DATES[q - 1].long}</Text>
               <Text style={[s.ccaCol2, { fontSize: 8 }]}>{fmt(result.instalments.recommendedQuarterly)}</Text>
-              <Text style={[s.ccaCol2, { fontSize: 8, fontFamily: "Helvetica-Bold" }]}>{fmt(paid)}</Text>
+              {result.paymentsStored && <Text style={[s.ccaCol2, { fontSize: 8, fontFamily: "Helvetica-Bold" }]}>{fmt(paid)}</Text>}
             </View>
           );
         })}
-        <View style={[s.gstBalance, { backgroundColor: result.instalments.balance > 0 ? "#FFF7ED" : "#ECFDF5" }]}>
-          <Text style={{ fontSize: 9, fontFamily: "Helvetica-Bold", color: result.instalments.balance > 0 ? "#B45309" : "#065F46" }}>
-            {result.instalments.balance > 0 ? "Estimated balance remaining" : "On track / overpaid"}
+        {result.paymentsStored ? (
+          <View style={[s.gstBalance, { backgroundColor: result.instalments.balance > 0 ? "#FFF7ED" : "#ECFDF5" }]}>
+            <Text style={{ fontSize: 9, fontFamily: "Helvetica-Bold", color: result.instalments.balance > 0 ? "#B45309" : "#065F46" }}>
+              {result.instalments.balance > 0 ? "Estimated balance remaining" : "On track / overpaid"}
+            </Text>
+            <Text style={{ fontSize: 10, fontFamily: "Helvetica-Bold", color: result.instalments.balance > 0 ? "#B45309" : "#065F46" }}>
+              {fmt(result.instalments.balance)}
+            </Text>
+          </View>
+        ) : (
+          <Text style={{ fontSize: 8, color: "#475569", marginTop: 4 }}>
+            {`Tax instalments paid are stored for the current year only, so no ${taxYear} payments or balance are shown.`}
           </Text>
-          <Text style={{ fontSize: 10, fontFamily: "Helvetica-Bold", color: result.instalments.balance > 0 ? "#B45309" : "#065F46" }}>
-            {fmt(result.instalments.balance)}
-          </Text>
-        </View>
+        )}
 
         {/* Closing note */}
         <View style={[s.disclaimer, { marginTop: 14 }]}>
@@ -675,7 +703,12 @@ export function T2125Pdf({ result, settings, taxYear, vehicleUse, mileageSummary
             <>
               <SectionHeader
                 title="Common Deduction Categories (Estimates Only)"
-                subtitle={totalEstimatedSavings ? `${taxOptCards.length} opportunities · Est. ${fmt(totalEstimatedSavings)} total potential savings` : `${taxOptCards.length} opportunities identified`}
+                subtitle={(() => {
+                  // Information-only cards (the vehicle card) are not opportunities and add no savings.
+                  const opportunities = taxOptCards.filter((c) => !c.informational).length;
+                  if (opportunities === 0) return "Information about your tax set-up";
+                  return totalEstimatedSavings ? `${opportunities} opportunities · Est. ${fmt(totalEstimatedSavings)} total potential savings` : `${opportunities} opportunities identified`;
+                })()}
                 color="#059669"
               />
               {taxOptCards.map((card, i) => (

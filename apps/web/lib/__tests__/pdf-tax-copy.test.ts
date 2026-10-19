@@ -71,6 +71,7 @@ import { createTestSettings, TEST_TRANSACTIONS, TEST_YEAR } from "@agent-runway/
 import type { CcaAsset } from "@agent-runway/core/types/database";
 import { BusinessReportPDF } from "@/components/pdf/business-report-pdf";
 import { T2125Pdf } from "@/components/pdf/t2125-pdf";
+import { earlierYearT2125Notes } from "@/lib/t2125-tax-year";
 import { GuidePdf } from "@/components/pdf/guide-pdf";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -819,7 +820,7 @@ function t2125Props(ccaAssets: CcaAsset[] = []) {
   const settings = createTestSettings({ gst_hst_registered: true });
   // No logbook: the declared setting, as the Reports page resolves it.
   const use = expenseTaxContext(settings, null).vehicleBusinessUse!;
-  const result = computeT2125({ settings, transactions: TEST_TRANSACTIONS, expenses: [], ccaAssets, taxYear: TEST_YEAR, vehicleBusinessUsePct: use.pct });
+  const result = computeT2125({ settings, transactions: TEST_TRANSACTIONS, expenses: [], ccaAssets, taxYear: TEST_YEAR, vehicleBusinessUsePct: use.pct, paymentsYear: TEST_YEAR });
   return { result, settings, taxYear: TEST_YEAR, vehicleUse: { pct: use.pct, method: use.method, label: use.label } };
 }
 
@@ -852,7 +853,7 @@ describe("T2125 PDF: vehicle business use and the mileage page", () => {
   // $1,000 of fuel, so line 9281 and its footnote print.
   const withFuel = (pct: number) => {
     const base = t2125Props();
-    return computeT2125({ settings: base.settings, transactions: TEST_TRANSACTIONS, expenses: t2125EntriesFromAmounts({ vehicle_fuel: 1_000 }), ccaAssets: [], taxYear: TEST_YEAR, vehicleBusinessUsePct: pct });
+    return computeT2125({ settings: base.settings, transactions: TEST_TRANSACTIONS, expenses: t2125EntriesFromAmounts({ vehicle_fuel: 1_000 }), ccaAssets: [], taxYear: TEST_YEAR, vehicleBusinessUsePct: pct, paymentsYear: TEST_YEAR });
   };
   const declared = { ...t2125Props(), result: withFuel(0.8), vehicleUse: { pct: 0.8, method: "declared" as const, label: "80%, declared in Settings (not computed from a logbook)" } };
   const declaredText = blocksOf(T2125Pdf, { ...declared, mileageSummary }).join("\n");
@@ -894,6 +895,40 @@ describe("T2125 PDF: vehicle business use and the mileage page", () => {
   it("page 3 renders with no text printed over other text", async () => {
     const boxes = await textBoxes(await renders(T2125Pdf, { ...logbook, mileageSummary }));
     expect(overprints(boxes)).toEqual([]);
+  });
+});
+
+// An earlier tax year (2026-10-19 review): user_settings' remittances,
+// GST/HST paid on expenses and instalments paid are the current year's, so a
+// 2025 PDF printed 2026's payments and a balance from them.
+describe("T2125 PDF: an earlier tax year", () => {
+  const settings = createTestSettings({ gst_hst_registered: true, gst_hst_remitted_q1: 1_234, tax_instalment_paid_q1: 4_321 });
+  const earlier = TEST_YEAR - 1;
+  const result = computeT2125({ settings, transactions: TEST_TRANSACTIONS, expenses: [], ccaAssets: [], taxYear: earlier, vehicleBusinessUsePct: 0.8, paymentsYear: TEST_YEAR });
+  const notes = earlierYearT2125Notes(earlier, TEST_YEAR, TEST_YEAR);
+  const text = blocksOf(T2125Pdf, { result, settings, taxYear: earlier, vehicleUse: { pct: 0.8, method: "declared", label: "80%, declared" }, yearNotes: notes })
+    .join("\n").replace(/\s+/g, " ");
+
+  it("prints no current-year remittance, instalment paid or balance", () => {
+    expect(text).not.toContain("Already remitted");
+    expect(text).not.toContain("$1,234");
+    expect(text).not.toContain("$4,321");
+    expect(text).not.toMatch(/Estimated balance (owing|remaining)|On track \/ overpaid/);
+    expect(text).toContain(`so no ${earlier} balance is shown`);
+    expect(text).toContain(`so no ${earlier} payments or balance are shown`);
+  });
+
+  it("prints what the year is built from, as the tab does", () => {
+    expect(notes.length).toBeGreaterThanOrEqual(3);
+    for (const note of notes) expect(text).toContain(note.replace(/\s+/g, " "));
+    expect(notes.join(" ")).toMatch(/monthly estimates on expense lines describe the current year and are not counted/);
+  });
+
+  it("the current year prints its payments as before", () => {
+    const current = computeT2125({ settings, transactions: TEST_TRANSACTIONS, expenses: [], ccaAssets: [], taxYear: TEST_YEAR, vehicleBusinessUsePct: 0.8, paymentsYear: TEST_YEAR });
+    const now = blocksOf(T2125Pdf, { result: current, settings, taxYear: TEST_YEAR, vehicleUse: { pct: 0.8, method: "declared", label: "80%" } }).join("\n");
+    expect(now).toContain("Already remitted");
+    expect(earlierYearT2125Notes(TEST_YEAR, TEST_YEAR, TEST_YEAR)).toEqual([]);
   });
 });
 

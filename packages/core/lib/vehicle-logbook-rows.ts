@@ -3,8 +3,10 @@
  * (engines/vehicle-logbook-engine.ts), read the same way on every surface:
  * the web pages, Flight Crew, the phone and the MCP server all call this.
  *
- *   vehicles                   every vehicle, oldest first (the first active
- *                              one is the default for trips with no vehicle)
+ *   vehicles                   every vehicle, oldest first (trips with no
+ *                              vehicle count for the oldest, active or not:
+ *                              unassignedTripVehicleId; new trips go on the
+ *                              oldest active one: defaultVehicleId)
  *   vehicle_logbook_periods    every period
  *   vehicle_odometer_readings  every reading
  *   mileage_logs               trip_date, km, vehicle_id over

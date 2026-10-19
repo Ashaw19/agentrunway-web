@@ -1508,7 +1508,11 @@ export interface MileageLog {
   deduction:       number;
   purpose:         string | null;
   notes:           string | null;
-  /** Migration 00184. Null: the agent's default vehicle (defaultVehicleId). */
+  /**
+   * Migration 00184. Null (trips saved before vehicles existed): counts for
+   * the agent's oldest vehicle, active or not (unassignedTripVehicleId). New
+   * trips carry their vehicle.
+   */
   vehicle_id:      string | null;
   /** Migration 00184: odometer at the start and end of the trip, when entered. */
   odometer_start:  number | null;

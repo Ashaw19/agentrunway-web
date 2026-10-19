@@ -133,9 +133,10 @@ export default async function ReportsPage({
     now: today,
   });
 
-  // The T2125 tab for an earlier year: the same engine call over that year
-  // (receipts dated in it, through December 31), with that year's vehicle
-  // share (its logbook) and business km. The current year uses the call above.
+  // The T2125 tab for an earlier year: the same engine call over that year's
+  // dated records (receipts dated in it, recurring charges through December
+  // 31), with that year's vehicle share (its logbook) and business km. The
+  // current year uses the call above.
   const pastT2125 = t2125Year === year
     ? null
     : await (async () => {
@@ -154,7 +155,10 @@ export default async function ReportsPage({
         const totals = ytdExpenseTotals({
           receipts: receipts.data,
           recurring: (recurringExpResult.data ?? []) as RecurringExpense[],
-          expenseItems: expItemResult.data,
+          // No monthly estimates: they describe the current year, and 12 ×
+          // today's estimate would put a cost on a year with no record of it.
+          // Only dated records count (lib/t2125-tax-year.ts says so on screen).
+          expenseItems: [],
           ctx,
           // Noon on December 31 of that year: the whole year "to date".
           now: new Date(t2125Year, 11, 31, 12),

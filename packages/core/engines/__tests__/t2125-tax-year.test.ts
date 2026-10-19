@@ -92,3 +92,37 @@ describe("computeT2125: gross commission income is the tax year's", () => {
     expect(t2125("cash", 2026).totalTaxBurden).toBeGreaterThan(t2125("accrual", 2026).totalTaxBurden);
   });
 });
+
+// ── An earlier year's T2125 leaves this year's payments out (2026-10-19) ────
+//
+// user_settings holds one set of GST/HST remitted (Q1–Q4), GST/HST paid on
+// expenses and instalments paid (Q1–Q4): the current year's. A 2025 T2125
+// built from them showed 2026's payments and a balance worked out from them.
+
+describe("payments are the current year's only", () => {
+  const settings = createTestSettings({
+    gst_hst_remitted_q1: 1_000, gst_hst_remitted_q2: 2_000, gst_hst_remitted_q3: 0, gst_hst_remitted_q4: 0,
+    gst_hst_paid_on_expenses: 300,
+    tax_instalment_paid_q1: 4_000, tax_instalment_paid_q2: 0, tax_instalment_paid_q3: 0, tax_instalment_paid_q4: 0,
+  });
+  const run = (taxYear: number) =>
+    computeT2125({ settings, transactions: [], expenses: [], ccaAssets: [], taxYear, vehicleBusinessUsePct: 0.8, paymentsYear: 2026 });
+
+  it("the current year counts them", () => {
+    const r = run(2026);
+    expect(r.paymentsStored).toBe(true);
+    expect(r.gstHst.remittedTotal).toBe(3_000);
+    expect(r.gstHst.paidOnExpenses).toBe(300);
+    expect(r.instalments.totalPaid).toBe(4_000);
+  });
+
+  it("an earlier year shows none of them", () => {
+    const r = run(2025);
+    expect(r.paymentsStored).toBe(false);
+    expect(r.gstHst.remittedTotal).toBe(0);
+    expect(r.gstHst.remittedQ1).toBe(0);
+    expect(r.gstHst.paidOnExpenses).toBe(0);
+    expect(r.instalments.totalPaid).toBe(0);
+    expect(r.instalments.paidQ1).toBe(0);
+  });
+});

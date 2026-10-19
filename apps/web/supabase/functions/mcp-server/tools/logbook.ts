@@ -23,6 +23,7 @@ import { CANONICAL_TAX_DISCLAIMER_SHORT } from "../lib/constants.ts";
 import { expenseTaxContext } from "../../_shared/core/engines/expense-totals-engine.ts";
 import {
   defaultVehicleId,
+  unassignedTripVehicleId,
   logbookPeriodEnd,
   logbookPeriodProblem,
   vehicleBusinessUseFor,
@@ -144,6 +145,7 @@ export function getLogbookTools(supabase: SupabaseClient, userId: string): McpTo
         const ctx = expenseTaxContext(settingsRes.data, { rows, year, today });
         const use = ctx.vehicleBusinessUse ?? vehicleBusinessUseFor(settingsRes.data, rows, year, today);
         const defaultId = defaultVehicleId(rows.vehicles);
+        const unassignedId = unassignedTripVehicleId(rows.vehicles);
         const test = use.tenPercentTest;
 
         return ok({
@@ -157,8 +159,10 @@ export function getLogbookTools(supabase: SupabaseClient, userId: string): McpTo
             make: v.make,
             model: v.model,
             is_active: v.is_active,
-            // Trips logged with no vehicle count for this one.
+            // New trips and periods go on this one when none is given (the oldest active vehicle).
             is_default: v.id === defaultId,
+            // Trips saved with no vehicle (before vehicles existed) count for this one: the oldest, active or not.
+            has_unassigned_trips: v.id === unassignedId,
           })),
           business_use: {
             pct: pct1(use.pct),
@@ -294,7 +298,7 @@ export function getLogbookTools(supabase: SupabaseClient, userId: string): McpTo
     {
       name: "log_mileage",
       description:
-        "Logs one business trip in the agent's mileage log: the date, a description (where and why), and the km driven, or the odometer at the trip's start and end (km is then worked out from them; when both are given they agree within 0.5 km). from_location, to_location, purpose and notes are optional. Without vehicle_id the trip counts for the agent's default vehicle. Only business trips belong in the log: total km come from the logbook's odometer readings (get_logbook_status). Returns the saved trip.",
+        "Logs one business trip in the agent's mileage log: the date, a description (where and why), and the km driven, or the odometer at the trip's start and end (km is then worked out from them; when both are given they agree within 0.5 km). from_location, to_location, purpose and notes are optional. Without vehicle_id the trip is saved with the agent's default vehicle (the oldest active one). Only business trips belong in the log: total km come from the logbook's odometer readings (get_logbook_status). Returns the saved trip.",
       inputSchema: {
         type: "object",
         properties: {

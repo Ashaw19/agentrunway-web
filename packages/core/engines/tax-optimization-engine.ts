@@ -18,7 +18,6 @@ import {
 } from "./canadian-tax-engine";
 import { calculateCorporateTax } from "./corporate-tax-engine";
 import { allowanceRateFigure } from "./vehicle-logbook-engine";
-import { atlanticYear } from "../lib/local-date";
 import { VEHICLE_LOGBOOK_RULE } from "../tax-copy/cra-rules";
 import {
   isTrackedLine,
@@ -109,6 +108,8 @@ export interface TaxOptimizationInput {
   homeOfficeInsuranceMonthly: number;
   homeOfficeMaintenanceAnnual: number;
   homeOfficeCondoFeesMonthly: number;
+  /** The tax year the cards describe (the vehicle card's CRA rates and wording). */
+  taxYear: number;
   // Vehicle
   vehicleType: "own" | "lease" | "none";
   vehicleBusinessUsePct: number;
@@ -142,6 +143,8 @@ export interface TaxOptimizationCard {
   disclaimer: string;
   estimatedSavings: number;
   estimatedSavingsLabel: string;
+  /** Information only: no savings, and not counted as an opportunity. */
+  informational?: boolean;
   priority: number;
   complexity: "easy" | "moderate" | "complex";
 }
@@ -149,6 +152,8 @@ export interface TaxOptimizationCard {
 export interface TaxOptimizationResult {
   cards: TaxOptimizationCard[];
   totalEstimatedSavings: number;
+  /** Cards with a savings estimate (information-only cards left out): "N opportunities". */
+  savingsCardCount: number;
   topOpportunity: TaxOptimizationCard | null;
   cardCount: number;
 }
@@ -231,7 +236,7 @@ export function generateTaxOptimizations(
   limit: number = 10,
 ): TaxOptimizationResult {
   if (input.netIncome <= 0 && input.projectedGCI <= 0) {
-    return { cards: [], totalEstimatedSavings: 0, topOpportunity: null, cardCount: 0 };
+    return { cards: [], totalEstimatedSavings: 0, savingsCardCount: 0, topOpportunity: null, cardCount: 0 };
   }
 
   const cards: TaxOptimizationCard[] = [];
@@ -402,18 +407,18 @@ export function generateTaxOptimizations(
   // estimatedSavings is 0, so it adds nothing to any total.
   if (input.vehicleType !== "none" && input.netIncome > 0) {
     const logged = input.hasTrackedMileage && input.annualMileageKm > 0;
-    const allowance = allowanceRateFigure(logged ? input.annualMileageKm : 0, atlanticYear());
+    const allowance = allowanceRateFigure(logged ? input.annualMileageKm : 0, input.taxYear);
     const { rates } = allowance;
 
     cards.push({
       id: "vehicleExpenseOptimizer",
       category: "vehicleExpenseOptimizer",
       icon: "car",
-      title: logged ? "Vehicle: Business Kilometres Logged" : "Vehicle: No Trips Logged This Year",
+      title: logged ? `Vehicle: Business Kilometres Logged in ${input.taxYear}` : `Vehicle: No Trips Logged in ${input.taxYear}`,
       evidence: [
         logged
-          ? `${Math.round(input.annualMileageKm).toLocaleString()} business km logged this year. At CRA's ${rates.year} per-km allowance rates that is ${fmtCurrency(Math.round(allowance.amount))}: an employer allowance benchmark, shown for scale, not a deduction`
-          : "No business trips logged this year",
+          ? `${Math.round(input.annualMileageKm).toLocaleString()} business km logged in ${input.taxYear}. At CRA's ${rates.year} per-km allowance rates that is ${fmtCurrency(Math.round(allowance.amount))}: an employer allowance benchmark, shown for scale, not a deduction`
+          : `No business trips logged in ${input.taxYear}`,
         `Vehicle business-use share applied to vehicle costs: ${fmtPct(input.vehicleBusinessUsePct)}`,
       ],
       action: logged
@@ -423,6 +428,7 @@ export function generateTaxOptimizations(
         "Information only. The per-km rates are CRA's reasonable allowance for an employer paying an employee. The T2125 vehicle deduction uses the business part of actual vehicle costs (and capital cost allowance for an owned vehicle). See Terms of Service.",
       estimatedSavings: 0,
       estimatedSavingsLabel: "Information",
+      informational: true,
       priority: logged ? 40 : 70,
       complexity: "easy",
     });
@@ -727,6 +733,7 @@ export function generateTaxOptimizations(
   return {
     cards: limited,
     totalEstimatedSavings,
+    savingsCardCount: limited.filter((c) => !c.informational).length,
     topOpportunity: limited[0] ?? null,
     cardCount: limited.length,
   };

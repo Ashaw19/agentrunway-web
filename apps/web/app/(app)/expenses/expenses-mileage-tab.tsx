@@ -46,6 +46,7 @@ import type { ExpenseTaxLogbook } from "@agent-runway/core/engines/expense-total
 import {
   allowanceRateFigure,
   defaultVehicleId,
+  unassignedTripVehicleId,
   type LogbookRows,
   type VehicleBusinessUse,
 } from "@agent-runway/core/engines/vehicle-logbook-engine";
@@ -119,8 +120,12 @@ export function ExpensesMileageTab({
     [logbook.rows],
   );
   const activeVehicles = vehicles.filter((v) => v.is_active);
+  // A new trip goes on the default vehicle (the oldest active one); a trip
+  // saved with no vehicle counts for the oldest vehicle, active or not, as
+  // the engine counts it, so it is named under that one.
   const defaultVehicle = defaultVehicleId(vehicles);
-  const vehicleName = (id: string | null) => vehicles.find((v) => v.id === (id ?? defaultVehicle))?.name ?? null;
+  const unassignedVehicle = unassignedTripVehicleId(vehicles);
+  const vehicleName = (id: string | null) => vehicles.find((v) => v.id === (id ?? unassignedVehicle))?.name ?? null;
 
   // ── New trip form state ────────────────────────────────────────────────────
   const today = localISODate();

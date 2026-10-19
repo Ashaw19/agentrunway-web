@@ -5,11 +5,13 @@
  * and each client runs this same code with its own signed-in client (RLS
  * applies to all of them).
  *
- *   ensureDefaultVehicle   the vehicle a trip or period belongs to when the
- *                          agent has not picked one: the first active
- *                          vehicle, or a new "My vehicle" the first time.
- *                          Existing trips are never rewritten; a trip with no
- *                          vehicle counts for this one (defaultVehicleId).
+ *   ensureDefaultVehicle   the vehicle a new period belongs to when the
+ *                          agent has not picked one: the oldest active
+ *                          vehicle (defaultVehicleId), or a new "My vehicle"
+ *                          the first time. Existing trips are never
+ *                          rewritten; a trip saved with no vehicle counts for
+ *                          the OLDEST vehicle, active or not
+ *                          (unassignedTripVehicleId).
  *   startLogbookPeriod     a base year or a sample period, checked with
  *                          logbookPeriodProblem (shape, overlap, a base year
  *                          before a sample).
@@ -61,15 +63,24 @@ export const DEFAULT_VEHICLE_NAME = "My vehicle";
 
 /**
  * The vehicle a new trip is stamped with when none is picked
- * (`defaultVehicleId`), or null when the agent has no vehicle or the list
- * can't be read (before migration 00184; the trip is then saved with no
- * vehicle and counts for the oldest one later).
+ * (`defaultVehicleId`): `id` null when the agent has no vehicle. A list that
+ * can't be read comes back as `error` (the database's, so a dropped
+ * connection still reads as offline): the caller refuses the write rather
+ * than saving the trip with no vehicle.
  */
-export async function defaultVehicleFor(supabase: LogbookClient, userId: string): Promise<string | null> {
+export async function defaultVehicleFor(
+  supabase: LogbookClient,
+  userId: string,
+): Promise<{ id: string | null; error: { code?: string; message?: string } | null }> {
   try {
-    return defaultVehicleId(await loadVehicles(supabase, userId));
-  } catch {
-    return null;
+    const { data, error } = await supabase
+      .from("vehicles")
+      .select("id, name, is_active, created_at")
+      .eq("user_id", userId);
+    if (error) return { id: null, error };
+    return { id: defaultVehicleId((data ?? []) as Vehicle[]), error: null };
+  } catch (err) {
+    return { id: null, error: { message: err instanceof Error ? err.message : String(err) } };
   }
 }
 

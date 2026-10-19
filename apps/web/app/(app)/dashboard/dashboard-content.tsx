@@ -206,7 +206,7 @@ import { GuideLink } from "@/components/guide-link";
 import { AiProfilePrompt } from "./ai-profile-prompt";
 import { ClosingDayPrompt } from "./closing-day-prompt";
 import type { CommunicationProfile, BusinessIdentity } from "@/lib/types/database";
-import { localISODate } from "@agent-runway/core/lib/local-date";
+import { atlanticYear, localISODate } from "@agent-runway/core/lib/local-date";
 
 /** Open checklist item with its client's name (dashboard/page.tsx joins clients(name)). */
 type TaskWithClient = ContactTask & { clients?: { name: string } | null };
@@ -1013,6 +1013,8 @@ export function DashboardContent({
         homeOfficeMaintenanceAnnual: settings.home_office_maintenance_annual,
         homeOfficeCondoFeesMonthly: settings.home_office_condo_fees_monthly,
         vehicleType: (settings.vehicle_type as "own" | "lease" | "none") ?? "none",
+        // The tax cards describe the current (Atlantic) year.
+        taxYear: atlanticYear(),
         vehicleBusinessUsePct,
         hasTrackedMileage: mileageKmTotal > 0,
         annualMileageKm: mileageKmTotal,
@@ -2430,7 +2432,10 @@ export function DashboardContent({
           <div>
             <CardTitle className="text-base">Tax Deduction Estimates</CardTitle>
             <CardDescription>
-              Estimated ~{fmtCurrency(taxOptResult.totalEstimatedSavings)}/yr in potential savings
+              {/* Information-only cards (the vehicle card) count for nothing here. */}
+              {taxOptResult.savingsCardCount > 0
+                ? <>Estimated ~{fmtCurrency(taxOptResult.totalEstimatedSavings)}/yr in potential savings</>
+                : <>Information about your tax set-up</>}
             </CardDescription>
           </div>
           <Link

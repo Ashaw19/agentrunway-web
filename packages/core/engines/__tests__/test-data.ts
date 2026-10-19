@@ -427,8 +427,13 @@ export const TEST_EXPENSES = {
  * engine takes the share as a required argument (the apps pass
  * expenseTaxContext's); these tests are about other lines.
  */
-export function withDeclaredShare<T extends { settings: { vehicle_business_use_pct?: number | null } }>(
+export function withDeclaredShare<T extends { settings: { vehicle_business_use_pct?: number | null }; taxYear?: number }>(
   input: T,
-): T & { vehicleBusinessUsePct: number } {
-  return { ...input, vehicleBusinessUsePct: Math.min(1, Math.max(0, input.settings.vehicle_business_use_pct ?? 0)) };
+): T & { vehicleBusinessUsePct: number; paymentsYear: number } {
+  return {
+    ...input,
+    vehicleBusinessUsePct: Math.min(1, Math.max(0, input.settings.vehicle_business_use_pct ?? 0)),
+    // The settings' remittances and instalments are the tax year's own.
+    paymentsYear: input.taxYear ?? new Date().getFullYear(),
+  };
 }

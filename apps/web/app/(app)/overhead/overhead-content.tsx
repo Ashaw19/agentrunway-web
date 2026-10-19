@@ -79,7 +79,7 @@ import { GuideLink } from "@/components/guide-link";
 import { ScenariosContent } from "@/app/(app)/scenarios/scenarios-content";
 import type { ScenarioSeedData } from "@/app/(app)/scenarios/page";
 import { SlidersHorizontal } from "lucide-react";
-import { localISODate } from "@agent-runway/core/lib/local-date";
+import { atlanticYear, localISODate } from "@agent-runway/core/lib/local-date";
 
 // ── Tax Savings — icon map ─────────────────────────────────────────────────
 
@@ -794,6 +794,8 @@ export function OverheadContent({
         homeOfficeMaintenanceAnnual: settings.home_office_maintenance_annual,
         homeOfficeCondoFeesMonthly: settings.home_office_condo_fees_monthly,
         vehicleType: (settings.vehicle_type as "own" | "lease" | "none") ?? "none",
+        // The tax cards describe the current (Atlantic) year.
+        taxYear: atlanticYear(),
         vehicleBusinessUsePct,
         hasTrackedMileage: mileageKmTotal > 0,
         annualMileageKm: mileageKmTotal,

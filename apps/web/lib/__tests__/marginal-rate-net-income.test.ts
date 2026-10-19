@@ -306,6 +306,7 @@ const OPT_INPUT: TaxOptimizationInput = {
   homeOfficeInsuranceMonthly: 0,
   homeOfficeMaintenanceAnnual: 0,
   homeOfficeCondoFeesMonthly: 0,
+  taxYear: 2026,
   vehicleType: "none",
   vehicleBusinessUsePct: 0,
   hasTrackedMileage: false,

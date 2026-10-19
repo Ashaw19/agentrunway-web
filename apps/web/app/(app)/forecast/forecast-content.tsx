@@ -30,7 +30,7 @@ import {
   type ListingAppointment,
 } from "@/lib/types/database";
 import { capYearCarryOver, computePlanGross, toPlanDeals } from "@/lib/engines/real-compensation-engine";
-import { localISODate } from "@agent-runway/core/lib/local-date";
+import { atlanticYear, localISODate } from "@agent-runway/core/lib/local-date";
 import {
   seasonalFractionElapsed,
   projectedYearEndGCI,
@@ -349,6 +349,8 @@ export function ForecastContent({
     homeOfficeMaintenanceAnnual: settings.home_office_maintenance_annual,
     homeOfficeCondoFeesMonthly: settings.home_office_condo_fees_monthly,
     vehicleType: (settings.vehicle_type as "own" | "lease" | "none") ?? "none",
+    // The tax cards describe the current (Atlantic) year.
+    taxYear: atlanticYear(),
     vehicleBusinessUsePct,
     hasTrackedMileage: mileageKmTotal > 0,
     annualMileageKm: mileageKmTotal,
@@ -796,7 +798,10 @@ export function ForecastContent({
               Tax Deduction Estimates
             </CardTitle>
             <CardDescription>
-              Estimated ~{fmtCurrency(taxOptResult.totalEstimatedSavings)}/yr in potential savings &middot; {taxOptResult.cardCount} {taxOptResult.cardCount === 1 ? "opportunity" : "opportunities"} found
+              {/* Information-only cards (the vehicle card) are not opportunities and add no savings. */}
+              {taxOptResult.savingsCardCount > 0
+                ? <>Estimated ~{fmtCurrency(taxOptResult.totalEstimatedSavings)}/yr in potential savings &middot; {taxOptResult.savingsCardCount} {taxOptResult.savingsCardCount === 1 ? "opportunity" : "opportunities"} found</>
+                : <>Information about your tax set-up</>}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">

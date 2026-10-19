@@ -30,6 +30,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { atlanticISODate, localISODate } from "@agent-runway/core/lib/local-date";
 import {
   defaultVehicleId,
+  unassignedTripVehicleId,
   vehicleBusinessUseFor,
   type ReadingDue,
 } from "@agent-runway/core/engines/vehicle-logbook-engine";
@@ -133,12 +134,16 @@ export default function MileageScreen() {
 
   const vehicles = useMemo(() => rows?.vehicles ?? [], [rows]);
   const activeVehicles = useMemo(() => vehicles.filter((v) => v.is_active), [vehicles]);
+  // New trips go on the default vehicle (the oldest active one); a trip saved
+  // with no vehicle counts for the oldest vehicle, active or not (as the
+  // engine counts it), so it is named under that one.
   const defaultId = useMemo(() => defaultVehicleId(vehicles), [vehicles]);
+  const unassignedId = useMemo(() => unassignedTripVehicleId(vehicles), [vehicles]);
   const vehicleId =
     pickedVehicleId && activeVehicles.some((v) => v.id === pickedVehicleId) ? pickedVehicleId : defaultId;
   const vehicleName = useCallback(
-    (id: string | null) => vehicles.find((v) => v.id === (id ?? defaultId))?.name ?? "",
-    [vehicles, defaultId],
+    (id: string | null) => vehicles.find((v) => v.id === (id ?? unassignedId))?.name ?? "",
+    [vehicles, unassignedId],
   );
 
   const startKm = parseKmInput(odoStart);

@@ -398,8 +398,11 @@ export async function writeMileage(
       const owned = await ownsVehicle(db, userId, args.vehicleId);
       if (!owned.ok) return fail(owned.error);
     } else {
+      // The list has to be read: a trip saved with no vehicle when the agent
+      // has one would count for the oldest vehicle, not the one driven.
       const stamped = await defaultVehicleFor(db, userId);
-      if (stamped) row.value.vehicle_id = stamped;
+      if (stamped.error) return refused("read your vehicles", stamped.error);
+      if (stamped.id) row.value.vehicle_id = stamped.id;
     }
     const payload = mileageRow<Record<string, unknown>>({ id, ...row.value });
     const { error, alreadySaved } = await insertOnce(db, "mileage_logs", payload, userId);

@@ -139,6 +139,14 @@ describe("writeMileage and the vehicle logbook (2026-10-19)", () => {
     expect(writes[0].payload.vehicle_id).toBe("truck");
   });
 
+  it("when the vehicle list can't be read, the trip is not saved with no vehicle", async () => {
+    const offline = fakeDb({ vehicles: [car, truck] }, { offline: ["vehicles"] });
+    const out = await writeMileage(offline.db, USER, { tripDate: "2026-10-17", km: 18, description: "Showing" });
+    expect(out).toMatchObject({ ok: false, offline: true });
+    expect(out.message).toMatch(/read your vehicles/);
+    expect(offline.writes).toEqual([]);
+  });
+
   it("works the km out from the odometer, and refuses another agent's vehicle", async () => {
     const { db, writes } = fakeDb({ vehicles: [truck] });
     const out = await writeMileage(db, USER, { tripDate: "2026-10-17", km: 0, description: "Showing", odometerStart: 100, odometerEnd: 123.5, vehicleId: "truck" });
