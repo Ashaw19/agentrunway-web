@@ -41,6 +41,7 @@ import {
   ListChecks,
   Contact,
   UserPlus,
+  Bot,
 } from "lucide-react-native";
 import { getLocaleName, type SupportedLocale } from "@agent-runway/i18n";
 import { useT } from "@/lib/useT";
@@ -363,6 +364,15 @@ export default function ProfileScreen() {
               label={t("tools.checklist")}
               description={t("tools.checklistDesc")}
               onPress={() => router.push("/profile/checklist")}
+              c={c}
+            />
+            <Divider c={c} />
+            <MenuItem
+              icon={<Bot size={18} color={c.primary} />}
+              iconBg={c.primaryDim}
+              label={t("tools.aiActivity")}
+              description={t("tools.aiActivityDesc")}
+              onPress={() => router.push("/profile/ai-activity")}
               c={c}
             />
             <Divider c={c} />

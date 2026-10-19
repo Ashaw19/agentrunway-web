@@ -1,29 +1,33 @@
 /**
  * Centralized AI Provider Configuration
  *
- * Routes all LLM requests through Anthropic (Claude) as primary,
- * with Groq as the speed/cost fallback. All requests proxy through
- * Helicone for observability and per-user cost tracking.
+ * Routes all LLM requests to Anthropic (Claude) directly, with Groq as the
+ * speed/cost fallback. Every model is wrapped in the AI run ledger
+ * middleware (lib/ai/run-ledger.ts): each call is logged to `ai_runs` with
+ * its feature, tokens, estimated cost, latency and outcome, and never its
+ * prompt or completion.
+ *
+ * Until 2026-10-18 calls went through the Helicone proxy
+ * (anthropic.helicone.ai) whenever HELICONE_API_KEY was set. Helicone is in
+ * maintenance mode, and the proxy made it a single point of failure for
+ * Flight Crew, the drafters and receipt OCR, so it was removed; the ledger
+ * replaces its cost tracking with data Agent Runway owns.
  */
 
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createGroq } from "@ai-sdk/groq";
+import { wrapLanguageModel } from "ai";
+import { AI_LEDGER_HEADERS, createAIRunLedgerMiddleware, type ModelPrice } from "./run-ledger";
 
 // ── Anthropic (Primary) ────────────────────────────────────────────────────
-// When Helicone key is present, route through Helicone proxy for
-// cost tracking and observability. Otherwise hit Anthropic directly.
-const anthropicBaseURL = process.env.HELICONE_API_KEY
-  ? "https://anthropic.helicone.ai/v1"
-  : undefined; // default Anthropic URL
+// Straight to Anthropic, pinned: @ai-sdk/anthropic otherwise reads
+// ANTHROPIC_BASE_URL from the environment, so a proxy (or a developer
+// shell's own setting) could reroute every call without a code change.
+export const ANTHROPIC_API_BASE_URL = "https://api.anthropic.com/v1";
 
 const anthropic = createAnthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
-  baseURL: anthropicBaseURL,
-  headers: process.env.HELICONE_API_KEY
-    ? {
-        "Helicone-Auth": `Bearer ${process.env.HELICONE_API_KEY}`,
-      }
-    : undefined,
+  baseURL: ANTHROPIC_API_BASE_URL,
 });
 
 // ── Anthropic (Opus with Task Budgets) ─────────────────────────────────────
@@ -48,8 +52,8 @@ const anthropic = createAnthropic({
 // `output_config.effort` before this hook runs, and the hook spreads the
 // existing `output_config` before adding `task_budget` (verified by the
 // "preserves an existing output_config.effort" test). This hooks at the HTTP
-// layer like Andrew's existing Helicone proxy and leaves all other provider
-// behaviour (cache_control, helicone headers, standard streaming) untouched.
+// layer and leaves all other provider behaviour (cache_control, call
+// headers, standard streaming) untouched.
 //
 // Pairing constraint (from Anthropic docs): task_budget is ADVISORY, not a
 // hard cap. It must be paired with `max_tokens` as the absolute ceiling —
@@ -59,8 +63,8 @@ const anthropic = createAnthropic({
 //
 // Budget sizing: 40,000 tokens is a generous starting point for a complex
 // Opus conversation (tax/forecast/scenario modeling). Tune after observing
-// p99 usage in Helicone. Opus-only — Haiku and Sonnet calls do not get a
-// budget because (a) they're cheap, (b) the routing already caps complexity,
+// p99 usage in the AI run ledger (ai_runs). Opus-only — Haiku and Sonnet
+// calls do not get a budget because (a) they're cheap, (b) the routing already caps complexity,
 // (c) the bookkeeping overhead of task budgets isn't worth it at those tiers.
 const OPUS_TASK_BUDGET_TOKENS = 40000;
 const TASK_BUDGETS_BETA = "task-budgets-2026-03-13";
@@ -216,12 +220,7 @@ const opusWithTaskBudgetFetch: typeof fetch = async (input, init) => {
 
 const anthropicOpus = createAnthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
-  baseURL: anthropicBaseURL,
-  headers: process.env.HELICONE_API_KEY
-    ? {
-        "Helicone-Auth": `Bearer ${process.env.HELICONE_API_KEY}`,
-      }
-    : undefined,
+  baseURL: ANTHROPIC_API_BASE_URL,
   fetch: opusWithTaskBudgetFetch,
 });
 
@@ -230,14 +229,31 @@ const groq = createGroq({
   apiKey: process.env.GROQ_API_KEY,
 });
 
+// ── Model prices ────────────────────────────────────────────────────────────
+// List prices in US dollars per million tokens, used for the ledger's
+// estimated cost (cache reads and writes priced from the input rate in
+// run-ledger.ts). An estimate, not the invoice. A model missing here is
+// logged with no cost; ai-run-ledger.test.ts checks every pinned model has one.
+export const MODEL_PRICES: Readonly<Record<string, ModelPrice>> = {
+  "claude-haiku-4-5-20251001": { input: 1, output: 5 },
+  "claude-sonnet-4-6": { input: 3, output: 15 },
+  "claude-opus-4-8": { input: 5, output: 25 },
+  "llama-3.3-70b-versatile": { input: 0.59, output: 0.79 },
+};
+
+const ledger = createAIRunLedgerMiddleware(MODEL_PRICES);
+/** A model with every call logged to the AI run ledger. */
+const logged = (model: Parameters<typeof wrapLanguageModel>[0]["model"]) =>
+  wrapLanguageModel({ model, middleware: ledger });
+
 // ── Model References ────────────────────────────────────────────────────────
 // 3-tier routing: fast (cheap/simple) → default (standard) → complex (expensive/deep)
 export const models = {
   /** Haiku 4.5 — $1/$5 per MTok. Simple lookups, classifications, OCR extraction. */
-  fast: anthropic("claude-haiku-4-5-20251001"),
+  fast: logged(anthropic("claude-haiku-4-5-20251001")),
 
   /** Sonnet 4.6 — $3/$15 per MTok. Conversations, analysis, drafts, CRM lookups. */
-  default: anthropic("claude-sonnet-4-6"),
+  default: logged(anthropic("claude-sonnet-4-6")),
 
   /**
    * Opus 4.8 — $5/$25 per MTok. Forecasting, scenario modeling, complex advisory.
@@ -252,10 +268,10 @@ export const models = {
    * `opusWithTaskBudgetFetch` definition above. Paired with the chat route's
    * `maxOutputTokens` ceiling as the hard cap.
    */
-  complex: anthropicOpus("claude-opus-4-8"),
+  complex: logged(anthropicOpus("claude-opus-4-8")),
 
   /** Groq Llama 3.3 70B — $0.59/$0.79 per MTok. Speed fallback. */
-  fallback: groq("llama-3.3-70b-versatile"),
+  fallback: logged(groq("llama-3.3-70b-versatile")),
 
   /** Groq Whisper — voice transcription (keep on Groq for speed). */
   whisper: groq("whisper-large-v3-turbo"),
@@ -264,23 +280,28 @@ export const models = {
 export type ModelTier = "fast" | "default" | "complex" | "fallback";
 
 /**
- * Build Helicone tracking headers for per-user cost attribution.
- * These are passed to streamText/generateText via the `headers` option.
+ * Who and what a model call is for, for the AI run ledger. Pass to
+ * streamText / generateText / generateObject as `headers`. The ledger
+ * middleware reads them and takes them off the request, so they never reach
+ * Anthropic. `sessionId` groups the calls of one request (a chat turn).
  */
-export function heliconeHeaders(opts: {
-  userId: string;
+export function aiCallHeaders(opts: {
+  userId?: string | null;
   feature: string;
   sessionId?: string;
-}) {
-  if (!process.env.HELICONE_API_KEY) return {};
+}): Record<string, string> {
   return {
-    "Helicone-User-Id": opts.userId,
-    "Helicone-Property-Feature": opts.feature,
-    ...(opts.sessionId
-      ? { "Helicone-Session-Id": opts.sessionId }
-      : {}),
+    ...(opts.userId ? { [AI_LEDGER_HEADERS.userId]: opts.userId } : {}),
+    [AI_LEDGER_HEADERS.feature]: opts.feature,
+    ...(opts.sessionId ? { [AI_LEDGER_HEADERS.requestId]: opts.sessionId } : {}),
   };
 }
+
+/**
+ * @deprecated Use aiCallHeaders. Kept so a call site written before the
+ * Helicone proxy was removed (2026-10-18) still logs to the ledger.
+ */
+export const heliconeHeaders = aiCallHeaders;
 
 /**
  * Select a model with Groq fallback.

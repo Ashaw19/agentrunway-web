@@ -21,6 +21,7 @@ const PROTECTED_PREFIXES = [
   "/clients",
   "/crm",
   "/checklist",
+  "/ai-activity",
   "/forecast",
   "/expenses",
   "/mileage",

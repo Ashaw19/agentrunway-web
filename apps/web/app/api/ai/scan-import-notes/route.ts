@@ -18,7 +18,7 @@
 import { generateObject } from "ai";
 import { z } from "zod";
 import { NextRequest, NextResponse } from "next/server";
-import { models, heliconeHeaders } from "@/lib/ai/provider";
+import { models, aiCallHeaders } from "@/lib/ai/provider";
 import { createClient } from "@/lib/supabase/server";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 
@@ -192,7 +192,7 @@ export async function POST(req: NextRequest) {
       prompt: buildPrompt(rows),
       temperature: 0.1, // Deterministic — we want consistent judgments
       maxOutputTokens: 500,
-      headers: heliconeHeaders({
+      headers: aiCallHeaders({
         userId: user.id,
         feature: "scan-import-notes",
       }),

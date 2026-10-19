@@ -25,7 +25,7 @@ import { NextRequest } from "next/server";
 import { streamText, stepCountIs, tool } from "ai";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
-import { models, heliconeHeaders } from "@/lib/ai/provider";
+import { models, aiCallHeaders } from "@/lib/ai/provider";
 import {
   DIRECTOR_SYSTEM_PROMPT,
   DIRECTOR_INTERNAL_DISCLAIMER,
@@ -756,7 +756,7 @@ export async function POST(req: NextRequest) {
       stopWhen: stepCountIs(6),
       maxOutputTokens: 2000,
       temperature: 0.3,
-      headers: heliconeHeaders({
+      headers: aiCallHeaders({
         userId: user.id,
         feature: "cockpit-director-chat",
       }),

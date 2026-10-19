@@ -24,7 +24,9 @@
     "forecast": "Prévisions de revenus",
     "forecastDesc": "Projections et rythme de fin d'année",
     "scanReceipt": "Numériser un reçu",
-    "scanReceiptDesc": "Capturer et enregistrer les dépenses"
+    "scanReceiptDesc": "Capturer et enregistrer les dépenses",
+    "aiActivity": "Activité de l'IA",
+    "aiActivityDesc": "Ce que Flight Crew a modifié aujourd'hui. Annulez ici."
   },
   "account": {
     "title": "Compte",
@@ -322,5 +324,23 @@
     "errorBody": "Enregistrement impossible. Veuillez réessayer.",
     "infoBanner": "Les paramètres avancés comme les frais de courtage, la saisonnalité et la configuration fiscale se gèrent dans le tableau de bord web.",
     "cashReserveNote": "Votre réserve de liquidités est une donnée que l'estimation du Pointage Runway peut utiliser. Ce n'est pas une cible."
+  },
+  "aiActivity": {
+    "today": "Aujourd'hui",
+    "undo": "Annuler",
+    "cancel": "Fermer",
+    "confirmTitle": "Annuler cette modification?",
+    "undoFailedTitle": "Impossible d'annuler",
+    "networkError": "Impossible de joindre Agent Runway. Vérifiez votre connexion et réessayez.",
+    "signedOut": "Reconnectez-vous, puis réessayez.",
+    "loadError": "Impossible de charger l'activité de l'IA. Tirez vers le bas pour réessayer.",
+    "emptyTitle": "Aucune modification aujourd'hui",
+    "emptySubtitle": "Flight Crew n'a modifié aucun de vos dossiers aujourd'hui. La page Activité de l'IA sur le Web montre les 30 derniers jours.",
+    "inChat": "dans le clavardage",
+    "afterApproval": "après votre approbation",
+    "footnote": "Annuler remet en place tout ce qu'une modification a écrit, ensemble, ou rien si un dossier a changé depuis. Un dossier supprimé par Flight Crew alors que d'autres dossiers y étaient liés ne peut pas être rétabli. Les 30 derniers jours et chaque appel à l'IA sont sur le Web : Paramètres → Activité de l'IA.",
+    "deletesClientWarning": "Cela supprime le client et ne peut pas être annulé. Son profil, ses notes et son historique d'activités sont supprimés aussi.",
+    "allOrNothing": "Tout ce qui précède est remis en place ensemble, ou rien ne l'est si un dossier a changé depuis.",
+    "deleteClient": "Supprimer le client"
   }
 }

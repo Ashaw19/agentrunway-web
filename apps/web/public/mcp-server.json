@@ -3,7 +3,7 @@
   "server_name": "Agent Runway",
   "server_version": "1.0.0",
   "display_name": "Agent Runway: Canadian Real Estate Analytics",
-  "description": "Connect your AI assistant to your Agent Runway real estate business data. 21 read tools cover transactions, pipeline deals, CRM clients, CASL consent, expenses, mileage and the CRA vehicle logbook, tax estimates and forecasts, and read a pasted call or showing note into proposed changes. 10 write tools create and update pipeline opportunities, save the note items the agent approves, record CASL consent and withdrawals, and log trips, logbook periods and odometer readings.",
+  "description": "Connect your AI assistant to your Agent Runway real estate business data. 22 read tools cover transactions, pipeline deals, CRM clients, CASL consent, expenses, mileage and the CRA vehicle logbook, tax estimates, forecasts and what the in-app AI changed, and read a pasted call or showing note into proposed changes. 10 write tools create and update pipeline opportunities, save the note items the agent approves, record CASL consent and withdrawals, and log trips, logbook periods and odometer readings.",
   "homepage": "https://agentrunway.ca",
   "documentation_url": "https://agentrunway.ca/mcp",
   "logo_url": "https://agentrunway.ca/logo.png",
@@ -34,8 +34,8 @@
     "forecast"
   ],
   "tool_counts": {
-    "total": 31,
-    "read_only": 21,
+    "total": 32,
+    "read_only": 22,
     "write": 10
   },
   "tools": [
@@ -195,6 +195,11 @@
       "name": "withdraw_consent",
       "description": "Record that a client asked the agent to stop emailing or texting them.",
       "read_only": false
+    },
+    {
+      "name": "get_ai_activity",
+      "description": "What the in-app AI changed in the agent's records and which AI calls ran (failures, estimated cost). No prompts or replies.",
+      "read_only": true
     }
   ],
   "requirements": {

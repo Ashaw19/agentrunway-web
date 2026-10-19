@@ -36,7 +36,7 @@ import { atlanticNoon } from "@agent-runway/core/lib/local-date";
 import { loadVehicleLogbook } from "@/lib/vehicle-logbook/load";
 import type { RecurringExpense } from "@/lib/types/database";
 import { generateText } from "ai";
-import { models } from "@/lib/ai/provider";
+import { models, aiCallHeaders } from "@/lib/ai/provider";
 
 export const maxDuration = 300; // 5 minutes max
 
@@ -381,6 +381,7 @@ export async function GET(req: NextRequest) {
         const paceStatus = paceVsGoalPct >= 100 ? "ahead of pace" : paceVsGoalPct >= 85 ? "on pace" : "behind pace";
         const { text } = await generateText({
           model: models.fast,
+          headers: aiCallHeaders({ userId: user.user_id, feature: "weekly-digest" }),
           system: `You are a concise business coach for a Canadian real estate agent. Write exactly 2 sentences. Be specific with numbers. No fluff. No greetings. No sign-off. Use Canadian spelling.`,
           prompt: `Generate a 2-sentence personalized business insight for ${firstName} based on their weekly data:
 - Runway Score: ${runwayResult.score}/100 — ${runwayResult.stateLabel}

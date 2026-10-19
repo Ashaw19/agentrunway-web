@@ -19,7 +19,7 @@
 
 import { generateText } from "ai";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { models, heliconeHeaders } from "@/lib/ai/provider";
+import { models, aiCallHeaders } from "@/lib/ai/provider";
 import {
   type Tone,
   type TextPurpose,
@@ -289,7 +289,7 @@ export async function draftTextForClient(input: {
     "Reminder: this is a TEXT MESSAGE. The TEXT MESSAGE RULES above win over any email guidance.",
   ].filter(Boolean).join("\n\n");
 
-  const headers = heliconeHeaders({ userId, feature: "draft-text" });
+  const headers = aiCallHeaders({ userId, feature: "draft-text" });
   let raw = "";
   try {
     const { text } = await generateText({ model: models.default, prompt: fullPrompt, maxOutputTokens: 200, temperature: 0.8, headers });

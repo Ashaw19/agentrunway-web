@@ -8,7 +8,7 @@
 
 import { generateObject } from "ai";
 import { z } from "zod";
-import { models, heliconeHeaders } from "./provider";
+import { models, aiCallHeaders } from "./provider";
 
 // ── Input Data ───────────────────────────────────────────────────────────────
 
@@ -75,14 +75,10 @@ Current metrics:
 - Upcoming closes: ${data.upcomingCloses.length > 0 ? data.upcomingCloses.map((c) => `${c.address} on ${c.date}`).join("; ") : "None in the next 14 days"}
 - Hot contacts: ${data.hotContacts.length > 0 ? data.hotContacts.map((c) => `${c.name} (score ${c.score})`).join(", ") : "None flagged"}
 - Recent anomalies: ${data.recentAnomalies.length > 0 ? data.recentAnomalies.join("; ") : "None"}`,
-    ...(userId
-      ? {
-          headers: heliconeHeaders({
-            userId,
-            feature: "morning_briefing",
-          }),
-        }
-      : {}),
+    headers: aiCallHeaders({
+      userId,
+      feature: "morning_briefing",
+    }),
   });
 
   return object;

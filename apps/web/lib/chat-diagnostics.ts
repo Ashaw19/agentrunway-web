@@ -57,6 +57,7 @@ import {
 import type { Province } from "@agent-runway/core/types/database";
 import type { TroubleshootingTopic } from "./troubleshooting-classifier";
 import { atlanticNoon } from "@agent-runway/core/lib/local-date";
+import { countAIFailures, type AIFailureCounts } from "@agent-runway/core/lib/ai-activity-load";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -199,6 +200,10 @@ export async function buildDiagnostics(
   const currentYear = today.getFullYear();
   // The vehicle business-use share: the logbook's when it covers the year.
   const logbookPromise = loadVehicleLogbook(supabase, userId, currentYear);
+
+  // Failed AI calls and failed Flight Crew writes in the last 24 hours (the
+  // AI run ledger, 00182). Read alongside the rest; never fails the build.
+  const aiFailuresPromise: Promise<AIFailureCounts | null> = countAIFailures(supabase, userId).catch(() => null);
 
   // Fetch all data in parallel
   const [
@@ -377,6 +382,9 @@ export async function buildDiagnostics(
     if (diag) diagnosticParts.push(diag);
   }
 
+  const aiFailures = diagAIFailures(await aiFailuresPromise);
+  if (aiFailures) diagnosticParts.push(aiFailures);
+
   if (diagnosticParts.length === 0) return "";
 
   return `\n\nDIAGNOSTIC DATA (step-by-step calculations for this user — reference these when troubleshooting):\n${diagnosticParts.join("\n\n")}`;
@@ -419,6 +427,18 @@ function buildTopicDiagnostic(
 }
 
 // ─── Individual Diagnostic Builders ───────────────────────────────────────────
+
+/**
+ * Failed AI calls and Flight Crew writes Postgres refused, last 24 hours.
+ * Only when there are any: a write path that breaks (like the 2026-04-12
+ * activity-insert failure, found six months later) shows the next day.
+ */
+export function diagAIFailures(f: AIFailureCounts | null): string | null {
+  if (!f || f.unknown || f.failedRuns + f.failedWrites === 0) return null;
+  const calls = `${f.failedRuns} AI call${f.failedRuns === 1 ? "" : "s"} failed`;
+  const writes = `${f.failedWrites} Flight Crew change${f.failedWrites === 1 ? "" : "s"} didn't save`;
+  return `[AI LEDGER, LAST 24 HOURS]\n${calls} and ${writes} (Postgres refused the write). The AI activity page (/ai-activity) lists each one with its error code. If a change didn't save, say so plainly and suggest trying it again or making it by hand.`;
+}
 
 /**
  * The cash runway as the dashboard computes it (dashboard-content.tsx,

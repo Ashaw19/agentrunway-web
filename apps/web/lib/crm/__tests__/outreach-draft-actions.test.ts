@@ -13,7 +13,7 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("ai", () => ({ generateText: vi.fn() }));
 vi.mock("@/lib/ai/provider", () => ({
   models: { default: "test-default", fallback: "test-fallback" },
-  heliconeHeaders: () => ({}),
+  aiCallHeaders: () => ({}),
 }));
 
 import { DRAFTABLE_OUTREACH_TYPES } from "@/lib/ai/draft-services";

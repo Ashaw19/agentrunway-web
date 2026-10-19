@@ -86,7 +86,7 @@ import { buildDiagnostics } from "@/lib/chat-diagnostics";
 import { logChatAnalytics, countTopicFollowUps } from "@/lib/chat-analytics";
 import {
   models,
-  heliconeHeaders,
+  aiCallHeaders,
   TASK_BUDGETS_BETA_HEADER,
   TAX_SAFETY_INJECT_HEADER,
 } from "@/lib/ai/provider";
@@ -94,6 +94,8 @@ import { selectModelTier, personaEffort } from "@/lib/ai/router";
 import { buildPromptParts, injectCanary, validateNavigatorOutput } from "@/lib/ai/security";
 import { fetchMemories, addMemory } from "@/lib/ai/memory";
 import { createPersonaAgentTools, NEEDS_APPROVAL_TOOLS, describeApproval } from "@/lib/ai/tools";
+import { ledgerFetch, withWriteLedger } from "@/lib/ai/write-ledger";
+import { undoApprovalCard } from "@/lib/ai/undo-approval";
 import { seasonalCommissionPatternLine } from "@/lib/ai/seasonal-tax-intel";
 import { paychequeAllocationLines } from "@/lib/ai/paycheque-allocation-intel";
 import type { Province, Transaction as CoreTransaction, ContactActivity } from "@agent-runway/core/types/database";
@@ -118,7 +120,10 @@ export async function POST(req: NextRequest) {
   // Either way `supabase` is scoped to the user so RLS still applies
   // (lib/supabase/request-user.ts, shared with /api/briefing).
   // See `memory/project_mobile_parity_audit_2026-05-26.md` gap #1.
-  const auth = await getRequestUser(req);
+  // ledgerFetch: the writes a Flight Crew tool makes during this turn are
+  // recorded in ai_run_writes (lib/ai/write-ledger.ts). Every other request
+  // on this client passes straight through.
+  const auth = await getRequestUser(req, { fetch: ledgerFetch });
   if (!auth) {
     return new Response("Unauthorized", { status: 401 });
   }
@@ -1509,7 +1514,11 @@ Be the expert — explain metrics, suggest features, direct to pages. Think abou
           //   maxUses: 3,
           //   userLocation: { type: "approximate", country: "CA", timezone: "America/Toronto" },
           // }),
-          ...createPersonaAgentTools(supabase, user.id, persona),
+          ...withWriteLedger(createPersonaAgentTools(supabase, user.id, persona), {
+            userId: user.id,
+            requestId,
+            source: "chat",
+          }),
         },
         stopWhen: stepCountIs(10),
         // NOTE: tried stopSequences=["passing it over.", ...] as a belt-and-
@@ -1550,7 +1559,7 @@ Be the expert — explain metrics, suggest features, direct to pages. Think abou
         })(),
         abortSignal: abortController.signal,
         headers: {
-          ...heliconeHeaders({
+          ...aiCallHeaders({
             userId: user.id,
             feature: "chat",
             sessionId: requestId,
@@ -1564,13 +1573,11 @@ Be the expert — explain metrics, suggest features, direct to pages. Think abou
         },
         onFinish: ({ text, totalUsage }) => {
           // ── Token-usage telemetry (incl. thinking/reasoning tokens) ───────
-          // Helicone GA captures usage at the proxy HTTP layer (including
-          // reasoning tokens billed as output), so per-user cost attribution
-          // already flows through Helicone. This app-side log is the
-          // Helicone-independent signal the Director Cockpit burn metric can
-          // consume, and it surfaces reasoning-token volume per tier/persona
-          // for tuning the per-persona `effort` budgets. Non-blocking and
-          // fully guarded — usage telemetry must never break chat persistence.
+          // Per-call usage and cost go to the AI run ledger (ai_runs) through
+          // the provider middleware (lib/ai/run-ledger.ts), one row per model
+          // step. This log line is the turn total by tier/persona, for tuning
+          // the per-persona `effort` budgets. Non-blocking and fully guarded:
+          // usage telemetry must never break chat persistence.
           try {
             const u = totalUsage;
             log.info(
@@ -1607,15 +1614,13 @@ Be the expert — explain metrics, suggest features, direct to pages. Think abou
             try {
               const result = validateNavigatorOutput(text);
               if (!result.valid) {
+                // Rule ids only (validateNavigatorOutput never returns
+                // reply text): the reply can name clients and amounts.
                 log.warn(
-                  { requestId, userId: user.id, issues: result.issues },
+                  { requestId, userId: user.id, rules: result.issues },
                   "[chat] Navigator output validation flagged issues",
                 );
-                // Mirror to console for Vercel runtime logs (Helicone-independent)
-                console.warn(
-                  "[chat] Navigator validation issues:",
-                  result.issues,
-                );
+                console.warn("[chat] Navigator validation rules:", result.issues.join(", "));
               }
               persistedText = result.text;
             } catch (err) {
@@ -1652,11 +1657,16 @@ Be the expert — explain metrics, suggest features, direct to pages. Think abou
             }
             return acc;
           }, []),
-          tools: createPersonaAgentTools(supabase, user.id, persona),
+          tools: withWriteLedger(createPersonaAgentTools(supabase, user.id, persona), {
+            userId: user.id,
+            requestId,
+            source: "chat",
+          }),
           stopWhen: stepCountIs(10),
           maxOutputTokens: maxTokens,
           temperature: 0.7,
           abortSignal: abortController.signal,
+          headers: aiCallHeaders({ userId: user.id, feature: "chat-fallback", sessionId: requestId }),
         });
       } else {
         throw primaryError;
@@ -1711,9 +1721,16 @@ Be the expert — explain metrics, suggest features, direct to pages. Think abou
               // Check if this tool requires user approval before executing
               if (NEEDS_APPROVAL_TOOLS.has(chunk.toolName)) {
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const toolArgs = (chunk as any).args ?? (chunk as any).input ?? {};
+                let toolArgs = (chunk as any).args ?? (chunk as any).input ?? {};
                 // The consent tools name the client from the database (describeApproval).
-                const description = await describeApproval(chunk.toolName, toolArgs as Record<string, unknown>, supabase, user.id);
+                let description = await describeApproval(chunk.toolName, toolArgs as Record<string, unknown>, supabase, user.id);
+                // Undo's card is built from the ledger, not the model's words,
+                // and carries the fingerprint the undo checks on approval.
+                if (chunk.toolName === "undoAIChange") {
+                  const card = await undoApprovalCard(supabase, user.id, toolArgs as Record<string, unknown>);
+                  toolArgs = card.args;
+                  description = card.description;
+                }
                 log.info({ requestId, toolName: chunk.toolName }, "[chat] Tool call (approval required)");
                 controller.enqueue(encoder.encode(`b:${JSON.stringify({
                   toolCallId: chunk.toolCallId,

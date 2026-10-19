@@ -24,6 +24,7 @@ const DISALLOWED_PATHS = [
   "/pipeline",
   "/crm",
   "/checklist",
+  "/ai-activity",
   "/clients",
   "/flight-control",
   "/forecast",

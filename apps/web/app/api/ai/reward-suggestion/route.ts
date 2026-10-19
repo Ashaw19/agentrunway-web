@@ -14,7 +14,7 @@
  */
 
 import { generateText } from "ai";
-import { models, heliconeHeaders } from "@/lib/ai/provider";
+import { models, aiCallHeaders } from "@/lib/ai/provider";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
@@ -205,7 +205,7 @@ export async function POST(req: NextRequest) {
       prompt: buildPrompt(body, venues),
       maxOutputTokens: 220,
       temperature: 0.7,
-      headers: heliconeHeaders({ userId: user.id, feature: "reward-suggestion" }),
+      headers: aiCallHeaders({ userId: user.id, feature: "reward-suggestion" }),
     });
 
     if (!suggestion) throw new Error("Empty response");

@@ -24,8 +24,15 @@ export interface RequestUser {
   supabase: SupabaseClient;
 }
 
-export async function getRequestUser(req: Request): Promise<RequestUser | null> {
-  const cookieClient = await createClient();
+/**
+ * `opts.fetch` becomes the returned client's fetch (either kind); the chat
+ * route passes `ledgerFetch` so Flight Crew's writes are recorded.
+ */
+export async function getRequestUser(
+  req: Request,
+  opts?: { fetch?: typeof fetch },
+): Promise<RequestUser | null> {
+  const cookieClient = await createClient(opts);
   const { data: { user: cookieUser } } = await cookieClient.auth.getUser();
   if (cookieUser) {
     // The @supabase/ssr cookie client and the supabase-js client share the
@@ -41,13 +48,15 @@ export async function getRequestUser(req: Request): Promise<RequestUser | null> 
   const { data: { user: bearerUser } } = await createAdminClient().auth.getUser(accessToken);
   if (!bearerUser) return null;
 
+  const options = {
+    global: { headers: { Authorization: `Bearer ${accessToken}` } },
+    auth: { persistSession: false, autoRefreshToken: false },
+  };
+  if (opts?.fetch) Object.assign(options.global, { fetch: opts.fetch });
   const supabase = createJsClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      global: { headers: { Authorization: `Bearer ${accessToken}` } },
-      auth: { persistSession: false, autoRefreshToken: false },
-    },
+    options,
   );
   return { user: bearerUser, supabase };
 }

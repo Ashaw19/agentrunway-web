@@ -14,7 +14,7 @@
  */
 
 import { generateText } from "ai";
-import { models, heliconeHeaders } from "@/lib/ai/provider";
+import { models, aiCallHeaders } from "@/lib/ai/provider";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient }       from "@/lib/supabase/server";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
@@ -180,7 +180,7 @@ Write the summary in second person ("your client"). Be specific, not generic.`;
         prompt,
         temperature: 0.6,
         maxOutputTokens: 300,
-        headers: heliconeHeaders({ userId: user.id, feature: "buyer-analysis" }),
+        headers: aiCallHeaders({ userId: user.id, feature: "buyer-analysis" }),
       });
 
       aiSummary = text?.trim() ?? "";

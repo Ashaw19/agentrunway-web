@@ -5,7 +5,7 @@
  * Model: Claude Haiku 4.5 (fast tier — cheap OCR extraction)
  */
 import { generateText } from "ai";
-import { models, heliconeHeaders } from "@/lib/ai/provider";
+import { models, aiCallHeaders } from "@/lib/ai/provider";
 import type { OcrExtraction, OcrTaxLine } from "@/lib/types/receipt";
 import { withRetry } from "@/lib/retry";
 import { checkReceiptAmounts } from "./check-amounts";
@@ -101,7 +101,7 @@ function taxLines(raw: unknown): OcrTaxLine[] {
  *
  * @param imageBase64  raw base64 string (no data-URI prefix)
  * @param mimeType     image MIME type, e.g. "image/jpeg"
- * @param userId       optional user ID for Helicone cost tracking
+ * @param userId       optional user ID for the AI run ledger (ai_runs)
  */
 export async function extractReceiptData(
   imageBase64: string,
@@ -136,9 +136,7 @@ export async function extractReceiptData(
       ],
       temperature: 0.05,
       maxOutputTokens: 1024,
-      headers: userId
-        ? heliconeHeaders({ userId, feature: "receipt-ocr" })
-        : {},
+      headers: aiCallHeaders({ userId, feature: "receipt-ocr" }),
     }),
     { label: "claude/receipt-ocr", attempts: 3 },
   );

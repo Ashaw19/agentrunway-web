@@ -283,12 +283,13 @@ Generate on schedule instead of on-demand to eliminate 30-50% of real-time LLM c
 ### Cost Guardrails
 - Per-user daily token limits by subscription tier
 - Graceful degradation: exceed limit → route to cheaper model, not hard block
-- Real-time cost tracking via Helicone (free tier: 100K requests/month)
+- Cost tracking in Agent Runway's own AI run ledger (`ai_runs`, migration 00182): every model call's feature, tokens, estimated cost and outcome, no prompts or replies. Replaced the Helicone proxy on 2026-10-18.
 - Alert at >$5/user/day AI spend (anomaly detection)
 - Monthly team budget controls for org billing
 
 ### Observability Recommendation
-- **Helicone** (recommended, start now): Free 100K requests, one-line integration, per-user cost tracking
+- **Agent Runway AI run ledger** (in use since 2026-10-18): `ai_runs` + `ai_run_writes`, the AI activity page, and the eval harness (`apps/web/evals/`). No third-party account.
+- **Helicone**: was the proxy until 2026-10-18; removed because it moved to maintenance mode and was a single point of failure for every model call.
 - **Portkey** ($49/mo): When multi-provider routing + PII guardrails needed (at scale)
 - **LangSmith**: Skip — requires LangChain, per-seat pricing, overkill for current stage
 

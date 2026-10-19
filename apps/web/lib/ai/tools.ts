@@ -24,7 +24,7 @@
  *                         searchRecurringExpenses, searchArchivedClients,
  *                         getClientSummary, getUpcomingAgenda,
  *                         getExpenseBreakdown, getPerformanceSummary,
- *                         comparePerformance, getQuickStats
+ *                         comparePerformance, getQuickStats, getAIActivity
  *   Create              — createClient, createPipelineDeal, createContactTask,
  *                         createRecurringExpense, addPropertyShowing,
  *                         addListingAppointment, createFlightPlan
@@ -56,13 +56,18 @@
  *                         deleteCCAAsset, deleteReferral,
  *                         deleteListingAppointment, deletePropertyShowing,
  *                         deleteContactActivity, deleteContactTask,
- *                         recordConsent, withdrawConsent
+ *                         recordConsent, withdrawConsent, undoAIChange
  *   CASL consent (read) — listConsentLapsing
  *
  * The record writes (logContactActivity, createContactTask, the two deal
  * updates, logMileage, logExpense, createClient, recordTransaction) save
  * through core record-writers, the same writers the iPhone and web voice
  * capture and the MCP server use. The tools add their own replies.
+ *
+ * AI activity: every persona has getAIActivity and undoAIChange, because
+ * "what did you change?" and "undo that" can follow any persona's write.
+ * The writes these tools make are recorded in ai_run_writes by the route
+ * (withWriteLedger + ledgerFetch, lib/ai/write-ledger.ts), not here.
  */
 
 import { fetchAllRows } from "@/lib/supabase/fetch-all";
@@ -145,6 +150,15 @@ import { CaptureParseError } from "@agent-runway/core/lib/capture/parse";
 import { MAX_TRANSCRIPT_CHARS, proposeCapture } from "@/lib/voice/capture";
 import { formatCaptureForChat } from "@/lib/voice/capture-chat";
 import {
+  aiActivityPeriodLabel,
+  aiActivityReport,
+  aiActivitySince,
+  countAIFailures,
+  loadAIActivity,
+} from "@agent-runway/core/lib/ai-activity-load";
+import { undoAIAction } from "@agent-runway/core/lib/ai-undo";
+import { UNDO_FINGERPRINT_ARG } from "@/lib/ai/undo-approval";
+import {
   RECEIPT_CATEGORY_GROUPS,
   RECEIPT_CATEGORY_KEYS,
   receiptCategoryFullLabel,
@@ -218,6 +232,8 @@ export const NEEDS_APPROVAL_TOOLS = new Set([
   // CASL consent ledger (00183): only the agent records consent
   "recordConsent",
   "withdrawConsent",
+  // AI activity
+  "undoAIChange",
 ]);
 
 // Human-readable descriptions for approval cards
@@ -347,17 +363,19 @@ export const APPROVAL_DESCRIPTIONS: Record<string, (args: Record<string, unknown
     if (args.notes !== undefined) changes.push("notes");
     return `Update listing: ${changes.length ? changes.join(", ") : "(details)"}`;
   },
-  // Deletes (destructive — irreversible)
+  // Deletes: AI activity can undo one for 30 days, unless other records linked
+  // to it when it was deleted (their links were nulled or cascaded, so the
+  // write ledger marks it irreversible).
   deleteExpense: (args) =>
-    `Delete expense: ${args.expenseDescription ?? args.expenseId} — cannot be undone`,
+    `Delete expense: ${args.expenseDescription ?? args.expenseId}. AI activity can undo it for 30 days if nothing else links to it`,
   deleteMileage: (args) =>
-    `Delete mileage entry: ${args.tripDescription ?? args.mileageId} — cannot be undone`,
+    `Delete mileage entry: ${args.tripDescription ?? args.mileageId}. AI activity can undo it for 30 days if nothing else links to it`,
   deleteTransaction: (args) =>
     `Delete transaction: ${args.transactionDescription ?? args.transactionId} — will adjust YTD GCI and pace`,
   deleteCCAAsset: (args) =>
     `Remove CCA asset: "${args.assetDescription ?? args.assetId}" from depreciation schedule`,
   deleteReferral: (args) =>
-    `Delete referral: ${args.referralDescription ?? args.referralId} — cannot be undone`,
+    `Delete referral: ${args.referralDescription ?? args.referralId}. AI activity can undo it for 30 days if nothing else links to it`,
   deleteListingAppointment: (args) =>
     `Delete listing appointment: ${args.appointmentDescription ?? args.appointmentId}`,
   deletePropertyShowing: (args) =>
@@ -371,6 +389,10 @@ export const APPROVAL_DESCRIPTIONS: Record<string, (args: Record<string, unknown
     `Record ${args.basis === "implied_inquiry" ? "an inquiry (implied consent, 6 months)" : "express consent"} for ${args.clientName ?? "client"} (${consentChannelsText(args.channels)}): ${consentMethodText(args.method)}, ${args.date}${args.wording ? `, "${String(args.wording).slice(0, 60)}"` : ""}`,
   withdrawConsent: (args) =>
     `Record that ${args.clientName ?? "client"} asked to stop (${consentChannelsText(args.channels)}): ${consentMethodText(args.method)}, ${args.date}. Agent Runway stops drafting to them there and skips drafts already waiting.`,
+  // AI activity
+  // Never the model's words: the chat route replaces this with a card built
+  // from the ledger (lib/ai/undo-approval.ts). This is only the fallback.
+  undoAIChange: () => "Undo a change Flight Crew made",
 };
 
 /** Tools whose approval card names the client from the database, not the model's text. */
@@ -1808,6 +1830,49 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
           return parts.join("\n");
         } catch {
           return "Failed to load agenda. Please try again.";
+        }
+      },
+    }),
+
+    // ── AI ACTIVITY: what Flight Crew changed, and undo (migration 00182) ───
+    getAIActivity: tool({
+      description: "What Flight Crew changed in the agent's records (each change with its time, whether Undo is available, and its toolCallId) and which AI calls ran (count, failures, estimated cost by feature). Use when the agent asks 'what did you change today?', 'did that save?', 'what has the AI done?', 'how much is the AI costing?', or before undoAIChange to find the change. Read-only.",
+      inputSchema: z.object({
+        period: z.enum(["today", "7d", "30d"]).default("today").describe("today (Atlantic time), the last 7 days, or the last 30 days"),
+      }),
+      execute: async ({ period }) => {
+        try {
+          const p = period ?? "today";
+          const [snap, failures] = await Promise.all([
+            loadAIActivity(supabase, userId, { since: aiActivitySince(p), writeLimit: 200, recentRuns: 0 }),
+            countAIFailures(supabase, userId),
+          ]);
+          return aiActivityReport(snap, failures, { periodLabel: aiActivityPeriodLabel(p) });
+        } catch {
+          return "Couldn't load AI activity right now. The AI activity page (/ai-activity) lists it too.";
+        }
+      },
+    }),
+
+    undoAIChange: tool({
+      description: "Undo one change Flight Crew made: puts back the records one earlier tool call wrote, all together or not at all. Get the toolCallId from getAIActivity first. The approval card shows the agent the change that toolCallId names, built from the record of changes, so pick the right one. Refuses, with the reason, when a record was changed since, something new is linked to a record it created, or the change is over 30 days old.",
+      inputSchema: z.object({
+        toolCallId: z.string().min(1).max(120).describe("The change's toolCallId from getAIActivity"),
+      }),
+      needsApproval: true,
+      execute: async (input) => {
+        try {
+          // The card the agent approved was built from the ledger and carries
+          // that action's fingerprint (lib/ai/undo-approval.ts). Without it,
+          // or if the action changed since, nothing is undone.
+          const shown = (input as Record<string, unknown>)[UNDO_FINGERPRINT_ARG];
+          if (typeof shown !== "string" || !shown) {
+            return "Nothing was undone: approve the undo from its card in Flight Crew chat, or use Undo on the AI activity page (/ai-activity).";
+          }
+          const result = await undoAIAction(supabase, userId, input.toolCallId, { expected: shown });
+          return result.ok ? `✓ ${result.message}` : result.message;
+        } catch {
+          return "Couldn't undo that change. Try again from the AI activity page (/ai-activity).";
         }
       },
     }),
@@ -4437,6 +4502,9 @@ export function createCoreAgentTools(supabase: SupabaseClient, userId: string): 
     updateIncomeReportingMethod: all.updateIncomeReportingMethod,
     addCCAAsset: all.addCCAAsset,
     updateListingAppointment: all.updateListingAppointment,
+    // AI activity
+    getAIActivity: all.getAIActivity,
+    undoAIChange: all.undoAIChange,
   };
 }
 
@@ -4494,6 +4562,9 @@ export function createPersonaAgentTools(
       getQuickStats: all.getQuickStats,
       draftNewsletter: all.draftNewsletter,
       draftSocialPost: all.draftSocialPost,
+      // What Flight Crew changed (any persona), and undo (file header).
+      getAIActivity: all.getAIActivity,
+      undoAIChange: all.undoAIChange,
     };
   }
 
@@ -4528,6 +4599,9 @@ export function createPersonaAgentTools(
       // Cash or accrual (Settings → Tax Filing): the agent's choice, applied on approval.
       updateIncomeReportingMethod: all.updateIncomeReportingMethod,
       addCCAAsset: all.addCCAAsset,
+      // AI activity
+      getAIActivity: all.getAIActivity,
+      undoAIChange: all.undoAIChange,
     };
   }
 
@@ -4576,5 +4650,8 @@ export function createPersonaAgentTools(
     // Lets Dispatcher proactively suggest a templated draft when a client
     // has changed stage. Generation happens in the CRM client detail panel.
     getWorkflowTemplates: all.getWorkflowTemplates,
+    // AI activity
+    getAIActivity: all.getAIActivity,
+    undoAIChange: all.undoAIChange,
   };
 }
