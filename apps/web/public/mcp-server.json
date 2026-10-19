@@ -3,7 +3,7 @@
   "server_name": "Agent Runway",
   "server_version": "1.0.0",
   "display_name": "Agent Runway: Canadian Real Estate Analytics",
-  "description": "Connect your AI assistant to your Agent Runway real estate business data. 20 read tools cover transactions, pipeline deals, CRM clients, CASL consent, expenses, mileage, tax estimates and forecasts, and read a pasted call or showing note into proposed changes. 7 write tools create and update pipeline opportunities, save the note items the agent approves, and record CASL consent and withdrawals.",
+  "description": "Connect your AI assistant to your Agent Runway real estate business data. 21 read tools cover transactions, pipeline deals, CRM clients, CASL consent, expenses, mileage and the CRA vehicle logbook, tax estimates and forecasts, and read a pasted call or showing note into proposed changes. 10 write tools create and update pipeline opportunities, save the note items the agent approves, record CASL consent and withdrawals, and log trips, logbook periods and odometer readings.",
   "homepage": "https://agentrunway.ca",
   "documentation_url": "https://agentrunway.ca/mcp",
   "logo_url": "https://agentrunway.ca/logo.png",
@@ -34,9 +34,9 @@
     "forecast"
   ],
   "tool_counts": {
-    "total": 27,
-    "read_only": 20,
-    "write": 7
+    "total": 31,
+    "read_only": 21,
+    "write": 10
   },
   "tools": [
     {
@@ -132,8 +132,28 @@
     },
     {
       "name": "get_mileage_summary",
-      "description": "Business mileage log with CRA deduction amount.",
+      "description": "Business km for a year, with CRA's per-km allowance benchmark (an employer-allowance figure, not a deduction) and the vehicle business-use share.",
       "read_only": true
+    },
+    {
+      "name": "get_logbook_status",
+      "description": "CRA vehicle logbook: vehicles, base-year and sample periods with progress, odometer readings due, the year's vehicle business-use share and CRA's 10% test.",
+      "read_only": true
+    },
+    {
+      "name": "log_mileage",
+      "description": "Logs a business trip, with km or the odometer at its start and end.",
+      "read_only": false
+    },
+    {
+      "name": "start_logbook_period",
+      "description": "Starts a CRA logbook base year (12 months) or sample period (3 months) from the 1st of a month.",
+      "read_only": false
+    },
+    {
+      "name": "record_odometer_reading",
+      "description": "Records an odometer reading the logbook lists as due: a period's start or end, or a base year's month end.",
+      "read_only": false
     },
     {
       "name": "get_flight_control_priorities",

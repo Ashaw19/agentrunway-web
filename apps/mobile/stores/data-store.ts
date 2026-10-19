@@ -224,7 +224,7 @@ export interface UserSettings {
    * (expense-totals-engine). Read-only on mobile; set on web.
    */
   gst_hst_registered: boolean | null;
-  vehicle_business_use_pct: number | null;
+  vehicle_business_use_pct: number | null; // vehicle-share-ok: the settings row type
   /** Workspace share of the home: what a Home Office bill counts for. */
   home_office_business_use_pct: number | null;
   /**

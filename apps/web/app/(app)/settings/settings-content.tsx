@@ -30,6 +30,8 @@ import {
   INCOME_REPORTING_METHOD_RULES,
   INCOME_REPORTING_METHOD_SETTING,
   incomeReportingMethodHint,
+  SIMPLIFIED_LOGBOOK_RULE,
+  VEHICLE_LOGBOOK_RULE,
 } from "@agent-runway/core/tax-copy";
 import { incomeReportingMethod, type IncomeReportingMethod } from "@agent-runway/core/engines/tax-year";
 import {
@@ -563,7 +565,7 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
 
   // ── Section 7: Claiming (Home Office + Vehicle) ──────────────────────────
   const [vehiclePct, setVehiclePct] = useState<string>(
-    settings.vehicle_business_use_pct != null
+    settings.vehicle_business_use_pct != null // vehicle-share-ok: the declared setting's editor
       ? String(Math.round(Number(settings.vehicle_business_use_pct) * 100))
       : "0",
   );
@@ -577,7 +579,7 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
     const { error } = await supabase
       .from("user_settings")
       .update({
-        vehicle_business_use_pct:    vPct,
+        vehicle_business_use_pct:    vPct, // vehicle-share-ok: saving the declared setting
         home_office_business_use_pct: hPct,
       })
       .eq("user_id", settings.user_id);
@@ -2019,7 +2021,7 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
             <div className="grid gap-1.5">
               <Label className="flex items-center gap-1.5">
                 <Car className="h-3.5 w-3.5 text-muted-foreground" />
-                Vehicle business use %
+                Vehicle business use % (declared)
               </Label>
               <div className="relative">
                 <Input
@@ -2035,8 +2037,9 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
                 <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">%</span>
               </div>
               <p className="text-xs text-muted-foreground">
-                % of total vehicle costs used for business (e.g. 80 = 80% business use).
-                This percentage is applied to all vehicle expenses on your T2125 (Line 9281).
+                % of total vehicle costs used for business (e.g. 80 = 80% business use). It applies to
+                vehicle expenses on the T2125 (Line 9281) for any year the CRA logbook on the Mileage tab
+                does not cover; for a year it covers, the logbook&apos;s figure applies instead.
               </p>
             </div>
           </div>
@@ -2047,21 +2050,16 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
               <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
               <div className="space-y-1.5">
                 <p className="text-sm font-semibold text-amber-900">
-                  CRA requires a mileage logbook to support your vehicle business-use %
+                  CRA&apos;s logbook rule for vehicle business use
                 </p>
-                <p className="text-xs text-amber-800 leading-relaxed">
-                  The percentage you enter here will be applied to all your vehicle expenses on your T2125.
-                  CRA requires a <strong>contemporaneous mileage logbook</strong> — recording the date,
-                  destination, purpose, and kilometres for each business trip — to substantiate this
-                  percentage. Without a logbook, CRA can reduce or deny your entire vehicle deduction
-                  if audited.
-                </p>
+                <p className="text-xs text-amber-800 leading-relaxed">{VEHICLE_LOGBOOK_RULE}</p>
+                <p className="text-xs text-amber-800 leading-relaxed">{SIMPLIFIED_LOGBOOK_RULE}</p>
                 <a
                   href="/expenses?tab=mileage"
                   className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-700 underline underline-offset-2 hover:text-amber-900"
                 >
                   <Car className="h-3 w-3" />
-                  Start logging trips in the Mileage tab
+                  Trips and the logbook: Expenses, Mileage
                 </a>
               </div>
             </div>

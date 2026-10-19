@@ -30,6 +30,11 @@ interface ExportTable {
   filename: string;
   description: string;
   redactColumns?: readonly string[];
+  /**
+   * Column headers written under another name in the CSV, so a column's name
+   * cannot be misread (the data is unchanged).
+   */
+  renameColumns?: Readonly<Record<string, string>>;
 }
 
 // Inventory of every public.* table that has a user_id column scoped to
@@ -57,7 +62,17 @@ const EXPORT_TABLES: readonly ExportTable[] = [
   { table: "recurring_expenses", filename: "recurring-expenses.csv", description: "Recurring expense templates" },
   { table: "recurring_expense_entries", filename: "recurring-expense-entries.csv", description: "Recurring expense ledger entries" },
   { table: "receipt_expenses", filename: "receipt-expenses.csv", description: "Expenses parsed from uploaded receipts" },
-  { table: "mileage_logs", filename: "mileage-logs.csv", description: "Vehicle mileage logs" },
+  {
+    table: "mileage_logs",
+    filename: "mileage-logs.csv",
+    description: "Vehicle mileage logs. allowance_rate_amount_not_a_deduction is km × CRA's per-km employer allowance rate stored on the trip: a benchmark, not the T2125 vehicle deduction (the business part of actual vehicle costs).",
+    // The table's generated `deduction` column is km × cra_rate_per_km.
+    renameColumns: { deduction: "allowance_rate_amount_not_a_deduction", cra_rate_per_km: "cra_allowance_rate_per_km" },
+  },
+  { table: "vehicles", filename: "vehicles.csv", description: "Vehicles in the CRA logbook" },
+  { table: "vehicle_logbook_periods", filename: "vehicle-logbook-periods.csv", description: "CRA logbook base years and sample periods" },
+  { table: "vehicle_odometer_readings", filename: "vehicle-odometer-readings.csv", description: "Odometer readings for the CRA logbook" },
+  { table: "mileage_places", filename: "mileage-places.csv", description: "Saved places for trip entry" },
   { table: "t2125_cca_assets", filename: "t2125-cca-assets.csv", description: "Capital cost allowance assets (T2125)" },
 
   // ── CRM & clients ─────────────────────────────────────────────────────────
@@ -217,9 +232,12 @@ export async function buildUserExport(
       }
 
       const rows = (data ?? []) as Array<Record<string, unknown>>;
-      const redacted = spec.redactColumns
+      const redactedRows = spec.redactColumns
         ? rows.map((row) => redactRow(row, spec.redactColumns!))
         : rows;
+      const redacted = spec.renameColumns
+        ? redactedRows.map((row) => renameColumns(row, spec.renameColumns!))
+        : redactedRows;
 
       zip.file(spec.filename, rowsToCsv(redacted));
       manifest.files.push({
@@ -245,6 +263,14 @@ export async function buildUserExport(
 }
 
 // ── helpers ──────────────────────────────────────────────────────────────────
+
+/** The same row with some keys under another name, in the same column order. */
+export function renameColumns(
+  row: Record<string, unknown>,
+  names: Readonly<Record<string, string>>,
+): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(row).map(([k, v]) => [names[k] ?? k, v]));
+}
 
 function redactRow(
   row: Record<string, unknown>,

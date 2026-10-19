@@ -9,6 +9,7 @@ import { yearTaxEstimate } from "@agent-runway/core/engines/deal-tax-portion";
 import { incomeReportingMethod, taxYearGCIAdjustment } from "@agent-runway/core/engines/tax-year";
 import { loadTaxYearCarryIn } from "@/lib/tax-year-carry-in";
 import { atlanticNoon } from "@agent-runway/core/lib/local-date";
+import { loadVehicleLogbook } from "@/lib/vehicle-logbook/load";
 
 
 /**
@@ -31,6 +32,9 @@ export default async function ClientsPage({
   // Atlantic calendar, not the server's UTC clock (local-date.ts).
   const today = atlanticNoon();
   const taxYear = today.getFullYear();
+  // The vehicle business-use share comes from the logbook when it covers the
+  // year (expenseTaxContext → vehicle-logbook-engine), the setting otherwise.
+  const logbookPromise = loadVehicleLogbook(supabase, user.id, taxYear);
 
   // ── Step 1: Fetch settings first to determine data source ───────────────
   const { data: settingsData } = await supabase
@@ -175,11 +179,12 @@ export default async function ClientsPage({
   // Year-to-date expenses, what is still to come and the monthly figure: the
   // dashboard's one engine call (t2125-expenses-engine), net of the ITCs a
   // registrant claims.
+  const expenseCtx = expenseTaxContext(settings, await logbookPromise);
   const expenseTotals = ytdExpenseTotals({
     receipts: receiptTotalsResult.data,
     recurring: (recurringExpResult.data ?? []) as RecurringExpense[],
     expenseItems: expensesResult.data,
-    ctx: expenseTaxContext(settings),
+    ctx: expenseCtx,
     now: today,
   });
 

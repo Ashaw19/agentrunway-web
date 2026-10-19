@@ -43,6 +43,7 @@ import { capYearCarryOver, toPlanDeals } from "@agent-runway/core/engines/real-c
 import { incomeReportingMethod, taxYearGCIAdjustment, taxYearProjectedGCI } from "@agent-runway/core/engines/tax-year";
 import { INCOME_REPORTING_METHOD_SETTING } from "@agent-runway/core/tax-copy";
 import { expenseTaxContext } from "@agent-runway/core/engines/expense-totals-engine";
+import { loadVehicleLogbook } from "@/lib/vehicle-logbook/load";
 import { ytdExpenseTotals, ytdExpensesGstHstIncluded } from "@agent-runway/core/engines/t2125-expenses-engine";
 import { expenseCategoryBreakdown, expenseItemsOf, type ExpenseCategoryYtd } from "@/lib/ai/expense-tax-intel";
 import type { UserSettings as CanonicalUserSettings, RecurringExpense } from "@agent-runway/core/types/database";
@@ -196,6 +197,8 @@ export async function buildDiagnostics(
   // Atlantic calendar, not the server's UTC clock (local-date.ts).
   const today = atlanticNoon();
   const currentYear = today.getFullYear();
+  // The vehicle business-use share: the logbook's when it covers the year.
+  const logbookPromise = loadVehicleLogbook(supabase, userId, currentYear);
 
   // Fetch all data in parallel
   const [
@@ -326,7 +329,10 @@ export async function buildDiagnostics(
     receipts: receiptExpenses,
     recurring: (recurringRows ?? []) as RecurringExpense[],
     expenseItems: expenseItemsOf(expenses),
-    ctx: expenseTaxContext(settings as Pick<CanonicalUserSettings, "gst_hst_registered" | "vehicle_business_use_pct" | "home_office_business_use_pct">),
+    ctx: expenseTaxContext(
+      settings as Pick<CanonicalUserSettings, "gst_hst_registered" | "vehicle_business_use_pct" | "home_office_business_use_pct">,
+      await logbookPromise,
+    ),
     now: today,
   };
   const expenseTotals = ytdExpenseTotals(expenseInputs);

@@ -261,6 +261,12 @@ interface Props {
   userName?: string;
   openTasks?: ContactTask[];
   mileageKmTotal?: number;
+  /**
+   * The vehicle business-use share applied this year: the page's
+   * expenseTaxContext(settings, logbook).vehicleBusinessUsePct (the logbook's
+   * figure when it covers the year, else the declared setting).
+   */
+  vehicleBusinessUsePct: number;
   ccaAssetCount?: number;
   activeClientCount?: number;
   staleLeadCount?: number;
@@ -381,6 +387,7 @@ export function DashboardContent({
   userName,
   openTasks = [],
   mileageKmTotal = 0,
+  vehicleBusinessUsePct,
   ccaAssetCount = 0,
   activeClientCount: activeClients = 0,
   staleLeadCount = 0,
@@ -1006,7 +1013,7 @@ export function DashboardContent({
         homeOfficeMaintenanceAnnual: settings.home_office_maintenance_annual,
         homeOfficeCondoFeesMonthly: settings.home_office_condo_fees_monthly,
         vehicleType: (settings.vehicle_type as "own" | "lease" | "none") ?? "none",
-        vehicleBusinessUsePct: settings.vehicle_business_use_pct,
+        vehicleBusinessUsePct,
         hasTrackedMileage: mileageKmTotal > 0,
         annualMileageKm: mileageKmTotal,
         gstHstRegistered: settings.gst_hst_registered,

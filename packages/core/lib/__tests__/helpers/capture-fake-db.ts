@@ -93,6 +93,9 @@ export function fakeDb(seed: Record<string, Row[]> = {}, options: FakeDbOptions 
           return builder;
         },
         limit(n: number) { limit = n; return builder; },
+        // The logbook readers order and page (vehicle-logbook-rows.ts).
+        order() { return builder; },
+        range(from: number, to: number) { limit = Math.min(limit, to + 1); filters.push(((i) => () => i++ >= from)(0)); return builder; },
         async single() {
           const { data, error: e } = resolveRows();
           return e ? { data: null, error: e } : data && data[0] ? { data: data[0], error: null } : { data: null, error: { code: "PGRST116", message: "no rows" } };

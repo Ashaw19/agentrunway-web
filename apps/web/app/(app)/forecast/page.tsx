@@ -8,6 +8,7 @@ import { deductionTrackingFlags } from "@agent-runway/core/engines/tax-optimizat
 import type { RecurringExpense } from "@/lib/types/database";
 import { computeIsPro } from "@/lib/compute-is-pro";
 import { atlanticNoon } from "@agent-runway/core/lib/local-date";
+import { loadVehicleLogbook, loadYearBusinessKm } from "@/lib/vehicle-logbook/load";
 
 export default async function ForecastPage() {
   const supabase = await createClient();
@@ -27,6 +28,9 @@ export default async function ForecastPage() {
   // Atlantic calendar, not the server's UTC clock (local-date.ts).
   const today = atlanticNoon();
   const year = today.getFullYear();
+  // The vehicle business-use share comes from the logbook when it covers the
+  // year (expenseTaxContext → vehicle-logbook-engine), the setting otherwise.
+  const logbookPromise = loadVehicleLogbook(supabase, user.id, year);
   const [txResult, pipelineResult, expCatResult, expItemResult, historyResult, mileageResult, ccaResult, receiptTotalsResult, listingApptResult, recurringExpResult] =
     await Promise.all([
       supabase
@@ -58,12 +62,9 @@ export default async function ForecastPage() {
         .eq("user_id", user.id)
         .order("year", { ascending: false })
         .limit(10000),
-      // Mileage log for tax optimization engine
-      supabase
-        .from("mileage_logs")
-        .select("km")
-        .eq("user_id", user.id)
-        .limit(10000),
+      // This year's business km, for the tax cards: every trip in the year,
+      // read in pages. Until 2026-10-18 this summed every trip ever logged.
+      loadYearBusinessKm(supabase, user.id, year).then((km) => ({ data: km })),
       // CCA assets count for tax optimization engine
       supabase
         .from("t2125_cca_assets")
@@ -100,11 +101,12 @@ export default async function ForecastPage() {
   // Year-to-date expenses and the monthly figure: the dashboard's one engine
   // call (t2125-expenses-engine). Receipts, the per-item monthly figures and
   // the Recurring Expenses list, net of the ITCs a registrant claims.
+  const expenseCtx = expenseTaxContext(rawSettings, await logbookPromise);
   const expenseTotals = ytdExpenseTotals({
     receipts: receiptTotalsResult.data,
     recurring: (recurringExpResult.data ?? []) as RecurringExpense[],
     expenseItems: expItemResult.data,
-    ctx: expenseTaxContext(rawSettings),
+    ctx: expenseCtx,
     now: today,
   });
 
@@ -113,10 +115,7 @@ export default async function ForecastPage() {
   const deductionTracking = deductionTrackingFlags(expenseTotals.tracked.lines, expenseCategories);
 
   // Sum mileage logs for tax optimization
-  const mileageKmTotal = (mileageResult.data ?? []).reduce(
-    (sum, r) => sum + Number(r.km ?? 0),
-    0,
-  );
+  const mileageKmTotal = Number(mileageResult.data ?? 0);
   const ccaAssetCount = (ccaResult.data ?? []).length;
 
   return (
@@ -131,6 +130,7 @@ export default async function ForecastPage() {
       monthlyRecurring={expenseTotals.monthlyRecurring}
       deductionTracking={deductionTracking}
       mileageKmTotal={mileageKmTotal}
+      vehicleBusinessUsePct={expenseCtx.vehicleBusinessUsePct}
       ccaAssetCount={ccaAssetCount}
       expensesRemaining={expenseTotals.expensesRemaining}
     />

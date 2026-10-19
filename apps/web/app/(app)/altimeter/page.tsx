@@ -6,6 +6,7 @@ import { expenseTaxContext } from "@agent-runway/core/engines/expense-totals-eng
 import { ytdExpenseTotals } from "@agent-runway/core/engines/t2125-expenses-engine";
 import { computeIsPro } from "@/lib/compute-is-pro";
 import { atlanticNoon } from "@agent-runway/core/lib/local-date";
+import { loadVehicleLogbook } from "@/lib/vehicle-logbook/load";
 import { loadCapYearCarryOver } from "@/lib/cap-year-carry-over";
 
 
@@ -17,6 +18,9 @@ export default async function AltimeterPage() {
   // Atlantic calendar, not the server's UTC clock (local-date.ts).
   const today = atlanticNoon();
   const dashYear = today.getFullYear();
+  // The vehicle business-use share comes from the logbook when it covers the
+  // year (expenseTaxContext → vehicle-logbook-engine), the setting otherwise.
+  const logbookPromise = loadVehicleLogbook(supabase, user.id, dashYear);
 
   const settingsResult = await supabase
     .from("user_settings")
@@ -80,11 +84,12 @@ export default async function AltimeterPage() {
   // Expense totals for Altimeter insights: the dashboard's one engine call
   // (t2125-expenses-engine). Receipts, the per-item monthly figures and the
   // Recurring Expenses list, net of the ITCs a registrant claims.
+  const expenseCtx = expenseTaxContext(settings, await logbookPromise);
   const expenseTotals = ytdExpenseTotals({
     receipts: receiptTotalsResult.data,
     recurring: (recurringExpResult.data ?? []) as RecurringExpense[],
     expenseItems: expItemResult.data,
-    ctx: expenseTaxContext(settings),
+    ctx: expenseCtx,
     now: today,
   });
 

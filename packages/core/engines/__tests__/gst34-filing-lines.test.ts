@@ -161,7 +161,7 @@ describe("the whole return in CRA's order", () => {
   });
 
   it("nothing at all: a nil return, every line 0", () => {
-    const nil = computeGST34({ province: "newBrunswick", period: Q2, frequency: "quarterly", periodTransactions: [], periodReceipts: [], instalmentsPaid: 0 });
+    const nil = computeGST34({ vehicleBusinessUsePct: 1,  province: "newBrunswick", period: Q2, frequency: "quarterly", periodTransactions: [], periodReceipts: [], instalmentsPaid: 0 });
     for (const l of nil.filingLines) expect(l.amount, l.line).toBe(0);
     expect(nil.filingLines[nil.filingLines.length - 1]).toMatchObject({ line: "115", amount: 0 });
   });
@@ -169,7 +169,7 @@ describe("the whole return in CRA's order", () => {
   it("instalments are an annual filer's line", () => {
     expect(line(r, "110").note).toContain("$0 for a monthly or quarterly filer");
     const [year] = getFilingPeriods("annual", 2026);
-    const annual = computeGST34({ province: "newBrunswick", period: year, frequency: "annual", periodTransactions: [{ gci: 10000 }], periodReceipts: [], instalmentsPaid: 400 });
+    const annual = computeGST34({ vehicleBusinessUsePct: 1,  province: "newBrunswick", period: year, frequency: "annual", periodTransactions: [{ gci: 10000 }], periodReceipts: [], instalmentsPaid: 400 });
     expect(line(annual, "110").amount).toBe(400);
     expect(line(annual, "115").amount).toBe(1100);
   });

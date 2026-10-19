@@ -26,6 +26,8 @@
     "./lib/consent-ledger": "./lib/consent-ledger.ts",
     "./lib/consent-writes": "./lib/consent-writes.ts",
     "./lib/queued-text-check": "./lib/queued-text-check.ts",
+    "./lib/vehicle-logbook-rows": "./lib/vehicle-logbook-rows.ts",
+    "./lib/vehicle-logbook-writes": "./lib/vehicle-logbook-writes.ts",
     "./types/database": "./types/database.ts",
     "./types/organizations": "./types/organizations.ts",
     "./formatters": "./formatters.ts",
