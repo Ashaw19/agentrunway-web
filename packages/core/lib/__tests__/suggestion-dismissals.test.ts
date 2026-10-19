@@ -6,6 +6,7 @@ import {
   LATER_TONIGHT_HOUR,
   activeLaterUntil,
   dismissChoicesFor,
+  dismissalRowsFrom,
   isHeld,
   laterChoices,
   laterUntil,
@@ -280,5 +281,49 @@ describe("dismissChoicesFor", () => {
   it("consent-lapsing cards can't be stopped", () => {
     expect(dismissChoicesFor("idle_client")).toEqual(["already_talked", "later", "skip", "stop"]);
     expect(dismissChoicesFor("consent_lapsing")).toEqual(["already_talked", "later", "skip"]);
+  });
+});
+
+describe("dismissalRowsFrom (rows as the database returns them)", () => {
+  const NOW = new Date("2026-10-19T15:00:00Z");
+
+  it("keeps the columns it knows and reads the kinds", () => {
+    expect(dismissalRowsFrom([
+      { id: "d1", client_id: "c1", opportunity_type: "birthday", trigger_date: "2026-10-25", kind: "skip", until: null, dismissed_at: "2026-10-19T12:00:00+00:00" },
+      { id: "d2", client_id: "c2", opportunity_type: "any", trigger_date: "2026-10-19", kind: "later", until: "2026-10-19T22:00:00+00:00", dismissed_at: "2026-10-19T13:00:00+00:00" },
+      { id: "d3", client_id: "c3", opportunity_type: "any", trigger_date: "2026-10-19", kind: "stop", until: "2027-01-19T04:00:00+00:00" },
+    ])).toEqual([
+      { id: "d1", client_id: "c1", opportunity_type: "birthday", trigger_date: "2026-10-25", kind: "skip", until: null, dismissed_at: "2026-10-19T12:00:00+00:00" },
+      { id: "d2", client_id: "c2", opportunity_type: "any", trigger_date: "2026-10-19", kind: "later", until: "2026-10-19T22:00:00+00:00", dismissed_at: "2026-10-19T13:00:00+00:00" },
+      { id: "d3", client_id: "c3", opportunity_type: "any", trigger_date: "2026-10-19", kind: "stop", until: "2027-01-19T04:00:00+00:00", dismissed_at: null },
+    ]);
+  });
+
+  it("reads a kind it doesn't know as a skip, never as a hold", () => {
+    const [row] = dismissalRowsFrom([
+      { client_id: "c1", opportunity_type: "birthday", trigger_date: "2026-10-25", kind: "mute", until: "2027-01-01T00:00:00Z" },
+    ]);
+    expect(row.kind).toBeNull();
+    expect(isHeld("c1", "birthday", [row], NOW)).toBe(false);
+    expect(withoutDismissed([{ client_id: "c1", opportunity_type: "birthday", trigger_date: "2026-10-25" }], [row])).toEqual([]);
+  });
+
+  it("drops a row without its key, and reads odd values as missing", () => {
+    expect(dismissalRowsFrom([
+      { client_id: null, opportunity_type: "birthday", trigger_date: "2026-10-25" },
+      { client_id: "c1", opportunity_type: 7, trigger_date: "2026-10-25" },
+      { client_id: "c1", opportunity_type: "birthday" },
+      null,
+      "row",
+      { id: 4, client_id: "c1", opportunity_type: "birthday", trigger_date: "2026-10-25", kind: 1, until: 5, dismissed_at: {} },
+    ])).toEqual([
+      { client_id: "c1", opportunity_type: "birthday", trigger_date: "2026-10-25", kind: null, until: null, dismissed_at: null },
+    ]);
+  });
+
+  it("no rows, or a failed read, is an empty list", () => {
+    expect(dismissalRowsFrom(null)).toEqual([]);
+    expect(dismissalRowsFrom(undefined)).toEqual([]);
+    expect(dismissalRowsFrom([])).toEqual([]);
   });
 });

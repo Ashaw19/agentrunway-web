@@ -4,6 +4,11 @@
  * Each query returns only the columns it selects, so a drafter that forgets
  * to select a column it filters on (e.g. `condition_status`) cannot see it,
  * and the test that depends on it fails. Writes are recorded in `writes`.
+ * Every write is also logged in `queries` with the filters chained after
+ * it, so a test can check what an update or delete was narrowed to.
+ * `writeError` makes a write return an error (for example 23505), in which
+ * case it is logged in `queries` only. `readError` tables answer every read
+ * with an error, as PostgREST does when a request fails.
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -37,19 +42,42 @@ function compare(a: unknown, b: unknown): number {
   return x < y ? -1 : x > y ? 1 : 0;
 }
 
+/** One filter call on a write, as made: `eq("status", "ready")` is { op: "eq", column: "status", value: "ready" }. */
+export interface Filter {
+  op:     string;
+  column: string;
+  value:  unknown;
+}
+
+/** A write and the filters chained after it. */
+export interface Query extends Write {
+  filters: Filter[];
+  error:   { code?: string; message: string } | null;
+}
+
 export interface FakeSupabaseOptions {
   /** Tables whose every query throws, as when the request never gets there. */
   unreachable?: readonly string[];
+  /** A write that fails: return its error, or null to let it through. */
+  writeError?: (w: Write) => { code?: string; message: string } | null;
+  /** Tables whose reads return an error (writes are unaffected). */
+  readError?: readonly string[];
 }
 
 export function fakeSupabase(tables: Record<string, Row[]>, options: FakeSupabaseOptions = {}) {
   const writes: Write[] = [];
+  const queries: Query[] = [];
 
   function from(table: string) {
     if (options.unreachable?.includes(table)) throw new Error(`${table} is unreachable`);
     let rows: Row[] = [...(tables[table] ?? [])];
     let columns: string[] | null = null;
     let counting: { head: boolean } | null = null;
+    // The write this builder makes, if any: later filter calls land on it.
+    let query: Query | null = null;
+    let failed: { code?: string; message: string } | null =
+      options.readError?.includes(table) ? { message: `${table} read failed` } : null;
+    const log = (op: string, column: string, value: unknown) => { query?.filters.push({ op, column, value }); };
 
     const project = (r: Row): Row => {
       if (!columns) return r;
@@ -57,18 +85,30 @@ export function fakeSupabase(tables: Record<string, Row[]>, options: FakeSupabas
       for (const c of columns) if (c in r) out[c] = r[c];
       return out;
     };
-    const result = () => counting
-      ? { data: counting.head ? null : rows.map(project), count: rows.length, error: null }
-      : { data: rows.map(project), error: null };
+    const result = () => failed
+      ? { data: null, error: failed }
+      : counting
+        ? { data: counting.head ? null : rows.map(project), count: rows.length, error: null }
+        : { data: rows.map(project), error: null };
     const one = () =>
       rows[0]
         ? { data: project(rows[0]), error: null }
         : { data: null, error: { message: "no rows" } };
 
     const write = (op: Write["op"], payload: unknown) => {
-      writes.push({ table, op, payload });
-      rows = [{ id: `${table}-new`, ...(payload as Row) }];
+      const w: Write = { table, op, payload };
+      failed = options.writeError?.(w) ?? null;
+      query = { ...w, filters: [], error: failed };
+      queries.push(query);
+      if (failed) return builder;
+      writes.push(w);
+      // A delete keeps the table's rows, so the filters after it pick what it removed.
+      if (op !== "delete") rows = [{ id: `${table}-new`, ...(payload as Row) }];
       return builder;
+    };
+    // Postgres: a comparison with NULL is never true.
+    const ordered = (k: string, v: unknown, test: (c: number) => boolean) => {
+      rows = rows.filter((r) => r[k] != null && test(compare(r[k], v)));
     };
 
     const builder = {
@@ -89,12 +129,12 @@ export function fakeSupabase(tables: Record<string, Row[]>, options: FakeSupabas
         if (opts?.count) counting = { head: !!opts.head };
         return builder;
       },
-      eq(k: string, v: unknown) { rows = rows.filter((r) => r[k] === v); return builder; },
-      neq(k: string, v: unknown) { rows = rows.filter((r) => r[k] !== v); return builder; },
-      in(k: string, vs: readonly unknown[]) { rows = rows.filter((r) => vs.includes(r[k])); return builder; },
-      gte(k: string, v: unknown) { rows = rows.filter((r) => compare(r[k], v) >= 0); return builder; },
-      lt(k: string, v: unknown) { rows = rows.filter((r) => compare(r[k], v) < 0); return builder; },
-      lte(k: string, v: unknown) { rows = rows.filter((r) => compare(r[k], v) <= 0); return builder; },
+      eq(k: string, v: unknown) { log("eq", k, v); rows = rows.filter((r) => r[k] === v); return builder; },
+      neq(k: string, v: unknown) { log("neq", k, v); rows = rows.filter((r) => r[k] !== v); return builder; },
+      in(k: string, vs: readonly unknown[]) { log("in", k, vs); rows = rows.filter((r) => vs.includes(r[k])); return builder; },
+      gte(k: string, v: unknown) { log("gte", k, v); ordered(k, v, (c) => c >= 0); return builder; },
+      lt(k: string, v: unknown) { log("lt", k, v); ordered(k, v, (c) => c < 0); return builder; },
+      lte(k: string, v: unknown) { log("lte", k, v); ordered(k, v, (c) => c <= 0); return builder; },
       // "%sam%" style patterns only: a case-insensitive substring match.
       ilike(k: string, pattern: string) {
         const needle = pattern.replace(/%/g, "").toLowerCase();
@@ -121,8 +161,8 @@ export function fakeSupabase(tables: Record<string, Row[]>, options: FakeSupabas
       limit(n: number) { rows = rows.slice(0, n); return builder; },
       // Paged reads (lib/supabase/fetch-all.ts): rows from..to inclusive.
       range(from: number, to: number) { rows = rows.slice(from, to + 1); return builder; },
-      is(k: string, v: unknown) { rows = rows.filter((r) => (r[k] ?? null) === v); return builder; },
-      not(k: string, _op: string, v: unknown) { rows = rows.filter((r) => (r[k] ?? null) !== v); return builder; },
+      is(k: string, v: unknown) { log("is", k, v); rows = rows.filter((r) => (r[k] ?? null) === v); return builder; },
+      not(k: string, op: string, v: unknown) { log(`not.${op}`, k, v); rows = rows.filter((r) => (r[k] ?? null) !== v); return builder; },
       order(k: string, opts?: { ascending?: boolean }) {
         const dir = opts?.ascending === false ? -1 : 1;
         rows.sort((a, b) => (String(a[k]) > String(b[k]) ? dir : -dir));
@@ -131,9 +171,9 @@ export function fakeSupabase(tables: Record<string, Row[]>, options: FakeSupabas
       insert: (p: unknown) => write("insert", p),
       upsert: (p: unknown) => write("upsert", p),
       update: (p: unknown) => write("update", p),
-      delete: () => { writes.push({ table, op: "delete", payload: null }); return builder; },
-      single: async () => one(),
-      maybeSingle: async () => (rows[0] ? one() : { data: null, error: null }),
+      delete: () => write("delete", null),
+      single: async () => (failed ? { data: null, error: failed } : one()),
+      maybeSingle: async () => (failed ? { data: null, error: failed } : rows[0] ? one() : { data: null, error: null }),
       then: (resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) =>
         Promise.resolve(result()).then(resolve, reject),
     };
@@ -144,5 +184,5 @@ export function fakeSupabase(tables: Record<string, Row[]>, options: FakeSupabas
   // touches from/select/eq/neq/in/gte/lt/lte/ilike/contains/or/is/not/order/limit/range/
   // insert/upsert/update/delete/single/maybeSingle.
   const client = { from } as unknown as SupabaseClient;
-  return { client, writes };
+  return { client, writes, queries };
 }

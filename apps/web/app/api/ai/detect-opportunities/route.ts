@@ -54,8 +54,9 @@ import {
 import { consentStatus } from "@agent-runway/core/engines/casl-consent-engine";
 import type { ConsentLedgerRow } from "@agent-runway/core/types/database";
 import { recentlyContactedClientIds, outreachSuppressionCutoff } from "@/lib/crm/recently-contacted";
-import { selectTopCandidates, clientLifetimeGci } from "@/lib/crm/top-opportunity-selection";
-import { withoutDismissed, type OpportunityKeyParts } from "@/lib/crm/dismissed-opportunities";
+import { selectTopCandidates, clientLifetimeGci, MAX_TOP_OPPORTUNITIES } from "@/lib/crm/top-opportunity-selection";
+import type { OpportunityKeyParts } from "@/lib/crm/dismissed-opportunities";
+import { dismissalRowsFrom, withoutDismissedOrHeld } from "@agent-runway/core/lib/suggestion-dismissals";
 import {
   FIRST_CONTACT_TYPES,
   contactAnniversaryCandidates,
@@ -1016,11 +1017,12 @@ export async function detectAndDraftForUser(
         .eq("user_id", userId)
         .order("id")
         .range(from, to)),
-    // Occurrences the agent dismissed in Flight Control — lib/crm/dismissed-opportunities.ts
+    // Occurrences the agent skipped in Flight Control, and clients on Later
+    // or Stop (00188) — packages/core/lib/suggestion-dismissals.ts
     fetchAllRows((from, to) =>
       supabase
         .from("flight_control_dismissals")
-        .select("id, client_id, opportunity_type, trigger_date")
+        .select("id, client_id, opportunity_type, trigger_date, kind, until")
         .eq("user_id", userId)
         .order("id")
         .range(from, to)),
@@ -1044,6 +1046,8 @@ export async function detectAndDraftForUser(
 
   const clients    = clientsRes.data ?? [];
   const _clientMap = new Map(clients.map((c) => [c.id, c]));
+  // kind is a text column: an unknown value reads as a skip, never a hold.
+  const dismissals = dismissalRowsFrom(dismissedRes.data);
   // Gate records against the archived-filtered client map — see
   // lib/crm/contactable-records.ts. The detectors below iterate `records`, not
   // `clients`, so without this an archived client (incl. 'deceased' /
@@ -1178,7 +1182,7 @@ export async function detectAndDraftForUser(
   // ── 5 + 6. New client welcome, contact anniversary (Batch 2) ──────────────
   // Dated from the Atlantic day of the first contact, suppressed if recently
   // contacted — see lib/crm/first-contact-triggers.ts.
-  const firstContact = firstContactOptions(firstContactRes, dismissedRes.data ?? [], recentlyContactedIds);
+  const firstContact = firstContactOptions(firstContactRes, dismissals, recentlyContactedIds);
   if (firstContact) {
     for (const c of [
       ...newClientWelcomeCandidates(clients, firstContact),
@@ -1395,10 +1399,13 @@ export async function detectAndDraftForUser(
     }
   }
 
-  // ── Dismissed in Flight Control: never draft them ─────────────────────────
-  const notDismissed = withoutDismissed(
+  // ── Skipped in Flight Control, or the client is on Later or Stop: never
+  // queue them. A Stop still lets the consent request through (its CASL
+  // deadline); once a Later ends the client is queued again.
+  const notDismissed = withoutDismissedOrHeld(
     inserts as { client_id: string; opportunity_type: string; trigger_date: string }[],
-    dismissedRes.data ?? [],
+    dismissals,
+    new Date(),
   );
   inserts.length = 0;
   inserts.push(...notDismissed);
@@ -2348,15 +2355,33 @@ function computeAgentState(
   return { pipeline_status, pace_status, urgency_level };
 }
 
+/** Options for getTopOpportunities from the day's handful (lib/crm/next-up-handful.ts). */
+export interface TopOpportunityOptions {
+  /** The open handful pins, in rank order: still-candidate clients rank first. */
+  pinnedClientIds?:  readonly string[];
+  /** Slots held by clients on Later: the list is this many shorter, floored at 0. */
+  reservedSlots?:    number;
+  /** When holds are read (a Later or Stop ends at its `until`). Defaults to now. */
+  now?:              Date;
+  /** Clients done for today (contacted, skipped, stopped or archived): not picked again today. */
+  excludeClientIds?: readonly string[];
+}
+
 /**
  * Get Top Opportunities — detection + scoring without persistence.
  * Returns the highest-value opportunities as structured insight cards.
- * NO database writes. NO Groq calls. Fast and safe.
+ * NO database writes. NO Groq calls. Fast and safe. The day's handful
+ * (loadNextUpHandful) calls it with its pins and writes them itself.
  */
 export async function getTopOpportunities(
   userId:   string,
   supabase: SupabaseClient,
+  opts:     TopOpportunityOptions = {},
 ): Promise<TopOpportunity[]> {
+  const now = opts.now ?? new Date();
+  const reserved = Number.isFinite(opts.reservedSlots) ? Math.max(0, Math.floor(opts.reservedSlots as number)) : 0;
+  const limit = Math.max(0, MAX_TOP_OPPORTUNITIES - reserved);
+  const excluded = new Set(opts.excludeClientIds ?? []);
   // ── Fetch data (same as detectAndDraftForUser) ─────────────────────────────
   const [clientsRes, recordsRes, memoryRes, sentRes, coPartiesRes, dismissedRes, firstContactRes, ledger, consentSentRes, senderRes] = await Promise.all([
     // Per-user lists below are read in pages: one request stops at 1,000 rows.
@@ -2399,11 +2424,12 @@ export async function getTopOpportunities(
         .eq("user_id", userId)
         .order("id")
         .range(from, to)),
-    // Occurrences the agent dismissed in Flight Control — lib/crm/dismissed-opportunities.ts
+    // Occurrences the agent skipped in Flight Control, and clients on Later
+    // or Stop (00188) — packages/core/lib/suggestion-dismissals.ts
     fetchAllRows((from, to) =>
       supabase
         .from("flight_control_dismissals")
-        .select("id, client_id, opportunity_type, trigger_date")
+        .select("id, client_id, opportunity_type, trigger_date, kind, until")
         .eq("user_id", userId)
         .order("id")
         .range(from, to)),
@@ -2436,6 +2462,8 @@ export async function getTopOpportunities(
 
   const clients    = clientsRes.data ?? [];
   const _clientMap = new Map(clients.map((c) => [c.id, c]));
+  // kind is a text column: an unknown value reads as a skip, never a hold.
+  const dismissals = dismissalRowsFrom(dismissedRes.data);
   // Same archived + collapsed gates as the write path — shared helpers keep
   // the two in lock-step. Without the archived gate archived clients also
   // rendered as cards titled "Unknown", since _clientMap cannot resolve them.
@@ -2546,7 +2574,7 @@ export async function getTopOpportunities(
 
   // 5-9: Remaining triggers (welcome, contact anniversary, multi-deal, seasonal, mortgage, memory-powered)
   // Welcome — same helper as the write path (lib/crm/first-contact-triggers.ts)
-  const firstContact = firstContactOptions(firstContactRes, dismissedRes.data ?? [], recentlyContactedIds);
+  const firstContact = firstContactOptions(firstContactRes, dismissals, recentlyContactedIds);
   if (firstContact) {
     for (const c of newClientWelcomeCandidates(clients, firstContact)) inserts.push({ user_id: userId, ...c });
   }
@@ -2697,13 +2725,18 @@ export async function getTopOpportunities(
   // Strong signals first, then backfill (idle past clients, milestones) —
   // one card per client, lifetime GCI breaks ties. See
   // lib/crm/top-opportunity-selection.ts for why a hard 55 cutoff starved Scan.
-  // Dismissed occurrences drop out first, so their slots backfill.
+  // Skipped occurrences, clients on Later or Stop (a Stop keeps a
+  // consent-lapsing notice) and clients done for today drop out first, so
+  // their slots backfill. The handful's pinned clients rank first.
   const topCandidates = selectTopCandidates(
-    withoutDismissed(
+    withoutDismissedOrHeld(
       inserts as { client_id: string; opportunity_type: string; trigger_date: string; context: Record<string, unknown> }[],
-      dismissedRes.data ?? [],
-    ),
+      dismissals,
+      now,
+    ).filter((c) => !excluded.has(c.client_id)),
     clientLifetimeGci(records),
+    limit,
+    opts.pinnedClientIds ?? [],
   );
 
   // ── Compute portfolio-level stats for financial impact reasoning ──────────

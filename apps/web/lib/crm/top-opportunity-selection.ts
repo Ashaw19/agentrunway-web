@@ -36,11 +36,20 @@ const scoreOf = (c: RankableCandidate) => Number(c.context.outreach_score ?? 0);
 /**
  * Pick up to `limit` cards, one per client (their highest-scoring
  * opportunity), score first and lifetime GCI as the tiebreak.
+ *
+ * `pinnedClientIds` are the day's handful (next_up_handful), in pin order.
+ * A pinned client who is still a candidate comes first, before any
+ * newcomer, with their best candidate: an untouched client stays on the
+ * list until handled, so a higher-scoring newcomer (a birthday entering its
+ * window) can't push them out. TYPE_CAPS and the seasonal rule apply to
+ * pinned clients too; a pinned client whose best candidate is capped gets
+ * their next one, as anyone else would.
  */
 export function selectTopCandidates<T extends RankableCandidate>(
-  candidates:  readonly T[],
-  lifetimeGci: ReadonlyMap<string, number>,
-  limit:       number = MAX_TOP_OPPORTUNITIES,
+  candidates:      readonly T[],
+  lifetimeGci:     ReadonlyMap<string, number>,
+  limit:           number = MAX_TOP_OPPORTUNITIES,
+  pinnedClientIds: readonly string[] = [],
 ): T[] {
   const ranked = [...candidates].sort(
     (a, b) =>
@@ -51,17 +60,37 @@ export function selectTopCandidates<T extends RankableCandidate>(
   const picked: T[] = [];
   const seen = new Set<string>();
   const perType = new Map<string, number>();
-  for (const c of ranked) {
-    if (picked.length >= limit) break;
-    if (seen.has(c.client_id)) continue;
+  /** Takes `c` when the slots, the per-client rule and the type caps allow it. */
+  const take = (c: T): boolean => {
+    if (picked.length >= limit) return false;
+    if (seen.has(c.client_id)) return false;
     const cap = TYPE_CAPS[c.opportunity_type];
-    if (cap !== undefined && (perType.get(c.opportunity_type) ?? 0) >= cap) continue;
+    if (cap !== undefined && (perType.get(c.opportunity_type) ?? 0) >= cap) return false;
     // Seasonal campaigns are broadcasts (the Newsletters tab owns them), not
     // "who should I contact" — they never take a backfill slot.
-    if (scoreOf(c) < TOP_OPPORTUNITY_THRESHOLD && c.opportunity_type.startsWith("seasonal_")) continue;
+    if (scoreOf(c) < TOP_OPPORTUNITY_THRESHOLD && c.opportunity_type.startsWith("seasonal_")) return false;
     seen.add(c.client_id);
     perType.set(c.opportunity_type, (perType.get(c.opportunity_type) ?? 0) + 1);
     picked.push(c);
+    return true;
+  };
+
+  if (pinnedClientIds.length > 0) {
+    const byClient = new Map<string, T[]>();
+    for (const c of ranked) {
+      const list = byClient.get(c.client_id);
+      if (list) list.push(c);
+      else byClient.set(c.client_id, [c]);
+    }
+    for (const id of pinnedClientIds) {
+      if (picked.length >= limit) break;
+      for (const c of byClient.get(id) ?? []) if (take(c)) break;
+    }
+  }
+
+  for (const c of ranked) {
+    if (picked.length >= limit) break;
+    take(c);
   }
   return picked;
 }

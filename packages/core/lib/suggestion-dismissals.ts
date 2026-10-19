@@ -52,6 +52,36 @@ export interface DismissalRow extends OpportunityKeyParts {
   dismissed_at?: string | null;
 }
 
+const DISMISSAL_KINDS: readonly string[] = ["skip", "later", "stop"];
+
+const textOrNull = (v: unknown): string | null => (typeof v === "string" ? v : null);
+
+/**
+ * flight_control_dismissals rows as a query returns them, as DismissalRows.
+ * `kind` is a text column: a value that isn't one of ours reads as null, a
+ * skip of that one occurrence, never as a hold. A row without its client,
+ * reason or trigger date can't match anything and is dropped.
+ */
+export function dismissalRowsFrom(raw: readonly unknown[] | null | undefined): DismissalRow[] {
+  const out: DismissalRow[] = [];
+  for (const r of raw ?? []) {
+    if (!r || typeof r !== "object") continue;
+    const o = r as Record<string, unknown>;
+    if (typeof o.client_id !== "string" || typeof o.opportunity_type !== "string" || typeof o.trigger_date !== "string") continue;
+    const row: DismissalRow = {
+      client_id:        o.client_id,
+      opportunity_type: o.opportunity_type,
+      trigger_date:     o.trigger_date,
+      kind:             typeof o.kind === "string" && DISMISSAL_KINDS.includes(o.kind) ? (o.kind as DismissalKind) : null,
+      until:            textOrNull(o.until),
+      dismissed_at:     textOrNull(o.dismissed_at),
+    };
+    if (typeof o.id === "string") row.id = o.id;
+    out.push(row);
+  }
+  return out;
+}
+
 export function opportunityKey(o: OpportunityKeyParts): string {
   return `${o.client_id}|${o.opportunity_type}|${o.trigger_date.slice(0, 10)}`;
 }
