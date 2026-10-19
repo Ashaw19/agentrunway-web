@@ -141,6 +141,25 @@ describe("save_captured_note", () => {
     expect(tables.receipt_expenses).toHaveLength(1);
   });
 
+  it("refuses the whole call when a row_id or an item id repeats, and writes nothing", async () => {
+    const { db, writes } = seed();
+    const tools = await load(db);
+    const row = "00000000-0000-4000-8000-0000000000e2";
+    const fuel = (id: string, amount: number) => ({ id, row_id: row, tool: "logExpense", args: { vendor: "Irving", amount, categoryKey: "vehicle_fuel", expenseDate: "2026-10-18" } });
+    const sameRow = await tools.find((t) => t.name === "save_captured_note")!.handler({ writes: [fuel("w1", 64.4), fuel("w2", 51.2)] });
+    expect(sameRow.isError).toBe(true);
+    expect(sameRow.content[0].text).toMatch(/Nothing was saved: row_id .* is used more than once/);
+    const sameId = await tools.find((t) => t.name === "save_captured_note")!.handler({
+      writes: [
+        { id: "w1", tool: "logMileage", args: { tripDate: "2026-10-18", km: 5, description: "a" } },
+        { id: "w1", tool: "logMileage", args: { tripDate: "2026-10-18", km: 9, description: "b" } },
+      ],
+    });
+    expect(sameId.isError).toBe(true);
+    expect(sameId.content[0].text).toMatch(/item id w1 is used more than once/);
+    expect(writes).toEqual([]);
+  });
+
   it("capture_note gives each new row a row_id", async () => {
     fetchMock.mockResolvedValue(new Response(JSON.stringify({
       transcript: "x", transcriptCleaned: "x", today: "2026-10-18", notes: [],

@@ -149,7 +149,12 @@ export function wholeWordPattern(word: string): string {
  * archived) clients. See the header for why the reads are shaped this way.
  */
 export async function searchClients(db: DbClient, userId: string, spoken: string): Promise<ClientSearch> {
-  const said = searchTerm(toNameSearch(spoken));
+  // The words searched are the words nameScore compares (words(toNameSearch)),
+  // so "saw every strong match" means the same thing to both. A cleaned-up
+  // copy made "St. Pierre" search for "st", which matches no "st." in a name:
+  // that read came back empty (under the cap) and let a capped "pierre" read
+  // pass as complete.
+  const said = toNameSearch(spoken);
   if (!said) return { rows: [], complete: true };
   const run = async (filter: (q: any) => any): Promise<ClientSearchRow[]> => { // eslint-disable-line @typescript-eslint/no-explicit-any
     const query = db
@@ -173,7 +178,10 @@ export async function searchClients(db: DbClient, userId: string, spoken: string
   if (!strong) {
     // Nobody by that name: part-of-a-word matches for "did you mean". Never picked on their own.
     const parts = terms.filter((w) => w.length >= 3);
-    const partial = await Promise.all(parts.map((w) => run((q) => q.ilike("name_search", `%${w}%`))));
+    // ilike gets a cleaned word (no wildcards or punctuation); these are only ever suggestions.
+    const partial = await Promise.all(
+      parts.map(searchTerm).filter((w) => w.length >= 3).map((w) => run((q) => q.ilike("name_search", `%${w}%`))),
+    );
     if (partial.some(capped)) complete = false;
     rows.push(...partial.flat());
   }

@@ -29,6 +29,7 @@ import {
 } from "../voice-capture";
 import { useOfflineQueueStore } from "../../stores/offline-queue";
 import { useDataStore } from "../../stores/data-store";
+import { useToastStore } from "../../stores/toast-store";
 
 // ── Expo modules ─────────────────────────────────────────────────────────────
 
@@ -287,5 +288,30 @@ describe("a queued new client", () => {
     expect(tables.clients.filter((c) => c.name === "Dana Whitfield")).toHaveLength(1);
     expect(tables.contact_tasks[0]).toMatchObject({ client_id: DANA, title: "Send Dana the listings" });
     expect(tables.contact_activities[0]).toMatchObject({ client_id: DANA, type: "meeting" });
+  });
+
+  it("whose name is in the Hangar goes onto the archived client, says so, and doesn't fail ten replays", async () => {
+    const ARCHIVED = "00000000-0000-4000-8000-0000000000a9";
+    const { db, tables, options } = fakeDb({
+      clients: [{ id: ARCHIVED, user_id: USER, name: "Dana Whitfield", name_search: "dana whitfield", status: "cruising", archived_at: "2026-01-02T00:00:00Z" }],
+    }, { offline: ALL_TABLES });
+    net.db = db;
+    const note: ProposedWrite[] = [
+      { id: "w1", tool: "createClient", intent: "new_client", include: true, warnings: [], args: { name: "Dana Whitfield" } },
+      {
+        id: "w2", tool: "createContactTask", intent: "create_task", include: true, warnings: [],
+        client: choice({ spoken: "Dana", newClientWriteId: "w1", newClientOffer: "w1", optional: true }),
+        args: { title: "Call Dana", dueDate: "2026-10-20", priority: "normal", clientName: "Dana Whitfield" },
+      },
+    ];
+    expect((await saveCapture(note, { today: TODAY, userId: USER })).map((r) => r.status)).toEqual(["queued", "queued"]);
+    options.offline = [];
+    await useOfflineQueueStore.getState().processQueue();
+
+    expect(useOfflineQueueStore.getState().queue).toEqual([]);
+    expect(useOfflineQueueStore.getState().failed).toEqual([]);
+    expect(tables.clients).toHaveLength(1);
+    expect(tables.contact_tasks[0]).toMatchObject({ client_id: ARCHIVED, title: "Call Dana" });
+    expect(useToastStore.getState().message).toMatch(/Dana Whitfield is in the Hangar/);
   });
 });

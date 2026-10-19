@@ -98,9 +98,10 @@ interface ExecResult {
   ok: boolean;
   /**
    * A queued new client turned out to match a client already on file (same
-   * name, added meanwhile): the writes queued for the new one go on that client.
+   * name, added meanwhile, or archived in the Hangar): the writes queued for
+   * the new one go on that client.
    */
-  remap?: { from: string; to: { id: string; name: string } };
+  remap?: { from: string; to: { id: string; name: string; archived?: boolean } };
 }
 
 async function executeMutation(mutation: QueuedMutation): Promise<ExecResult> {
@@ -137,7 +138,7 @@ async function executeMutation(mutation: QueuedMutation): Promise<ExecResult> {
       const call = mutation.payload as CaptureWriteCall;
       const out = await applyCaptureWrite(supabase, user.id, call, localISODate());
       if (out.ok) return { ok: true };
-      const dup = (out as { duplicateOf?: { id: string; name: string } }).duplicateOf;
+      const dup = (out as { duplicateOf?: { id: string; name: string; archived?: boolean } }).duplicateOf;
       if (call.tool === "createClient" && dup && call.id) return { ok: true, remap: { from: call.id, to: dup } };
       return { ok: false };
     }
@@ -215,6 +216,8 @@ export const useOfflineQueueStore = create<OfflineQueueStore>((set, get) => ({
 
     // Process a snapshot of the current queue
     const snapshot = [...state.queue];
+    /** Said when the sync ends (a toast shown mid-way would be replaced by "All changes synced"). */
+    const notices: string[] = [];
 
     for (const queued of snapshot) {
       // Read it again: an earlier replay may have moved it to another client.
@@ -234,6 +237,11 @@ export const useOfflineQueueStore = create<OfflineQueueStore>((set, get) => ({
           });
           set({ queue: moved, pendingCount: moved.length });
           saveQueue(moved);
+          notices.push(
+            to.archived
+              ? `${to.name} is in the Hangar (archived), so your voice note went on them instead of a new client. Restore them on the web if they're active again.`
+              : `${to.name} was already a client, so your voice note went on them instead of a new client.`,
+          );
         }
       } else {
         // Increment retry count
@@ -271,7 +279,9 @@ export const useOfflineQueueStore = create<OfflineQueueStore>((set, get) => ({
     set({ _processing: false });
 
     // If everything synced, show a success toast
-    if (get().queue.length === 0 && snapshot.length > 0) {
+    if (notices.length > 0) {
+      toast.show(notices.join(" "), "info");
+    } else if (get().queue.length === 0 && snapshot.length > 0) {
       toast.show("All changes synced", "success");
     }
   },

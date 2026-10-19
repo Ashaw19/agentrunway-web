@@ -126,9 +126,33 @@ export function newRecordId(): string {
 }
 
 /**
+ * The fields that must agree before a row already saved under this id is
+ * taken as this write (a replay), per table. A row that has the id but
+ * different figures is a different record: refused, never reported saved.
+ */
+const SAME_WRITE_FIELDS: Record<string, readonly string[]> = {
+  contact_activities: ["client_id", "type", "description"],
+  contact_tasks: ["title", "due_date", "client_id"],
+  mileage_logs: ["km", "trip_date"],
+  receipt_expenses: ["total_amount", "expense_date", "category_key"],
+  transactions: ["date", "address", "sale_price", "gci_override"],
+  clients: ["name_search"],
+};
+
+/** Equal as the database returns them: numerics may come back as numbers or strings. */
+function sameValue(saved: unknown, sent: unknown): boolean {
+  if (saved === null || saved === undefined || sent === null || sent === undefined) {
+    return (saved ?? null) === (sent ?? null);
+  }
+  if (typeof saved === "number" || typeof sent === "number") return Number(saved) === Number(sent);
+  return String(saved) === String(sent);
+}
+
+/**
  * Insert a row that carries its id. A primary-key clash on a row of the
- * user's that is already there means this write was saved before: success.
- * Any other clash (or none found) is the database refusing it.
+ * user's that is already there, with the same figures, means this write was
+ * saved before: success. A row with that id and other figures, or any other
+ * clash, is the database refusing it.
  */
 async function insertOnce(
   db: DbClient,
@@ -139,13 +163,18 @@ async function insertOnce(
   const { error } = await db.from(table).insert(row);
   if (!error) return { error: null };
   if (error.code === "23505" && typeof row.id === "string") {
+    const fields = SAME_WRITE_FIELDS[table] ?? [];
     const { data: existing } = await db
       .from(table)
-      .select("id")
+      .select(["id", ...fields].join(", "))
       .eq("id", row.id)
       .eq("user_id", userId)
       .maybeSingle();
-    if (existing) return { error: null, alreadySaved: true };
+    if (existing) {
+      const saved = existing as Record<string, unknown>;
+      if (fields.every((f) => !(f in row) || sameValue(saved[f], row[f]))) return { error: null, alreadySaved: true };
+      return { error: { code: "ID_IN_USE", message: "a different record already has this row id" } };
+    }
   }
   return { error };
 }
@@ -387,15 +416,21 @@ export async function writeExpense(
 // ── Client ───────────────────────────────────────────────────────────────────
 
 export interface ClientOutcome extends WriteOutcome {
-  /** Set when a different client with that name is already on file; nothing new was made. */
-  duplicateOf?: { id: string; name: string };
+  /**
+   * Set when a different client with that name is already on file, active
+   * or archived (in the Hangar); nothing new was made.
+   */
+  duplicateOf?: { id: string; name: string; archived?: boolean };
 }
 
 /**
  * createClient. A client whose name matches an existing one (name_search) is
- * not made twice: the existing one is returned. With `id`, a replay that
- * finds its own row already saved counts as saved. A blank name is still
- * refused, as a client with no name can't be found or matched.
+ * not made twice: the existing one is returned, an archived one included
+ * (clients is unique on user_id + name_search, archived rows too, so the
+ * insert would fail anyway; a queued one used to fail ten replays and take
+ * the writes about it down with it). An active match is preferred. With
+ * `id`, a replay that finds its own row already saved counts as saved. A
+ * blank name is still refused, as a client with no name can't be matched.
  */
 export async function writeClient(
   db: DbClient,
@@ -410,16 +445,23 @@ export async function writeClient(
   try {
     const { data: existing, error: readError } = await db
       .from("clients")
-      .select("id, name")
+      .select("id, name, archived_at")
       .eq("user_id", userId)
       .eq("name_search", row.name_search)
-      .is("archived_at", null)
-      .limit(1);
+      .limit(5);
     if (readError) return refused("check for an existing client", readError);
     if (Array.isArray(existing) && existing.length > 0) {
-      const dup = existing[0] as { id: string; name: string };
-      if (dup.id === id) return { ok: true, message: `New client added: ${name}.`, id, alreadySaved: true };
-      return { ok: false, message: `A client named "${dup.name}" is already on file, so no new client was made.`, duplicateOf: dup };
+      const rows = existing as Array<{ id: string; name: string; archived_at: string | null }>;
+      if (rows.some((r) => r.id === id)) return { ok: true, message: `New client added: ${name}.`, id, alreadySaved: true };
+      const match = rows.find((r) => !r.archived_at) ?? rows[0];
+      const archived = !!match.archived_at;
+      return {
+        ok: false,
+        message: archived
+          ? `A client named "${match.name}" is in the Hangar (archived), so no new client was made.`
+          : `A client named "${match.name}" is already on file, so no new client was made.`,
+        duplicateOf: { id: match.id, name: match.name, ...(archived ? { archived } : {}) },
+      };
     }
 
     const parts = name.split(" ");

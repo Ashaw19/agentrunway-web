@@ -459,6 +459,9 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
           const out = await writeClient(supabase, userId, {
             name, email, phone, city, buyerTargetArea, status, propertyInterest, propertyInterestType, side, timeframe, notes, leadSource,
           });
+          if (out.duplicateOf?.archived) {
+            return `A client named "${out.duplicateOf.name}" is in the Hangar (archived, ID: ${out.duplicateOf.id}). No new client created. Tell the agent; unarchiveClient restores them if they're active again, and follow-up actions can use that ID.`;
+          }
           if (out.duplicateOf) {
             return `A client named "${out.duplicateOf.name}" already exists (ID: ${out.duplicateOf.id}). No new client created. Use their existing ID for any follow-up actions.`;
           }

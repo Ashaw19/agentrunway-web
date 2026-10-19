@@ -357,3 +357,38 @@ describe("commission", () => {
     expect(checkWrite(fixed)).toEqual([]);
   });
 });
+
+describe("search words are nameScore's words", () => {
+  it("\"St. Pierre\" with 30 Pierres on file: both St. Pierres are seen, neither is picked", async () => {
+    const pierres = Array.from({ length: 30 }, (_, n) => client(`c-p-${n}`, `Pierre Gagnon${n}`, null));
+    const { db } = fakeDb({
+      clients: [client("c-marc", "Marc St. Pierre", "2026-10-15T15:00:00Z"), ...pierres, client("c-luc", "Luc St. Pierre", null)],
+      pipeline_deals: [],
+    });
+    const parsed = parseCaptureExtraction({ intents: [{ intent: "log_activity", client_name: "St. Pierre", activity_type: "call", summary: "x" }] });
+    const p = await resolveCapture(db, USER, { transcript: "x", parsed, today: TODAY });
+    expect(p.writes[0].client?.selectedId).toBeNull();
+    expect(p.writes[0].client?.candidates.map((c) => c.id).sort()).toEqual(["c-luc", "c-marc"]);
+  });
+
+  it("one St. Pierre among 30 Pierres is picked", async () => {
+    const pierres = Array.from({ length: 30 }, (_, n) => client(`c-p-${n}`, `Pierre Gagnon${n}`, null));
+    const { db } = fakeDb({ clients: [...pierres, client("c-luc", "Luc St. Pierre", null)], pipeline_deals: [] });
+    const parsed = parseCaptureExtraction({ intents: [{ intent: "note", client_name: "St. Pierre", summary: "x" }] });
+    const p = await resolveCapture(db, USER, { transcript: "x", parsed, today: TODAY });
+    expect(p.writes[0].client?.selectedId).toBe("c-luc");
+  });
+});
+
+describe("a commission typed on the card", () => {
+  it("must be a percentage from 1 to 10 too", async () => {
+    const p = await propose([{ intent: "new_transaction", address: "7 Birch Lane", client_name: "Pat Roy", side: "buyer", sale_price: 450000, commission_pct: 2.5 }]);
+    const typed = (pct: number) => checkWrite({ ...p.writes[0], args: { ...p.writes[0].args, commissionPct: pct } } as ProposedWrite);
+    expect(typed(0.025)).toEqual(["Enter the commission as a percentage from 1 to 10, like 2.5."]);
+    expect(typed(25)).toEqual(["Enter the commission as a percentage from 1 to 10, like 2.5."]);
+    expect(typed(2.5)).toEqual([]);
+    // The exact GCI typed instead: no commission needed, but one typed is still checked.
+    const gci = { ...p.writes[0], args: { ...p.writes[0].args, salePrice: undefined, commissionPct: undefined, gciOverride: 11250 } } as ProposedWrite;
+    expect(checkWrite(gci)).toEqual([]);
+  });
+});

@@ -405,3 +405,48 @@ describe("the writers keep what the Flight Crew tools accepted", () => {
     expect((await writeContactTask(db, USER, { title: "", dueDate: TODAY, priority: "normal" })).ok).toBe(true);
   });
 });
+
+describe("a row id already used by a different record", () => {
+  it("is refused, not reported saved: the second expense is never dropped silently", async () => {
+    const { db, tables } = fakeDb(seed());
+    const id = newRecordId();
+    expect((await writeExpense(db, USER, { vendor: "Irving", amount: 64.4, categoryKey: "vehicle_fuel", expenseDate: TODAY }, { id })).ok).toBe(true);
+    const other = await writeExpense(db, USER, { vendor: "Esso", amount: 51.2, categoryKey: "vehicle_fuel", expenseDate: "2026-10-17" }, { id });
+    expect(other).toMatchObject({ ok: false, code: "ID_IN_USE" });
+    expect(other.alreadySaved).toBeUndefined();
+    expect(tables.receipt_expenses).toHaveLength(1);
+  });
+
+  it("the same write replayed (same figures, numbers back as strings) is still saved once", async () => {
+    const id = newRecordId();
+    // As PostgREST can return a numeric column: as text.
+    const { db } = fakeDb({ ...seed(), mileage_logs: [{ id, user_id: USER, km: "18.0", trip_date: TODAY }] });
+    expect(await writeMileage(db, USER, { tripDate: TODAY, km: 18, description: "Showing" }, { id })).toMatchObject({ ok: true, alreadySaved: true });
+  });
+});
+
+describe("a new client whose name is in the Hangar", () => {
+  const archived = { id: "c-arch", user_id: USER, name: "Dana Whitfield", name_search: "dana whitfield", status: "cruising", archived_at: "2026-01-02T00:00:00Z" };
+
+  it("is not added (the unique key counts archived clients); the archived client is returned", async () => {
+    const { db, writes } = fakeDb(seed({ clients: [CLIENT, archived] }));
+    const out = await writeClient(db, USER, { name: "Dana Whitfield" });
+    expect(out).toMatchObject({ ok: false, duplicateOf: { id: "c-arch", name: "Dana Whitfield", archived: true } });
+    expect(out.message).toMatch(/in the Hangar/);
+    expect(writes).toEqual([]);
+  });
+
+  it("an active client with that name wins over an archived one", async () => {
+    const active = { ...archived, id: "c-act", archived_at: null };
+    const { db } = fakeDb(seed({ clients: [archived, active] }));
+    expect((await writeClient(db, USER, { name: "Dana Whitfield" })).duplicateOf).toEqual({ id: "c-act", name: "Dana Whitfield" });
+  });
+
+  it("the note's other items go on the archived client, and the card says so", async () => {
+    const { db, writes } = fakeDb(seed({ clients: [CLIENT, archived] }));
+    const results = await applyCaptureWrites(db, USER, noteWithNewClient(), { today: TODAY });
+    expect(results[0]).toMatchObject({ status: "skipped", client: { id: "c-arch" } });
+    expect(results[0].message).toMatch(/in the Hangar/);
+    expect(writes.find((w) => w.table === "contact_tasks")!.payload).toMatchObject({ client_id: "c-arch" });
+  });
+});

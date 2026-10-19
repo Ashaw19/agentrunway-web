@@ -15,6 +15,7 @@
  */
 
 import { FIELD_LIMITS } from "../../validation/input-guards";
+import { COMMISSION_PCT_MAX, COMMISSION_PCT_MIN } from "./commission";
 import type { ActivityType, TaskPriority } from "../../types/database";
 import {
   CAPTURE_CONTACT_TYPES,
@@ -236,7 +237,7 @@ export function parseIntent(
       // A percentage from 1 to 10 (2.5 for 2.5%). 0.025 is a fraction and 25
       // is no commission an agent is paid: neither is guessed at. A fraction
       // read as a percentage made GCI about $100 on a $450,000 sale.
-      const pctOk = pct !== null && pct >= 1 && pct <= 10;
+      const pctOk = pct !== null && pct >= COMMISSION_PCT_MIN && pct <= COMMISSION_PCT_MAX;
       const side: CaptureSide | null = oneOf(o.side, CAPTURE_SIDES);
       return {
         intent: {

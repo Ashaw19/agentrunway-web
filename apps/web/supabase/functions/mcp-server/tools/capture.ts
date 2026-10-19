@@ -194,6 +194,23 @@ export function getCaptureTools(supabase: SupabaseClient, userId: string, access
         if (list.length === 0) return { ...text("No items to save."), isError: true };
         if (list.length > MAX_WRITES) return { ...text(`At most ${MAX_WRITES} items per call.`), isError: true };
 
+        // Ids name items and row_ids name rows: one repeated would let one
+        // item stand in for another (a second expense under the first's
+        // row_id would be "already saved" and silently dropped). Refuse the
+        // whole call before anything is written.
+        const itemIds = list.map((raw, i) => (isObj(raw) && typeof raw.id === "string" ? raw.id : `w${i + 1}`));
+        const rowIdsSent = list.map((raw) => (isObj(raw) ? raw.row_id : undefined)).filter((r) => r !== undefined).map(String);
+        const repeated = (xs: string[]) => [...new Set(xs.filter((x, i) => xs.indexOf(x) !== i))];
+        const repeatedIds = repeated(itemIds);
+        const repeatedRows = repeated(rowIdsSent);
+        if (repeatedIds.length > 0 || repeatedRows.length > 0) {
+          const why = [
+            repeatedIds.length ? `item id ${repeatedIds.join(", ")} is used more than once` : "",
+            repeatedRows.length ? `row_id ${repeatedRows.join(", ")} is used more than once` : "",
+          ].filter(Boolean).join("; ");
+          return { ...text(`Nothing was saved: ${why}. Each item needs its own id and its own row_id from capture_note.`), isError: true };
+        }
+
         const submitted: SubmittedWrite[] = [];
         const refused: Array<{ id: string; tool: string; status: "failed"; message: string }> = [];
         list.forEach((raw, i) => {

@@ -14,6 +14,7 @@ import { toNameSearch } from "../client-identity";
 import { addDaysISO } from "../local-date";
 import { applyCaptureWrite, newRecordId, type CaptureWriteCall, type WriteOutcome } from "../record-writers";
 import { isIsoDay, pickDate, shortDayLabel, type PickedDate } from "./dates";
+import { COMMISSION_PCT_MAX, COMMISSION_PCT_MIN } from "./commission";
 import {
   nameScore,
   rankClientCandidates,
@@ -571,6 +572,12 @@ export function checkWrite(w: ProposedWrite, options: CheckOptions = {}): string
       if (!positive(a.salePrice) && !positive(a.gciOverride)) p.push("Add the sale price or the GCI.");
       // With a sale price, the commission is said, never defaulted (the tool's 2.5% fallback).
       if (positive(a.salePrice) && !positive(a.gciOverride) && !positive(a.commissionPct)) p.push("Add the commission %.");
+      // The parse rule, for a commission typed on the card too: a percentage
+      // from 1 to 10. 0.025 typed for 2.5% would record about $112 of GCI on
+      // a $450,000 sale.
+      if (a.commissionPct !== undefined && a.commissionPct !== null && !(typeof a.commissionPct === "number" && a.commissionPct >= COMMISSION_PCT_MIN && a.commissionPct <= COMMISSION_PCT_MAX)) {
+        p.push(`Enter the commission as a percentage from ${COMMISSION_PCT_MIN} to ${COMMISSION_PCT_MAX}, like 2.5.`);
+      }
       break;
   }
   return p;
@@ -709,14 +716,20 @@ export async function applyCaptureWrites(
         const id = rowIdFor(w)!;
         const call: CaptureWriteCall = { tool: "createClient", args: w.args, id };
         const outcome = await applyCaptureWrite(db, userId, call, options.today);
-        const dup = (outcome as { duplicateOf?: { id: string; name: string } }).duplicateOf;
+        const dup = (outcome as { duplicateOf?: { id: string; name: string; archived?: boolean } }).duplicateOf;
         const made = { id: outcome.id ?? id, name: w.args.name.trim() };
         if (outcome.ok) {
           newClientIds.set(w.id, made);
           results.push({ writeId: w.id, tool: w.tool, status: "saved", message: outcome.message, rowId: id, client: made });
         } else if (dup) {
-          newClientIds.set(w.id, dup);
-          results.push({ writeId: w.id, tool: w.tool, status: "skipped", message: `${dup.name} is already on file, so the rest of this note went on that client.`, rowId: id, client: dup });
+          const client = { id: dup.id, name: dup.name };
+          newClientIds.set(w.id, client);
+          results.push({
+            writeId: w.id, tool: w.tool, status: "skipped", rowId: id, client,
+            message: dup.archived
+              ? `${dup.name} is in the Hangar (archived), so no new client was made and the rest of this note went on them. Restore them from the Hangar on the web if they're active again.`
+              : `${dup.name} is already on file, so the rest of this note went on that client.`,
+          });
         } else if (outcome.offline && options.queue?.(call)) {
           newClientIds.set(w.id, made);
           queuedClients.add(w.id);
