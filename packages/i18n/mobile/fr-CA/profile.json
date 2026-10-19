@@ -346,8 +346,9 @@
   "receiptLog": {
     "periodRange": "{{period}} · {{from}} à {{to}}",
     "noDate": "Sans date",
-    "receiptCount": "{{count}} reçu",
-    "receiptCount_plural": "{{count}} reçus",
-    "receiptCountPartial": "{{shown}} reçus sur {{total}}"
+    "receiptCount_one": "{{count}} reçu",
+    "receiptCount_other": "{{count}} reçus",
+    "receiptCountPartial_one": "{{count}} reçu sur {{total}}",
+    "receiptCountPartial_other": "{{count}} reçus sur {{total}}"
   }
 }

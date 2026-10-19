@@ -234,10 +234,11 @@ export default function ScanScreen() {
     } catch {}
   }, []);
 
-  // The list: receipt date order, newest first, undated last, with a heading
-  // at each filing period (core receiptSections, the same as the web). The
-  // store holds receipts in upload order; the order here is the receipt's
-  // own date. Display only: the cards above are computed from `receipts`.
+  // The list: undated receipts first (they count in no total until dated),
+  // then receipt date order, newest first, with a heading at each filing
+  // period (core receiptSections, the same as the web). The store holds
+  // receipts in upload order; the order here is the receipt's own date.
+  // Display only: the cards above are computed from `receipts`.
   const receiptLog = useMemo(
     () => receiptSections(receipts, filingFrequency, RECENT_RECEIPTS_SHOWN),
     [receipts, filingFrequency],
@@ -911,7 +912,7 @@ export default function ScanScreen() {
                   {section.rows.map((r) => <ReceiptCard key={r.id} receipt={r} />)}
                 </View>
               ))}
-              {receipts.length > RECENT_RECEIPTS_SHOWN && (
+              {receiptLog.shown < receiptLog.total && (
                 <Text style={{ ...Type.caption, color: c.textDim, textAlign: "center" }}>
                   Showing your {RECENT_RECEIPTS_SHOWN} most recent receipts. The totals above count every receipt dated this year. See the full list on the web.
                 </Text>
@@ -997,8 +998,8 @@ function ReceiptSectionHeader({ section }: { section: ReceiptSection<ReceiptExpe
       : section.period.label;
   const count =
     section.rows.length < section.count
-      ? t("receiptLog.receiptCountPartial", { shown: section.rows.length, total: section.count })
-      : t(section.count === 1 ? "receiptLog.receiptCount" : "receiptLog.receiptCount_plural", { count: section.count });
+      ? t("receiptLog.receiptCountPartial", { count: section.rows.length, total: section.count })
+      : t("receiptLog.receiptCount", { count: section.count });
 
   return (
     <View

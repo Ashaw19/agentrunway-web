@@ -31,13 +31,13 @@ describe("sortReceiptsByDate", () => {
     expect(ids(sortReceiptsByDate(rows))).toEqual(["uploaded-first", "middle", "uploaded-last"]);
   });
 
-  it("puts undated receipts last, newest upload first among them", () => {
+  it("puts undated receipts first, newest upload first among them", () => {
     const rows = [
       row("none-old", null, "2026-03-01T10:00:00+00:00"),
-      row("dated", "2025-01-02"),
+      row("dated", "2026-12-31"),
       row("none-new", null, "2026-09-01T10:00:00+00:00"),
     ];
-    expect(ids(sortReceiptsByDate(rows))).toEqual(["dated", "none-new", "none-old"]);
+    expect(ids(sortReceiptsByDate(rows))).toEqual(["none-new", "none-old", "dated"]);
   });
 
   it("same receipt date: newest upload first, then id, whatever order the rows came in", () => {
@@ -67,7 +67,7 @@ describe("sortReceiptsByDate", () => {
   });
 
   it("a value that is not a calendar day sorts with the undated ones", () => {
-    expect(compareReceiptsByDate(row("bad", "2026-13-01"), row("ok", "2020-01-01"))).toBe(1);
+    expect(compareReceiptsByDate(row("bad", "2026-13-01"), row("ok", "2027-01-01"))).toBe(-1);
   });
 });
 
@@ -96,18 +96,18 @@ describe("receiptSections, quarterly", () => {
     expect(sections.map((s) => s.period?.label)).toEqual(["Q3 2026", "Q1 2026", "Q3 2025"]);
   });
 
-  it("undated receipts are their own section, last", () => {
-    const rows = [row("none", null), row("dated", "2026-10-12"), row("blank", "")];
+  it("undated receipts are their own section, first", () => {
+    const rows = [row("dated", "2026-10-12"), row("none", null), row("blank", "")];
     const { sections } = receiptSections(rows, "quarterly");
-    expect(sections.map((s) => s.key)).toEqual(["2026-10-01", "undated"]);
-    const undated = sections[1];
+    expect(sections.map((s) => s.key)).toEqual(["undated", "2026-10-01"]);
+    const undated = sections[0];
     expect(undated.period).toBeNull();
     expect(undated.months).toBeNull();
     expect(undated.count).toBe(2);
   });
 
   it("empty list: no sections", () => {
-    expect(receiptSections([], "quarterly")).toEqual({ sections: [], shown: 0, total: 0 });
+    expect(receiptSections([], "quarterly")).toEqual({ sections: [], shown: 0, total: 0, datedTotal: 0 });
     expect(receiptSections(undefined, "quarterly").total).toBe(0);
   });
 });
@@ -151,27 +151,40 @@ describe("receiptSections with the screen's cap", () => {
   const q2 = Array.from({ length: 5 }, (_, i) => row(`q2-${i}`, `2026-05-0${i + 1}`, "2026-10-19T00:00:00Z"));
   const rows = [...q2, row("none", null, "2026-10-19T12:00:00Z"), ...q3];
 
-  it("shows the newest `limit` by receipt date, not the newest uploads", () => {
-    const { sections, shown, total } = receiptSections(rows, "quarterly", 50);
-    expect(shown).toBe(50);
+  it("shows the undated receipt and the newest `limit` dated ones by receipt date, not the newest uploads", () => {
+    const { sections, shown, total, datedTotal } = receiptSections(rows, "quarterly", 50);
+    expect(shown).toBe(51);
     expect(total).toBe(66);
-    expect(sections.map((s) => s.key)).toEqual(["2026-07-01"]);
-    expect(sections[0].rows).toHaveLength(50);
-    expect(sections[0].count).toBe(60);
+    expect(datedTotal).toBe(65);
+    expect(sections.map((s) => [s.key, s.rows.length, s.count])).toEqual([
+      ["undated", 1, 1],
+      ["2026-07-01", 50, 60],
+    ]);
   });
 
   it("a section past the cap is left out; one cut by it keeps its full count", () => {
     const { sections } = receiptSections(rows, "quarterly", 62);
     expect(sections.map((s) => [s.key, s.rows.length, s.count])).toEqual([
+      ["undated", 1, 1],
       ["2026-07-01", 60, 60],
       ["2026-04-01", 2, 5],
     ]);
   });
 
-  it("no cap: every row, the undated last", () => {
+  it("the undated section is always shown in full, whatever the cap", () => {
+    const undated = Array.from({ length: 4 }, (_, i) => row(`none-${i}`, null, `2026-10-0${i + 1}T00:00:00Z`));
+    for (const cap of [0, 1, 50]) {
+      const { sections } = receiptSections([...q3, ...undated], "quarterly", cap);
+      expect(sections[0].key).toBe("undated");
+      expect(ids(sections[0].rows)).toEqual(["none-3", "none-2", "none-1", "none-0"]);
+      expect(sections.slice(1).reduce((n, s) => n + s.rows.length, 0)).toBe(cap);
+    }
+  });
+
+  it("no cap: every row, the undated first", () => {
     const { sections, shown } = receiptSections(rows, "quarterly");
     expect(shown).toBe(66);
-    expect(sections.map((s) => s.key)).toEqual(["2026-07-01", "2026-04-01", "undated"]);
+    expect(sections.map((s) => s.key)).toEqual(["undated", "2026-07-01", "2026-04-01"]);
     expect(sections.reduce((n, s) => n + s.rows.length, 0)).toBe(66);
   });
 

@@ -325,8 +325,9 @@
   "receiptLog": {
     "periodRange": "{{period}} · {{from}} to {{to}}",
     "noDate": "No date",
-    "receiptCount": "{{count}} receipt",
-    "receiptCount_plural": "{{count}} receipts",
-    "receiptCountPartial": "{{shown}} of {{total}} receipts"
+    "receiptCount_one": "{{count}} receipt",
+    "receiptCount_other": "{{count}} receipts",
+    "receiptCountPartial_one": "{{count}} of {{total}} receipts",
+    "receiptCountPartial_other": "{{count}} of {{total}} receipts"
   }
 }

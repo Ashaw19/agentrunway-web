@@ -321,9 +321,10 @@ export function ExpensesContent({
   // from this list. See lib/expenses/receipt-list.ts.
   const filteredReceipts = useMemo(() => receiptsInPeriod(receipts, activePeriod), [receipts, activePeriod]);
   const [showAllReceipts, setShowAllReceipts] = useState(false);
-  // Receipt date order, newest first, undated last, with a heading at each
-  // filing period (core receiptSections, the same as the phone). The first
-  // RECEIPT_LIST_PAGE in that order are shown until "Show all".
+  // Undated receipts first (they count in no total until dated), then
+  // receipt date order, newest first, with a heading at each filing period
+  // (core receiptSections, the same as the phone). Every undated receipt and
+  // the newest RECEIPT_LIST_PAGE dated ones are shown until "Show all".
   const receiptLog = useMemo(
     () => receiptSections(filteredReceipts, filingFreq, showAllReceipts ? Infinity : RECEIPT_LIST_PAGE),
     [filteredReceipts, filingFreq, showAllReceipts],
@@ -2953,7 +2954,7 @@ export function ExpensesContent({
                   ))}
                 </TableBody>
               </Table>
-              {filteredReceipts.length > RECEIPT_LIST_PAGE && (
+              {receiptLog.datedTotal > RECEIPT_LIST_PAGE && (
                 <div className="flex items-center justify-between gap-3 border-t px-2 pt-3 text-xs text-muted-foreground">
                   <span>
                     Showing {receiptLog.shown} of {receiptLog.total} receipts

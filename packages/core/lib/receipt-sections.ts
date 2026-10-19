@@ -7,15 +7,20 @@
  * sorted by date in the database (where an undated receipt sorts first) and
  * had no breaks. Both lists now go through this file.
  *
- *   - Order: receipt date (`expense_date`), newest first. Same date: newest
- *     upload (`created_at`) first, then `id`, so both apps show the same order
- *     whatever order the rows arrived in. Undated receipts come last.
- *   - Sections: one per filing period of the agent's GST/HST filing frequency
- *     (quarters for a quarterly filer, months, or the year), named by the
- *     filing-period engine. Undated receipts are their own section, last.
- *   - `limit` is the screen's cap (50): the first `limit` rows in this order
- *     are shown, and each section also carries how many receipts of its
- *     period the whole list holds.
+ *   - Order: undated receipts first (newest upload first), then by receipt
+ *     date (`expense_date`), newest first. Same date: newest upload
+ *     (`created_at`) first, then `id`, so both apps show the same order
+ *     whatever order the rows arrived in. An undated receipt counts in no
+ *     total and no input tax credit until it has a date, so it goes where it
+ *     is seen first.
+ *   - Sections: the undated receipts are their own section, first; then one
+ *     per filing period of the agent's GST/HST filing frequency (quarters for
+ *     a quarterly filer, months, or the year), named by the filing-period
+ *     engine, newest first.
+ *   - `limit` is the screen's cap (50) on DATED receipts: the newest `limit`
+ *     by receipt date are shown. The undated section is always shown in full.
+ *     Each section also carries how many receipts of its period the whole
+ *     list holds.
  *
  * DISPLAY ONLY. No amount is read here. Totals, the GST34 summary and the
  * exports come from the full rows (apps/web/lib/expenses/receipt-list.ts).
@@ -55,13 +60,13 @@ function uploadedAt(row: ReceiptListRow): number {
   return Number.isNaN(t) ? -Infinity : t;
 }
 
-/** Receipt date newest first, undated last; same date, newest upload first; then id. */
+/** Undated first, then receipt date newest first; same date, newest upload first; then id. */
 export function compareReceiptsByDate(a: ReceiptListRow, b: ReceiptListRow): number {
   const da = receiptDay(a);
   const db = receiptDay(b);
   if (da !== db) {
-    if (da === null) return 1;
-    if (db === null) return -1;
+    if (da === null) return -1;
+    if (db === null) return 1;
     return da < db ? 1 : -1;
   }
   const ua = uploadedAt(a);
@@ -95,17 +100,20 @@ export interface ReceiptSection<T> {
 }
 
 export interface ReceiptSections<T> {
-  /** Newest period first, undated last. Only sections with a row shown. */
+  /** Undated first, then newest period first. Only sections with a row shown. */
   sections: ReceiptSection<T>[];
-  /** Rows shown (at most `limit`). */
+  /** Rows shown: every undated one, plus at most `limit` dated ones. */
   shown: number;
   /** Rows in the list. */
   total: number;
+  /** Dated rows in the list, the ones `limit` applies to. */
+  datedTotal: number;
 }
 
 /**
- * Sorts the rows (compareReceiptsByDate), keeps the first `limit`, and groups
- * them by filing period. `frequency` is `user_settings.filing_frequency`.
+ * Sorts the rows (compareReceiptsByDate), keeps every undated row and the
+ * first `limit` dated ones, and groups them by filing period. `frequency` is
+ * `user_settings.filing_frequency`.
  */
 export function receiptSections<T extends ReceiptListRow>(
   rows: readonly T[] | null | undefined,
@@ -118,7 +126,9 @@ export function receiptSections<T extends ReceiptListRow>(
 
   const byKey = new Map<string, ReceiptSection<T>>();
   const sections: ReceiptSection<T>[] = [];
-  sorted.forEach((row, i) => {
+  let datedTotal = 0;
+  let shown = 0;
+  for (const row of sorted) {
     const period = filingPeriodForDate(freq, receiptDay(row));
     const key = period ? period.startDate : "undated";
     let section = byKey.get(key);
@@ -135,12 +145,22 @@ export function receiptSections<T extends ReceiptListRow>(
       sections.push(section);
     }
     section.count += 1;
-    if (i < cap) section.rows.push(row);
-  });
+    // Undated: always shown. Dated: the newest `limit`.
+    let show = true;
+    if (period) {
+      show = datedTotal < cap;
+      datedTotal += 1;
+    }
+    if (show) {
+      section.rows.push(row);
+      shown += 1;
+    }
+  }
 
   return {
     sections: sections.filter((s) => s.rows.length > 0),
-    shown: Math.min(cap, sorted.length),
+    shown,
     total: sorted.length,
+    datedTotal,
   };
 }

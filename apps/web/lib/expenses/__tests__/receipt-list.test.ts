@@ -155,22 +155,22 @@ describe("the receipt log's period headings (2026-10-19)", () => {
     { id: "none", expense_date: null, created_at: "2026-10-19T16:00:00Z" },
   ];
 
-  it("quarterly: the quarter and its months, in receipt-date order, undated last", () => {
+  it("quarterly: undated first, then the quarter and its months in receipt-date order", () => {
     const { sections } = receiptSections(rows, "quarterly");
     expect(sections.map(receiptSectionTitle)).toEqual([
+      "No date",
       "Q4 2026 · Oct to Dec",
       "Q2 2026 · Apr to Jun",
       "Q1 2026 · Jan to Mar",
-      "No date",
     ]);
     expect(sections.map(receiptSectionCount)).toEqual(["1 receipt", "1 receipt", "1 receipt", "1 receipt"]);
   });
 
   it("monthly: the month alone; annual: the year and Jan to Dec", () => {
     expect(receiptSections(rows, "monthly").sections.map(receiptSectionTitle)).toEqual([
-      "Oct 2026", "Apr 2026", "Mar 2026", "No date",
+      "No date", "Oct 2026", "Apr 2026", "Mar 2026",
     ]);
-    expect(receiptSections(rows, "annual").sections.map(receiptSectionTitle)).toEqual(["2026 · Jan to Dec", "No date"]);
+    expect(receiptSections(rows, "annual").sections.map(receiptSectionTitle)).toEqual(["No date", "2026 · Jan to Dec"]);
   });
 
   it("the count says when the page cap cuts a period short", () => {
@@ -196,6 +196,8 @@ describe("REGRESSION: both receipt lists are in receipt-date order, cut by filin
   it("the web log renders receiptSections of the selected period, with the page cap", () => {
     expect(content).toMatch(/receiptSections\(filteredReceipts, filingFreq, showAllReceipts \? Infinity : RECEIPT_LIST_PAGE\)/);
     expect(content).toContain("receiptLog.sections.map(");
+    // "Show all" appears when the cap hides dated receipts (undated ones always show).
+    expect(content).toContain("receiptLog.datedTotal > RECEIPT_LIST_PAGE");
     expect(content).not.toMatch(/filteredReceipts\.slice\(0, RECEIPT_LIST_PAGE\)/);
   });
 
