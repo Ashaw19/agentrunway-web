@@ -48,7 +48,6 @@ import { fetchAllIn } from "@/lib/supabase/fetch-all";
 import { splitJointName } from "./joint-names";
 import { toNameSearch } from "./client-identity";
 import type { createClient } from "@/lib/supabase/client";
-import type { ClientRecordCoParty } from "@/lib/types/database";
 
 export interface DealClientPlan {
   /** Every distinct person named across all deals, deduped by name_search. */
@@ -368,7 +367,6 @@ export async function writeCoPartyRecords(
 
 /** Client ids that appear as a co-party on at least one deal — used to badge
  *  a $0-GCI contact in the CRM list as "linked to real activity" rather than
- *  a cold lead. */
-export function computeHouseholdActivityIds(coParties: ClientRecordCoParty[]): Set<string> {
-  return new Set(coParties.map((cp) => cp.co_client_id));
-}
+ *  a cold lead. Lives in core (client-groups) with the per-client totals so
+ *  the phone app reads the same rule; re-exported here for existing imports. */
+export { computeHouseholdActivityIds } from "@agent-runway/core/lib/client-groups";

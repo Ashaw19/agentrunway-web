@@ -17,6 +17,7 @@ import {
   activePipelineDeals,
   getClientStatusLabel,
   computeGCI,
+  type ClientRecord,
   type ContactTask as CoreContactTask,
 } from "@agent-runway/core/types/database";
 import { recordPipelineDealClose } from "@agent-runway/core/lib/record-pipeline-deal-close";
@@ -125,6 +126,12 @@ export interface PipelineDeal {
 export interface Client {
   id: string;
   name: string;
+  /**
+   * Matching key (NOT NULL in the database): lists deals recorded without a
+   * client_id under this client, as on web. Missing only on an optimistic
+   * row that hasn't saved yet.
+   */
+  name_search?: string;
   first_name: string | null;
   last_name: string | null;
   email: string | null;
@@ -387,6 +394,12 @@ interface DataStore {
   transactions: Transaction[];
   pipeline: PipelineDeal[];
   clients: Client[];
+  /**
+   * Every deal history row (client_records), read as the web Clients page
+   * reads them. The Clients list ranks top clients by their lifetime GCI
+   * (lib/client-order.ts).
+   */
+  clientRecords: ClientRecord[];
   tasks: ContactTask[];
   settings: UserSettings | null;
   outreachQueue: OutreachItem[];
@@ -582,6 +595,8 @@ interface DataStore {
 //   lost row would show in the Deals list), every client instead of the
 //   first 200, and up to 500 open Checklist items.
 // v8 (2026-10-14): added `text_footer` on `settings` (Settings → Texts).
+// (2026-10-19: `clientRecords` added as a new key, no bump: a v8 cache
+//   without it reads as [] until the first fetch, nothing has a stale shape.)
 const CACHE_VERSION = 8;
 const CACHE_KEY = "data_store_cache";
 const CACHE_VERSION_KEY = "data_store_cache_version";
@@ -670,31 +685,62 @@ function writeErrorDetail(error: { code?: string }): string {
   return "something went wrong";
 }
 
-/** Clients come back 1,000 at a time (PostgREST's row cap); read pages until all are in. */
-const CLIENT_PAGE = 1000;
+/** Lists come back 1,000 rows at a time (PostgREST's row cap); read pages until all are in. */
+const LIST_PAGE = 1000;
 
-async function fetchAllClientRows(
-  userId: string,
-): Promise<{ data: Client[] | null; error: { message: string } | null }> {
-  const rows: Client[] = [];
+type ListPage = PromiseLike<{
+  data: unknown[] | null;
+  error: { message: string } | null;
+  count?: number | null;
+}>;
+
+/**
+ * Every row of a list, page by page. `page(from, to, count)` builds the whole
+ * query, asks for the exact count when `count` is true, orders by a unique
+ * column last (rows must not shift between pages) and ends in `.range(from, to)`.
+ */
+async function fetchAllPages<T>(
+  page: (from: number, to: number, count: boolean) => ListPage,
+): Promise<{ data: T[] | null; error: { message: string } | null }> {
+  const rows: T[] = [];
   let total: number | null = null;
-  for (let from = 0; ; from += CLIENT_PAGE) {
-    const { data, error, count } = await supabase
+  for (let from = 0; ; from += LIST_PAGE) {
+    const { data, error, count } = await page(from, from + LIST_PAGE - 1, from === 0);
+    if (error) return { data: null, error };
+    if (from === 0) total = count ?? null;
+    const got = (data ?? []) as T[];
+    rows.push(...got);
+    // Stop on an empty page, or once the exact count is reached. A short
+    // page alone is not the end: the server's row cap may be under 1,000.
+    if (got.length === 0 || (total !== null && rows.length >= total)) break;
+  }
+  return { data: rows, error: null };
+}
+
+function fetchAllClientRows(userId: string) {
+  return fetchAllPages<Client>((from, to, count) =>
+    supabase
       .from("clients")
-      .select("*", { count: from === 0 ? "exact" : undefined })
+      .select("*", { count: count ? "exact" : undefined })
       .eq("user_id", userId)
       .order("last_contact_at", { ascending: false, nullsFirst: false })
       .order("id", { ascending: true }) // stable order across pages
-      .range(from, from + CLIENT_PAGE - 1);
-    if (error) return { data: null, error };
-    if (from === 0) total = count ?? null;
-    const page = (data ?? []) as Client[];
-    rows.push(...page);
-    // Stop on an empty page, or once the exact count is reached. A short
-    // page alone is not the end: the server's row cap may be under 1,000.
-    if (page.length === 0 || (total !== null && rows.length >= total)) break;
-  }
-  return { data: rows, error: null };
+      .range(from, to),
+  );
+}
+
+/** Every deal history row, the same read as the web Clients page (crm/page.tsx). */
+function fetchAllClientRecordRows(userId: string) {
+  return fetchAllPages<ClientRecord>((from, to, count) =>
+    supabase
+      .from("client_records")
+      .select("*", { count: count ? "exact" : undefined })
+      .eq("user_id", userId)
+      .order("year", { ascending: false })
+      .order("name")
+      .order("id")
+      .range(from, to),
+  );
 }
 
 /**
@@ -771,6 +817,7 @@ function saveCache(state: Partial<DataStore>) {
         transactions: state.transactions,
         pipeline: state.pipeline,
         clients: state.clients,
+        clientRecords: state.clientRecords,
         tasks: state.tasks,
         settings: state.settings,
         receipts: state.receipts,
@@ -822,6 +869,7 @@ export const useDataStore = create<DataStore>((set, get) => {
     transactions: (cached.transactions as Transaction[]) ?? [],
     pipeline: (cached.pipeline as PipelineDeal[]) ?? [],
     clients: (cached.clients as Client[]) ?? [],
+    clientRecords: (cached.clientRecords as ClientRecord[]) ?? [],
     tasks: (cached.tasks as ContactTask[]) ?? [],
     settings: (cached.settings as UserSettings | null) ?? null,
     outreachQueue: [],
@@ -844,6 +892,7 @@ export const useDataStore = create<DataStore>((set, get) => {
         transactions: (c.transactions as Transaction[]) ?? [],
         pipeline: (c.pipeline as PipelineDeal[]) ?? [],
         clients: (c.clients as Client[]) ?? [],
+        clientRecords: (c.clientRecords as ClientRecord[]) ?? [],
         tasks: (c.tasks as ContactTask[]) ?? [],
         settings: (c.settings as UserSettings | null) ?? null,
         receipts: (c.receipts as ReceiptExpense[]) ?? [],
@@ -860,11 +909,12 @@ export const useDataStore = create<DataStore>((set, get) => {
         transactions?: Transaction[];
         pipeline?: PipelineDeal[];
         clients?: Client[];
+        clientRecords?: ClientRecord[];
         tasks?: ContactTask[];
         settings?: UserSettings | null;
       };
 
-      // One pass over the five reads. A read that errors is left out of
+      // One pass over the six reads. A read that errors is left out of
       // `loaded` and named in `failed`: postgrest-js returns a network
       // failure as { error } instead of throwing, and writing its `[]` over
       // the store and the cache blanked the dashboard and wiped the offline
@@ -882,7 +932,7 @@ export const useDataStore = create<DataStore>((set, get) => {
 
         const currentYear = new Date().getFullYear();
 
-        const [txRes, pipeRes, clientRes, taskRes, settingsRes] =
+        const [txRes, pipeRes, clientRes, recordRes, taskRes, settingsRes] =
           await withTimeout(
             Promise.all([
               supabase
@@ -899,6 +949,8 @@ export const useDataStore = create<DataStore>((set, get) => {
               // Every client, not the first 200: search and the briefing
               // fallback read this list (found 2026-10-14 at 186 clients).
               fetchAllClientRows(user.id),
+              // Deal history, for the Clients list's top clients (lifetime GCI).
+              fetchAllClientRecordRows(user.id),
               // Open Checklist items, as many as web's Checklist page reads.
               supabase
                 .from("contact_tasks")
@@ -937,6 +989,8 @@ export const useDataStore = create<DataStore>((set, get) => {
         else loaded.pipeline = activePipelineDeals((pipeRes.data ?? []) as PipelineDeal[]);
         if (clientRes.error) failed.push("clients");
         else loaded.clients = clientRes.data ?? [];
+        if (recordRes.error) failed.push("client_records");
+        else loaded.clientRecords = recordRes.data ?? [];
         if (taskRes.error) failed.push("contact_tasks");
         else loaded.tasks = (taskRes.data ?? []) as ContactTask[];
         // .single() errors with PGRST116 when a new user has no settings row
@@ -1075,12 +1129,19 @@ export const useDataStore = create<DataStore>((set, get) => {
       } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Every client (paged), the same read as fetchAll. On an error the
-      // list on screen and in the cache stays as it was.
-      const { data } = await fetchAllClientRows(user.id);
+      // Every client and every deal history row (paged), the same reads as
+      // fetchAll, together so the top-clients order is worked out from one
+      // read. On an error that list, on screen and in the cache, stays as it was.
+      const [clientRes, recordRes] = await Promise.all([
+        fetchAllClientRows(user.id),
+        fetchAllClientRecordRows(user.id),
+      ]);
 
-      if (data) {
-        set({ clients: data });
+      const next: Partial<DataStore> = {};
+      if (clientRes.data) next.clients = clientRes.data;
+      if (recordRes.data) next.clientRecords = recordRes.data;
+      if (next.clients || next.clientRecords) {
+        set(next);
         saveCache(get());
       }
     },

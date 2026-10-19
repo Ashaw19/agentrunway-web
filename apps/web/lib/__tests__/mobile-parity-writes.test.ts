@@ -92,7 +92,17 @@ describe("the phone loads every client", () => {
   it("pages through clients instead of stopping at 200", () => {
     expect(store).not.toMatch(/\.limit\(200\)/);
     expect(store.match(/fetchAllClientRows\(user\.id\)/g)?.length).toBe(2); // fetchAll + fetchClients
-    expect(store).toMatch(/\.range\(from, from \+ CLIENT_PAGE - 1\)/);
+    // One pager (2026-10-19) reads clients and deal history alike.
+    expect(store).toMatch(/await page\(from, from \+ LIST_PAGE - 1, from === 0\)/);
+    expect(store).toMatch(/fetchAllPages<Client>\(\(from, to, count\) =>\s*supabase\s*\.from\("clients"\)[\s\S]*?\.range\(from, to\),/);
+  });
+
+  it("reads every deal history row for the Clients list's top clients, as web does", () => {
+    expect(store.match(/fetchAllClientRecordRows\(user\.id\)/g)?.length).toBe(2); // fetchAll + fetchClients
+    expect(store).toMatch(
+      /fetchAllPages<ClientRecord>\(\(from, to, count\) =>\s*supabase\s*\.from\("client_records"\)\s*\.select\("\*", \{ count: count \? "exact" : undefined \}\)\s*\.eq\("user_id", userId\)[\s\S]*?\.range\(from, to\),/,
+    );
+    expect(store).toContain('if (recordRes.error) failed.push("client_records");');
   });
 
   it("a failed read keeps the cached list instead of writing [] over it", () => {

@@ -114,12 +114,17 @@ import {
   achievementBadgeIds,
   buildAllGroups,
   buildClientGroup,
+  CLIENTS_TABLE_DEFAULT_SORT,
   computeSourceStats,
+  dominantSide,
   firstClassThreshold as computeFirstClassThreshold,
   repeatClientStats,
   rewardBudgetBasisGci,
+  sortTableGroups,
   type AchievementBadgeId,
   type ClientGroup,
+  type ClientTableSortCol as SortCol,
+  type ClientTableSortDir as SortDir,
 } from "@/lib/crm/client-groups";
 import { CLIENT_PANEL_DRAFT_TYPES } from "@/lib/crm/outreach-draft-actions";
 import { hasClosedDeal } from "@/lib/crm/contactable-records";
@@ -256,8 +261,6 @@ interface Props {
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type SortCol = "name" | "deals" | "gci" | "avg" | "last" | "years" | "side";
-type SortDir = "asc" | "desc";
 type TabId = "clients" | "crm" | "insights" | "portfolio" | "flight_plans" | "pipeline";
 
 // CSV import state
@@ -560,48 +563,9 @@ function activityLucideIcon(type: ActivityType) {
   }
 }
 
-function dominantSide(
-  deals: ClientRecord[],
-): "buyer" | "seller" | "both" | null {
-  const counts = { buyer: 0, seller: 0, both: 0 };
-  deals.forEach((d) => {
-    if (d.side) counts[d.side as keyof typeof counts]++;
-  });
-  const total = counts.buyer + counts.seller + counts.both;
-  if (total === 0) return null;
-  return Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0] as
-    | "buyer"
-    | "seller"
-    | "both";
-}
-
-function sortTableGroups(
-  groups: ClientGroup[],
-  col: SortCol,
-  dir: SortDir,
-): ClientGroup[] {
-  return [...groups].sort((a, b) => {
-    let cmp = 0;
-    switch (col) {
-      case "name":  cmp = a.name.localeCompare(b.name); break;
-      case "deals": cmp = a.dealCount - b.dealCount; break;
-      case "gci":   cmp = a.totalGCI - b.totalGCI; break;
-      case "avg":   cmp = a.avgDeal - b.avgDeal; break;
-      case "last":
-        if (!a.lastDeal && !b.lastDeal) cmp = 0;
-        else if (!a.lastDeal) cmp = 1;
-        else if (!b.lastDeal) cmp = -1;
-        else cmp = a.lastDeal.localeCompare(b.lastDeal);
-        break;
-      case "years": cmp = a.years.length - b.years.length; break;
-      case "side":
-        cmp = (dominantSide(a.deals) ?? "").localeCompare(dominantSide(b.deals) ?? "");
-        break;
-      default: cmp = 0;
-    }
-    return dir === "asc" ? cmp : -cmp;
-  });
-}
+// dominantSide and sortTableGroups (the table's column sort) live in
+// lib/crm/client-groups.ts (core): the phone's Clients list reads the same
+// default order.
 
 // ── Name Search Normalization ─────────────────────────────────────────────────
 
@@ -1112,8 +1076,8 @@ export function ClientsContent({
   });
   const [showArchived, setShowArchived] = useState(false);
   const [filterTag, setFilterTag] = useState<string>("all");
-  const [sortCol, setSortCol] = useState<SortCol>("gci");
-  const [sortDir, setSortDir] = useState<SortDir>("desc");
+  const [sortCol, setSortCol] = useState<SortCol>(CLIENTS_TABLE_DEFAULT_SORT.col);
+  const [sortDir, setSortDir] = useState<SortDir>(CLIENTS_TABLE_DEFAULT_SORT.dir);
   const [tab, setTab] = useState<TabId>("clients");
   const [clientsPage, setClientsPage] = useState(0);
   const CLIENTS_PAGE_SIZE = 200;
