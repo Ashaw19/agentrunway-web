@@ -8,10 +8,10 @@
  *   lib/types/receipt.ts              receipt + recurring category pickers
  *   lib/receipts/category-hints.ts    keys the OCR suggestion may return
  *   lib/receipts/extract.ts           the OCR prompt
- *   app/api/voice-extract/route.ts    the voice prompt
+ *   lib/voice/extract-prompt.ts       the voice / captured-note prompt
  *   app/(app)/expenses/page.tsx       categories seeded for a new account
  *   supabase/migrations/00174_*.sql   seed_home_office_expenses (the DB seed)
- *   apps/mobile .../profile/expenses  mobile labels
+ *   apps/mobile/lib/expense-categories.ts  mobile labels (receipts + voice card)
  *
  * Flight Crew's expense tools (lib/ai/tools.ts) keep no list of their own:
  * their enum is lib/types/receipt.ts, pinned in
@@ -71,10 +71,10 @@ describe("Home Office expense keys agree everywhere they are listed", () => {
 
   it.each([
     ["apps/web/lib/receipts/extract.ts", "OCR prompt"],
-    ["apps/web/app/api/voice-extract/route.ts", "voice prompt"],
+    ["apps/web/lib/voice/extract-prompt.ts", "voice prompt"],
     ["apps/web/app/(app)/expenses/page.tsx", "new-account categories"],
     ["apps/web/supabase/migrations/00174_home_office_expense_category.sql", "DB seed"],
-    ["apps/mobile/app/(app)/profile/expenses.tsx", "mobile labels"],
+    ["apps/mobile/lib/expense-categories.ts", "mobile labels"],
   ])("%s (%s) lists the same keys", (file) => {
     expect(homeKeysIn(read(file))).toEqual(HOME_KEYS);
   });

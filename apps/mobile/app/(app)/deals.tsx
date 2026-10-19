@@ -36,6 +36,9 @@ import {
   type Transaction,
   type TransactionInput,
 } from "@/stores/data-store";
+import type { CaptureProposal } from "@agent-runway/core/lib/capture/types";
+import { VoiceCaptureButton } from "@/components/voice/VoiceCaptureButton";
+import { VoiceCaptureSheet } from "@/components/voice/VoiceCaptureSheet";
 import {
   useColors,
   useTheme,
@@ -146,6 +149,9 @@ export default function DealsScreen() {
   // Detail sheet state
   const [selectedDeal, setSelectedDeal] = useState<PipelineDeal | null>(null);
   const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
+
+  // Voice note: record → review the proposed writes → confirm
+  const [capture, setCapture] = useState<CaptureProposal | null>(null);
 
   // Initial load
   useEffect(() => {
@@ -490,6 +496,9 @@ export default function DealsScreen() {
         }}
         onDelete={deleteTransaction}
       />
+      {/* ── Voice note ── */}
+      {!selectedDeal && !selectedTx && !showAdd && <VoiceCaptureButton onProposal={setCapture} />}
+      <VoiceCaptureSheet proposal={capture} onClose={() => setCapture(null)} />
     </SafeAreaView>
   );
 }

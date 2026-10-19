@@ -10,10 +10,10 @@
  * Fire-and-forget: a failure never breaks the caller's write.
  */
 
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DbClient } from "./db-client";
 
 export async function markMemoryStale(
-  supabase: SupabaseClient,
+  supabase: DbClient,
   userId: string,
   clientId: string,
 ): Promise<void> {

@@ -99,7 +99,7 @@ Deno.serve(async (req: Request) => {
   // ── MCP: build tool registry & route ─────────────────────────────────────
   // McpTool is structurally compatible with ProtocolTool (same fields the
   // router reads); cast keeps the protocol layer free of the npm: import.
-  const tools = buildToolRegistry(supabase, user.id) as unknown as ProtocolTool[];
+  const tools = buildToolRegistry(supabase, user.id, token) as unknown as ProtocolTool[];
   const handled = await handleRpcMessage(
     rpcRequest,
     tools,

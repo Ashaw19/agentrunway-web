@@ -2,17 +2,30 @@ import OpenAI from "openai";
 import { NextRequest, NextResponse } from "next/server";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 import { requirePro } from "@/lib/require-pro";
-import { authenticateRequest } from "@/lib/api-helpers";
+import { getRequestUser } from "@/lib/supabase/request-user";
 
 // NOTE: Groq Whisper audio transcription uses the OpenAI-compatible REST API,
 // NOT the Vercel AI SDK (which has no audio transcription support).
 // The @ai-sdk/groq provider only supports chat/text generation.
+//
+// Called by the web voice button (session cookie) and the iPhone app
+// (Authorization: Bearer <access token>): getRequestUser takes either.
+// The audio is sent on to Groq and never stored. The phone deletes its copy
+// once this answers.
+
+/**
+ * The most audio one request takes. Vercel refuses request bodies over
+ * 4.5 MB before this route runs, so the limit sits under that. The phone and
+ * the web button record at most 3 minutes at 32 kbps (about 0.7 MB).
+ */
+const MAX_AUDIO_BYTES = 4 * 1024 * 1024;
 
 export async function POST(req: NextRequest) {
   // ── Auth guard ────────────────────────────────────────────────────────────
-  const auth = await authenticateRequest();
-  if (auth.error) return auth.error;
-  const { supabase, userId } = auth;
+  const requestUser = await getRequestUser(req);
+  if (!requestUser) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { user, supabase } = requestUser;
+  const userId = user.id;
 
   const proCheck = await requirePro(supabase, userId);
   if (!proCheck.allowed) return proCheck.response!;
@@ -39,11 +52,10 @@ export async function POST(req: NextRequest) {
   }
 
   const audio = form.get("audio") as File | null;
-  if (!audio) return NextResponse.json({ error: "No audio file provided" }, { status: 400 });
+  if (!audio || typeof audio === "string") return NextResponse.json({ error: "No audio file provided" }, { status: 400 });
 
-  // Sanity check: 10 MB max
-  if (audio.size > 10 * 1024 * 1024) {
-    return NextResponse.json({ error: "Audio file too large (max 10 MB)" }, { status: 413 });
+  if (audio.size > MAX_AUDIO_BYTES) {
+    return NextResponse.json({ error: "Recording too large (max 4 MB, about 15 minutes of speech)" }, { status: 413 });
   }
 
   // ── Transcribe via Groq Whisper ───────────────────────────────────────────
@@ -56,6 +68,10 @@ export async function POST(req: NextRequest) {
     const transcription = await groq.audio.transcriptions.create({
       file: audio,
       model: "whisper-large-v3-turbo",
+      // English only for now. For French (NB, Quebec), pass "fr" for a
+      // French-speaking user, or leave `language` out so Whisper detects it;
+      // the extraction prompt (lib/voice/extract-prompt.ts) would need French
+      // examples as well.
       language: "en",
     });
 

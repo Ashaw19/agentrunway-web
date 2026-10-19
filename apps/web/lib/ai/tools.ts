@@ -29,7 +29,9 @@
  *                         addListingAppointment, createFlightPlan
  *   Update              — updateReferral, updateCCAAsset, updateMileage,
  *                         updatePropertyShowing
- *   Autonomous          — updatePipelineDealProbability, updatePipelineDealCloseDate,
+ *   Capture             — captureNote (a pasted note → proposed writes in the
+ *                         argument shapes of the write tools below; saves nothing)
+ *   Autonomous          — updatePipelineDealProbability,
  *                         updatePipelineDealDetails, updateGCIGoal,
  *                         updateUserSettings, archiveClient, unarchiveClient,
  *                         linkClientRelationship, removePipelineDeal,
@@ -39,7 +41,8 @@
  *   Needs-approval      — createClient, updateClientDetails, updateClientNotes,
  *                         updateClientStatus, updateClientTags, updateClientTone,
  *                         linkClientReferral, createPipelineDeal,
- *                         updatePipelineDealStage, logContactActivity,
+ *                         updatePipelineDealStage, updatePipelineDealCloseDate,
+ *                         logContactActivity,
  *                         createContactTask, createRecurringExpense,
  *                         updateRecurringExpense, deleteRecurringExpense,
  *                         logExpense, logMileage,
@@ -51,6 +54,11 @@
  *                         deleteCCAAsset, deleteReferral,
  *                         deleteListingAppointment, deletePropertyShowing,
  *                         deleteContactActivity, deleteContactTask
+ *
+ * The record writes (logContactActivity, createContactTask, the two deal
+ * updates, logMileage, logExpense, createClient, recordTransaction) save
+ * through core record-writers, the same writers the iPhone and web voice
+ * capture and the MCP server use. The tools add their own replies.
  */
 
 import { fetchAllRows } from "@/lib/supabase/fetch-all";
@@ -58,7 +66,7 @@ import { tool, type ToolSet } from "ai";
 import { z } from "zod";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { OutreachOpportunityType, NewsletterTemplateType } from "@agent-runway/core/types/database";
-import { FIELD_LIMITS, validateCommissionPaidDate } from "@agent-runway/core/validation/input-guards";
+import { validateCommissionPaidDate } from "@agent-runway/core/validation/input-guards";
 import {
   INCOME_REPORTING_METHOD_RULES,
   INCOME_REPORTING_METHOD_SETTING,
@@ -83,6 +91,19 @@ import { TEXT_PURPOSES } from "@/lib/outreach-prompts";
 import { APP_TIME_ZONE, addDaysISO, atlanticDayStart, atlanticISODate, atlanticNoon, atlanticYear } from "@agent-runway/core/lib/local-date";
 import { recurringHasEnded } from "@agent-runway/core/engines/recurring-expense-engine";
 import { hasClosedDeal } from "@/lib/crm/contactable-records";
+import {
+  writeClient,
+  writeContactActivity,
+  writeContactTask,
+  writeDealCloseDate,
+  writeDealStage,
+  writeExpense,
+  writeMileage,
+  writeTransaction,
+} from "@agent-runway/core/lib/record-writers";
+import { CaptureParseError } from "@agent-runway/core/lib/capture/parse";
+import { MAX_TRANSCRIPT_CHARS, proposeCapture } from "@/lib/voice/capture";
+import { formatCaptureForChat } from "@/lib/voice/capture-chat";
 import {
   RECEIPT_CATEGORY_GROUPS,
   RECEIPT_CATEGORY_KEYS,
@@ -118,6 +139,7 @@ export const NEEDS_APPROVAL_TOOLS = new Set([
   // Pipeline mutations
   "createPipelineDeal",
   "updatePipelineDealStage",
+  "updatePipelineDealCloseDate",
   // Activity & task mutations
   "logContactActivity",
   "createContactTask",
@@ -173,7 +195,9 @@ export const APPROVAL_DESCRIPTIONS: Record<string, (args: Record<string, unknown
   createPipelineDeal: (args) =>
     `Add pipeline deal: ${args.address ?? "new property"}${args.clientName ? ` for ${args.clientName}` : ""}`,
   updatePipelineDealStage: (args) =>
-    `Move deal to ${args.stage}${args.address ? ` (${args.address})` : ""}`,
+    `Move ${args.dealDescription ?? "deal"} to ${args.stage}${args.address ? ` (${args.address})` : ""}`,
+  updatePipelineDealCloseDate: (args) =>
+    `Set ${args.dealDescription ?? "the deal"}'s expected close date to ${args.closeDate}`,
   // Activity & tasks
   logContactActivity: (args) =>
     `Log ${args.type} with ${args.clientName}: "${String(args.description).slice(0, 80)}"`,
@@ -429,59 +453,20 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
       needsApproval: true,
       execute: async ({ name, email, phone, city, buyerTargetArea, status, propertyInterest, propertyInterestType, side, timeframe, notes, leadSource }) => {
         try {
-          // Cap to the clients.name DB constraint (chk_cl_name_length <= 200)
-          // so an overlong LLM-supplied name never aborts the insert.
-          const cappedName = name.slice(0, FIELD_LIMITS.clientName);
-          const nameSearch = cappedName.toLowerCase().trim();
-
-          // Check for duplicate
-          const { data: existing } = await supabase
-            .from("clients")
-            .select("id, name")
-            .eq("user_id", userId)
-            .eq("name_search", nameSearch)
-            .is("archived_at", null)
-            .limit(1);
-
-          if (existing && existing.length > 0) {
-            return `A client named "${existing[0].name}" already exists (ID: ${existing[0].id}). No new client created. Use their existing ID for any follow-up actions.`;
+          // Core writer (record-writers): caps the name at the clients.name
+          // limit, writes name_search the way the CRM does (toNameSearch) and
+          // never adds a name already on file.
+          const out = await writeClient(supabase, userId, {
+            name, email, phone, city, buyerTargetArea, status, propertyInterest, propertyInterestType, side, timeframe, notes, leadSource,
+          });
+          if (out.duplicateOf?.archived) {
+            return `A client named "${out.duplicateOf.name}" is in the Hangar (archived, ID: ${out.duplicateOf.id}). No new client created. Tell the agent; unarchiveClient restores them if they're active again, and follow-up actions can use that ID.`;
           }
-
-          // Split name into first/last
-          const nameParts = cappedName.trim().split(/\s+/);
-          const firstName = nameParts[0] ?? "";
-          const lastName = nameParts.length > 1 ? nameParts.slice(1).join(" ") : "";
-
-          // Build insert object
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const record: Record<string, any> = {
-            user_id: userId,
-            name: cappedName.trim(),
-            name_search: nameSearch,
-            first_name: firstName,
-            last_name: lastName,
-            status: status ?? "boarding",
-          };
-
-          if (email) record.email = email;
-          if (phone) record.phone = phone;
-          if (city) record.city = city;
-          if (buyerTargetArea) record.buyer_target_area = buyerTargetArea;
-          if (propertyInterest !== undefined) record.property_interest = propertyInterest;
-          if (propertyInterestType) record.property_interest_type = propertyInterestType;
-          else if (side === "seller") record.property_interest_type = "listing";
-          else if (side === "buyer") record.property_interest_type = "budget";
-          if (timeframe) record.timeframe = timeframe;
-          if (notes) record.notes = notes;
-          if (leadSource) record.lead_source = leadSource;
-
-          const { data, error } = await supabase
-            .from("clients")
-            .insert(record)
-            .select("id")
-            .single();
-
-          if (error) return `Failed to create client: ${error.message}`;
+          if (out.duplicateOf) {
+            return `A client named "${out.duplicateOf.name}" already exists (ID: ${out.duplicateOf.id}). No new client created. Use their existing ID for any follow-up actions.`;
+          }
+          if (!out.ok) return `Failed to create client: ${out.message}`;
+          const data = { id: out.id };
 
           const details: string[] = [];
           if (city) details.push(city);
@@ -587,44 +572,19 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
       needsApproval: true,
       execute: async ({ clientId, clientName, type, description, activityDate }) => {
         try {
-          const now = new Date();
-          const dateStr = activityDate ?? atlanticISODate(now);
-          const activityTimestamp = activityDate
-            ? new Date(activityDate + "T12:00:00").toISOString()
-            : now.toISOString();
-
-          // Read status BEFORE insert so we can detect Phase 3 auto-promotion.
-          // The DB trigger update_client_last_contact() now both updates
-          // last_contact_at AND auto-promotes cruising/scheduled → boarding
-          // when a real touchpoint is logged (migration 00105).
-          const { data: beforeRow } = await supabase
-            .from("clients")
-            .select("status")
-            .eq("id", clientId)
-            .eq("user_id", userId)
-            .single();
-          const oldStatus = beforeRow?.status as string | undefined;
-
-          const { error: insertError } = await supabase.from("contact_activities").insert({
-            user_id: userId,
-            client_id: clientId,
-            type,
-            description,
-            activity_date: activityTimestamp,
-          });
-          if (insertError) return `Failed to log activity: ${insertError.message}`;
-
-          // Re-read status to see if the trigger promoted the client.
-          const { data: afterRow } = await supabase
-            .from("clients")
-            .select("status")
-            .eq("id", clientId)
-            .eq("user_id", userId)
-            .single();
-          const newStatus = afterRow?.status as string | undefined;
-
+          // Core writer (record-writers): checks the client is the agent's,
+          // dates a past day at noon UTC, and marks what Flight Crew remembers
+          // about the client out of date. The contact_activities trigger
+          // moves last_contact_at and may promote Cruising/Scheduled → Boarding
+          // (migration 00105).
+          const out = await writeContactActivity(supabase, userId, { clientId, clientName, type, description, activityDate }, atlanticISODate());
+          if (!out.ok) return `Failed to log activity: ${out.message}`;
+          const oldStatus = out.priorStatus;
+          const newStatus = out.newStatus;
           const promoted = oldStatus && newStatus && oldStatus !== newStatus;
-          const base = `✓ Logged ${type} with ${clientName} on ${dateStr}. Last contact date updated.`;
+          const base = type === "note"
+            ? `✓ Note saved on ${clientName}'s profile for ${out.day}. A note isn't contact, so their last contact date is unchanged.`
+            : `✓ Logged ${type} with ${clientName} on ${out.day}. Last contact date updated.`;
           return promoted
             ? `${base} Auto-promoted from ${oldStatus} → ${newStatus}.`
             : base;
@@ -806,13 +766,8 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
       needsApproval: true,
       execute: async ({ dealId, dealDescription, stage }) => {
         try {
-          const { error } = await supabase
-            .from("pipeline_deals")
-            .update({ stage, updated_at: new Date().toISOString() })
-            .eq("id", dealId)
-            .eq("user_id", userId);
-
-          if (error) return `Failed to update deal stage: ${error.message}`;
+          const out = await writeDealStage(supabase, userId, { dealId, dealDescription, stage });
+          if (!out.ok) return `Failed to update deal stage: ${out.message}`;
 
           return `✓ ${dealDescription} moved to ${stage} stage.`;
         } catch {
@@ -855,15 +810,11 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
         dealDescription: z.string().describe("Brief deal description for confirmation"),
         closeDate: z.string().describe("New expected close date in YYYY-MM-DD format"),
       }),
+      needsApproval: true,
       execute: async ({ dealId, dealDescription, closeDate }) => {
         try {
-          const { error } = await supabase
-            .from("pipeline_deals")
-            .update({ expected_close_date: closeDate, updated_at: new Date().toISOString() })
-            .eq("id", dealId)
-            .eq("user_id", userId);
-
-          if (error) return `Failed to update close date: ${error.message}`;
+          const out = await writeDealCloseDate(supabase, userId, { dealId, dealDescription, closeDate });
+          if (!out.ok) return `Failed to update close date: ${out.message}`;
 
           return `✓ ${dealDescription} expected close date updated to ${closeDate}.`;
         } catch {
@@ -946,23 +897,11 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
         }
 
         try {
-          const { error } = await supabase
-            .from("receipt_expenses")
-            .insert({
-              user_id: userId,
-              vendor,
-              expense_date: expenseDate,
-              total_amount: amount,
-              // Only what the agent stated. With none stated no ITC is
-              // counted on this expense; tax is never inferred from a rate.
-              tax_amount: taxAmount ?? null,
-              subtotal: taxAmount !== undefined ? Math.round((amount - taxAmount) * 100) / 100 : null,
-              category_key: categoryKey,
-              notes: notes ?? null,
-              currency: "CAD",
-            });
-
-          if (error) return `Failed to log expense: ${error.message}`;
+          // Core writer (record-writers): GST/HST only as stated. With none
+          // stated no ITC is counted on this expense; tax is never inferred
+          // from a rate.
+          const out = await writeExpense(supabase, userId, { vendor, amount, taxAmount, categoryKey, expenseDate, notes });
+          if (!out.ok) return `Failed to log expense: ${out.message}`;
         } catch {
           return "Failed to log expense. Please try again.";
         }
@@ -1013,23 +952,10 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
           const paidCheck = validateCommissionPaidDate(closeDate, commissionPaidDate);
           if (!paidCheck.valid) return `Not recorded: ${paidCheck.errors.join("; ")}.`;
 
-          const { error } = await supabase
-            .from("transactions")
-            .insert({
-              user_id: userId,
-              date: closeDate,
-              commission_paid_date: commissionPaidDate || null,
-              address,
-              client_name: clientName,
-              side,
-              sale_price: salePrice ?? 0,
-              commission_pct: commissionPct ? commissionPct / 100 : 0.025,
-              gci_override: gciOverride ?? null,
-              status: "closed",
-              notes: notes ?? "",
-            });
-
-          if (error) return `Failed to record transaction: ${error.message}`;
+          const out = await writeTransaction(supabase, userId, {
+            address, clientName, side, closeDate, commissionPaidDate, salePrice, commissionPct, gciOverride, notes,
+          });
+          if (!out.ok) return `Failed to record transaction: ${out.message}`;
 
           const gciStr = previewGCI ? ` GCI: $${previewGCI.toLocaleString()}.` : ".";
           const paidStr = commissionPaidDate ? ` Commission paid ${commissionPaidDate}.` : "";
@@ -1221,18 +1147,8 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
       needsApproval: true,
       execute: async ({ clientId, clientName, title, dueDate, priority, notes }) => {
         try {
-          const { error } = await supabase
-            .from("contact_tasks")
-            .insert({
-              user_id: userId,
-              client_id: clientId ?? null,
-              title,
-              due_date: dueDate,
-              priority: priority ?? "normal",
-              notes: notes ?? null,
-            });
-
-          if (error) return `Failed to create task: ${error.message}`;
+          const out = await writeContactTask(supabase, userId, { clientId, clientName, title, dueDate, priority: priority ?? "normal", notes });
+          if (!out.ok) return `Failed to create task: ${out.message}`;
 
           const priorityLabel = priority === "high" ? " (⚡ high priority)" : priority === "low" ? " (low priority)" : "";
           return clientId
@@ -1240,6 +1156,32 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
             : `✓ Added to your Checklist: "${title}", due ${dueDate}${priorityLabel}. It's on /checklist.`;
         } catch {
           return "Failed to create task. Please try again.";
+        }
+      },
+    }),
+
+    // ── CAPTURE NOTE (read-only: proposes, saves nothing) ────────────────────
+    // The same pipeline as the iPhone and web voice buttons (lib/voice/capture.ts):
+    // the note is read by the extraction model, names are matched to the
+    // agent's clients and deals, dates resolved in Atlantic time, and each
+    // item comes back in its write tool's argument shape. The model then
+    // calls those write tools; each shows the agent an approval card.
+    captureNote: tool({
+      description: "Turn a note the agent pastes or dictates (after a call or a showing; a transcript from Apple's call recording or Notes) into proposed writes: activities on the right client, Checklist follow-ups with dates, deal stage or close-date changes, trips, expenses, new clients. Saves NOTHING. It returns each item with the exact args for its write tool (logContactActivity, createContactTask, updatePipelineDealStage, updatePipelineDealCloseDate, createClient; Navigator: logMileage, logExpense, recordTransaction). Call those tools next with those args so the agent approves each one. When a name matches several clients it lists them: ask the agent, never pick the first. Use it for a note with more than one thing in it, or any pasted transcript.",
+      inputSchema: z.object({
+        transcript: z.string().min(1).max(MAX_TRANSCRIPT_CHARS).describe("The note or transcript, exactly as the agent gave it"),
+        clientId: z.string().uuid().optional().describe("Only when the agent says the note is about one client you already found with searchClients"),
+      }),
+      execute: async ({ transcript, clientId }) => {
+        try {
+          const proposal = await proposeCapture(supabase, userId, transcript, {
+            context: clientId ? { clientId } : undefined,
+            feature: "flight-crew-capture-note",
+          });
+          return formatCaptureForChat(proposal);
+        } catch (err) {
+          if (err instanceof CaptureParseError) return "Couldn't read that note. Ask the agent to send it again, or log the items one at a time.";
+          return "Note capture is unavailable right now. Log the items one at a time with the write tools.";
         }
       },
     }),
@@ -1319,19 +1261,10 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
         const deduction = km * 0.72; // Simplified — engine handles 5K threshold
 
         try {
-          const { error } = await supabase
-            .from("mileage_logs")
-            .insert({
-              user_id: userId,
-              trip_date: tripDate,
-              km,
-              description,
-              from_location: fromLocation ?? null,
-              to_location: toLocation ?? null,
-              purpose: description,
-            });
-
-          if (error) return `Failed to log mileage: ${error.message}`;
+          // Core writer (record-writers). EXTENSION POINT (vehicle logbook):
+          // odometer readings go through writeMileage / LogMileageArgs.
+          const out = await writeMileage(supabase, userId, { tripDate, km, description, fromLocation, toLocation });
+          if (!out.ok) return `Failed to log mileage: ${out.message}`;
 
           return `✓ Mileage logged — ${km} km on ${tripDate} for "${description}". Estimated deduction: ~$${deduction.toFixed(2)}. View all trips at /expenses (Mileage tab).`;
         } catch {
@@ -4091,6 +4024,8 @@ export function createCoreAgentTools(supabase: SupabaseClient, userId: string): 
     // Writes (activity / tasks)
     logContactActivity: all.logContactActivity,
     createContactTask: all.createContactTask,
+    // A pasted note → proposed writes (read-only)
+    captureNote: all.captureNote,
     // Writes (expenses / mileage / referrals)
     searchRecurringExpenses: all.searchRecurringExpenses,
     createRecurringExpense: all.createRecurringExpense,
@@ -4177,6 +4112,9 @@ export function createPersonaAgentTools(
       searchListingAppointments: all.searchListingAppointments,
       searchCCAAssets: all.searchCCAAssets,
       getQuickStats: all.getQuickStats,
+      // A pasted note → proposed writes. Navigator saves the trips, expenses
+      // and closed deals in it and hands the rest to Dispatcher.
+      captureNote: all.captureNote,
       // Writes — transactions, expenses, CCA, mileage
       createRecurringExpense: all.createRecurringExpense,
       // Ends one that really stopped (endDate), so delete is not the only way out.
@@ -4214,10 +4152,15 @@ export function createPersonaAgentTools(
     // Writes — pipeline
     createPipelineDeal: all.createPipelineDeal,
     updatePipelineDealStage: all.updatePipelineDealStage,
+    // Approval-gated since 2026-10-18 (a captured note can move a close date).
+    updatePipelineDealCloseDate: all.updatePipelineDealCloseDate,
     updatePipelineDealValue: all.updatePipelineDealValue,
     // Writes — activities / tasks / appointments
     logContactActivity: all.logContactActivity,
     createContactTask: all.createContactTask,
+    // A pasted note → proposed writes. Dispatcher saves the client, activity,
+    // Checklist and deal items in it and hands trips and expenses to Navigator.
+    captureNote: all.captureNote,
     updateListingAppointment: all.updateListingAppointment,
     // Drafting — per-client (Dispatcher's lane). Broadcast drafts (newsletter,
     // social post) live with Captain.

@@ -44,6 +44,7 @@ import {
 } from "@/lib/theme";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
+import { EXPENSE_CATEGORY_LABELS } from "@/lib/expense-categories";
 import { EmptyState } from "@/components/ui/EmptyState";
 
 // ── Config ─────────────────────────────────────────────────────────────────────
@@ -51,40 +52,8 @@ import { EmptyState } from "@/components/ui/EmptyState";
 const API_URL =
   process.env.EXPO_PUBLIC_API_URL ?? "https://agentrunway.ca";
 
-const CATEGORIES: Record<string, string> = {
-  vehicle_fuel:          "Fuel / Gas",
-  vehicle_service:       "Service & Repairs",
-  vehicle_insurance:     "Vehicle Insurance",
-  vehicle_payment:       "Vehicle Payment",
-  marketing_ads:         "Ads (Meta/Google)",
-  marketing_photography: "Photography & Video",
-  marketing_print:       "Print (Signs, Flyers)",
-  marketing_gifts:       "Client Gifts",
-  office_supplies:       "Office Supplies",
-  office_software:       "Software Subscriptions",
-  office_phone:          "Phone & Internet",
-  office_hardware:       "Hardware & Equipment",
-  prof_board_mls:        "Board / MLS Dues",
-  prof_licensing:        "Licensing & Renewals",
-  prof_eo:               "E&O Insurance",
-  prof_accounting:       "Accounting & Bookkeeping",
-  edu_courses:           "Courses & Coaching",
-  edu_conferences:       "Conferences",
-  edu_books:             "Books & Materials",
-  meals_client:          "Client Meals",
-  meals_team:            "Team Meals",
-  ent_client:            "Client Entertainment",
-  ent_events:            "Events & Tickets",
-  home_utilities:        "Home: Electricity, Heat & Water",
-  home_internet:         "Home: Internet",
-  home_insurance:        "Home: Insurance",
-  home_maintenance:      "Home: Repairs & Maintenance",
-  home_property_tax:     "Home: Property Tax",
-  home_mortgage_interest: "Home: Mortgage Interest",
-  home_rent:             "Home: Rent",
-  home_condo_fees:       "Home: Condo Fees",
-  other_misc:            "Miscellaneous",
-};
+// Item labels: lib/expense-categories.ts (shared with the voice capture card).
+const CATEGORIES = EXPENSE_CATEGORY_LABELS;
 
 /** Receipt cards shown under "Recent Receipts". The totals use every receipt dated this year. */
 const RECENT_RECEIPTS_SHOWN = 50;

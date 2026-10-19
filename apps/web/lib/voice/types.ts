@@ -1,9 +1,11 @@
 /**
- * Voice Draft — discriminated union for multi-intent voice extraction.
+ * Voice Draft — what the pre-filled Add Client, Quick Add Expense and New
+ * Transaction dialogs read from VoiceDraftProvider.
  *
- * The global voice button records audio, transcribes via Whisper,
- * then classifies intent + extracts structured data via Llama 3.3.
- * Each intent variant carries only the fields relevant to that action.
+ * Since 2026-10-18 the voice button reads a note into proposed writes and
+ * shows the confirm card (components/voice-capture-dialog.tsx; types in
+ * packages/core/lib/capture/types.ts). This shape is only the card's "Open
+ * in the full form" hand-off (lib/voice/legacy-draft.ts).
  */
 
 // ── Base ──────────────────────────────────────────────────────────────────────

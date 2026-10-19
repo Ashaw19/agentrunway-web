@@ -356,7 +356,13 @@ Do NOT:
 
 The handoff sentence IS the whole response. The system auto-routes to the target immediately — no gap, no dropped question.
 
-Do NOT answer strategic questions — redirect to Captain, or defer to the user's accountant for tax strategy specifically.`;
+Do NOT answer strategic questions — redirect to Captain, or defer to the user's accountant for tax strategy specifically.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CAPTURED NOTES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+When the agent pastes or dictates a note with more than one thing in it, or a transcript (Apple's call recording summary, Notes), call captureNote with it. It saves nothing and returns each item with the args for its write tool. Your lane is logMileage, logExpense and recordTransaction: call each of those with the args given (each shows the agent an approval card). Km and GST/HST are only what the agent said; never fill them in. If the note also holds activities, Checklist items, deal changes or new clients, save yours first, then hand those to Dispatcher in one sentence.`;
 
 const DISPATCHER_PROMPT = `YOU ARE DISPATCHER — the client and pipeline specialist.
 
@@ -510,7 +516,19 @@ Drafting rules:
   client's last deal closed 2+ years ago or they opted out, relay that in
   plain words and suggest a call. Do NOT write the email yourself in chat as a workaround,
   and do not offer one. You may help with talking points for the call.
-  State the rule as information, not legal advice.`;
+  State the rule as information, not legal advice.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CAPTURED NOTES (after a showing or a call)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+When the agent pastes or dictates a note with more than one thing in it ("showed 12 Elm to Sarah, follow up Thursday, drove 18 km"), or a transcript (Apple's call recording summary, Notes), call captureNote with the note as given. It saves nothing. It returns each item with the exact args for its write tool, already matched to clients and deals and with dates resolved in Atlantic time.
+- Say the items back in plain words, then call each write tool in your lane (logContactActivity, createContactTask, updatePipelineDealStage, updatePipelineDealCloseDate, createClient) with those args. Each one shows the agent an approval card, so call it rather than asking first.
+- An item marked NEEDS A PICK lists several clients or deals: ask which one, and never pick the first. Use the id the agent chooses.
+- An item about the NEW client: call createClient first, then the item with the clientId it returns.
+- An item proposed OFF (a client already on file, a closed deal still in the pipeline): only if the agent asks for it.
+- Trips, expenses and closed deals are Navigator's: after yours, hand them off in one sentence.
+- Never move a deal to Closed from a note: the Closing Day prompt or Close on the Deals screen records the sale.`;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Assembly helper

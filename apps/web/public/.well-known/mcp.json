@@ -3,7 +3,7 @@
     "agent-runway": {
       "url": "https://wlxkvnbncfzkmxzexgxt.supabase.co/functions/v1/mcp-server",
       "name": "Agent Runway",
-      "description": "Business data for Canadian real estate agents: transactions, pipeline, CRM, expenses, forecasts. 17 read tools and 4 write tools that create and update pipeline opportunities.",
+      "description": "Business data for Canadian real estate agents: transactions, pipeline, CRM, expenses, forecasts. 18 read tools and 5 write tools that create and update pipeline opportunities and save approved notes from a call or showing.",
       "transport": "streamable-http",
       "authentication": {
         "type": "bearer",

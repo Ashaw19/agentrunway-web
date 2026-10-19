@@ -7,6 +7,7 @@ import { getCrmTools } from "./crm.ts";
 import { getExpenseTools } from "./expenses.ts";
 import { getOutreachTools } from "./outreach.ts";
 import { getSettingsTools } from "./settings.ts";
+import { getCaptureTools } from "./capture.ts";
 
 // MCP tool annotations (per MCP spec).
 // These are behavioral hints for clients — they do NOT enforce anything
@@ -40,9 +41,15 @@ export interface McpToolResult {
   isError?: boolean;
 }
 
+/**
+ * `accessToken` is the caller's own Supabase session token (the Bearer token
+ * this request came with). Only capture_note uses it, to call the web app's
+ * /api/voice-extract as that user.
+ */
 export function buildToolRegistry(
   supabase: SupabaseClient,
   userId: string,
+  accessToken: string,
 ): McpTool[] {
   return [
     // Always available
@@ -86,8 +93,10 @@ export function buildToolRegistry(
                   "get_expenses", "get_mileage_summary",
                   // Outreach + Settings (Step 9)
                   "get_flight_control_priorities", "get_user_settings",
+                  // Note capture (a pasted note → proposed writes → save)
+                  "capture_note", "save_captured_note",
                 ],
-                phase: "Phase 1 + Opportunities — 21 tools live",
+                phase: "Phase 1 + Opportunities + Note capture — 23 tools live",
               },
               null,
               2,
@@ -105,5 +114,6 @@ export function buildToolRegistry(
     ...getExpenseTools(supabase, userId),      // Step 8
     ...getOutreachTools(supabase, userId),     // Step 9
     ...getSettingsTools(supabase, userId),     // Step 9
+    ...getCaptureTools(supabase, userId, accessToken), // Note capture (2026-10-18)
   ];
 }

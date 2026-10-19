@@ -10,12 +10,15 @@ import { storage } from "../lib/mmkv";
 import { supabase } from "../lib/supabase";
 import { useToastStore } from "./toast-store";
 import { activityRow, clientRow, transactionRow } from "@agent-runway/core/lib/write-rows";
+import { applyCaptureWrite, type CaptureWriteCall } from "@agent-runway/core/lib/record-writers";
+import { localISODate } from "@agent-runway/core/lib/local-date";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
 export interface QueuedMutation {
   id: string;
-  type: "addClient" | "addTransaction" | "addActivity" | "advanceStage";
+  /** captureWrite: one confirmed voice-capture write ({ tool, args, id? }), replayed by its Flight Crew writer. */
+  type: "addClient" | "addTransaction" | "addActivity" | "advanceStage" | "captureWrite";
   payload: any;
   createdAt: number;
   retryCount: number;
@@ -91,30 +94,53 @@ function saveFailed(failed: QueuedMutation[]) {
 // queued before 2026-10-14 can carry a null in a NOT NULL text column, or a
 // client without name_search, which failed on every replay.
 
-async function executeMutation(mutation: QueuedMutation): Promise<boolean> {
+interface ExecResult {
+  ok: boolean;
+  /**
+   * A queued new client turned out to match a client already on file (same
+   * name, added meanwhile, or archived in the Hangar): the writes queued for
+   * the new one go on that client.
+   */
+  remap?: { from: string; to: { id: string; name: string; archived?: boolean } };
+}
+
+async function executeMutation(mutation: QueuedMutation): Promise<ExecResult> {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return false;
+  if (!user) return { ok: false };
 
   switch (mutation.type) {
     case "addTransaction": {
       const { error } = await supabase
         .from("transactions")
         .insert(transactionRow({ ...mutation.payload, user_id: user.id }, { insert: true }));
-      return !error;
+      return { ok: !error };
     }
     case "addClient": {
       const { error } = await supabase
         .from("clients")
         .insert(clientRow({ ...mutation.payload, user_id: user.id }));
-      return !error;
+      return { ok: !error };
     }
     case "addActivity": {
       const { error } = await supabase
         .from("contact_activities")
         .insert(activityRow({ ...mutation.payload, user_id: user.id }));
-      return !error;
+      return { ok: !error };
+    }
+    case "captureWrite": {
+      // The same writer the confirm card used (core record-writers), with
+      // the row id the card gave it: if the database saved it before the
+      // reply was lost, this counts as saved instead of saving it twice. A
+      // new client queued here carries its id, so the writes queued after it
+      // (FIFO) land on it.
+      const call = mutation.payload as CaptureWriteCall;
+      const out = await applyCaptureWrite(supabase, user.id, call, localISODate());
+      if (out.ok) return { ok: true };
+      const dup = (out as { duplicateOf?: { id: string; name: string; archived?: boolean } }).duplicateOf;
+      if (call.tool === "createClient" && dup && call.id) return { ok: true, remap: { from: call.id, to: dup } };
+      return { ok: false };
     }
     case "advanceStage": {
       const { dealId, newStage } = mutation.payload;
@@ -123,10 +149,10 @@ async function executeMutation(mutation: QueuedMutation): Promise<boolean> {
         .update({ stage: newStage })
         .eq("id", dealId)
         .eq("user_id", user.id);
-      return !error;
+      return { ok: !error };
     }
     default:
-      return false;
+      return { ok: false };
   }
 }
 
@@ -190,12 +216,33 @@ export const useOfflineQueueStore = create<OfflineQueueStore>((set, get) => ({
 
     // Process a snapshot of the current queue
     const snapshot = [...state.queue];
+    /** Said when the sync ends (a toast shown mid-way would be replaced by "All changes synced"). */
+    const notices: string[] = [];
 
-    for (const mutation of snapshot) {
-      const success = await executeMutation(mutation);
+    for (const queued of snapshot) {
+      // Read it again: an earlier replay may have moved it to another client.
+      const mutation = get().queue.find((m) => m.id === queued.id);
+      if (!mutation) continue;
+      const result = await executeMutation(mutation);
 
-      if (success) {
+      if (result.ok) {
         get().dequeue(mutation.id);
+        if (result.remap) {
+          const { from, to } = result.remap;
+          const moved = get().queue.map((m) => {
+            const call = m.payload as CaptureWriteCall | undefined;
+            if (m.type !== "captureWrite" || !call || (call.tool !== "logContactActivity" && call.tool !== "createContactTask")) return m;
+            if (call.args.clientId !== from) return m;
+            return { ...m, payload: { ...call, args: { ...call.args, clientId: to.id, clientName: to.name } } };
+          });
+          set({ queue: moved, pendingCount: moved.length });
+          saveQueue(moved);
+          notices.push(
+            to.archived
+              ? `${to.name} is in the Hangar (archived), so your voice note went on them instead of a new client. Restore them on the web if they're active again.`
+              : `${to.name} was already a client, so your voice note went on them instead of a new client.`,
+          );
+        }
       } else {
         // Increment retry count
         const updated = get().queue.map((m) =>
@@ -232,7 +279,9 @@ export const useOfflineQueueStore = create<OfflineQueueStore>((set, get) => ({
     set({ _processing: false });
 
     // If everything synced, show a success toast
-    if (get().queue.length === 0 && snapshot.length > 0) {
+    if (notices.length > 0) {
+      toast.show(notices.join(" "), "info");
+    } else if (get().queue.length === 0 && snapshot.length > 0) {
       toast.show("All changes synced", "success");
     }
   },

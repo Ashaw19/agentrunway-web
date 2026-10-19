@@ -5,27 +5,29 @@
  *
  * State machine: idle → recording → transcribing → extracting → idle/error
  *
- * Records audio via MediaRecorder, transcribes via Groq Whisper,
- * extracts structured data via Llama 3.3 (multi-intent), then
- * passes the VoiceDraft to the onDraft callback.
+ * Records audio via MediaRecorder (up to 3 minutes), transcribes it via Groq
+ * Whisper (/api/voice-transcribe; the audio is not kept), then reads the note
+ * into proposed writes (/api/voice-extract, the same pipeline as the iPhone
+ * app) and passes the CaptureProposal to onProposal. Nothing is saved here:
+ * the confirm card (voice-capture-dialog.tsx) saves on Confirm.
  */
 
 import { useState, useRef, useCallback, useEffect } from "react";
 import { Mic, MicOff, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { VoiceDraft } from "@/lib/voice/types";
+import type { CaptureProposal } from "@agent-runway/core/lib/capture/types";
 
 export type VoiceState = "idle" | "recording" | "transcribing" | "extracting" | "error";
 
 interface Props {
-  onDraft: (draft: VoiceDraft) => void;
+  onProposal: (proposal: CaptureProposal) => void;
   /** Called when state changes — allows parent to react to recording/processing */
   onStateChange?: (state: VoiceState) => void;
 }
 
-const MAX_RECORDING_MS = 60_000; // 60 seconds
+const MAX_RECORDING_MS = 180_000; // 3 minutes, as on the phone
 
-export function VoiceRecordButton({ onDraft, onStateChange }: Props) {
+export function VoiceRecordButton({ onProposal, onStateChange }: Props) {
   const [state, setState]       = useState<VoiceState>("idle");
   const [errorMsg, setErrorMsg] = useState("");
 
@@ -107,13 +109,13 @@ export function VoiceRecordButton({ onDraft, onStateChange }: Props) {
         throw new Error(err.error ?? `Extraction failed (${res.status})`);
       }
 
-      const draft = await res.json() as VoiceDraft;
+      const proposal = await res.json() as CaptureProposal;
       setState("idle");
-      onDraft(draft);
+      onProposal(proposal);
     } catch (err) {
       handleError(err instanceof Error ? err.message : "Extraction failed");
     }
-  }, [handleError, onDraft]);
+  }, [handleError, onProposal]);
 
   const stopRecording = useCallback(() => {
     if (autoStopTimerRef.current) {
@@ -144,7 +146,9 @@ export function VoiceRecordButton({ onDraft, onStateChange }: Props) {
         ? "audio/webm"
         : "";
 
-    const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+    // Speech at 32 kbps: 3 minutes is about 0.7 MB, far under the route's
+    // limit (Vercel takes request bodies up to 4.5 MB).
+    const recorder = new MediaRecorder(stream, { ...(mimeType ? { mimeType } : {}), audioBitsPerSecond: 32_000 });
     mediaRecorderRef.current = recorder;
 
     recorder.ondataavailable = (e) => {
@@ -222,7 +226,7 @@ export function VoiceRecordButton({ onDraft, onStateChange }: Props) {
         {state === "error"
           ? errorMsg || "Error"
           : isLoading
-            ? state === "transcribing" ? "Transcribing..." : "Extracting..."
+            ? state === "transcribing" ? "Transcribing..." : "Reading your note..."
             : isRecording
               ? "Listening... tap to stop"
               : "Voice Input"}

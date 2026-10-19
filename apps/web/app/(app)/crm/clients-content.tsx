@@ -2410,30 +2410,11 @@ export function ClientsContent({
       setVoiceDraft(draft);
       setVoiceBanner(true);
       setAddClientOpen(true);
-    } else if (draft.intent === "note") {
-      // Fuzzy-match client by name and open Log Activity
-      const nameQuery = draft.note.client_name?.toLowerCase() ?? "";
-      const match = nameQuery
-        ? localClients.find((c) =>
-            c.name?.toLowerCase().includes(nameQuery)
-          )
-        : null;
-      if (match) {
-        setSelectedClientId(match.id);
-        setDetailPanelOpen(true);
-        setPanelTab("activity");
-        setLogActivityClientId(match.id);
-        setLogType(draft.note.activity_type);
-        setLogDescription(draft.note.description);
-        setShowLogActivity(true);
-      } else {
-        toast.info("Couldn't find a matching client", {
-          description: draft.note.client_name
-            ? `"${draft.note.client_name}" — try adding the note manually.`
-            : "No client name detected. Try adding the note manually.",
-        });
-      }
     }
+    // Activities and notes from a voice note are confirmed on the voice
+    // card (components/voice-capture-dialog.tsx), which asks which client
+    // when a name fits several. This page used to open Log Activity on the
+    // first fuzzy match.
   }, []);
 
   // Add a relationship between two clients

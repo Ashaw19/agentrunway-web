@@ -22,7 +22,7 @@ const { total: TOOL_TOTAL, read: READ_TOOLS, write: WRITE_TOOLS } = MCP_TOOL_COU
 
 export const metadata: Metadata = {
   title: "MCP Server: Connect AI to Your Real Estate Data",
-  description: `Connect an MCP client such as Claude or Cursor to your Agent Runway business data. ${READ_TOOLS} read tools for transactions, pipeline, CRM, expenses, forecasts and Canadian tax estimates, plus ${WRITE_TOOLS} write tools for pipeline opportunities.`,
+  description: `Connect an MCP client such as Claude or Cursor to your Agent Runway business data. ${READ_TOOLS} read tools for transactions, pipeline, CRM, expenses, forecasts and Canadian tax estimates, plus ${WRITE_TOOLS} write tools for pipeline opportunities and approved notes from a call or showing.`,
   openGraph: {
     url: "https://agentrunway.ca/mcp",
     images: [{ url: "/og-image-v2.png", width: 1200, height: 630 }],
@@ -34,7 +34,7 @@ export const metadata: Metadata = {
 
 const mcpWebPage = webPageSchema({
   name: "Agent Runway MCP Server: Connect AI to Your Real Estate Data",
-  description: `The Agent Runway MCP server has ${TOOL_TOTAL} tools. ${READ_TOOLS} read transactions, pipeline, CRM, expenses, forecasts and Canadian tax estimates. ${WRITE_TOOLS} write tools create and update pipeline opportunities. It works with MCP clients that can send a Bearer token, such as Claude or Cursor.`,
+  description: `The Agent Runway MCP server has ${TOOL_TOTAL} tools. ${READ_TOOLS} read transactions, pipeline, CRM, expenses, forecasts and Canadian tax estimates. ${WRITE_TOOLS} write tools create and update pipeline opportunities and save approved notes from a call or showing. It works with MCP clients that can send a Bearer token, such as Claude or Cursor.`,
   url: "/mcp",
   lastReviewed: "2026-10-07",
 });
@@ -88,7 +88,8 @@ export default function McpPage() {
               Claude or Cursor work with your business data directly.{" "}
               {READ_TOOLS} tools read your transactions, pipeline, CRM,
               expenses, forecasts and Canadian tax estimates. {WRITE_TOOLS}{" "}
-              tools create or update pipeline opportunities.
+              tools create or update pipeline opportunities and save the
+              changes you approve from a pasted call or showing note.
             </p>
             <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
               <Link
