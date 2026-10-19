@@ -489,6 +489,86 @@ describe("GET /api/next-up: drafting the handful's texts", () => {
     expect(res2.status).toBe(200);
     pending.length = 0; // the hung draft is never awaited
   });
+
+  describe("at most 2 draft attempts a client per Atlantic day", () => {
+    /**
+     * The limiter as lib/rate-limit.ts keeps it: one counter per key, reset
+     * when the window's start moves on. Only the per-client draft keys are
+     * counted here; the route's own limit always allows.
+     */
+    function countingLimiter() {
+      const counts = new Map<string, { start: string; n: number }>();
+      checkRateLimit.mockImplementation(async (_user: string, endpoint: string, max: number, window: unknown) => {
+        if (!endpoint.startsWith("next_up_draft:")) return { allowed: true, remaining: 59, resetAt: new Date(0) };
+        const { start, end } = window as { start: Date; end: Date };
+        const prev = counts.get(endpoint);
+        const n = prev && prev.start === start.toISOString() ? prev.n + 1 : 1;
+        if (n > max) return { allowed: false, remaining: 0, resetAt: end };
+        counts.set(endpoint, { start: start.toISOString(), n });
+        return { allowed: true, remaining: max - n, resetAt: end };
+      });
+    }
+    const draftCallsFor = (id: string) => draftTextForClient.mock.calls.filter(([i]) => i.clientId === id).length;
+
+    async function refresh(at: string) {
+      vi.setSystemTime(new Date(at));
+      pending.length = 0;
+      expect((await get("?persist=0")).status).toBe(200);
+      await Promise.all(pending);
+    }
+
+    it("a third refresh on the same day doesn't call the drafter for a client whose two drafts failed", async () => {
+      setup(fiveTables());
+      countingLimiter();
+      draftTextForClient.mockImplementation(async (input: { clientId: string }) =>
+        ({ status: "skipped", clientId: input.clientId, clientName: "x", reason: "Flight Crew couldn't write this text." }));
+
+      await refresh("2026-10-19T18:00:00Z");
+      await refresh("2026-10-19T18:01:00Z");
+      expect(draftCallsFor("c-draft")).toBe(2);
+
+      // 22:00 ADT: the UTC date has moved on, the Atlantic day hasn't.
+      await refresh("2026-10-20T01:00:00Z");
+      expect(draftCallsFor("c-draft")).toBe(2);
+
+      // The card still offers Text: tapping it drafts through draft-texts.
+      vi.setSystemTime(new Date("2026-10-20T01:01:00Z"));
+      const p = await payloadOf("?persist=0&draft=0");
+      expect(item(p, "c-draft").text).toEqual({ status: "draftable" });
+
+      // Every attempt was counted on the client's own key, for the Atlantic day.
+      const draftLimits = checkRateLimit.mock.calls.filter(([, key]) => String(key).startsWith("next_up_draft:"));
+      expect(draftLimits[0]).toEqual([
+        USER, "next_up_draft:c-draft", 2,
+        { start: new Date("2026-10-19T03:00:00Z"), end: new Date("2026-10-20T03:00:00Z") },
+      ]);
+
+      // The next Atlantic day starts a new count.
+      await refresh("2026-10-20T13:00:00Z");
+      expect(draftCallsFor("c-draft")).toBe(3);
+    });
+
+    it("the cap is per client: one client's failures don't stop another's draft", async () => {
+      setup(fiveTables({ outreach_queue: [] }));
+      countingLimiter();
+      draftTextForClient.mockImplementation(async (input: { clientId: string }) =>
+        ({ status: "skipped", clientId: input.clientId, clientName: "x" }));
+      await refresh("2026-10-19T18:00:00Z");
+      await refresh("2026-10-19T18:01:00Z");
+      await refresh("2026-10-19T18:02:00Z");
+      expect([draftCallsFor("c-ready"), draftCallsFor("c-draft")]).toEqual([2, 2]);
+    });
+
+    it("a limiter that can't be reached drafts nothing for that card", async () => {
+      setup(fiveTables());
+      checkRateLimit.mockImplementation(async (_user: string, endpoint: string) => {
+        if (endpoint.startsWith("next_up_draft:")) throw new Error("SUPABASE_SERVICE_ROLE_KEY missing");
+        return { allowed: true, remaining: 59, resetAt: new Date(0) };
+      });
+      await refresh("2026-10-19T18:00:00Z");
+      expect(draftTextForClient).not.toHaveBeenCalled();
+    });
+  });
 });
 
 describe("GET /api/next-up: urgent counts", () => {
