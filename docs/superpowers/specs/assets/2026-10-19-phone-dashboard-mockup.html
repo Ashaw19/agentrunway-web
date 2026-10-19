@@ -1,0 +1,208 @@
+<h2>Layout C, polished</h2>
+<p class="subtitle">Three screens: the dashboard, the "Next up" card swiped to the second item, and the panel that opens when you tap the score badge. The names, times and numbers are made up.</p>
+
+<style>
+  .row3 { display: flex; flex-wrap: wrap; gap: 28px; justify-content: center; align-items: flex-start; margin-top: 10px; }
+  .cap { text-align: center; font-size: 13px; color: #475569; margin-top: 10px; max-width: 300px; }
+  .ph { width: 300px; height: 640px; border-radius: 46px; background: #0B0F1A; padding: 9px; box-shadow: 0 30px 60px -20px rgba(15,23,42,.45); }
+  .sc { position: relative; width: 100%; height: 100%; border-radius: 38px; overflow: hidden; background: radial-gradient(120% 60% at 100% 0%, #EEF0FF 0%, #F6F7FB 45%, #F4F6FA 100%); font-family: -apple-system, "SF Pro Text", system-ui, sans-serif; color: #0B1220; }
+  .sb { display: flex; justify-content: space-between; padding: 12px 22px 0; font-size: 12px; font-weight: 600; }
+  .island { position: absolute; top: 9px; left: 50%; transform: translateX(-50%); width: 86px; height: 24px; background: #0B0F1A; border-radius: 20px; }
+  .top { display: flex; justify-content: space-between; align-items: flex-start; padding: 18px 18px 0; }
+  .eyebrow { font-size: 10px; letter-spacing: .16em; font-weight: 700; color: #6B7280; }
+  .eyebrow b { color: #4F46E5; }
+  .greet { font-size: 25px; font-weight: 800; letter-spacing: -.02em; line-height: 1.1; margin-top: 6px; }
+  .ctx { display: inline-flex; align-items: center; gap: 6px; margin-top: 9px; font-size: 12px; font-weight: 600; color: #3730A3; background: rgba(99,102,241,.1); padding: 5px 10px; border-radius: 999px; }
+  .ctx i { width: 6px; height: 6px; border-radius: 50%; background: #6366F1; display: inline-block; }
+  .score { position: relative; width: 50px; height: 50px; border-radius: 50%; background: conic-gradient(#EF4444 0 34%, #E9EBF0 34% 100%); display: grid; place-items: center; box-shadow: 0 0 0 4px rgba(239,68,68,.08), 0 6px 18px rgba(239,68,68,.28); flex: none; }
+  .score span { width: 40px; height: 40px; border-radius: 50%; background: #fff; display: grid; place-items: center; font-weight: 800; font-size: 15px; }
+  .score em { position: absolute; bottom: -4px; right: -4px; background: #fff; border-radius: 999px; padding: 1px 5px; font-style: normal; font-size: 9px; font-weight: 800; color: #DC2626; box-shadow: 0 2px 6px rgba(0,0,0,.12); }
+  .stack { position: relative; margin: 18px 16px 0; height: 168px; }
+  .ghost { position: absolute; left: 14px; right: 14px; height: 150px; border-radius: 22px; background: #C7CBF7; top: 18px; }
+  .ghost.g2 { left: 26px; right: 26px; top: 26px; background: #DCDFFA; }
+  .hero { position: absolute; inset: 0 0 auto 0; height: 156px; border-radius: 22px; padding: 14px 15px; color: #fff; background: linear-gradient(140deg, #1E1B4B 0%, #3730A3 55%, #4F46E5 100%); box-shadow: 0 16px 30px -12px rgba(55,48,163,.55); overflow: hidden; }
+  .hero:after { content: ""; position: absolute; right: -40px; top: -40px; width: 150px; height: 150px; border-radius: 50%; background: radial-gradient(circle, rgba(165,180,252,.35), transparent 70%); }
+  .hero .k { display: flex; justify-content: space-between; font-size: 10px; letter-spacing: .14em; font-weight: 700; color: #C7D2FE; }
+  .hero .who { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+  .av { width: 36px; height: 36px; border-radius: 12px; background: rgba(255,255,255,.16); display: grid; place-items: center; font-weight: 800; font-size: 13px; }
+  .hero h4 { margin: 0; font-size: 17px; font-weight: 800; letter-spacing: -.01em; }
+  .hero p { margin: 2px 0 0; font-size: 11.5px; color: #E0E7FF; }
+  .acts { display: flex; gap: 7px; margin-top: 13px; position: relative; z-index: 1; }
+  .btn { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 700; padding: 7px 12px; border-radius: 999px; background: #fff; color: #312E81; }
+  .btn.t { background: rgba(255,255,255,.16); color: #fff; }
+  .btn svg { width: 13px; height: 13px; }
+  .dots { display: flex; gap: 5px; justify-content: center; margin-top: 8px; }
+  .dots i { width: 6px; height: 6px; border-radius: 9px; background: #C7CBE0; }
+  .dots i.on { width: 16px; background: #4F46E5; }
+  .sec { display: flex; justify-content: space-between; align-items: baseline; padding: 14px 20px 7px; }
+  .sec b { font-size: 13px; font-weight: 800; }
+  .sec span { font-size: 12px; font-weight: 600; color: #4F46E5; }
+  .list { margin: 0 14px; background: rgba(255,255,255,.85); backdrop-filter: blur(10px); border-radius: 20px; border: 1px solid rgba(226,232,240,.9); overflow: hidden; }
+  .it { display: flex; align-items: center; gap: 11px; padding: 10px 12px; border-bottom: 1px solid #EEF1F6; }
+  .it:last-child { border-bottom: 0; }
+  .ico { width: 32px; height: 32px; border-radius: 10px; display: grid; place-items: center; flex: none; }
+  .ico svg { width: 16px; height: 16px; }
+  .it .tx { flex: 1; min-width: 0; }
+  .it .tx b { display: block; font-size: 13px; font-weight: 700; }
+  .it .tx span { display: block; font-size: 11px; color: #6B7280; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pill { font-size: 11.5px; font-weight: 800; padding: 2px 8px; border-radius: 999px; }
+  .chev { width: 14px; height: 14px; color: #A0A8B8; }
+  .r { background: #FEE2E2; color: #DC2626; } .i { background: #E0E7FF; color: #4F46E5; } .a { background: #FEF3C7; color: #D97706; }
+  .g { background: #DCFCE7; color: #16A34A; } .s { background: #F1F5F9; color: #475569; } .c { background: #CFFAFE; color: #0891B2; }
+  .mic { position: absolute; right: 16px; bottom: 84px; width: 50px; height: 50px; border-radius: 50%; background: linear-gradient(140deg, #4F46E5, #6366F1); display: grid; place-items: center; box-shadow: 0 12px 24px -8px rgba(79,70,229,.7); color: #fff; }
+  .mic svg { width: 20px; height: 20px; }
+  .tab { position: absolute; left: 0; right: 0; bottom: 0; height: 72px; background: rgba(255,255,255,.92); backdrop-filter: blur(14px); border-top: 1px solid #E5E9F0; display: flex; justify-content: space-around; align-items: flex-start; padding-top: 9px; font-size: 9.5px; font-weight: 600; color: #8A93A6; }
+  .tab div { display: flex; flex-direction: column; align-items: center; gap: 3px; position: relative; }
+  .tab svg { width: 20px; height: 20px; }
+  .tab .on { color: #4F46E5; }
+  .tab .srch { width: 46px; height: 46px; border-radius: 50%; background: linear-gradient(140deg, #4F46E5, #6366F1); color: #fff; display: grid; place-items: center; margin-top: -16px; box-shadow: 0 10px 20px -6px rgba(79,70,229,.6); }
+  .tab .bdg { position: absolute; top: -5px; right: -9px; background: #06B6D4; color: #fff; font-size: 9px; font-weight: 800; border-radius: 999px; padding: 1px 5px; border: 2px solid #fff; }
+  .dim { position: absolute; inset: 0; background: rgba(11,15,26,.38); }
+  .sheet { position: absolute; left: 0; right: 0; bottom: 0; background: #fff; border-radius: 28px 28px 0 0; padding: 10px 18px 22px; box-shadow: 0 -10px 30px rgba(0,0,0,.18); }
+  .grab { width: 38px; height: 5px; border-radius: 9px; background: #D5D9E2; margin: 0 auto 12px; }
+  .sh-top { display: flex; align-items: center; gap: 12px; }
+  .big { width: 64px; height: 64px; border-radius: 50%; background: conic-gradient(#EF4444 0 34%, #ECEEF3 34% 100%); display: grid; place-items: center; }
+  .big span { width: 52px; height: 52px; border-radius: 50%; background: #fff; display: grid; place-items: center; font-size: 20px; font-weight: 800; }
+  .sh-top h4 { margin: 0; font-size: 17px; font-weight: 800; }
+  .sh-top p { margin: 3px 0 0; font-size: 12px; color: #6B7280; }
+  .grade { display: inline-block; background: #FEE2E2; color: #DC2626; font-weight: 800; font-size: 11px; border-radius: 999px; padding: 2px 8px; margin-left: 4px; }
+  .bars { margin-top: 14px; }
+  .bar { display: grid; grid-template-columns: 70px 1fr 30px; align-items: center; gap: 8px; margin: 9px 0; font-size: 12px; }
+  .bar span { color: #374151; font-weight: 600; }
+  .bar div { height: 7px; border-radius: 9px; background: #EEF1F6; overflow: hidden; }
+  .bar div i { display: block; height: 100%; border-radius: 9px; }
+  .bar b { text-align: right; font-size: 12px; }
+  .note { margin-top: 12px; font-size: 12px; background: #F5F7FB; border-radius: 14px; padding: 10px 12px; color: #374151; }
+  .more { margin-top: 12px; text-align: center; font-weight: 700; font-size: 13px; color: #4F46E5; }
+</style>
+
+<div class="row3">
+
+  <!-- 1. Dashboard -->
+  <div>
+    <div class="ph"><div class="sc">
+      <div class="island"></div>
+      <div class="sb"><span>4:50</span><span>●●● 77%</span></div>
+      <div class="top">
+        <div>
+          <div class="eyebrow">AGENT <b>RUNWAY</b></div>
+          <div class="greet">Good afternoon,<br>Andrew</div>
+          <div class="ctx"><i></i>3 things before your 6:00 showing</div>
+        </div>
+        <div class="score"><span>34</span><em>▼ 3</em></div>
+      </div>
+
+      <div class="stack">
+        <div class="ghost g2"></div><div class="ghost"></div>
+        <div class="hero">
+          <div class="k"><span>NEXT UP</span><span>1 OF 4</span></div>
+          <div class="who"><div class="av">DW</div><div><h4>Call Dana Whitfield</h4><p>New lead from your website · 5 days, no contact yet</p></div></div>
+          <div class="acts">
+            <span class="btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.79 19.79 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/></svg>Call</span>
+            <span class="btn t"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Text</span>
+            <span class="btn t"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Later</span>
+          </div>
+        </div>
+      </div>
+      <div class="dots"><i class="on"></i><i></i><i></i><i></i></div>
+
+      <div class="sec"><b>Also waiting</b><span>See all</span></div>
+      <div class="list">
+        <div class="it"><div class="ico r"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div><div class="tx"><b>Checklist</b><span>3 tasks overdue</span></div><span class="pill r">3</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><polyline points="9 18 15 12 9 6"/></svg></div>
+        <div class="it"><div class="ico i"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 5L2 7"/></svg></div><div class="tx"><b>Messages ready</b><span>Drafted, waiting for you to send</span></div><span class="pill i">3</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><polyline points="9 18 15 12 9 6"/></svg></div>
+        <div class="it"><div class="ico s"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg></div><div class="tx"><b>Deals</b><span>2 close dates have passed</span></div><span class="pill s">2</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><polyline points="9 18 15 12 9 6"/></svg></div>
+        <div class="it"><div class="ico g"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/></svg></div><div class="tx"><b>Receipts</b><span>1 receipt has no date</span></div><span class="pill g">1</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><polyline points="9 18 15 12 9 6"/></svg></div>
+      </div>
+
+      <div class="mic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg></div>
+      <div class="tab">
+        <div class="on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/></svg>Dashboard</div>
+        <div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>Deals</div>
+        <div><span class="srch"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg></span></div>
+        <div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Clients<span class="bdg">6</span></div>
+        <div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>More</div>
+      </div>
+    </div></div>
+    <div class="cap"><b>The dashboard.</b> The welcome line changes with the time of day and what's coming up. The score badge shows the trend (down 3 this week) and glows red while it's falling.</div>
+  </div>
+
+  <!-- 2. Swiped to item 2 -->
+  <div>
+    <div class="ph"><div class="sc">
+      <div class="island"></div>
+      <div class="sb"><span>4:50</span><span>●●● 77%</span></div>
+      <div class="top">
+        <div>
+          <div class="eyebrow">AGENT <b>RUNWAY</b></div>
+          <div class="greet">Good afternoon,<br>Andrew</div>
+          <div class="ctx"><i></i>3 things before your 6:00 showing</div>
+        </div>
+        <div class="score"><span>34</span><em>▼ 3</em></div>
+      </div>
+      <div class="stack">
+        <div class="ghost g2"></div><div class="ghost"></div>
+        <div class="hero" style="background: linear-gradient(140deg, #7C2D12 0%, #C2410C 55%, #F97316 100%); box-shadow: 0 16px 30px -12px rgba(194,65,12,.5)">
+          <div class="k" style="color:#FED7AA"><span>NEXT UP</span><span>2 OF 4</span></div>
+          <div class="who"><div class="av">3</div><div><h4>3 tasks are overdue</h4><p>Oldest: send comps to Sarah Mills, due Thursday</p></div></div>
+          <div class="acts">
+            <span class="btn" style="color:#9A3412">Open checklist</span>
+            <span class="btn t">Mark one done</span>
+          </div>
+        </div>
+      </div>
+      <div class="dots"><i></i><i class="on"></i><i></i><i></i></div>
+      <div class="sec"><b>Also waiting</b><span>See all</span></div>
+      <div class="list">
+        <div class="it"><div class="ico a"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg></div><div class="tx"><b>New lead</b><span>Dana Whitfield, 5 days</span></div><span class="pill a">1</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><polyline points="9 18 15 12 9 6"/></svg></div>
+        <div class="it"><div class="ico i"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 5L2 7"/></svg></div><div class="tx"><b>Messages ready</b><span>Drafted, waiting for you to send</span></div><span class="pill i">3</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><polyline points="9 18 15 12 9 6"/></svg></div>
+        <div class="it"><div class="ico s"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg></div><div class="tx"><b>Deals</b><span>2 close dates have passed</span></div><span class="pill s">2</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><polyline points="9 18 15 12 9 6"/></svg></div>
+        <div class="it"><div class="ico c"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.79 19.79 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/></svg></div><div class="tx"><b>Follow-ups</b><span>Clients due for a check-in</span></div><span class="pill c">176</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><polyline points="9 18 15 12 9 6"/></svg></div>
+      </div>
+      <div class="mic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg></div>
+      <div class="tab">
+        <div class="on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/></svg>Dashboard</div>
+        <div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>Deals</div>
+        <div><span class="srch"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg></span></div>
+        <div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Clients<span class="bdg">6</span></div>
+        <div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>More</div>
+      </div>
+    </div></div>
+    <div class="cap"><b>Swiped once.</b> Each card in the stack gets its own colour and buttons for that job. Whatever is on the card leaves the list below, so nothing shows twice.</div>
+  </div>
+
+  <!-- 3. Score sheet -->
+  <div>
+    <div class="ph"><div class="sc">
+      <div class="island"></div>
+      <div class="sb"><span>4:50</span><span>●●● 77%</span></div>
+      <div class="top">
+        <div>
+          <div class="eyebrow">AGENT <b>RUNWAY</b></div>
+          <div class="greet">Good afternoon,<br>Andrew</div>
+          <div class="ctx"><i></i>3 things before your 6:00 showing</div>
+        </div>
+        <div class="score"><span>34</span><em>▼ 3</em></div>
+      </div>
+      <div class="stack"><div class="ghost g2"></div><div class="ghost"></div><div class="hero"></div></div>
+      <div class="dim"></div>
+      <div class="sheet">
+        <div class="grab"></div>
+        <div class="sh-top">
+          <div class="big"><span>34</span></div>
+          <div><h4>Runway Score <span class="grade">F</span></h4><p>At Risk · down 3 since last week</p></div>
+        </div>
+        <div class="bars">
+          <div class="bar"><span>Pace</span><div><i style="width:22%;background:#6366F1"></i></div><b>22</b></div>
+          <div class="bar"><span>Pipeline</span><div><i style="width:48%;background:#6366F1"></i></div><b>48</b></div>
+          <div class="bar"><span>Expenses</span><div><i style="width:61%;background:#16A34A"></i></div><b>61</b></div>
+          <div class="bar"><span>Bench</span><div><i style="width:6%;background:#06B6D4"></i></div><b>6</b></div>
+          <div class="bar"><span>Survival</span><div><i style="width:12%;background:#8B5CF6"></i></div><b>12</b></div>
+        </div>
+        <div class="note">Lowest part: <b>Bench</b>, at 6 of 100. Tap any bar to see what it measures.</div>
+        <div class="more">Full breakdown ›</div>
+      </div>
+    </div></div>
+    <div class="cap"><b>Tapping the score badge.</b> A sheet slides up with the five parts and the lowest one called out. Swipe it down to close.</div>
+  </div>
+
+</div>
