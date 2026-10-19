@@ -155,6 +155,15 @@ call.
 - **Never deploy via Vercel CLI** (`vercel --prod`, `vercel deploy`). Push to
   `main` is the deploy mechanism. See `memory/feedback_deploy_immediately.md`.
 - **Never create a table without RLS policies in the same migration.**
+- **Never create a table, RPC function or serial sequence without explicit
+  Data API grants in the same migration.** From 2026-10-30 Supabase stops
+  exposing new `public` tables to supabase-js by default
+  (supabase.com/changelog/45329). Template:
+  `GRANT SELECT, INSERT, UPDATE, DELETE ON public.<table> TO authenticated, service_role;`
+  (add `anon` only for a public route), `GRANT EXECUTE ON FUNCTION public.<fn>(<args>) TO authenticated;`,
+  `GRANT USAGE, SELECT ON SEQUENCE public.<seq> TO authenticated, service_role;`.
+  A table nothing reads through supabase-js says `-- data-api: not exposed: <table>`.
+  Guard: `apps/web/lib/supabase/__tests__/new-table-grants.test.ts`.
 - **Never propose Gmail / Google Workspace / Apps Script email
   integrations.** CASA-shelved. See `memory/project_google_integrations.md`.
 - **Never open anything under `/Users/b/Desktop/All Agent Runway Material/`**
