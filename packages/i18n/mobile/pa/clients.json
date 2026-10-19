@@ -52,7 +52,8 @@
     "noLinkedDeals": "No linked deals",
     "noAddress": "No address",
     "estimated": "Est. {{amount}}",
-    "gciAmount": "GCI {{amount}}"
+    "gciAmount": "GCI {{amount}}",
+    "lifetimeGciAmount": "Lifetime GCI {{amount}}"
   },
   "quickLog": {
     "title": "QUICK LOG",

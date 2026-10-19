@@ -52,7 +52,8 @@
     "noLinkedDeals": "Aucune transaction liée",
     "noAddress": "Pas d'adresse",
     "estimated": "Est. {{amount}}",
-    "gciAmount": "RBC {{amount}}"
+    "gciAmount": "RBC {{amount}}",
+    "lifetimeGciAmount": "RBC à vie {{amount}}"
   },
   "quickLog": {
     "title": "JOURNAL RAPIDE",

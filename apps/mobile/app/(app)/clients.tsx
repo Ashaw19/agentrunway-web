@@ -77,6 +77,7 @@ import {
   type ClientFormState,
 } from "@/components/ClientFormFields";
 import { computeGCI } from "@agent-runway/core/types/database";
+import { orderTopClientsFirst, topClients } from "@/lib/client-order";
 import type { CaptureProposal } from "@agent-runway/core/lib/capture/types";
 import { VoiceCaptureButton } from "@/components/voice/VoiceCaptureButton";
 import { VoiceCaptureCard } from "@/components/voice/VoiceCaptureCard";
@@ -152,7 +153,7 @@ export default function ClientsScreen() {
   const { t: tCommon } = useTranslation("common");
 
   const {
-    clients, fetchClients, addClient, addActivity, updateClient, isLoading, draftTexts, settings,
+    clients, clientRecords, fetchClients, addClient, addActivity, updateClient, isLoading, draftTexts, settings,
     smartListCounts, overdueFollowupClients, uncontactedLeadClients,
     clientPipelineContext,
   } = useDataStore();
@@ -336,6 +337,11 @@ export default function ClientsScreen() {
 
   const slCounts = useMemo(() => smartListCounts(), [clients]);
 
+  // Top clients first, by lifetime GCI as the web Clients table ranks them
+  // (Hangar clients never rank); everyone else by most recent contact
+  // (lib/client-order.ts).
+  const top = useMemo(() => topClients(clients, clientRecords), [clients, clientRecords]);
+
   const filtered = useMemo(() => {
     // Smart filter takes precedence
     if (smartFilter === "overdue") {
@@ -378,8 +384,8 @@ export default function ClientsScreen() {
       );
     }
 
-    return list;
-  }, [clients, active, cruising, filter, search, smartFilter]);
+    return orderTopClientsFirst(list, top);
+  }, [clients, active, cruising, filter, search, smartFilter, top]);
 
   // ── Filter tab definitions ────────────────────────────────────────────────
 
@@ -657,6 +663,7 @@ export default function ClientsScreen() {
             <ClientRow
               key={cl.id}
               client={cl}
+              lifetimeGci={top.gciById.get(cl.id)}
               onPress={() => (selecting ? toggleSelected(cl) : setSelectedClient(cl))}
               onCall={handleCall}
               selecting={selecting}
@@ -789,12 +796,15 @@ export default function ClientsScreen() {
 
 function ClientRow({
   client,
+  lifetimeGci,
   onPress,
   onCall,
   selecting = false,
   selected = false,
 }: {
   client: Client;
+  /** The web table's Lifetime GCI; not set for $0 or Hangar clients. */
+  lifetimeGci?: number;
   onPress: () => void;
   onCall: (c: Client) => void;
   /** Text queue: rows toggle a check instead of opening the client. */
@@ -853,6 +863,11 @@ function ClientRow({
               </Text>
             )}
           </View>
+          {lifetimeGci !== undefined && (
+            <Text style={[Type.micro, { color: c.textMuted }]} numberOfLines={1}>
+              {t("detail.lifetimeGciAmount", { amount: fmtCurrency(lifetimeGci) })}
+            </Text>
+          )}
         </View>
 
         {/* Right side */}

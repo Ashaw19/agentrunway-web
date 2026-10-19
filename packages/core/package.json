@@ -8,6 +8,7 @@
     "./lib/opportunity-loss-reasons": "./lib/opportunity-loss-reasons.ts",
     "./lib/local-date": "./lib/local-date.ts",
     "./lib/client-identity": "./lib/client-identity.ts",
+    "./lib/client-groups": "./lib/client-groups.ts",
     "./lib/contact-match": "./lib/contact-match.ts",
     "./lib/client-memory-stale": "./lib/client-memory-stale.ts",
     "./lib/log-client-contact": "./lib/log-client-contact.ts",
