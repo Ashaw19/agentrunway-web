@@ -52,9 +52,11 @@ describe("one commission", () => {
     expect(commissionHst(commissionHstInput(NO_STATEMENT), NB)).toEqual({ base: 7_000, hst: 1_050, recorded: false });
   });
 
-  it("$0 entered is a statement figure (a brokerage that paid no HST), blank or junk is not", () => {
+  it("$0 entered is a statement figure (a brokerage that paid no HST): no HST, the full commission still revenue; blank or junk is not", () => {
     expect(recordedCommissionHst({ commission_hst: 0 })).toBe(0);
-    expect(commissionHst({ gci: 7_000, recordedHst: 0 }, NB)).toEqual({ base: 0, hst: 0, recorded: true });
+    expect(commissionHst({ gci: 7_000, recordedHst: 0 }, NB)).toEqual({ base: 7_000, hst: 0, recorded: true });
+    // Line 101 never exceeds the commission (15% entered in a 5% GST province).
+    expect(commissionHst({ gci: 7_000, recordedHst: 1_050 }, 0.05)).toEqual({ base: 7_000, hst: 1_050, recorded: true });
     expect(recordedCommissionHst({ commission_hst: null })).toBeNull();
     expect(recordedCommissionHst({ commission_hst: "" })).toBeNull();
     expect(recordedCommissionHst({ commission_hst: "abc" })).toBeNull();

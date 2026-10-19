@@ -579,6 +579,7 @@ const TOOL_LABELS: Readonly<Record<string, string>> = {
   updateTransaction: "Changed a deal",
   deleteTransaction: "Deleted a deal",
   updateIncomeReportingMethod: "Changed the income reporting method",
+  updateGstHstCommissionTiming: "Changed which date places commissions on the GST/HST return",
   updateUserSettings: "Changed a setting",
   updateGCIGoal: "Changed the income goal",
   recordReferral: "Recorded a referral",

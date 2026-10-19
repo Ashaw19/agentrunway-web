@@ -2331,22 +2331,24 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
 
         if (changed.length === 0) return "No fields to update were provided.";
 
-        // The statement's HST is checked against the commission the row will have.
-        if (commissionHst != null) {
+        // The statement's HST (new, or the stored one when the commission
+        // changes) is checked against the commission the row will have.
+        if (commissionHst != null || salePrice !== undefined || commissionPct !== undefined || gciOverride !== undefined) {
           const { data: row } = await supabase
             .from("transactions")
-            .select("sale_price, commission_pct, gci_override, team_split_pct")
+            .select("sale_price, commission_pct, gci_override, team_split_pct, commission_hst")
             .eq("id", transactionId)
             .eq("user_id", userId)
             .maybeSingle();
           if (!row) return "Not updated: transaction not found.";
+          const hstToCheck = commissionHst !== undefined ? commissionHst : row.commission_hst == null ? null : Number(row.commission_hst);
           const commission = computeGCI({
             sale_price: salePrice ?? row.sale_price,
             commission_pct: commissionPct !== undefined ? commissionPct / 100 : row.commission_pct,
             gci_override: gciOverride !== undefined ? gciOverride : row.gci_override,
             team_split_pct: row.team_split_pct,
           });
-          const hstCheck = validateCommissionHst(commissionHst, commission);
+          const hstCheck = validateCommissionHst(hstToCheck, commission);
           if (!hstCheck.valid) return `Not updated: ${hstCheck.errors.join("; ")}.`;
         }
 
@@ -2489,7 +2491,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
         try {
           const { data, error } = await supabase
             .from("transactions")
-            .select("id, address, client_name, date, commission_paid_date, sale_price, gci_override, side, status")
+            .select("id, address, client_name, date, commission_paid_date, commission_hst, sale_price, gci_override, side, status")
             .eq("user_id", userId)
             .or(`address.ilike.%${query}%,client_name.ilike.%${query}%`)
             .order("date", { ascending: false })
@@ -2498,10 +2500,11 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
           if (error) return `Search failed: ${error.message}`;
           if (!data || data.length === 0) return `No transactions found matching "${query}".`;
 
-          return data.map((t: { id: string; address: string; client_name: string; date: string; commission_paid_date: string | null; sale_price: number; gci_override: number | null; side: string; status: string }) => {
+          return data.map((t: { id: string; address: string; client_name: string; date: string; commission_paid_date: string | null; commission_hst: number | string | null; sale_price: number; gci_override: number | null; side: string; status: string }) => {
             const gci = t.gci_override ? `GCI $${Number(t.gci_override).toLocaleString()}` : `$${Number(t.sale_price).toLocaleString()}`;
             const paid = t.commission_paid_date ? `, commission paid ${t.commission_paid_date}` : "";
-            return `${t.address} — ${t.client_name} (${t.side}, ${t.status}, ${gci}, closed ${t.date}${paid}) — ID: ${t.id}`;
+            const hst = t.commission_hst != null ? `, GST/HST paid per statement $${Number(t.commission_hst).toFixed(2)}` : "";
+            return `${t.address} — ${t.client_name} (${t.side}, ${t.status}, ${gci}, closed ${t.date}${paid}${hst}) — ID: ${t.id}`;
           }).join("\n");
         } catch {
           return "Transaction search temporarily unavailable.";

@@ -109,8 +109,11 @@ export function computeHSTCollected(inputs: HSTCollectedInputs): number {
 
   if (!isRegistered) return 0;
   if (brokerageWithholdsHst) return 0;
-  const recordedGci = Math.max(0, Math.min(ytdGCI, recorded?.gci ?? 0));
-  const recordedHst = Math.max(0, recorded?.hst ?? 0);
+  const rawRecordedGci = Math.max(0, recorded?.gci ?? 0);
+  const recordedGci = Math.min(Math.max(0, ytdGCI), rawRecordedGci);
+  // A caller that hands more statement deals than ytdGCI covers: their HST is
+  // scaled to the part ytdGCI includes, so it is never counted in full twice.
+  const recordedHst = Math.max(0, recorded?.hst ?? 0) * (rawRecordedGci > 0 ? recordedGci / rawRecordedGci : 0);
   const estimatedGci = Math.max(0, ytdGCI - recordedGci);
   if (estimatedGci <= 0 && recordedHst <= 0) return 0;
 

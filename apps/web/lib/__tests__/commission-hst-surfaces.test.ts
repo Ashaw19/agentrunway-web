@@ -6,9 +6,9 @@
  * that leaves out `recorded` would show the old estimate beside the GST/HST
  * return card's statement figure.
  *
- * Calls that are NOT year-to-date figures for real deals are allowlisted:
- * the Forecast's projection (future deals have no statement), the closing-day
- * breakdown (a deal being recorded now) and Flight Crew's worked example.
+ * Calls that are not about recorded deals are not checked: the closing-day
+ * breakdown (a deal being recorded now) and Flight Crew's worked example. The
+ * Forecast's full-year projection passes the year's statement figures too.
  */
 import { readFileSync } from "node:fs";
 import path from "node:path";
@@ -49,16 +49,33 @@ describe("HST collected year to date uses the commission statements' figures", (
   it.each(YTD_SURFACES)("%s passes `recorded` on every YTD call", (file) => {
     const found = calls(read(file));
     expect(found.length, file).toBeGreaterThan(0);
-    for (const call of found) {
-      if (/ytdGCI:\s*projectedGCI/.test(call)) continue; // the Forecast's projection
-      expect(call, file).toMatch(/\brecorded\b/);
-    }
+    for (const call of found) expect(call, file).toMatch(/\brecorded\b/);
   });
 
   it("the connector reads commission_hst and uses the core helper, not its mirror", () => {
     const src = read("apps/web/supabase/functions/mcp-server/tools/analytics.ts");
     expect(src).toContain('from "../../_shared/core/engines/hst-engine.ts"');
     expect(src).toMatch(/\.select\("[^"]*commission_hst[^"]*"\)/);
+  });
+
+  it("Flight Crew's deal search and the connector's get_transactions return the statement figure", () => {
+    expect(read("apps/web/lib/ai/tools.ts")).toContain('.select("id, address, client_name, date, commission_paid_date, commission_hst, sale_price, gci_override, side, status")');
+    expect(read("apps/web/supabase/functions/mcp-server/tools/transactions.ts")).toContain('.select("id, date, commission_paid_date, commission_hst, address,');
+  });
+
+  it.each([
+    // Both hand their rows to effective cash (cash runway, survival).
+    "apps/web/lib/chat-diagnostics.ts",
+    "apps/web/app/api/cron/weekly-digest/route.ts",
+  ])("%s selects commission_hst wherever it lists transaction columns for these figures", (file) => {
+    const selects = [...read(file).matchAll(/from\("transactions"\)\s*\.select\("([^"]*)"\)/g)].map((m) => m[1]);
+    const dealSelects = selects.filter((cols) => /gci_override/.test(cols) && /\bdate\b/.test(cols));
+    expect(dealSelects.length, file).toBeGreaterThan(0);
+    for (const cols of dealSelects) expect(cols, file).toContain("commission_hst");
+  });
+
+  it("the T2125's GST/HST section takes the statement figures", () => {
+    expect(read("packages/core/engines/t2125-engine.ts")).toMatch(/collectedOnGCI = gstCommission\.hst/);
   });
 
   it("Flight Crew's context query selects commission_hst", () => {

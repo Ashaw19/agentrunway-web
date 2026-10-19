@@ -23,6 +23,7 @@ import type { UserSettings, Transaction, CcaAsset } from "../types/database";
 import { computeGCI } from "../types/database";
 import { gstHstRate, gstHstLabel, calculate as calculateTax } from "./canadian-tax-engine";
 import { closingYearGCI, dealsInTaxYear, incomeReportingMethod, type IncomeReportingMethod } from "./tax-year";
+import { commissionHstInput, commissionHstTotals } from "./commission-hst-engine";
 
 // ── Expense key → T2125 line mapping ─────────────────────────────────────────
 // Maps each expense_item key to the correct T2125 line number and whether
@@ -342,7 +343,9 @@ export interface HomeOfficeResult {
 export interface GstHstResult {
   label: string;              // "HST" | "GST + QST" | "GST"
   rate: number;               // e.g. 0.13 for Ontario
-  collectedOnGCI: number;     // gciBase × rate
+  collectedOnGCI: number;     // per deal: the statement's HST when entered, else rate × its GCI
+  /** Deals whose HST is their commission statement's figure. */
+  statementDeals: number;
   /** The GCI the collected figure is on: the deals that closed in taxYear, under either income reporting method. */
   gciBase: number;
   remittedTotal: number;      // q1+q2+q3+q4
@@ -633,7 +636,13 @@ export function computeT2125(input: T2125Input): T2125Result {
   // GST/HST follows the closing year under either method: the income
   // reporting method is an income tax rule (closingYearGCI, tax-year.ts).
   const gstGciBase = closingYearGCI(closed, taxYear);
-  const collectedOnGCI = gstGciBase * gstRate;
+  // The HST each deal's commission statement shows when entered, else the
+  // rate × its commission (commission-hst-engine), as on the GST/HST return card.
+  const gstCommission = commissionHstTotals(
+    closed.filter((tx) => (tx.date ?? "").slice(0, 4) === String(taxYear)).map(commissionHstInput),
+    gstRate,
+  );
+  const collectedOnGCI = gstCommission.hst;
   // The remittances, the paid-on-expenses figure and the instalments paid are
   // stored for the current year only (user_settings): any other year leaves them out.
   const paymentsStored = input.paymentsYear === taxYear;
@@ -651,6 +660,7 @@ export function computeT2125(input: T2125Input): T2125Result {
     rate: gstRate,
     collectedOnGCI,
     gciBase: gstGciBase,
+    statementDeals: gstCommission.recordedCount,
     remittedTotal,
     paidOnExpenses,
     netPayable,

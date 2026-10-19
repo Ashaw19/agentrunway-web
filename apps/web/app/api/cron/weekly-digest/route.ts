@@ -173,7 +173,7 @@ export async function GET(req: NextRequest) {
       // Fetch closed transactions for this year (the dashboard's rows)
       const { data: txRows } = await admin
         .from("transactions")
-        .select("id, date, sale_price, commission_pct, team_split_pct, gci_override, status")
+        .select("id, date, sale_price, commission_pct, team_split_pct, gci_override, status, commission_hst")
         .eq("user_id", user.user_id)
         .eq("status", "closed")
         .gte("date", `${year}-01-01`)

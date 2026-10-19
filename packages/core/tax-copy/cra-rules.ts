@@ -96,7 +96,7 @@ export function gstHstReportNote(input: GstHstReportNoteInput): TaxCopy {
   }
 
   const fromStatements = statementDeals > 0
-    ? ` For ${statementDeals} deal${statementDeals === 1 ? "" : "s"}, it is the ${label} your commission statement shows; the rest are at the rate on the full commission.`
+    ? ` For ${statementDeals} deal${statementDeals === 1 ? "" : "s"}, it is the ${label} your commission statement shows; any other deal is at the rate on the full commission.`
     : "";
   return asTaxCopy(
     `${label} estimate: ${fmtCurrency(collectedYTD)} collected on YTD GCI of ${fmtCurrency(ytdGCI)}.${fromStatements} ${INPUT_TAX_CREDIT_NOTE}`,
@@ -920,7 +920,7 @@ export function commissionPaidDateHint(method: IncomeReportingMethod): TaxCopy {
  * the date (engines/commission-hst-engine.ts) and never picks it.
  */
 export const GST_HST_COMMISSION_TIMING_RULE: TaxCopy = asTaxCopy(
-  "Per CRA, GST/HST on a supply is payable on the earlier of the day it is paid and the day it becomes due. Payment becomes due on the earliest of the invoice date, the day an invoice would have been issued without undue delay, and the day payment is required under a written agreement.",
+  "Per CRA, GST/HST on a supply is payable on the earlier of the day it is paid and the day it becomes due. Payment becomes due on the earliest of the day the first invoice is issued, the invoice date, the day an invoice would have been issued without undue delay, and the day payment is required under a written agreement.",
 );
 
 /** The CRA page the rule above comes from. */
@@ -942,11 +942,11 @@ export const GST_HST_COMMISSION_TIMING_SETTING = {
 export function gstHstCommissionTimingHint(timing: GstHstCommissionTiming): TaxCopy {
   if (timing === "paid") {
     return asTaxCopy(
-      "The GST/HST return card on Expenses places each commission in the period of its Commission paid date, or of its closing date when that date is blank. Which date matches your agreement with your brokerage is a question for your accountant.",
+      "The GST/HST return card on Expenses places each commission in the period of its Commission paid date, or of its closing date when that date is blank. Changing this setting moves commissions between periods, including periods already filed. Which date matches your agreement with your brokerage is a question for your accountant.",
     );
   }
   return asTaxCopy(
-    "The GST/HST return card on Expenses places each commission in the period of its closing date. Which date matches your agreement with your brokerage is a question for your accountant.",
+    "The GST/HST return card on Expenses places each commission in the period of its closing date. Changing this setting moves commissions between periods, including periods already filed. Which date matches your agreement with your brokerage is a question for your accountant.",
   );
 }
 

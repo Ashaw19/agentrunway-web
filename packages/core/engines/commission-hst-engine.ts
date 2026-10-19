@@ -117,15 +117,18 @@ export interface CommissionHstLine {
 
 /**
  * One commission's line 101 and line 103 amounts. With the statement's HST:
- * that HST, on the commission it implies (HST ÷ rate). Without it: the rate
- * × the full commission.
+ * that HST, on the commission it implies (HST ÷ rate), never more than the
+ * full commission. A statement that shows $0 is $0 of HST on the full
+ * commission (line 101 is revenue whether or not HST was charged on it).
+ * Without a statement figure: the rate × the full commission.
  */
 export function commissionHst(input: CommissionHstInput, hstRate: number): CommissionHstLine {
   const gci = Number.isFinite(input.gci) ? input.gci : 0;
   const rate = Number.isFinite(hstRate) && hstRate > 0 ? hstRate : 0;
   const recorded = input.recordedHst;
   if (recorded != null && Number.isFinite(recorded) && recorded >= 0) {
-    return { base: rate > 0 ? recorded / rate : gci, hst: recorded, recorded: true };
+    const implied = rate > 0 && recorded > 0 ? recorded / rate : gci;
+    return { base: Math.min(implied, gci), hst: recorded, recorded: true };
   }
   return { base: gci, hst: gci * rate, recorded: false };
 }

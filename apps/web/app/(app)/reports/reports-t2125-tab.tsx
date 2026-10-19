@@ -1013,7 +1013,9 @@ export function ReportsT2125Tab({
                     <span className="font-medium">{fmtCurrency(result.gstHst.collectedOnGCI)}</span>
                   </div>
                   <p className="text-[10px] text-muted-foreground">
-                    Based on {fmtCurrency(result.gstHst.gciBase)} GCI × {(result.gstHst.rate * 100).toFixed(result.gstHst.rate === 0.14975 ? 3 : 0)}% rate.
+                    {result.gstHst.statementDeals > 0
+                      ? `On ${fmtCurrency(result.gstHst.gciBase)} GCI: the ${result.gstHst.label} your commission statements show for ${result.gstHst.statementDeals} deal${result.gstHst.statementDeals === 1 ? "" : "s"}, and ${(result.gstHst.rate * 100).toFixed(result.gstHst.rate === 0.14975 ? 3 : 0)}% of the full commission on any other.`
+                      : `Based on ${fmtCurrency(result.gstHst.gciBase)} GCI × ${(result.gstHst.rate * 100).toFixed(result.gstHst.rate === 0.14975 ? 3 : 0)}% rate.`}{" "}
                     Verify against your actual records.
                   </p>
                 </div>
