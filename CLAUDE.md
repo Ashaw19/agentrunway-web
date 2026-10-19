@@ -228,6 +228,9 @@ If you are looking for the one true version of something, it lives here.
 | Org/team types | `packages/core/types/organizations.ts` |
 | Supabase migrations | `apps/web/supabase/migrations/` |
 | Flight Crew system prompts | `apps/web/lib/flight-crew/system-prompts.ts` |
+| AI run ledger (every model call) | `apps/web/lib/ai/run-ledger.ts` (middleware on `lib/ai/provider.ts` models; pass `aiCallHeaders({ userId, feature })`) |
+| AI write ledger + undo | `apps/web/lib/ai/write-ledger.ts`, `packages/core/lib/ai-undo.ts`, `packages/core/lib/ai-activity*.ts` |
+| AI eval harness | `apps/web/evals/` (`pnpm --filter agentrunway-web eval`; README inside) |
 | Flight Crew persona definitions | `apps/web/lib/flight-crew/personas.ts` |
 | Dashboard (display source of truth) | `apps/web/app/(app)/dashboard/` |
 | Web app routes | `apps/web/app/` (App Router) |

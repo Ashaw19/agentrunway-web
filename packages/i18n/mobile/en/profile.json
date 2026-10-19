@@ -32,7 +32,9 @@
     "importContacts": "Import from Contacts",
     "importContactsDesc": "Add contacts who aren't clients yet",
     "mileage": "Mileage",
-    "mileageDesc": "Log a trip and odometer readings"
+    "mileageDesc": "Log a trip and odometer readings",
+    "aiActivity": "AI activity",
+    "aiActivityDesc": "What Flight Crew changed today. Undo it here."
   },
   "account": {
     "title": "Account",
@@ -353,5 +355,23 @@
     "couldntReach": "Couldn't reach them",
     "justDone": "Just mark done",
     "footnote": "Saving logs it on their profile and takes them off Flight Control for 14 days. Couldn't reach them adds a note and moves this to tomorrow."
+  },
+  "aiActivity": {
+    "today": "Today",
+    "undo": "Undo",
+    "cancel": "Cancel",
+    "confirmTitle": "Undo this change?",
+    "undoFailedTitle": "Couldn't undo",
+    "networkError": "Couldn't reach Agent Runway. Check your connection and try again.",
+    "signedOut": "Sign in again, then try once more.",
+    "loadError": "Couldn't load AI activity. Pull down to try again.",
+    "emptyTitle": "Nothing changed today",
+    "emptySubtitle": "Flight Crew hasn't changed any of your records today. The web's AI activity page shows the last 30 days.",
+    "inChat": "in chat",
+    "afterApproval": "after you approved it",
+    "footnote": "Undo puts back everything one change wrote, together, or nothing if a record changed since. A record Flight Crew deleted while other records linked to it can't be brought back. The last 30 days and every AI call are on the web: Settings → AI activity.",
+    "deletesClientWarning": "This deletes the client and can't be undone. Their profile, notes and activity history go with them.",
+    "allOrNothing": "Everything above is put back together, or nothing is if a record changed since.",
+    "deleteClient": "Delete client"
   }
 }

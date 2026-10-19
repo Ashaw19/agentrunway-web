@@ -66,6 +66,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { VoiceQuizModal } from "./voice-quiz-modal";
 import { DataExportCard } from "./data-export";
 import { WebsiteLeadsCard } from "./website-leads";
+import { AiActivityCard } from "./ai-activity-card";
 import {
   SPECIALTY_OPTIONS,
   MARKET_TYPE_OPTIONS,
@@ -2759,6 +2760,9 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
 
       {/* Card — Website leads (00173): the agent's own site posts into the CRM */}
       <WebsiteLeadsCard />
+
+      {/* Card — AI activity (00182): what Flight Crew changed, with Undo */}
+      <AiActivityCard />
 
       {/* Card 9 — Plan & Billing */}
       <PlanBillingCard settings={settings} isPro={isProProp} />

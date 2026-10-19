@@ -111,6 +111,8 @@ const EXPORT_TABLES: readonly ExportTable[] = [
   { table: "notification_log", filename: "notification-log.csv", description: "Past notifications sent to you" },
   { table: "import_telemetry", filename: "import-history.csv", description: "Audit trail of CSV/document imports" },
   { table: "mcp_events", filename: "mcp-events.csv", description: "MCP / Flight Crew activity log" },
+  { table: "ai_runs", filename: "ai-runs.csv", description: "AI calls made for you: feature, model, tokens, estimated cost, outcome (no prompts or replies)" },
+  { table: "ai_run_writes", filename: "ai-changes.csv", description: "Changes Flight Crew made to your records, with each record before and after (AI-written message text is not kept)" },
   { table: "user_security_events", filename: "security-events.csv", description: "Per-user security audit events (auth, billing, etc.)" },
 
   // ── Team-leader rows you own ──────────────────────────────────────────────

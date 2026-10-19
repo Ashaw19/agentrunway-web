@@ -2292,5 +2292,62 @@ export interface ClientCommunicationLog {
   updated_at:   string;
 }
 
+// ── AI run ledger — migration 00182 ─────────────────────────────────────────
+// ai_runs: one row per model call (no prompt or completion text).
+// ai_run_writes: one row per write a Flight Crew tool made, with the row
+// before and after, so the agent can see what changed and undo it.
+// Written by the service role only; the owner reads their own rows.
+
+export type AiRunOutcome = "ok" | "error" | "aborted";
+export type AiRunCallType = "generate" | "stream";
+
+export interface AiRun {
+  id:                  string;
+  user_id:             string | null;   // null = a system job
+  feature:             string;
+  provider:            string;
+  model_id:            string;
+  request_id:          string | null;
+  call_type:           AiRunCallType;
+  /** All input tokens, cached ones included. */
+  input_tokens:        number | null;
+  output_tokens:       number | null;
+  cache_read_tokens:   number | null;
+  cache_write_tokens:  number | null;
+  reasoning_tokens:    number | null;
+  /** List-price estimate (lib/ai/provider.ts MODEL_PRICES), not the invoice. */
+  estimated_cost_usd:  number | null;
+  latency_ms:          number | null;
+  outcome:             AiRunOutcome;
+  error_class:         string | null;
+  finish_reason:       string | null;
+  created_at:          string;
+}
+
+export type AiWriteAction = "insert" | "update" | "delete";
+export type AiWriteSource = "chat" | "approval" | "mcp" | "other";
+
+export interface AiRunWrite {
+  id:            string;
+  user_id:       string;
+  ai_run_id:     string | null;
+  request_id:    string | null;
+  tool_call_id:  string;
+  tool_name:     string;
+  source:        AiWriteSource;
+  seq:           number;
+  table_name:    string;
+  row_id:        string | null;
+  action:        AiWriteAction;
+  before_image:  Record<string, unknown> | null;
+  after_image:   Record<string, unknown> | null;
+  outcome:       "ok" | "error";
+  error_class:   string | null;
+  /** Set when undo must never be offered for this write (plain words). */
+  irreversible_reason: string | null;
+  undone_at:     string | null;
+  created_at:    string;
+}
+
 // ── Organization types (re-export from dedicated module) ────────────────────
 export * from "./organizations";

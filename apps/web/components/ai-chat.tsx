@@ -1162,6 +1162,8 @@ export function AiChat({ financialContext }: Props) {
           body: JSON.stringify({
             toolName: approval.toolName,
             args: approval.args,
+            // Groups this action's writes in the AI activity ledger.
+            toolCallId: approval.toolCallId,
           }),
         });
 

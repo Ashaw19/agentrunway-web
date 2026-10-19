@@ -169,7 +169,7 @@ export const softwareApplicationSchema = {
     "T2125 reconciliation and HST input tax credits",
     "P10-P90 probabilistic year-end forecasting",
     "Industry-cohort peer benchmarking",
-    "MCP server with 31 tools (21 read, 10 write) for clients such as Claude and Cursor",
+    "MCP server with 32 tools (22 read, 10 write) for clients such as Claude and Cursor",
     "Voice-first mobile input with intent classification",
     "Mileage log and CRA's simplified vehicle logbook",
   ],

@@ -12,6 +12,8 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { countAIFailures } from "@agent-runway/core/lib/ai-activity-load";
+import { AI_LEDGER_RETENTION_MONTHS, AI_WRITE_IMAGE_RETENTION_DAYS } from "@agent-runway/core/lib/ai-activity";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -44,6 +46,17 @@ interface HealthResult {
   };
   storage: {
     bucketAccessible: boolean;
+    error?: string;
+  };
+  /** AI run ledger (00182): failures across all users, last 24 hours. */
+  aiLedger: {
+    failedRuns: number | null;
+    failedWrites: number | null;
+    /** Before/after images cleared past the retention window this run. */
+    imagesCleared: number | null;
+    /** Ledger rows deleted past AI_LEDGER_RETENTION_MONTHS this run. */
+    runsDeleted: number | null;
+    writesDeleted: number | null;
     error?: string;
   };
   anomalies: string[];
@@ -158,7 +171,65 @@ export async function GET(req: NextRequest) {
     storage = { bucketAccessible: false, error: msg };
   }
 
-  // 4. Determine overall status
+  // 4. AI run ledger: failed AI calls and failed Flight Crew writes in the
+  //    last 24 hours, across all users. A write path that breaks (every
+  //    activity insert failed 2026-04-12 → 2026-10-06, found six months
+  //    later) shows here, and in Sentry, the next morning.
+  let aiLedger: HealthResult["aiLedger"] = { failedRuns: null, failedWrites: null, imagesCleared: null, runsDeleted: null, writesDeleted: null };
+  try {
+    const f = await countAIFailures(admin, null);
+    aiLedger = { failedRuns: f.failedRuns, failedWrites: f.failedWrites, imagesCleared: null, runsDeleted: null, writesDeleted: null };
+    if (f.unknown) {
+      const msg = "AI ledger failure counts could not be read";
+      anomalies.push(msg);
+      console.error(`[db-health] ${msg}`);
+    } else if (f.failedRuns + f.failedWrites > 0) {
+      const msg = `AI ledger, last 24h: ${f.failedRuns} failed AI calls, ${f.failedWrites} failed Flight Crew writes`;
+      anomalies.push(msg);
+      console.error(`[db-health] ${msg}`);
+    }
+
+    // Housekeeping: a change's before/after images are kept for the undo
+    // window only, so a record the AI deleted doesn't live on in the ledger.
+    const cutoff = new Date(Date.now() - AI_WRITE_IMAGE_RETENTION_DAYS * 86_400_000).toISOString();
+    const { data: cleared, error: clearError } = await admin
+      .from("ai_run_writes")
+      .update({ before_image: null, after_image: null })
+      .lt("created_at", cutoff)
+      .or("before_image.not.is.null,after_image.not.is.null")
+      .select("id");
+    if (clearError) {
+      aiLedger.error = clearError.message;
+      console.error(`[db-health] AI ledger image cleanup failed: ${clearError.message}`);
+    } else {
+      aiLedger.imagesCleared = (cleared ?? []).length;
+    }
+
+    // Retention: the ledger keeps 13 months (a year plus a month of overlap
+    // for year-over-year cost), then the rows go.
+    const keepFrom = new Date();
+    keepFrom.setUTCMonth(keepFrom.getUTCMonth() - AI_LEDGER_RETENTION_MONTHS);
+    for (const [table, key] of [["ai_runs", "runsDeleted"], ["ai_run_writes", "writesDeleted"]] as const) {
+      const { data: gone, error: delError } = await admin
+        .from(table)
+        .delete()
+        .lt("created_at", keepFrom.toISOString())
+        .select("id");
+      if (delError) {
+        aiLedger.error = delError.message;
+        console.error(`[db-health] ${table} retention delete failed: ${delError.message}`);
+      } else {
+        aiLedger[key] = (gone ?? []).length;
+      }
+    }
+  } catch (e) {
+    const msg = `AI ledger check threw: ${e instanceof Error ? e.message : String(e)}`;
+    anomalies.push(msg);
+    console.error(`[db-health] ${msg}`);
+    aiLedger = { failedRuns: null, failedWrites: null, imagesCleared: null, runsDeleted: null, writesDeleted: null, error: msg };
+  }
+
+  // 5. Determine overall status
   const allTablesOk = tableChecks.every((t) => t.ok);
   const status: HealthResult["status"] =
     !allTablesOk || !storage.bucketAccessible
@@ -173,6 +244,7 @@ export async function GET(req: NextRequest) {
     tables: tableChecks,
     recentActivity,
     storage,
+    aiLedger,
     anomalies,
   };
 

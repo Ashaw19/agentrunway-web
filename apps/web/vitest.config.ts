@@ -8,7 +8,9 @@ export default defineConfig({
   test: {
     globals: true,
     environment: "node",
-    include: ["lib/**/__tests__/**/*.test.ts"],
+    // The eval harness's deterministic suites are fast, so they gate every
+    // run too; the live-model ones run only with `pnpm eval` (evals/README.md).
+    include: ["lib/**/__tests__/**/*.test.ts", "evals/deterministic/**/*.eval.ts"],
   },
   resolve: {
     alias: [

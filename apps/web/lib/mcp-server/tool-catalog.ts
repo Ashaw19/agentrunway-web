@@ -88,6 +88,7 @@ export const MCP_TOOL_CATALOG: McpCatalogGroup[] = [
     tools: [
       { name: "get_flight_control_priorities", desc: "Outreach queue: clients due for follow-up, with drafted messages waiting for review", access: "read" },
       { name: "get_user_settings", desc: "Profile, goals, business settings, subscription", access: "read" },
+      { name: "get_ai_activity", desc: "What the in-app AI changed in your records and which AI calls ran, with failures and estimated cost", access: "read" },
       { name: "get_server_info", desc: "Server version and the list of available tools", access: "read" },
     ],
   },

@@ -4,19 +4,25 @@
  * Executes a tool that was previously gated by needsApproval.
  * The frontend sends the original tool call details after the user confirms.
  *
- * Body: { toolName: string, args: Record<string, unknown> }
+ * Body: { toolName: string, args: Record<string, unknown>, toolCallId?: string }
  * Returns: { result: string }
+ *
+ * The tool runs on a client whose fetch is `ledgerFetch`, inside a ledger
+ * context for its tool call, so every row it writes is recorded in
+ * ai_run_writes with the row before and after (lib/ai/write-ledger.ts).
+ * That is what the AI activity page lists and undoes.
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { requirePro } from "@/lib/require-pro";
 import { createAgentTools, NEEDS_APPROVAL_TOOLS } from "@/lib/ai/tools";
+import { ledgerFetch, withWriteLedger } from "@/lib/ai/write-ledger";
 import { log } from "@/lib/logger";
 
 export async function POST(req: NextRequest) {
   // ── Auth guard ──────────────────────────────────────────────────────────
-  const supabase = await createClient();
+  const supabase = await createClient({ fetch: ledgerFetch });
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -26,9 +32,9 @@ export async function POST(req: NextRequest) {
   if (!proCheck.allowed) return proCheck.response!;
 
   // ── Parse & validate ────────────────────────────────────────────────────
-  let toolName: unknown, args: unknown;
+  let toolName: unknown, args: unknown, toolCallId: unknown;
   try {
-    ({ toolName, args } = await req.json());
+    ({ toolName, args, toolCallId } = await req.json());
   } catch {
     return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
   }
@@ -48,7 +54,10 @@ export async function POST(req: NextRequest) {
 
   // ── Execute the tool ────────────────────────────────────────────────────
   try {
-    const allTools = createAgentTools(supabase, user.id);
+    const allTools = withWriteLedger(createAgentTools(supabase, user.id), {
+      userId: user.id,
+      source: "approval",
+    });
     const targetTool = allTools[toolName];
 
     if (!targetTool || !("execute" in targetTool) || typeof targetTool.execute !== "function") {
@@ -60,8 +69,14 @@ export async function POST(req: NextRequest) {
     // The execute function expects the parsed args object.
     // Pass a minimal options object — the tool only uses the args.
     const executeFn = targetTool.execute as (args: unknown, options?: unknown) => Promise<unknown>;
+    // The chat's own tool call id, so the ledger groups this action's writes
+    // under the card the agent approved.
+    const callId =
+      typeof toolCallId === "string" && toolCallId.trim()
+        ? toolCallId.trim().slice(0, 120)
+        : `approved-${crypto.randomUUID()}`;
     const result = await executeFn(args, {
-      toolCallId: `approved-${Date.now()}`,
+      toolCallId: callId,
       messages: [],
       abortSignal: new AbortController().signal,
     });

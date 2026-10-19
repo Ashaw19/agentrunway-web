@@ -11,7 +11,7 @@
  */
 
 import { generateText } from "ai";
-import { models, heliconeHeaders } from "@/lib/ai/provider";
+import { models, aiCallHeaders } from "@/lib/ai/provider";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient }       from "@/lib/supabase/server";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
@@ -120,7 +120,7 @@ export async function POST(req: NextRequest) {
       ],
       temperature: 0.1,
       maxOutputTokens: 1024,
-      headers: heliconeHeaders({ userId: user.id, feature: "extract-property" }),
+      headers: aiCallHeaders({ userId: user.id, feature: "extract-property" }),
     });
 
     // Parse JSON from response (may have markdown code fences)

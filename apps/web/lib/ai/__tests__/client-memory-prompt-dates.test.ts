@@ -13,7 +13,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 vi.mock("ai", () => ({ generateText: vi.fn() }));
 vi.mock("@/lib/ai/provider", () => ({
   models: { default: "test-default", fallback: "test-fallback" },
-  heliconeHeaders: () => ({}),
+  aiCallHeaders: () => ({}),
 }));
 
 import { buildMemoryPrompt } from "../client-memory-engine";

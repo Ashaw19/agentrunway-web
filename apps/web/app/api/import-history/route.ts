@@ -1,5 +1,5 @@
 import { generateText } from "ai";
-import { models, heliconeHeaders } from "@/lib/ai/provider";
+import { models, aiCallHeaders } from "@/lib/ai/provider";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
@@ -675,7 +675,7 @@ export async function POST(req: NextRequest) {
       ? body.yearHint
       : undefined;
 
-  const aiHeaders = heliconeHeaders({ userId: user.id, feature: "import-history" });
+  const aiHeaders = aiCallHeaders({ userId: user.id, feature: "import-history" });
 
   try {
     // Parsed + merged extraction result (year + deals), assigned by whichever

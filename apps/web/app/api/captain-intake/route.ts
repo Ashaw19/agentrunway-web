@@ -15,7 +15,7 @@
 import { streamText } from "ai";
 import { NextRequest } from "next/server";
 import { checkPublicRateLimit, ipKey, rateLimitHeaders } from "@/lib/rate-limit";
-import { models } from "@/lib/ai/provider";
+import { models, aiCallHeaders } from "@/lib/ai/provider";
 
 export const maxDuration = 60;
 
@@ -150,6 +150,8 @@ export async function POST(req: NextRequest) {
   // ── Stream response ────────────────────────────────────────────────────────
   const result = streamText({
     model:       models.default,
+    // Public, signed-out intake: no user, so the run is logged with none.
+    headers:     aiCallHeaders({ feature: "captain-intake" }),
     system:      PUBLIC_CAPTAIN_SYSTEM_PROMPT,
     messages,
     maxOutputTokens: 450,

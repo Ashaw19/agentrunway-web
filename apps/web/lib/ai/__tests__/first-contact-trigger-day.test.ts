@@ -25,7 +25,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 vi.mock("ai", () => ({ generateText: vi.fn() }));
 vi.mock("@/lib/ai/provider", () => ({
   models: { default: "test-default", fallback: "test-fallback" },
-  heliconeHeaders: () => ({}),
+  aiCallHeaders: () => ({}),
 }));
 // The route module's request-handling imports; not exercised here.
 vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));

@@ -6,7 +6,7 @@
  */
 
 import { generateText } from "ai";
-import { models, heliconeHeaders } from "@/lib/ai/provider";
+import { models, aiCallHeaders } from "@/lib/ai/provider";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
@@ -80,7 +80,7 @@ export async function POST(req: NextRequest) {
       prompt: `Report type: ${report_type}\n\nReport data:\n${JSON.stringify(report_data, null, 2)}`,
       maxOutputTokens: 200,
       temperature: 0.4,
-      headers: heliconeHeaders({
+      headers: aiCallHeaders({
         userId: user.id,
         feature: "team-insights",
       }),

@@ -18,7 +18,7 @@
 
 import { fetchAllRows } from "@/lib/supabase/fetch-all";
 import { generateText } from "ai";
-import { models, heliconeHeaders } from "@/lib/ai/provider";
+import { models, aiCallHeaders } from "@/lib/ai/provider";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient }       from "@/lib/supabase/server";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
@@ -775,7 +775,7 @@ async function draftItem(
     ].filter(Boolean).join("\n\n");
     const fullPrompt = contextSuffix ? `${prompt}\n\n${contextSuffix}` : prompt;
 
-    const aiHeaders = heliconeHeaders({ userId, feature: "detect-opportunities" });
+    const aiHeaders = aiCallHeaders({ userId, feature: "detect-opportunities" });
 
     // Primary: Claude Sonnet via Vercel AI SDK, fallback to Groq Llama
     let raw: string;

@@ -18,7 +18,7 @@
 
 import { generateText } from "ai";
 import { formatBirthdate } from "@agent-runway/core/lib/contact-match";
-import { models, heliconeHeaders } from "@/lib/ai/provider";
+import { models, aiCallHeaders } from "@/lib/ai/provider";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { atlanticISODate } from "@agent-runway/core/lib/local-date";
 import { MEMORY_DEAL_COLUMNS, dealHistoryPrompt, type MemoryDeal } from "@/lib/ai/client-memory-deals";
@@ -340,7 +340,7 @@ export async function updateClientMemory(
 
     // 3. Build prompt and call Claude (Sonnet) with Groq fallback
     const prompt = buildMemoryPrompt(data);
-    const aiHeaders = heliconeHeaders({ userId, feature: "client-memory" });
+    const aiHeaders = aiCallHeaders({ userId, feature: "client-memory" });
     let rawContent: string | null = null;
 
     try {

@@ -41,6 +41,23 @@ BEGIN
     RAISE EXCEPTION 'behaviour check: a later note moved last_contact_at';
   END IF;
 
+  -- 00182: AI undo asks fn_ai_row_references what points at a row before it
+  -- deletes one the AI created. Its SQL is dynamic, which plpgsql_check
+  -- can't see, so run it here over the whole schema: it must find the three
+  -- activities above, and none once they are excluded (same tool call).
+  IF coalesce((SELECT refs FROM fn_ai_row_references('clients', v_client)
+               WHERE child_table = 'contact_activities' AND child_column = 'client_id'), 0) <> 3 THEN
+    RAISE EXCEPTION 'behaviour check: fn_ai_row_references did not count the client''s 3 activities';
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM fn_ai_row_references(
+      'clients', v_client,
+      (SELECT array_agg(id) FROM contact_activities WHERE client_id = v_client))
+    WHERE child_table = 'contact_activities'
+  ) THEN
+    RAISE EXCEPTION 'behaviour check: fn_ai_row_references ignored p_exclude_ids';
+  END IF;
+
   RAISE NOTICE 'behaviour checks: all passed';
 END $$;
 
@@ -168,4 +185,142 @@ BEGIN
   END IF;
 
   RAISE NOTICE 'behaviour checks (consent ledger): all passed';
+END $$;
+
+-- 00182: fn_ai_undo_apply runs a whole AI undo as one transaction. Its SQL is
+-- dynamic, so exercise it here: a record that changed since rolls everything
+-- back; otherwise deleting a logged call and putting back what its trigger
+-- did to the client (last contact, first contact, Cruising → Boarding) land
+-- together, and the ledger row is marked undone.
+DO $$
+DECLARE
+  v_user   uuid := '00000000-0000-0000-0000-000000000132';
+  v_client uuid;
+  v_act    uuid;
+  v_later  uuid;
+  v_vehicle uuid;
+  v_write  uuid;
+  v_before jsonb;
+  v_after  jsonb;
+  v_n      integer;
+BEGIN
+  PERFORM set_config('request.jwt.claim.sub', v_user::text, true);
+
+  INSERT INTO clients (user_id, name, name_search, status)
+  VALUES (v_user, 'CI Undo Check', 'ci undo check', 'cruising')
+  RETURNING id INTO v_client;
+  SELECT to_jsonb(c) INTO v_before FROM clients c WHERE c.id = v_client;
+
+  -- Undo never touches CASL evidence (00183) or an opt-out, whatever steps
+  -- it is handed.
+  BEGIN
+    PERFORM fn_ai_undo_apply(
+      jsonb_build_array(jsonb_build_object('op', 'delete', 'table', 'client_email_consents', 'pk', 'id', 'row_id', gen_random_uuid()::text)),
+      ARRAY[]::uuid[]);
+    RAISE EXCEPTION 'behaviour check: fn_ai_undo_apply accepted a step on a consent record';
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM NOT LIKE 'ai_undo_bad_step: client_email_consents is never changed by undo%' THEN RAISE; END IF;
+  END;
+  BEGIN
+    PERFORM fn_ai_undo_apply(
+      jsonb_build_array(jsonb_build_object('op', 'update', 'table', 'clients', 'pk', 'id', 'row_id', v_client::text,
+                                           'set', jsonb_build_object('email_opt_out_at', NULL))),
+      ARRAY[]::uuid[]);
+    RAISE EXCEPTION 'behaviour check: fn_ai_undo_apply accepted clearing an opt-out';
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM NOT LIKE 'ai_undo_bad_step: undo never changes an opt-out%' THEN RAISE; END IF;
+  END;
+
+  -- The AI's call, an hour ago (created_at is set explicitly: now() is fixed
+  -- for the whole DO block).
+  INSERT INTO contact_activities (user_id, client_id, type, description, activity_date, created_at)
+  VALUES (v_user, v_client, 'call', 'ci undo check', now() - interval '1 hour', now() - interval '1 hour')
+  RETURNING id INTO v_act;
+  SELECT to_jsonb(c) INTO v_after FROM clients c WHERE c.id = v_client;
+  IF v_after ->> 'last_contact_at' IS NULL THEN
+    RAISE EXCEPTION 'behaviour check: the call did not set last_contact_at, so the undo check proves nothing';
+  END IF;
+
+  INSERT INTO ai_run_writes (user_id, tool_call_id, tool_name, source, table_name, row_id, action, after_image)
+  VALUES (v_user, 'ci-undo', 'logContactActivity', 'approval', 'contact_activities', v_act::text, 'insert', '{}'::jsonb)
+  RETURNING id INTO v_write;
+
+  -- A record that changed since: nothing happens.
+  BEGIN
+    PERFORM fn_ai_undo_apply(
+      jsonb_build_array(jsonb_build_object(
+        'op', 'delete', 'table', 'contact_activities', 'pk', 'id', 'row_id', v_act::text,
+        'expect', jsonb_build_object('description', 'not what is there'))),
+      ARRAY[v_write]);
+    RAISE EXCEPTION 'behaviour check: fn_ai_undo_apply ignored a record that changed';
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM NOT LIKE 'ai_undo_changed%' THEN RAISE; END IF;
+  END;
+  IF NOT EXISTS (SELECT 1 FROM contact_activities WHERE id = v_act)
+     OR (SELECT undone_at FROM ai_run_writes WHERE id = v_write) IS NOT NULL THEN
+    RAISE EXCEPTION 'behaviour check: a refused AI undo changed something';
+  END IF;
+
+  -- A call logged since, dated earlier: the trigger leaves the client as it
+  -- was (last_contact_at only moves forward), so only no_later can tell.
+  INSERT INTO contact_activities (user_id, client_id, type, description, activity_date, created_at)
+  VALUES (v_user, v_client, 'call', 'logged later, dated earlier', now() - interval '2 days', now())
+  RETURNING id INTO v_later;
+  IF (SELECT to_jsonb(c) FROM clients c WHERE c.id = v_client) IS DISTINCT FROM v_after THEN
+    RAISE EXCEPTION 'behaviour check: the earlier-dated call changed the client, so the no_later check proves nothing';
+  END IF;
+  BEGIN
+    PERFORM fn_ai_undo_apply(
+      jsonb_build_array(
+        jsonb_build_object('op', 'update', 'table', 'clients', 'pk', 'id', 'row_id', v_client::text,
+                           'expect', v_after,
+                           'set', jsonb_build_object('last_contact_at', v_before -> 'last_contact_at'),
+                           'no_later', jsonb_build_object(
+                             'table', 'contact_activities', 'column', 'client_id', 'value', v_client::text,
+                             'after', (now() - interval '1 hour')::text, 'exclude_ids', jsonb_build_array(v_act::text),
+                             'skip_column', 'type', 'skip_value', 'note'))),
+      ARRAY[v_write]);
+    RAISE EXCEPTION 'behaviour check: fn_ai_undo_apply rolled a client back past a call logged since';
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM NOT LIKE 'ai_undo_later%' THEN RAISE; END IF;
+  END;
+  -- A note logged since doesn't count (a note isn't contact, 00171).
+  UPDATE contact_activities SET type = 'note' WHERE id = v_later;
+
+  -- The real undo: both steps, one transaction.
+  v_n := fn_ai_undo_apply(
+    jsonb_build_array(
+      jsonb_build_object('op', 'delete', 'table', 'contact_activities', 'pk', 'id', 'row_id', v_act::text,
+                         'expect', jsonb_build_object('type', 'call', 'client_id', v_client)),
+      jsonb_build_object('op', 'update', 'table', 'clients', 'pk', 'id', 'row_id', v_client::text,
+                         'expect', v_after,
+                         'set', jsonb_build_object(
+                           'status', v_before -> 'status',
+                           'last_contact_at', v_before -> 'last_contact_at',
+                           'first_contacted_at', v_before -> 'first_contacted_at'),
+                         'no_later', jsonb_build_object(
+                           'table', 'contact_activities', 'column', 'client_id', 'value', v_client::text,
+                           'after', (now() - interval '1 hour')::text, 'exclude_ids', jsonb_build_array(v_act::text),
+                           'skip_column', 'type', 'skip_value', 'note'))),
+    ARRAY[v_write]);
+  IF v_n <> 2
+     OR EXISTS (SELECT 1 FROM contact_activities WHERE id = v_act)
+     OR (SELECT status FROM clients WHERE id = v_client) <> 'cruising'
+     OR (SELECT last_contact_at FROM clients WHERE id = v_client) IS NOT NULL
+     OR (SELECT undone_at FROM ai_run_writes WHERE id = v_write) IS NULL THEN
+    RAISE EXCEPTION 'behaviour check: fn_ai_undo_apply did not undo the call and its trigger effects together (n=%)', v_n;
+  END IF;
+
+  -- Composite foreign keys count (00184: (user_id, vehicle_id) → vehicles
+  -- (user_id, id)), so undoing "created a vehicle" can't cascade away a
+  -- logbook period logged against it since.
+  INSERT INTO vehicles (user_id, name) VALUES (v_user, 'CI Undo Car') RETURNING id INTO v_vehicle;
+  INSERT INTO vehicle_logbook_periods (user_id, vehicle_id, kind, start_date, end_date)
+  VALUES (v_user, v_vehicle, 'base', '2026-01-01', '2026-12-31');
+  IF coalesce((SELECT refs FROM fn_ai_row_references('vehicles', v_vehicle)
+               WHERE child_table = 'vehicle_logbook_periods' AND child_column = 'vehicle_id'), 0) <> 1 THEN
+    RAISE EXCEPTION 'behaviour check: fn_ai_row_references missed a composite foreign key';
+  END IF;
+
+  RAISE NOTICE 'behaviour checks: AI undo passed';
 END $$;

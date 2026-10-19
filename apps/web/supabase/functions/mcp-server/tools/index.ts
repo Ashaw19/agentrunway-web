@@ -10,6 +10,7 @@ import { getOutreachTools } from "./outreach.ts";
 import { getSettingsTools } from "./settings.ts";
 import { getCaptureTools } from "./capture.ts";
 import { getConsentTools } from "./consent.ts";
+import { getAiActivityTools } from "./ai-activity.ts";
 
 // MCP tool annotations (per MCP spec).
 // These are behavioral hints for clients — they do NOT enforce anything
@@ -102,8 +103,10 @@ export function buildToolRegistry(
                   "capture_note", "save_captured_note",
                   // CASL consent ledger (00183)
                   "get_client_consent", "list_consent_lapsing", "record_consent", "withdraw_consent",
+                  // AI run ledger (00182)
+                  "get_ai_activity",
                 ],
-                phase: "Phase 1 + Opportunities + Note capture + CASL consent + Vehicle logbook — 31 tools live",
+                phase: "Phase 1 + Opportunities + Note capture + CASL consent + Vehicle logbook + AI activity — 32 tools live",
               },
               null,
               2,
@@ -124,5 +127,6 @@ export function buildToolRegistry(
     ...getSettingsTools(supabase, userId),     // Step 9
     ...getCaptureTools(supabase, userId, accessToken), // Note capture (2026-10-18)
     ...getConsentTools(supabase, userId),      // CASL consent ledger (00183)
+    ...getAiActivityTools(supabase, userId),   // AI run ledger (00182)
   ];
 }

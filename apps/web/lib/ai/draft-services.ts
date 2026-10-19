@@ -28,7 +28,7 @@
 
 import { generateText } from "ai";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { models, heliconeHeaders } from "@/lib/ai/provider";
+import { models, aiCallHeaders } from "@/lib/ai/provider";
 import {
   type Tone,
   AGENT_RUNWAY_VOICE,
@@ -770,7 +770,7 @@ export async function draftOutreachForClient(input: {
     ].filter(Boolean).join("\n\n");
 
     const fullPrompt = contextSuffix ? `${prompt}\n\n${contextSuffix}` : prompt;
-    const aiHeaders = heliconeHeaders({ userId, feature: "draft-outreach" });
+    const aiHeaders = aiCallHeaders({ userId, feature: "draft-outreach" });
 
     let raw: string;
     try {
@@ -989,7 +989,7 @@ Respond in this exact JSON format:
       prompt: userPrompt,
       temperature: 0.7,
       maxOutputTokens: 800,
-      headers: heliconeHeaders({ userId, feature: "listing-description" }),
+      headers: aiCallHeaders({ userId, feature: "listing-description" }),
     });
 
     const jsonMatch = raw.match(/\{[\s\S]*\}/);
@@ -1097,7 +1097,7 @@ export async function draftNewsletter(input: {
   }
 
   try {
-    const aiHeaders = heliconeHeaders({ userId, feature: "draft-newsletter" });
+    const aiHeaders = aiCallHeaders({ userId, feature: "draft-newsletter" });
     let raw: string;
     try {
       const { text } = await generateText({
@@ -1224,7 +1224,7 @@ Remember: 150–250 words, soft CTA, 5–8 hashtags on a single line at the end,
 Canadian English, no tax/financial advice, no AI-flag phrases.`;
 
   try {
-    const aiHeaders = heliconeHeaders({ userId, feature: "draft-social-post" });
+    const aiHeaders = aiCallHeaders({ userId, feature: "draft-social-post" });
     let raw: string;
     try {
       const { text } = await generateText({
@@ -1409,7 +1409,7 @@ OUTPUT RULES:
     return { status: "error", reason: "AI service not configured", clientName: clientDisplayName };
   }
 
-  const aiHeaders = heliconeHeaders({ userId, feature: "draft-workflow-message" });
+  const aiHeaders = aiCallHeaders({ userId, feature: "draft-workflow-message" });
 
   let raw: string;
   try {
