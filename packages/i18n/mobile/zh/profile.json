@@ -321,5 +321,12 @@
     "errorBody": "Could not save. Please try again.",
     "infoBanner": "Advanced settings like brokerage fees, seasonal weights, and tax configuration are managed on the web dashboard.",
     "cashReserveNote": "Your cash reserve is one input the Runway Score estimate may use. It is not a target."
+  },
+  "receiptLog": {
+    "periodRange": "{{period}} · {{from}} to {{to}}",
+    "noDate": "No date",
+    "receiptCount": "{{count}} receipt",
+    "receiptCount_plural": "{{count}} receipts",
+    "receiptCountPartial": "{{shown}} of {{total}} receipts"
   }
 }

@@ -20,9 +20,12 @@ import {
   RECEIPT_LIST_COLUMNS,
   RECEIPT_LIST_PAGE,
   receiptListDateFilter,
+  receiptSectionCount,
+  receiptSectionTitle,
   receiptsForYear,
   receiptsInPeriod,
 } from "../receipt-list";
+import { receiptSections } from "@agent-runway/core/lib/receipt-sections";
 import { computeGST34 } from "@agent-runway/core/engines/gst34-engine";
 import { getFilingPeriods } from "@agent-runway/core/engines/filing-period-engine";
 
@@ -141,5 +144,63 @@ describe("REGRESSION — the Expenses page does not compute from the on-screen l
       expect(src).toContain(".select(RECEIPT_LIST_COLUMNS)");
       expect(src).toContain(".or(receiptListDateFilter(year))");
     }
+  });
+});
+
+describe("the receipt log's period headings (2026-10-19)", () => {
+  const rows = [
+    { id: "q4", expense_date: "2026-10-12", created_at: "2026-10-12T15:00:00Z" },
+    { id: "q1", expense_date: "2026-03-31", created_at: "2026-10-19T15:00:00Z" },
+    { id: "q2", expense_date: "2026-04-01", created_at: "2026-01-02T15:00:00Z" },
+    { id: "none", expense_date: null, created_at: "2026-10-19T16:00:00Z" },
+  ];
+
+  it("quarterly: the quarter and its months, in receipt-date order, undated last", () => {
+    const { sections } = receiptSections(rows, "quarterly");
+    expect(sections.map(receiptSectionTitle)).toEqual([
+      "Q4 2026 · Oct to Dec",
+      "Q2 2026 · Apr to Jun",
+      "Q1 2026 · Jan to Mar",
+      "No date",
+    ]);
+    expect(sections.map(receiptSectionCount)).toEqual(["1 receipt", "1 receipt", "1 receipt", "1 receipt"]);
+  });
+
+  it("monthly: the month alone; annual: the year and Jan to Dec", () => {
+    expect(receiptSections(rows, "monthly").sections.map(receiptSectionTitle)).toEqual([
+      "Oct 2026", "Apr 2026", "Mar 2026", "No date",
+    ]);
+    expect(receiptSections(rows, "annual").sections.map(receiptSectionTitle)).toEqual(["2026 · Jan to Dec", "No date"]);
+  });
+
+  it("the count says when the page cap cuts a period short", () => {
+    const many = Array.from({ length: 60 }, (_, i) => ({ id: String(i), expense_date: "2026-07-15", created_at: null }));
+    const [section] = receiptSections(many, "quarterly", RECEIPT_LIST_PAGE).sections;
+    expect(receiptSectionCount(section)).toBe(`${RECEIPT_LIST_PAGE} of 60 receipts`);
+    expect(receiptSectionCount(receiptSections(many, "quarterly").sections[0])).toBe("60 receipts");
+  });
+
+  it("no heading has an em dash", () => {
+    for (const freq of ["monthly", "quarterly", "annual"]) {
+      for (const s of receiptSections(rows, freq).sections) {
+        expect(receiptSectionTitle(s) + receiptSectionCount(s)).not.toMatch(/\u2014/);
+      }
+    }
+  });
+});
+
+describe("REGRESSION: both receipt lists are in receipt-date order, cut by filing period", () => {
+  const content = read("apps/web/app/(app)/expenses/expenses-content.tsx");
+  const mobile = read("apps/mobile/app/(app)/profile/expenses.tsx");
+
+  it("the web log renders receiptSections of the selected period, with the page cap", () => {
+    expect(content).toMatch(/receiptSections\(filteredReceipts, filingFreq, showAllReceipts \? Infinity : RECEIPT_LIST_PAGE\)/);
+    expect(content).toContain("receiptLog.sections.map(");
+    expect(content).not.toMatch(/filteredReceipts\.slice\(0, RECEIPT_LIST_PAGE\)/);
+  });
+
+  it("the phone list renders receiptSections, not the store's upload order", () => {
+    expect(mobile).toMatch(/receiptSections\(receipts, filingFrequency, RECENT_RECEIPTS_SHOWN\)/);
+    expect(mobile).not.toMatch(/receipts\.slice\(0, RECENT_RECEIPTS_SHOWN\)/);
   });
 });

@@ -342,5 +342,12 @@
     "deletesClientWarning": "Cela supprime le client et ne peut pas être annulé. Son profil, ses notes et son historique d'activités sont supprimés aussi.",
     "allOrNothing": "Tout ce qui précède est remis en place ensemble, ou rien ne l'est si un dossier a changé depuis.",
     "deleteClient": "Supprimer le client"
+  },
+  "receiptLog": {
+    "periodRange": "{{period}} · {{from}} à {{to}}",
+    "noDate": "Sans date",
+    "receiptCount": "{{count}} reçu",
+    "receiptCount_plural": "{{count}} reçus",
+    "receiptCountPartial": "{{shown}} reçus sur {{total}}"
   }
 }
