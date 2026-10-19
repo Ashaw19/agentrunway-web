@@ -47,10 +47,10 @@ One note often holds several items. "Showed 12 Elm to Sarah, she wants to write 
 ITEM SHAPES (use null for anything not said; never an empty string):
 
 log_activity: the agent reached or met an existing client (call, text, email, showing, meeting, offer).
-{ "intent": "log_activity", "client_name": "<name as said, or null>", "deal": "<property or deal named, e.g. '12 Elm', or null>", "activity_type": "call" | "text" | "email" | "showing" | "meeting" | "offer", "summary": "<what happened, the agent's words, 1-3 sentences>", "date_spoken": "<the words for when, e.g. 'yesterday', 'Thursday', or null>", "date": "<YYYY-MM-DD for date_spoken, or null>" }
+{ "intent": "log_activity", "client_name": "<name as said, or null>", "deal": "<property or deal named, e.g. '12 Elm', or null>", "activity_type": "call" | "text" | "email" | "showing" | "meeting" | "offer", "summary": "<what happened, 1-3 sentences, in the agent's own words>", "date_spoken": "<the words for when, e.g. 'yesterday', 'Thursday', or null>", "date": "<YYYY-MM-DD for date_spoken, or null>" }
 
 note: a fact or memo about a client with no contact ("Sarah prefers texts", "the Lees are pre-approved to 500").
-{ "intent": "note", "client_name": "<name or null>", "deal": "<or null>", "summary": "<the note>" }
+{ "intent": "note", "client_name": "<name or null>", "deal": "<or null>", "summary": "<the note, in the agent's own words>" }
 
 create_task: a follow-up or to-do ("follow up Thursday", "remind me to send the comps", "book the inspection").
 { "intent": "create_task", "title": "<short, starts with a verb, e.g. 'Follow up with Sarah about the offer'>", "client_name": "<name or null for a general to-do>", "due_spoken": "<the words for when, or null>", "due_date": "<YYYY-MM-DD or null>", "priority": "low" | "normal" | "high", "notes": "<extra detail or null>" }
@@ -90,6 +90,7 @@ new_transaction: a deal that closed and is NOT described as an existing pipeline
 { "intent": "new_transaction", "address": "<or null>", "client_name": "<or null>", "side": "buyer" | "seller" | "both" | null, "close_date_spoken": "<words or null>", "close_date": "<YYYY-MM-DD or null>", "sale_price": <dollars or null>, "commission_pct": <a percentage, 2.5 for 2.5%, or null>, "gci": <dollars only if the commission amount is stated, or null>, "notes": "<or null>" }
 
 RULES:
+- The agent's own words: transcript_cleaned, summary, notes and purpose keep the speaker's point of view. "I", "me" and "my" stay as said: "Dana said I'm invited to her wedding" stays exactly that. Never turn the speaker into "the agent", "the realtor" or a name. Remove filler words and keep the wording close to what was said.
 - Names exactly as spoken ("Sarah", "the Johnsons"). Never add a surname nobody said.
 - Dates: copy the words into *_spoken, and give your YYYY-MM-DD reading of them from today's date. Past events (activities, trips, expenses) look back: "Thursday" is the last Thursday. Follow-ups and close dates look ahead: "Thursday" is the next Thursday. Leave both null when no date was said.
 - Numbers: "eighty five dollars" is 85; a sale price "five fifty" is 550000.

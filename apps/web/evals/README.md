@@ -38,6 +38,7 @@ cd apps/web && ANTHROPIC_API_KEY=sk-ant-... pnpm eval
 | `deterministic/gst-hst-rates.eval.ts` | deterministic | One GST/HST rate per province everywhere: the core engine, the connector's copy, CRA rule copy, printed percent, the knowledge base, and the receipt check's ceiling, held to CRA's published rates. |
 | `live/tool-selection.eval.ts` | live | 33 requests in Andrew's style (`fixtures/tool-requests.ts`), each to its persona with the real tools and system prompt: the first tool call is an accepted one. Tools are offered without `execute`, so nothing runs. |
 | `live/receipt-ocr.eval.ts` | live | Synthetic receipts drawn with sharp (`fixtures/receipt-images.ts`) through the real extractor: vendor, date, total, GST/HST as printed, currency. |
+| `live/capture-voice.eval.ts` | live | Synthetic voice notes through the real extractor (`lib/voice/capture.ts`): the cleaned transcript and every activity or note summary keep the speaker's "I", "me" or "my", and never call the speaker "the agent" or "the realtor". |
 | `live/drafting.eval.ts` | live | Real drafters with the live model: the client's first name, no placeholder or hard-sell, a subject and under 200 words (email), the length limit and opt-out line (text). CASL refusals hold with a live model too. |
 
 ## How to add a case

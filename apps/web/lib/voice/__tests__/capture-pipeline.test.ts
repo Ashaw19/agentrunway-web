@@ -123,6 +123,19 @@ describe("proposeCapture", () => {
     for (const retired of ["travel_meals", "professional_fees", "office_tech"]) expect(prompt).not.toContain(retired);
   });
 
+  it("the prompt keeps the agent's own words: \"I\" stays \"I\", never \"the agent\"", () => {
+    // A note recorded as "...said I will be invited to her wedding" came back
+    // as "...said the agent will be invited" (2026-10-19): every item shape
+    // called the speaker "the agent" and nothing said to keep the wording.
+    const prompt = buildExtractPrompt({ transcript: "x", today: TODAY, weekday: "Sunday" });
+    const rules = prompt.slice(prompt.indexOf("RULES:"));
+    expect(rules).toContain('"I", "me" and "my" stay as said');
+    expect(rules).toContain('Never turn the speaker into "the agent"');
+    for (const field of ["transcript_cleaned", "summary", "notes", "purpose"]) expect(rules).toContain(field);
+    expect(prompt).toContain('"summary": "<the note, in the agent\'s own words>"');
+    expect(prompt).toContain("in the agent's own words>\", \"date_spoken\"");
+  });
+
   it("a reply that isn't JSON throws, so the route answers 422", async () => {
     modelReplies("I'm not able to help.");
     const { client } = fakeSupabase(tables());
