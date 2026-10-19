@@ -8,6 +8,7 @@ import { deductionTrackingFlags } from "@agent-runway/core/engines/tax-optimizat
 import { expenseCategoryRows } from "@/lib/expenses/category-lines";
 import { computeIsPro } from "@/lib/compute-is-pro";
 import { atlanticNoon } from "@agent-runway/core/lib/local-date";
+import { loadVehicleLogbook, loadYearMileageTotals } from "@/lib/vehicle-logbook/load";
 
 
 export default async function ReportsPage() {
@@ -18,6 +19,9 @@ export default async function ReportsPage() {
   // Atlantic calendar, not the server's UTC clock (local-date.ts).
   const today = atlanticNoon();
   const year = today.getFullYear();
+  // The vehicle business-use share comes from the logbook when it covers the
+  // year (expenseTaxContext → vehicle-logbook-engine), the setting otherwise.
+  const logbookPromise = loadVehicleLogbook(supabase, user.id, year);
 
   // Fetch settings
   const { data: settingsRaw } = await supabase
@@ -72,13 +76,9 @@ export default async function ReportsPage() {
         .eq("user_id", user.id)
         .order("acquisition_date", { ascending: false })
         .limit(10000),
-      // Mileage logs for T2125 PDF Page 3
-      supabase
-        .from("mileage_logs")
-        .select("km, deduction, trip_date")
-        .eq("user_id", user.id)
-        .order("trip_date", { ascending: false })
-        .limit(10000),
+      // This year's business km and trip count, for the T2125 tab's tax
+      // cards and PDF page 3 (every trip in the year, read in pages).
+      loadYearMileageTotals(supabase, user.id, year),
       // Referrals for PDF Page 7
       supabase
         .from("referrals")
@@ -111,11 +111,12 @@ export default async function ReportsPage() {
   // full for line 9945. The Expenses page and the dashboard make the same
   // call, so the headline here, the T2125 tab and those screens agree. For a
   // GST/HST registrant every figure is net of the ITCs the GST34 claims.
+  const expenseCtx = expenseTaxContext(settingsRaw, await logbookPromise);
   const expenseTotals = ytdExpenseTotals({
     receipts: receiptTotalsResult.data,
     recurring: (recurringExpResult.data ?? []) as RecurringExpense[],
     expenseItems: expItemResult.data,
-    ctx: expenseTaxContext(settingsRaw),
+    ctx: expenseCtx,
     now: today,
   });
   const t2125Expenses = expenseTotals.tracked;
@@ -158,11 +159,8 @@ export default async function ReportsPage() {
       t2125Expenses={t2125Expenses.entries}
       homeOfficeCosts={t2125Expenses.homeOfficeCosts}
       deductionTracking={deductionTrackingFlags(t2125Expenses.lines, categories)}
-      mileageLogs={(mileageResult.data ?? []).map((r) => ({
-        km: Number(r.km),
-        deduction: Number(r.deduction),
-        trip_date: r.trip_date,
-      }))}
+      mileageTotals={mileageResult}
+      vehicleBusinessUse={expenseCtx.vehicleBusinessUse ?? null}
       taxYear={year}
       userId={user.id}
       referralSummary={referralSummary}

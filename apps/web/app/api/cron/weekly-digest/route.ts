@@ -33,6 +33,7 @@ import { projectedYearEndTransactions } from "@agent-runway/core/engines/project
 import { aggregateReceiptTotals, expenseTaxContext } from "@agent-runway/core/engines/expense-totals-engine";
 import { ytdExpenseTotals } from "@agent-runway/core/engines/t2125-expenses-engine";
 import { atlanticNoon } from "@agent-runway/core/lib/local-date";
+import { loadVehicleLogbook } from "@/lib/vehicle-logbook/load";
 import type { RecurringExpense } from "@/lib/types/database";
 import { generateText } from "ai";
 import { models } from "@/lib/ai/provider";
@@ -243,7 +244,8 @@ export async function GET(req: NextRequest) {
       // Monthly expenses (receipt_expenses for current month). Expense totals
       // are net of the GST/HST a registrant claims back as ITCs
       // (expense-totals-engine), same as the dashboard.
-      const taxCtx = expenseTaxContext(user);
+      // The vehicle share: the logbook's when it covers the year, else declared.
+      const taxCtx = expenseTaxContext(user, await loadVehicleLogbook(admin, user.user_id, today.getFullYear()));
       const { data: monthlyReceipts } = await admin
         .from("receipt_expenses")
         .select("category_key, total_amount, tax_amount")

@@ -32,7 +32,7 @@ export interface T2125LineMap {
   lineNumber: string;
   lineName: string;
   deductiblePct: number; // 1.0 = fully deductible, 0.5 = 50% meals rule
-  applyVehicleUse: boolean; // multiply by vehicle_business_use_pct
+  applyVehicleUse: boolean; // multiply by the vehicle business-use share
   /**
    * A home bill (heat, insurance, mortgage interest...). Only the home
    * business-use share is a business cost, and it is claimed on line 9945
@@ -418,6 +418,14 @@ export interface T2125Input {
   ccaAssets: CcaAsset[];
   taxYear?: number;
   otherIncome?: number;                // user-entered other business income (referrals, etc.)
+  /**
+   * The vehicle business-use share for `taxYear`, 0–1: `ctx.vehicleBusinessUsePct`
+   * from expenseTaxContext (the logbook's figure when it covers the year,
+   * vehicle-logbook-engine). Every caller in the apps passes it
+   * (vehicle-business-use-canonical.test.ts). Left out, the declared
+   * setting (settings.vehicle_business_use_pct) applies.
+   */
+  vehicleBusinessUsePct?: number;
 }
 
 // ── Main compute function ─────────────────────────────────────────────────────
@@ -438,7 +446,7 @@ export function computeT2125(input: T2125Input): T2125Result {
   const totalGrossIncome = grossCommissionIncome + otherIncome;
 
   // ── 2. Build expense lines ─────────────────────────────────────────────────
-  const vehicleUsePct = Math.min(1, Math.max(0, settings.vehicle_business_use_pct ?? 0));
+  const vehicleUsePct = Math.min(1, Math.max(0, input.vehicleBusinessUsePct ?? settings.vehicle_business_use_pct ?? 0));
 
   const expenseLines: ExpenseLineItem[] = expenses
     // Home bills are not expense lines: they are the costs behind line 9945.

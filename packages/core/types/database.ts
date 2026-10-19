@@ -1439,15 +1439,9 @@ export interface PlaidTransaction {
 
 // ── Mileage Log ───────────────────────────────────────────────────────────────
 
-/** CRA automobile allowance rates for 2025 */
-export const CRA_MILEAGE_RATES = {
-  /** $/km for first 5,000 km of business travel */
-  first5000:   0.72,
-  /** $/km beyond 5,000 km */
-  beyond5000:  0.66,
-  /** Annual km threshold separating the two rates */
-  threshold:   5000,
-} as const;
+// CRA's per-km allowance rates live in tax-copy/cra-rules.ts
+// (CRA_ALLOWANCE_RATES, one row per year, from canada.ca). `CRA_MILEAGE_RATES`
+// here held 2025's rates under the current year's label until 2026-10-18.
 
 export interface MileageLog {
   id:              string;
@@ -1457,12 +1451,83 @@ export interface MileageLog {
   from_location:   string | null;
   to_location:     string | null;
   km:              number;
+  /** CRA's allowance rate at entry. An employer-allowance benchmark, not a deduction rate. */
   cra_rate_per_km: number;
-  deduction:       number;       // generated column: km × cra_rate_per_km
+  /**
+   * Generated column: km × cra_rate_per_km. NOT the T2125 deduction, and no
+   * screen prints it since 2026-10-18 (allowanceRateFigure works the
+   * benchmark out from the year's km instead).
+   */
+  deduction:       number;
   purpose:         string | null;
   notes:           string | null;
+  /** Migration 00184. Null: the agent's default vehicle (defaultVehicleId). */
+  vehicle_id:      string | null;
+  /** Migration 00184: odometer at the start and end of the trip, when entered. */
+  odometer_start:  number | null;
+  odometer_end:    number | null;
   created_at:      string;
   updated_at:      string;
+}
+
+// ── Vehicle logbook (migration 00184) ────────────────────────────────────────
+
+/** A vehicle the agent drives for business. */
+export interface Vehicle {
+  id:          string;
+  user_id:     string;
+  name:        string;
+  model_year:  number | null;
+  make:        string | null;
+  model:       string | null;
+  is_active:   boolean;
+  created_at:  string;
+  updated_at:  string;
+}
+
+export type VehicleLogbookPeriodKind = "base" | "sample";
+
+/**
+ * A CRA logbook period for one vehicle: a 12-month base year or a 3-month
+ * sample period, from the 1st of a month (vehicle-logbook-engine).
+ */
+export interface VehicleLogbookPeriod {
+  id:             string;
+  user_id:        string;
+  vehicle_id:     string;
+  kind:           VehicleLogbookPeriodKind;
+  start_date:     string;
+  end_date:       string;
+  /** Odometer as the period begins. */
+  odometer_start: number | null;
+  /** Odometer at the end of end_date. */
+  odometer_end:   number | null;
+  notes:          string | null;
+  created_at:     string;
+  updated_at:     string;
+}
+
+/** The odometer at the end of `reading_date` (a base year's month ends). */
+export interface VehicleOdometerReading {
+  id:           string;
+  user_id:      string;
+  vehicle_id:   string;
+  reading_date: string;
+  odometer_km:  number;
+  created_at:   string;
+  updated_at:   string;
+}
+
+/** A place the agent drives to often, for quick trip entry. */
+export interface MileagePlace {
+  id:          string;
+  user_id:     string;
+  name:        string;
+  address:     string | null;
+  /** The usual distance for a trip there, when the agent saved one. */
+  default_km:  number | null;
+  created_at:  string;
+  updated_at:  string;
 }
 
 // ── Computed Helpers (mirror iOS computed properties) ────────────────────────

@@ -65,16 +65,19 @@ function recurring(overrides: Partial<RecurringExpense>): RecurringExpense {
 }
 
 describe("expenseTaxContext", () => {
+  // With no logbook rows the vehicle share is the declared setting
+  // (vehicle-logbook-engine.test.ts covers the logbook's own figure).
   it("reads registration and vehicle use from user_settings", () => {
-    expect(expenseTaxContext({ gst_hst_registered: true, vehicle_business_use_pct: 0.65, home_office_business_use_pct: 0 }))
-      .toEqual({ gstHstRegistered: true, vehicleBusinessUsePct: 0.65, homeOfficeBusinessUsePct: 0 });
+    const ctx = expenseTaxContext({ gst_hst_registered: true, vehicle_business_use_pct: 0.65, home_office_business_use_pct: 0 });
+    expect(ctx).toMatchObject({ gstHstRegistered: true, vehicleBusinessUsePct: 0.65, homeOfficeBusinessUsePct: 0 });
+    expect(ctx.vehicleBusinessUse?.method).toBe("declared");
   });
 
   it("treats missing settings as not registered, with the column's default vehicle use", () => {
-    expect(expenseTaxContext(null)).toEqual({ gstHstRegistered: false, vehicleBusinessUsePct: DEFAULT_VEHICLE_BUSINESS_USE_PCT, homeOfficeBusinessUsePct: 0 });
+    expect(expenseTaxContext(null)).toMatchObject({ gstHstRegistered: false, vehicleBusinessUsePct: DEFAULT_VEHICLE_BUSINESS_USE_PCT, homeOfficeBusinessUsePct: 0 });
     expect(expenseTaxContext(undefined).gstHstRegistered).toBe(false);
     expect(expenseTaxContext({ gst_hst_registered: null, vehicle_business_use_pct: null, home_office_business_use_pct: 0 }))
-      .toEqual({ gstHstRegistered: false, vehicleBusinessUsePct: 0.8, homeOfficeBusinessUsePct: 0 });
+      .toMatchObject({ gstHstRegistered: false, vehicleBusinessUsePct: 0.8, homeOfficeBusinessUsePct: 0 });
   });
 
   it("keeps an explicit 0% vehicle use (it is not 'missing') and clamps to 0–1", () => {

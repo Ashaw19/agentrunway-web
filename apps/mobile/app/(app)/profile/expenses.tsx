@@ -29,6 +29,8 @@ import { CameraView, useCameraPermissions } from "expo-camera";
 import * as ImagePicker from "expo-image-picker";
 import * as Haptics from "expo-haptics";
 import { useDataStore, type ReceiptExpense } from "@/stores/data-store";
+import { useMileageStore } from "@/stores/mileage-store";
+import { localISODate } from "@agent-runway/core/lib/local-date";
 import { supabase } from "@/lib/supabase";
 import { validateExpenseAmount } from "@agent-runway/core/validation/input-guards";
 import { expenseTaxContext, receiptTotalsToDate } from "@agent-runway/core/engines/expense-totals-engine";
@@ -161,7 +163,19 @@ export default function ScanScreen() {
   // registrant claims back as input tax credits. Each receipt card below
   // still shows what was paid. The store also holds last year's receipts and
   // undated ones; the engine leaves both out, as the web does.
-  const expenseTaxCtx = useMemo(() => expenseTaxContext(settings), [settings]);
+  //
+  // The vehicle share in that ITC split is the logbook's when it covers the
+  // year (vehicleBusinessUseFor), the same figure as the web. Until the rows
+  // load, or when they fail to, it is the declared setting, as on the web
+  // pages that use loadLogbookRowsOrNull.
+  const { logbook, logbookYear, fetchLogbook } = useMileageStore();
+  const today = localISODate();
+  const taxYear = Number(today.slice(0, 4));
+  const logbookRows = logbook && logbookYear === taxYear ? logbook : null;
+  const expenseTaxCtx = useMemo(
+    () => expenseTaxContext(settings, { rows: logbookRows, year: taxYear, today }),
+    [settings, logbookRows, taxYear, today],
+  );
 
   const summaryMetrics = useMemo(
     () => receiptTotalsToDate(receipts, expenseTaxCtx, new Date()),
@@ -170,13 +184,14 @@ export default function ScanScreen() {
 
   useEffect(() => {
     fetchReceipts();
-  }, []);
+    fetchLogbook();
+  }, [fetchReceipts, fetchLogbook]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await fetchReceipts();
+    await Promise.all([fetchReceipts(), fetchLogbook()]);
     setRefreshing(false);
-  }, [fetchReceipts]);
+  }, [fetchReceipts, fetchLogbook]);
 
   // ── Camera ─────────────────────────────────────────────────────────────────
 

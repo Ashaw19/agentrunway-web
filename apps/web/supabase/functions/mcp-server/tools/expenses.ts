@@ -1,11 +1,44 @@
 import type { SupabaseClient } from "npm:@supabase/supabase-js@2";
 import type { McpTool } from "./index.ts";
 import { CANONICAL_TAX_DISCLAIMER_SHORT } from "../lib/constants.ts";
-import { loadExpenseInputs } from "../lib/expense-inputs.ts";
+import { loadExpenseInputs, vehicleUseSummary } from "../lib/expense-inputs.ts";
+import { expenseTaxContext } from "../../_shared/core/engines/expense-totals-engine.ts";
 import { expenseCategoryResolver } from "../../_shared/core/engines/t2125-expenses-engine.ts";
-import { atlanticYear } from "../../_shared/core/lib/local-date.ts";
+import {
+  allowanceRateFigure,
+  vehicleBusinessUseFor,
+} from "../../_shared/core/engines/vehicle-logbook-engine.ts";
+import { atlanticISODate, atlanticYear } from "../../_shared/core/lib/local-date.ts";
+import { loadLogbookRowsOrNull } from "../../_shared/core/lib/vehicle-logbook-rows.ts";
+import { ALLOWANCE_RATE_NOTE } from "../../_shared/core/tax-copy/cra-rules.ts";
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
+
+/** One response holds at most 1,000 rows (PostgREST max_rows), so lists are read in pages. */
+const PAGE = 1000;
+
+/** A `mileage_logs` row as get_mileage_summary reads it. */
+interface TripRow {
+  id: string;
+  trip_date: string;
+  description: string | null;
+  from_location: string | null;
+  to_location: string | null;
+  km: number | string | null;
+  purpose: string | null;
+  vehicle_id: string | null;
+  odometer_start: number | string | null;
+  odometer_end: number | string | null;
+}
+
+const TRIP_COLUMNS =
+  "id, trip_date, description, from_location, to_location, km, purpose, vehicle_id, odometer_start, odometer_end";
+
+const numOrNull = (v: number | string | null | undefined): number | null => {
+  if (v == null || v === "") return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+};
 
 interface ExpenseLine {
   key: string | null;
@@ -167,15 +200,25 @@ export function getExpenseTools(supabase: SupabaseClient, userId: string): McpTo
     },
 
     // ── get_mileage_summary ──────────────────────────────────────────────
+    // Until 2026-10-18 this reported `total_deduction`, the sum of the stored
+    // `deduction` column (km × the per-km rate saved on each trip, 2025's
+    // $0.72 whatever the year), and called it the "CRA deduction amount".
+    // That figure is CRA's reasonable per-km ALLOWANCE an employer can pay an
+    // employee: a benchmark, not the T2125 motor vehicle deduction (the
+    // business part of the vehicle's actual costs). It is now
+    // `allowance_rate_figure`, worked out by the engine from the year's km at
+    // that year's rates (allowanceRateFigure) and labelled ALLOWANCE_RATE_NOTE,
+    // with the vehicle business-use share the year's figures apply beside it.
+    // The year's trips are read in pages: one request stops at 1,000 rows.
     {
       name: "get_mileage_summary",
       description:
-        "Returns the agent's business mileage log summary for the current year: total km driven, CRA deduction amount, and recent trips.",
+        "Returns the agent's business mileage log for a year (default: the current year): total business km, the trip count, and vehicle_business_use, the vehicle business-use share the app applies for that year (computed from the CRA logbook when it covers the year, else the share declared in Settings; pct is a percentage). allowance_rate_figure is the year's business km x CRA's reasonable per-km allowance rates (allowance_rates_year is the year of the rates used: the latest CRA has published when it has not published that year's). It is a benchmark of what an employer could pay an employee for the same driving, not the T2125 motor vehicle expense, which is the business part of the vehicle's actual costs (fuel, insurance, maintenance, lease or capital cost allowance). include_trips adds the 50 most recent trips. ESTIMATE ONLY — not tax advice.",
       inputSchema: {
         type: "object",
         properties: {
           year: { type: "number", description: "Year to query (default: current year)." },
-          include_trips: { type: "boolean", description: "Include individual trip records (default false)." },
+          include_trips: { type: "boolean", description: "Include the 50 most recent trip records (default false)." },
         },
         additionalProperties: false,
       },
@@ -187,39 +230,81 @@ export function getExpenseTools(supabase: SupabaseClient, userId: string): McpTo
       },
       handler: async (args) => {
         const { year = atlanticYear(), include_trips = false } = args as { year?: number; include_trips?: boolean };
+        if (!Number.isInteger(year) || year < 2000 || year > 2100) {
+          return {
+            content: [{ type: "text" as const, text: "year is a calendar year such as 2026." }],
+            isError: true,
+          };
+        }
 
-        const { data, error } = await supabase
-          .from("mileage_logs")
-          .select("trip_date, description, from_location, to_location, km, deduction, cra_rate_per_km, purpose")
-          .eq("user_id", userId)
-          .gte("trip_date", `${year}-01-01`)
-          .lte("trip_date", `${year}-12-31`)
-          .order("trip_date", { ascending: false });
+        // Every trip in the year, newest first, a page at a time.
+        const readTrips = async (): Promise<TripRow[]> => {
+          const trips: TripRow[] = [];
+          for (let from = 0; ; from += PAGE) {
+            const { data, error } = await supabase
+              .from("mileage_logs")
+              .select(TRIP_COLUMNS)
+              .eq("user_id", userId)
+              .gte("trip_date", `${year}-01-01`)
+              .lte("trip_date", `${year}-12-31`)
+              .order("trip_date", { ascending: false })
+              .order("id", { ascending: false })
+              .range(from, from + PAGE - 1);
+            if (error) throw error;
+            const page = (data ?? []) as TripRow[];
+            trips.push(...page);
+            if (page.length < PAGE) return trips;
+          }
+        };
 
-        if (error) throw error;
+        const [logs, settingsRes, logbookRows] = await Promise.all([
+          readTrips(),
+          // The expense context's slice (expenseTaxContext).
+          supabase
+            .from("user_settings")
+            .select("gst_hst_registered, vehicle_business_use_pct, home_office_business_use_pct")
+            .eq("user_id", userId)
+            .maybeSingle(),
+          // Never rejects: null when the rows can't be read (the declared share).
+          loadLogbookRowsOrNull(supabase, userId, year),
+        ]);
+        if (settingsRes.error) throw settingsRes.error;
 
-        const logs = data ?? [];
-        const totalKm = logs.reduce((s, l) => s + (l.km ?? 0), 0);
-        const totalDeduction = logs.reduce((s, l) => s + (l.deduction ?? 0), 0);
-
-        // CRA 2025: $0.72/km for first 5,000 km, $0.66/km after
-        const craRate = logs[0]?.cra_rate_per_km ?? 0.72;
+        const totalKm = Math.round(logs.reduce((s, l) => s + (numOrNull(l.km) ?? 0), 0) * 10) / 10;
+        const figure = allowanceRateFigure(totalKm, year);
+        // The share the year's expense figures apply: expenseTaxContext's, as
+        // in loadExpenseInputs (it always sets it; the fallback is the same call).
+        const today = atlanticISODate();
+        const ctx = expenseTaxContext(settingsRes.data, { rows: logbookRows, year, today });
+        const vehicleUse = ctx.vehicleBusinessUse ?? vehicleBusinessUseFor(settingsRes.data, logbookRows, year, today);
 
         const result: Record<string, unknown> = {
+          disclaimer: CANONICAL_TAX_DISCLAIMER_SHORT,
           year,
-          total_km: Math.round(totalKm * 10) / 10,
-          total_deduction: Math.round(totalDeduction * 100) / 100,
+          total_km: totalKm,
           trip_count: logs.length,
-          cra_rate_per_km: craRate,
+          vehicle_business_use: vehicleUseSummary(vehicleUse),
+          allowance_rate_figure: round2(figure.amount),
+          allowance_rates_year: figure.rates.year,
+          allowance_rates: {
+            first_5000_km_per_km: figure.rates.first5000,
+            after_5000_km_per_km: figure.rates.beyond5000,
+          },
+          allowance_rate_note: ALLOWANCE_RATE_NOTE,
         };
 
         if (include_trips) {
           result.trips = logs.slice(0, 50).map((l) => ({
             date: l.trip_date,
             description: l.description,
-            km: l.km,
-            deduction: l.deduction,
+            from_location: l.from_location,
+            to_location: l.to_location,
+            km: numOrNull(l.km),
             purpose: l.purpose,
+            // Null on trips logged before vehicles existed: they count for the default vehicle.
+            vehicle_id: l.vehicle_id,
+            odometer_start: numOrNull(l.odometer_start),
+            odometer_end: numOrNull(l.odometer_end),
           }));
         }
 

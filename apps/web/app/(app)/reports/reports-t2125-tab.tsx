@@ -24,15 +24,16 @@ import { generateTaxOptimizations, type DeductionTrackingFlags } from "@/lib/eng
 import { T2125Pdf } from "@/components/pdf/t2125-pdf";
 import { INCOME_TAX_INSTALMENT_DUE_DATES, SMALL_SUPPLIER_RULE_SHORT } from "@agent-runway/core/tax-copy";
 import { createClient } from "@/lib/supabase/client";
+import {
+  allowanceRateFigure,
+  vehicleBusinessUseFor,
+  type VehicleBusinessUse,
+} from "@agent-runway/core/engines/vehicle-logbook-engine";
+import { VEHICLE_BUSINESS_PART_RULE } from "@agent-runway/core/tax-copy";
+import type { YearMileageTotals } from "@/lib/vehicle-logbook/load";
 import { toast } from "sonner";
 
 // ── Props ─────────────────────────────────────────────────────────────────────
-
-interface MileageLogRow {
-  km: number;
-  deduction: number;
-  trip_date: string;
-}
 
 interface Props {
   settings: UserSettings | null;
@@ -44,7 +45,14 @@ interface Props {
   /** Which commonly missed expense categories are already tracked (`deductionTrackingFlags`). */
   deductionTracking: DeductionTrackingFlags;
   ccaAssets: CcaAsset[];
-  mileageLogs: MileageLogRow[];
+  /** This year's business km and trips (loadYearMileageTotals). */
+  mileageTotals: YearMileageTotals;
+  /**
+   * The vehicle business-use share for the tax year and where it comes from:
+   * the page's expenseTaxContext(settings, logbook).vehicleBusinessUse (the
+   * logbook's figure when it covers the year, else the declared setting).
+   */
+  vehicleBusinessUse: VehicleBusinessUse | null;
   taxYear: number;
   userId: string;
   referralSummary?: { inboundCount: number; outboundCount: number; feesEarned: number; feesPaid: number };
@@ -158,7 +166,8 @@ export function ReportsT2125Tab({
   homeOfficeCosts,
   deductionTracking,
   ccaAssets: initialCcaAssets,
-  mileageLogs,
+  mileageTotals,
+  vehicleBusinessUse,
   taxYear,
   userId,
   referralSummary: _referralSummary,
@@ -184,6 +193,15 @@ export function ReportsT2125Tab({
   const toggle = (section: string) =>
     setExpandedSections((prev) => ({ ...prev, [section]: !prev[section] }));
 
+  // ── Vehicle business use ─────────────────────────────────────────────────────
+  // The page's resolved share (logbook when it covers the year, else the
+  // declared setting). Without one, the same resolver with no logbook rows.
+  const vehicleUse: VehicleBusinessUse = useMemo(
+    () => vehicleBusinessUse ?? vehicleBusinessUseFor(settings, null, taxYear),
+    [vehicleBusinessUse, settings, taxYear],
+  );
+  const vehicleDeclared = vehicleUse.method === "declared";
+
   // ── Compute T2125 ────────────────────────────────────────────────────────────
   const result: T2125Result | null = useMemo(() => {
     if (!localSettings) return null;
@@ -195,8 +213,9 @@ export function ReportsT2125Tab({
       ccaAssets,
       taxYear,
       otherIncome,
+      vehicleBusinessUsePct: vehicleUse.pct,
     });
-  }, [localSettings, transactions, expenses, homeOfficeCosts, ccaAssets, taxYear, otherIncome]);
+  }, [localSettings, transactions, expenses, homeOfficeCosts, ccaAssets, taxYear, otherIncome, vehicleUse.pct]);
 
   // Line 9270 also carries expenses whose key has no line of its own (a
   // custom item, or no category at all). Shown so the amount isn't a
@@ -292,15 +311,15 @@ export function ReportsT2125Tab({
     if (!result || !localSettings) return;
     setExportingPdf(true);
     try {
-      // Compute mileage summary from logs for this tax year
-      const yearLogs = mileageLogs.filter((l) => l.trip_date.startsWith(String(taxYear)));
-      const totalKm = yearLogs.reduce((sum, l) => sum + l.km, 0);
-      const totalDeduction = yearLogs.reduce((sum, l) => sum + l.deduction, 0);
-      const mileageSummary = yearLogs.length > 0 ? {
+      // This year's business km. The per-km figure is CRA's employer
+      // allowance benchmark (allowanceRateFigure), never a deduction.
+      const totalKm = mileageTotals.km;
+      const allowance = allowanceRateFigure(totalKm, taxYear);
+      const mileageSummary = mileageTotals.tripCount > 0 ? {
         totalKm,
-        totalDeduction,
-        tripCount: yearLogs.length,
-        businessUsePct: localSettings.vehicle_business_use_pct ?? 1,
+        tripCount: mileageTotals.tripCount,
+        allowanceRateFigure: allowance.amount,
+        allowanceRatesYear: allowance.rates.year,
       } : undefined;
 
       // Compute tax optimization cards
@@ -335,7 +354,7 @@ export function ReportsT2125Tab({
         homeOfficeMaintenanceAnnual: localSettings.home_office_maintenance_annual ?? 0,
         homeOfficeCondoFeesMonthly: localSettings.home_office_condo_fees_monthly ?? 0,
         vehicleType: (localSettings.vehicle_type as "own" | "lease" | "none") ?? "own",
-        vehicleBusinessUsePct: localSettings.vehicle_business_use_pct ?? 0,
+        vehicleBusinessUsePct: vehicleUse.pct,
         hasTrackedMileage: totalKm > 0,
         annualMileageKm: totalKm,
         gstHstRegistered: localSettings.gst_hst_registered ?? false,
@@ -356,6 +375,7 @@ export function ReportsT2125Tab({
           result={result}
           settings={localSettings}
           taxYear={taxYear}
+          vehicleUse={{ pct: vehicleUse.pct, method: vehicleUse.method, label: vehicleUse.label }}
           mileageSummary={mileageSummary}
           taxOptCards={optResult.cards}
           totalEstimatedSavings={optResult.totalEstimatedSavings}
@@ -575,17 +595,20 @@ export function ReportsT2125Tab({
               <div className="flex items-center gap-2 mb-2">
                 <Car className="h-3.5 w-3.5 text-slate-500" />
                 <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Motor Vehicle (Line 9281) — {fmtPct(localSettings.vehicle_business_use_pct)} business use applied
+                  Motor Vehicle (Line 9281): {fmtPct(vehicleUse.pct)} business use applied
                 </p>
               </div>
               <LineRow indent lineNum="9281" label="All Vehicle Expenses (lease, insurance, fuel, maintenance)" value={result.line9281_motorVehicle} />
               <p className="mt-2 text-[10px] text-muted-foreground">
-                Vehicle business-use % set in <a href="/settings" className="underline">Settings</a> ·
+                {vehicleDeclared ? (
+                  <>Declared business-use % set in <a href="/settings" className="underline">Settings</a></>
+                ) : (
+                  <>Business-use % from the logbook (<a href="/expenses?tab=mileage" className="underline">Expenses, Mileage</a>)</>
+                )}{" "}·
                 {localSettings.vehicle_type === "own" ? " Owned vehicle" : localSettings.vehicle_type === "lease" ? " Leased vehicle" : " No vehicle"}
               </p>
-              <p className="mt-1 text-[10px] text-amber-600/90">
-                * Business-use % ({fmtPct(localSettings.vehicle_business_use_pct)}) is user-declared.
-                CRA requires a contemporaneous mileage logbook to substantiate this figure.
+              <p className={cn("mt-1 text-[10px]", vehicleDeclared ? "text-amber-600/90" : "text-muted-foreground")}>
+                * {vehicleUse.label}. {VEHICLE_BUSINESS_PART_RULE}
               </p>
             </div>
 

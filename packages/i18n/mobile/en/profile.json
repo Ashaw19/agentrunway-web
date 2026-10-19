@@ -30,7 +30,9 @@
     "fillFromContacts": "Fill in from Contacts",
     "fillFromContactsDesc": "Add missing numbers, emails and birthdays",
     "importContacts": "Import from Contacts",
-    "importContactsDesc": "Add contacts who aren't clients yet"
+    "importContactsDesc": "Add contacts who aren't clients yet",
+    "mileage": "Mileage",
+    "mileageDesc": "Log a trip and odometer readings"
   },
   "account": {
     "title": "Account",

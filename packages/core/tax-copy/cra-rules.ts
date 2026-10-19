@@ -552,6 +552,196 @@ export const CAPITAL_COST_ALLOWANCE_RULE: TaxCopy = asTaxCopy(
   "Per CRA, the cost of depreciable property, such as a building, furniture, a motor vehicle or equipment, is not deducted as an expense when net business income for the year is calculated. The cost is deducted over a period of several years as capital cost allowance (CCA).",
 );
 
+// ─────────────────────────────────────────────────────────────────────────
+// Motor vehicles: the logbook, CRA's simplified logbook, the business part
+// ─────────────────────────────────────────────────────────────────────────
+
+/**
+ * Source: canada.ca, "Motor vehicle records" (sole proprietorships and
+ * partnerships, business expenses, motor vehicle expenses)
+ *   canada.ca/en/revenue-agency/services/tax/businesses/topics/sole-proprietorships-partnerships/business-expenses/motor-vehicle-expenses/motor-vehicle-records.html
+ *   (page dated 2026-08-31, read 2026-10-18)
+ *
+ * Full logbook. CRA: "The best evidence to support the use of a vehicle is an
+ * accurate logbook of business travel maintained for the entire year". "For
+ * each business trip, keep a log listing the following: date, destination,
+ * purpose, number of kilometres you drive". "Record the odometer reading of
+ * each vehicle at the start and end of the fiscal period." "If you change
+ * motor vehicles during the fiscal period, record the dates of the changes
+ * and the odometer reading when you buy, sell, or trade the vehicle."
+ *
+ * Simplified logbook. CRA: "You can choose to maintain a full logbook for one
+ * complete year to establish a base year's business use of a vehicle."
+ * "After one complete year of keeping a logbook to establish the base year,
+ * you can use a three-month sample logbook to foresee business use for the
+ * entire year, as long as the usage is within the same range (within 10%) of
+ * the results of the base year." The formula, verbatim:
+ * "(Sample year period % ÷ Base year period %) × Base year annual % =
+ * Calculated annual business use". Outside the range: "the base year is not
+ * an appropriate indicator of annual usage in that later year. In this case,
+ * the sample period logbook would only be reliable for the three-month
+ * period it had been maintained. For the remainder of the year, the business
+ * use of the vehicle would need to be determined based on an actual record of
+ * travel or alternative records".
+ *
+ * The example: quarters of 52/46/39/67 and 49% for the base year; an April to
+ * June sample of 51% against 46% for those months in the base year;
+ * "(51% ÷ 46%) × 49% = 54%", accepted "in the absence of contradictory
+ * evidence" because "the calculated annual business use is within 10% of the
+ * annual business use in the base year – it is not lower than 39% or higher
+ * than 59%". So "within 10%" is 10 percentage points either side of the base
+ * year's annual figure, both ends included (`SIMPLIFIED_LOGBOOK_RANGE` in
+ * engines/vehicle-logbook-engine.ts).
+ *
+ * Keeping it: records "for a period of six years from the end of the tax year
+ * to which they relate"; the 12-month logbook "for a period of six years from
+ * the end of the tax year for which it is last used to establish business
+ * use". Several vehicles: "keep a separate record for each vehicle that shows
+ * the total and business kilometres you drive, and the cost to run and
+ * maintain each vehicle. Calculate each vehicle's expenses separately."
+ *
+ * CRA's sentences say "keep", "record" and "should consider"; the copy below
+ * states the same rules without them (the info-not-advice lint).
+ */
+export const CRA_MOTOR_VEHICLE_SOURCES = {
+  records: {
+    label: "CRA: Motor vehicle records",
+    url: "https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/sole-proprietorships-partnerships/business-expenses/motor-vehicle-expenses/motor-vehicle-records.html",
+  },
+  businessPart: {
+    label: "CRA: Motor vehicle expenses (not including CCA)",
+    url: "https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/sole-proprietorships-partnerships/report-business-income-expenses/completing-form-t2125/motor-vehicle-expenses-including.html",
+  },
+  allowanceRates: {
+    label: "CRA: Automobile and motor vehicle allowances, reasonable per-kilometre rates",
+    url: "https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/payroll/benefits-allowances/automobile/automobile-motor-vehicle-allowances.html",
+  },
+} as const;
+
+/** What a full logbook holds, per CRA. */
+export const VEHICLE_LOGBOOK_RULE: TaxCopy = asTaxCopy(
+  "Per CRA, the best evidence of a vehicle's business use is a logbook of business travel kept for the entire year. For each business trip it lists the date, destination, purpose and kilometres driven, and it has each vehicle's odometer reading at the start and end of the fiscal period. When a vehicle is bought, sold or traded during the period, the logbook has the date and the odometer reading of the change.",
+);
+
+/** CRA's simplified logbook, in one paragraph. */
+export const SIMPLIFIED_LOGBOOK_RULE: TaxCopy = asTaxCopy(
+  "Per CRA, a full logbook kept for one complete year establishes a base year. After it, a three-month sample logbook can be used for a later year's business use, as long as the usage is within the same range (within 10%) of the base year's results and the base year remains representative of the vehicle's normal use.",
+);
+
+/** CRA's formula, as CRA prints it. */
+export const SIMPLIFIED_LOGBOOK_FORMULA =
+  "(Sample year period % ÷ Base year period %) × Base year annual % = Calculated annual business use";
+
+/** What "within 10%" means, from CRA's own example. */
+export const SIMPLIFIED_LOGBOOK_RANGE_RULE: TaxCopy = asTaxCopy(
+  "In CRA's example, within 10% means the calculated annual business use is no more than 10 percentage points above or below the base year's annual business use: for a 49% base year, not lower than 39% or higher than 59%.",
+);
+
+/** When the calculated figure is outside the range. */
+export const SIMPLIFIED_LOGBOOK_OUTSIDE_RANGE_RULE: TaxCopy = asTaxCopy(
+  "Per CRA, when the calculated annual business use goes up or down by more than 10%, the base year is not an appropriate indicator for that later year. The sample logbook is then reliable only for its own three months, and business use for the rest of the year comes from an actual record of travel or other records. CRA notes that a new base year can be established with a logbook for a new 12-month period.",
+);
+
+/** CRA's worked example. */
+export const SIMPLIFIED_LOGBOOK_EXAMPLE: TaxCopy = asTaxCopy(
+  "CRA's example: a base-year logbook showed 49% business use for the year and 46% for April to June. A later year's April to June sample showed 51%. (51% ÷ 46%) × 49% = 54%, which CRA would accept in the absence of contradictory evidence because it is within 10% of the base year's 49%.",
+);
+
+/** How long the logbook is kept. */
+export const VEHICLE_LOGBOOK_RETENTION_RULE: TaxCopy = asTaxCopy(
+  "Per CRA, records are generally kept for six years from the end of the tax year they relate to. The full 12-month base-year logbook is kept for six years from the end of the last tax year it is used to establish business use for.",
+);
+
+/** Several vehicles. */
+export const MULTIPLE_VEHICLES_RULE: TaxCopy = asTaxCopy(
+  "Per CRA, a business that uses more than one vehicle has a separate record for each, showing the total and business kilometres driven and the cost to run and maintain it, and each vehicle's expenses are calculated separately.",
+);
+
+/**
+ * Source: canada.ca, "Motor vehicle expenses (not including CCA)" (completing
+ * Form T2125), page dated 2026-08-31, read 2026-10-18. CRA: "If you use a
+ * motor vehicle or passenger vehicle for business and personal use, you can
+ * deduct only the part of the expenses that you paid to earn income." "To
+ * support the amount you can deduct, keep a record of the total kilometres
+ * you drive and the kilometres you drive to earn income." The same page lets
+ * business parking fees and supplementary business insurance be deducted in
+ * full; Agent Runway applies the business-use share to every vehicle item
+ * (open finding, 2026-10-18), so that sentence is not printed as if the app
+ * followed it.
+ */
+export const VEHICLE_BUSINESS_PART_RULE: TaxCopy = asTaxCopy(
+  "Per CRA, when a vehicle is used for business and personal driving, only the part of its expenses paid to earn income is deductible, supported by a record of the total kilometres driven and the kilometres driven to earn income.",
+);
+
+/**
+ * CRA's reasonable per-kilometre allowance rates, by year.
+ *
+ * Source: canada.ca, "Automobile or motor vehicle benefits – Allowances or
+ * reimbursements provided to an employee for the use of their own vehicle",
+ * table "What are the reasonable prescribed allowance per-kilometre rates"
+ * (read 2026-10-18). The 2026 row matches the Department of Finance news
+ * release of 2026-01-14 ("73 cents per kilometre for the first 5,000
+ * kilometres driven, and to 67 cents for each additional kilometre"; 77 and
+ * 71 cents in the territories).
+ *
+ * These are what an EMPLOYER can pay an EMPLOYEE as a reasonable allowance.
+ * They are not how a self-employed agent's motor vehicle expenses are
+ * deducted on Form T2125 (actual costs, business part: VEHICLE_BUSINESS_PART_RULE).
+ * Until 2026-10-18 the app labelled km × these rates as a deduction and
+ * held 2025's rates in `CRA_MILEAGE_RATES` while labelling them with the
+ * current year.
+ */
+export interface AllowanceRates {
+  /** The year CRA published these rates for. */
+  readonly year: number;
+  /** $ per km for the first 5,000 km, provinces. */
+  readonly first5000: number;
+  /** $ per km after 5,000 km, provinces. */
+  readonly beyond5000: number;
+  /** $ per km for the first 5,000 km, territories. */
+  readonly first5000Territories: number;
+  /** $ per km after 5,000 km, territories. */
+  readonly beyond5000Territories: number;
+  /** The km where the lower rate starts. */
+  readonly threshold: number;
+}
+
+const rates = (year: number, p1: number, p2: number, t1: number, t2: number): AllowanceRates =>
+  ({ year, first5000: p1, beyond5000: p2, first5000Territories: t1, beyond5000Territories: t2, threshold: 5_000 });
+
+/** CRA's table, newest first. Add a row when CRA publishes the next year's rates. */
+export const CRA_ALLOWANCE_RATES: readonly AllowanceRates[] = [
+  rates(2026, 0.73, 0.67, 0.77, 0.71),
+  rates(2025, 0.72, 0.66, 0.76, 0.70),
+  rates(2024, 0.70, 0.64, 0.74, 0.68),
+  rates(2023, 0.68, 0.62, 0.72, 0.66),
+  rates(2022, 0.61, 0.55, 0.65, 0.59),
+];
+
+/**
+ * The rates CRA published for `year`; for a year it has not published yet,
+ * the latest year's (exactYear false), and for a year before the table, the
+ * oldest row's. A label citing a year prints `rates.year`, never `year`.
+ */
+export function craAllowanceRates(year: number): { rates: AllowanceRates; exactYear: boolean } {
+  const exact = CRA_ALLOWANCE_RATES.find((r) => r.year === year);
+  if (exact) return { rates: exact, exactYear: true };
+  const latest = CRA_ALLOWANCE_RATES[0];
+  if (year > latest.year) return { rates: latest, exactYear: false };
+  return { rates: CRA_ALLOWANCE_RATES[CRA_ALLOWANCE_RATES.length - 1], exactYear: false };
+}
+
+/** "$0.73/km for the first 5,000 km and $0.67/km after (CRA's 2026 rates)". */
+export function allowanceRatesSentence(year: number): string {
+  const { rates: r } = craAllowanceRates(year);
+  return `$${r.first5000.toFixed(2)}/km for the first ${r.threshold.toLocaleString("en-CA")} km and $${r.beyond5000.toFixed(2)}/km after (CRA's ${r.year} rates for the provinces)`;
+}
+
+/** What a km × rate figure is, and what it is not. */
+export const ALLOWANCE_RATE_NOTE: TaxCopy = asTaxCopy(
+  "CRA's per-kilometre rates are the reasonable allowance an employer can pay an employee for driving the employee's own vehicle. A km × rate figure is that benchmark. It is not the T2125 motor vehicle deduction, which is the business part of the vehicle's actual expenses (fuel, insurance, maintenance, lease or capital cost allowance).",
+);
+
 /** The CRA pages the instalment rules above come from, for a citation or a link. */
 export const CRA_INSTALMENT_SOURCES = {
   whoPays: {

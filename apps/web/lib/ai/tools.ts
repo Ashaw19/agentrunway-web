@@ -19,6 +19,7 @@
  *                         searchContactTasks, searchExpenses, searchOutreachQueue,
  *                         searchTransactions, searchActivities, searchMileageLogs,
  *                         searchReferrals, searchCCAAssets, searchFlightPlans,
+ *                         logbookStatus,
  *                         searchListingAppointments, searchPropertyShowings,
  *                         searchRecurringExpenses, searchArchivedClients,
  *                         getClientSummary, getUpcomingAgenda,
@@ -45,7 +46,8 @@
  *                         logContactActivity,
  *                         createContactTask, createRecurringExpense,
  *                         updateRecurringExpense, deleteRecurringExpense,
- *                         logExpense, logMileage,
+ *                         logExpense, logMileage, startLogbookPeriod,
+ *                         recordOdometerReading,
  *                         updateExpense, recordReferral, recordTransaction,
  *                         updateTransaction, updateIncomeReportingMethod,
  *                         updatePipelineDealValue,
@@ -90,6 +92,26 @@ import { type DraftTextResult, MAX_TEXT_DRAFTS_PER_REQUEST, draftTextForClient }
 import { TEXT_PURPOSES } from "@/lib/outreach-prompts";
 import { APP_TIME_ZONE, addDaysISO, atlanticDayStart, atlanticISODate, atlanticNoon, atlanticYear } from "@agent-runway/core/lib/local-date";
 import { recurringHasEnded } from "@agent-runway/core/engines/recurring-expense-engine";
+import {
+  allowanceRateFigure,
+  defaultVehicleId,
+  logbookDateLabel,
+  vehicleBusinessUseFor,
+} from "@agent-runway/core/engines/vehicle-logbook-engine";
+import { loadLogbookRows } from "@agent-runway/core/lib/vehicle-logbook-rows";
+import {
+  recordOdometerReading as recordOdometerReadingWrite,
+  startLogbookPeriod as startLogbookPeriodWrite,
+} from "@agent-runway/core/lib/vehicle-logbook-writes";
+import {
+  ALLOWANCE_RATE_NOTE,
+  CANONICAL_TAX_DISCLAIMER_SHORT,
+  CRA_MOTOR_VEHICLE_SOURCES,
+  SIMPLIFIED_LOGBOOK_FORMULA,
+  SIMPLIFIED_LOGBOOK_RANGE_RULE,
+  SIMPLIFIED_LOGBOOK_RULE,
+} from "@agent-runway/core/tax-copy";
+import { loadVehicleLogbook } from "@/lib/vehicle-logbook/load";
 import { hasClosedDeal } from "@/lib/crm/contactable-records";
 import {
   writeClient,
@@ -151,6 +173,9 @@ export const NEEDS_APPROVAL_TOOLS = new Set([
   "deleteRecurringExpense",
   "logExpense",
   "logMileage",
+  // Vehicle logbook (CRA's simplified method)
+  "startLogbookPeriod",
+  "recordOdometerReading",
   "updateExpense",
   "deleteExpense",
   "deleteMileage",
@@ -230,8 +255,26 @@ export const APPROVAL_DESCRIPTIONS: Record<string, (args: Record<string, unknown
     const detail = [item, tax].filter(Boolean).join(", ");
     return `Log $${Number(args.amount).toLocaleString()} expense at ${args.vendor} on ${args.expenseDate}${detail ? ` (${detail})` : ""}`;
   },
-  logMileage: (args) =>
-    `Log ${args.km} km on ${args.tripDate}: "${String(args.description ?? "").slice(0, 60)}"`,
+  logMileage: (args) => {
+    const odo = typeof args.odometerStart === "number" && typeof args.odometerEnd === "number"
+      ? ` (odometer ${args.odometerStart} to ${args.odometerEnd})`
+      : "";
+    const km = typeof args.km === "number" ? `${args.km} km` : "a trip";
+    const vehicle = typeof args.vehicleName === "string" && args.vehicleName ? ` in ${args.vehicleName}` : "";
+    return `Log ${km}${odo}${vehicle} on ${args.tripDate}: "${String(args.description ?? "").slice(0, 60)}"`;
+  },
+  startLogbookPeriod: (args) => {
+    const kind = args.kind === "sample" ? "3-month sample period" : "12-month base year";
+    const odo = typeof args.odometerStart === "number" ? `, odometer ${args.odometerStart} km at the start` : "";
+    const vehicle = typeof args.vehicleName === "string" && args.vehicleName ? ` for ${args.vehicleName}` : "";
+    return `Start a ${kind}${vehicle} from ${args.startDate}${odo}`;
+  },
+  recordOdometerReading: (args) => {
+    const what = args.kind === "period_start" ? "the start of a logbook period"
+      : args.kind === "period_end" ? "the end of a logbook period"
+      : `the end of ${args.date ?? "the month"}`;
+    return `Record odometer ${args.km} km at ${what}${typeof args.vehicleName === "string" && args.vehicleName ? ` (${args.vehicleName})` : ""}`;
+  },
   updateExpense: (args) => {
     const changes: string[] = [];
     if (args.vendor) changes.push(`vendor → ${args.vendor}`);
@@ -357,16 +400,40 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
   // Expense totals are net of the GST/HST a registrant claims back as ITCs
   // (expense-totals-engine), same as the dashboard. One settings read per
   // tool set, shared by every tool that totals receipts.
+  // The vehicle share in it is the logbook's when it covers the year
+  // (vehicle-logbook-engine), the declared setting otherwise.
   let expenseTaxCtxPromise: Promise<ExpenseTaxContext> | null = null;
   const getExpenseTaxCtx = (): Promise<ExpenseTaxContext> =>
     (expenseTaxCtxPromise ??= (async () => {
-      const { data } = await supabase
-        .from("user_settings")
-        .select("gst_hst_registered, vehicle_business_use_pct, home_office_business_use_pct")
-        .eq("user_id", userId)
-        .maybeSingle();
-      return expenseTaxContext(data);
+      const [{ data }, logbook] = await Promise.all([
+        supabase
+          .from("user_settings")
+          .select("gst_hst_registered, vehicle_business_use_pct, home_office_business_use_pct")
+          .eq("user_id", userId)
+          .maybeSingle(),
+        loadVehicleLogbook(supabase, userId, atlanticYear()),
+      ]);
+      return expenseTaxContext(data, logbook);
     })());
+  /** The agent's vehicle whose name matches, or the default vehicle; null when the agent has none. */
+  const resolveVehicle = async (name: string | undefined): Promise<{ id: string; name: string } | { error: string } | null> => {
+    const { data, error } = await supabase
+      .from("vehicles")
+      .select("id, name, is_active, created_at")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: true });
+    if (error) return null; // before migration 00184, or a failed read: the trip counts for the default vehicle
+    const vehicles = (data ?? []) as { id: string; name: string; is_active: boolean; created_at: string }[];
+    if (name && name.trim()) {
+      const wanted = name.trim().toLowerCase();
+      const match = vehicles.find((v) => v.name.toLowerCase() === wanted) ?? vehicles.find((v) => v.name.toLowerCase().includes(wanted));
+      if (!match) return { error: `No vehicle named "${name}". The agent's vehicles: ${vehicles.map((v) => v.name).join(", ") || "none yet"}.` };
+      return { id: match.id, name: match.name };
+    }
+    const id = defaultVehicleId(vehicles);
+    const v = vehicles.find((x) => x.id === id);
+    return v ? { id: v.id, name: v.name } : null;
+  };
   /** Appended to a receipt total so the basis is stated, never implied. */
   const expenseBasisNote = (ctx: ExpenseTaxContext) =>
     ctx.gstHstRegistered ? " (net of GST/HST claimed as input tax credits)" : "";
@@ -1245,27 +1312,158 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
 
     // ── LOG MILEAGE ──────────────────────────────────────────────────────────
     logMileage: tool({
-      description: "Log a business mileage trip for CRA vehicle expense deduction. The deduction is automatically calculated using the current CRA rate ($0.72/km for first 5,000km, $0.66/km after). Use this when the agent mentions driving to a showing, listing, or client meeting.",
+      description:
+        "Log a business trip in the agent's mileage log (CRA's logbook lists each business trip's date, destination, purpose and km). " +
+        "Give km, or the odometer at the start and end of the trip (km are then worked out). With more than one vehicle, name it (vehicleName); otherwise the trip counts for the default vehicle. " +
+        "Use this when the agent mentions driving to a showing, listing or client meeting. Logging a trip creates no deduction figure: km × CRA's per-km rate is an employer-allowance benchmark, and the T2125 vehicle deduction is vehicle costs × business use. Gated by the approval card.",
       inputSchema: z.object({
         tripDate: z.string().describe("Trip date in YYYY-MM-DD format — defaults to today"),
-        km: z.number().positive().describe("Kilometres driven (one way or round trip — agent should specify)"),
-        description: z.string().describe("Trip purpose (e.g. 'Showing at 44 Main St', 'Client meeting with John Smith')"),
+        km: z.number().positive().optional().describe("Kilometres driven (one way or round trip, as the agent says). Optional when odometerStart and odometerEnd are given."),
+        odometerStart: z.number().nonnegative().optional().describe("Odometer at the start of the trip, in km"),
+        odometerEnd: z.number().nonnegative().optional().describe("Odometer at the end of the trip, in km"),
+        description: z.string().describe("Where and why (e.g. 'Showing at 44 Main St', 'Client meeting with John Smith')"),
+        purpose: z.string().optional().describe("Short purpose, e.g. 'Client showing', 'Open house', 'Board / MLS office'. Defaults to the description."),
         fromLocation: z.string().optional().describe("Starting point (e.g. 'Home office', '100 King St')"),
         toLocation: z.string().optional().describe("Destination (e.g. '44 Main Street, Saint John')"),
+        vehicleName: z.string().optional().describe("Which vehicle, by name, when the agent has more than one"),
       }),
       needsApproval: true,
-      execute: async ({ tripDate, km, description, fromLocation, toLocation }) => {
-        const deduction = km * 0.72; // Simplified — engine handles 5K threshold
-
+      execute: async ({ tripDate, km, odometerStart, odometerEnd, description, purpose, fromLocation, toLocation, vehicleName }) => {
         try {
-          // Core writer (record-writers). EXTENSION POINT (vehicle logbook):
-          // odometer readings go through writeMileage / LogMileageArgs.
-          const out = await writeMileage(supabase, userId, { tripDate, km, description, fromLocation, toLocation });
+          // Core writer (record-writers, the one the voice capture and the
+          // phone replay use): km from the odometer when only the readings
+          // are given, the vehicle checked as the agent's own.
+          const vehicle = await resolveVehicle(vehicleName);
+          if (vehicle && "error" in vehicle) return vehicle.error;
+          const out = await writeMileage(supabase, userId, {
+            tripDate,
+            km: km ?? 0,
+            description,
+            fromLocation,
+            toLocation,
+            purpose,
+            odometerStart,
+            odometerEnd,
+            vehicleId: vehicle?.id,
+          });
           if (!out.ok) return `Failed to log mileage: ${out.message}`;
-
-          return `✓ Mileage logged — ${km} km on ${tripDate} for "${description}". Estimated deduction: ~$${deduction.toFixed(2)}. View all trips at /expenses (Mileage tab).`;
+          // No dollar figure: km × CRA's per-km rate is an employer-allowance benchmark, not a deduction.
+          return `✓ ${out.message.replace(/\.$/, "")} for "${description}"${vehicle ? ` (${vehicle.name})` : ""}. View all trips at /expenses?tab=mileage.`;
         } catch {
           return "Failed to log mileage. Please try again.";
+        }
+      },
+    }),
+
+    // ── VEHICLE LOGBOOK: status ──────────────────────────────────────────────
+    logbookStatus: tool({
+      description:
+        "The agent's CRA vehicle logbook: vehicles, base-year and sample periods with progress (\"Base year: 4 of 12 months logged\"), odometer readings due, and the year's vehicle business-use share with how it was worked out (full logbook, CRA's simplified method with its 10% test, or the declared Settings %). " +
+        "Use when the agent asks about their logbook, vehicle business use, what odometer readings are due, or how the vehicle % on their T2125 was worked out. Information only.",
+      inputSchema: z.object({
+        year: z.number().int().optional().describe("Tax year (default: this year)"),
+      }),
+      execute: async ({ year }) => {
+        try {
+          const y = year ?? atlanticYear();
+          const [{ data: settings }, rows] = await Promise.all([
+            supabase.from("user_settings").select("gst_hst_registered, vehicle_business_use_pct, home_office_business_use_pct").eq("user_id", userId).maybeSingle(),
+            loadLogbookRows(supabase, userId, y),
+          ]);
+          const use = vehicleBusinessUseFor(settings, rows, y, atlanticISODate());
+          const pct = (p: number) => `${Math.round(p * 1000) / 10}%`;
+          const lines: string[] = [];
+          lines.push(`Vehicle business use for ${y}: ${use.label}.`);
+          if (use.method === "declared") lines.push(`Declared setting: ${pct(use.declaredPct)} (Settings). The logbook gives a figure for a year once a base year running January to December of that year, or a sample period in that year after a finished base year, is complete.`);
+          if (use.tenPercentTest) {
+            const t = use.tenPercentTest;
+            lines.push(`CRA's formula: ${SIMPLIFIED_LOGBOOK_FORMULA}. Here: (${pct(t.samplePct)} ÷ ${pct(t.baseSamePeriodPct)}) × ${pct(t.baseAnnualPct)} = ${pct(t.calculatedPct)}; CRA's range for this base year is ${pct(Math.max(0, t.lowerPct))} to ${pct(Math.min(1, t.upperPct))}, so it is ${t.passed ? "inside" : "outside"} the range.`);
+          }
+          if (rows.vehicles.length === 0) lines.push("Vehicles: none yet (starting a logbook period adds \"My vehicle\"; trips logged so far count for it).");
+          else lines.push(`Vehicles: ${rows.vehicles.map((v) => `${v.name}${v.is_active ? "" : " (inactive)"}`).join(", ")}.`);
+          if (use.vehicles.length > 1) {
+            for (const v of use.vehicles) lines.push(`- ${v.vehicleName}: ${v.pct != null ? `${pct(v.pct)} (${v.method})` : `no figure (${v.reason})`}`);
+          }
+          if (use.progress.length) lines.push(`Logbook periods: ${use.progress.map((p) => p.label).join("; ")}.`);
+          else lines.push("Logbook periods: none.");
+          if (use.readingsDue.length) {
+            lines.push("Odometer readings due:");
+            for (const d of use.readingsDue) lines.push(`- ${d.label} (${d.vehicleName}; kind ${d.kind}, period ${d.periodId}${d.kind === "month_end" ? `, date ${d.date}` : ""})`);
+          }
+          for (const n of use.notes) lines.push(`Note: ${n}`);
+          lines.push(`CRA's rule: ${SIMPLIFIED_LOGBOOK_RULE} ${SIMPLIFIED_LOGBOOK_RANGE_RULE} Source: ${CRA_MOTOR_VEHICLE_SOURCES.records.url}`);
+          lines.push(CANONICAL_TAX_DISCLAIMER_SHORT);
+          return lines.join("\n");
+        } catch (err) {
+          console.error("[tool/logbookStatus] error:", err);
+          return "The logbook could not be read right now.";
+        }
+      },
+    }),
+
+    // ── VEHICLE LOGBOOK: start a period ──────────────────────────────────────
+    startLogbookPeriod: tool({
+      description:
+        "Start a CRA logbook period the agent asks for: a 12-month base year (kind 'base') or a later 3-month sample period (kind 'sample'), from the 1st of a month, optionally with the odometer at the start. " +
+        "Per CRA, a full logbook for one complete year establishes a base year, and a three-month sample in a later year is compared with the same months of it. Never suggest which kind or when to start; act on the agent's request only. Gated by the approval card.",
+      inputSchema: z.object({
+        kind: z.enum(["base", "sample"]).describe("'base' = 12-month base year; 'sample' = 3-month sample period after a base year"),
+        startDate: z.string().describe("First day of the period, YYYY-MM-DD, on the 1st of a month (e.g. 2026-11-01)"),
+        odometerStart: z.number().nonnegative().optional().describe("Odometer as the period begins, in km, when the agent gives it"),
+        vehicleName: z.string().optional().describe("Which vehicle, by name, when the agent has more than one"),
+      }),
+      needsApproval: true,
+      execute: async ({ kind, startDate, odometerStart, vehicleName }) => {
+        try {
+          const vehicle = await resolveVehicle(vehicleName);
+          if (vehicle && "error" in vehicle) return vehicle.error;
+          const r = await startLogbookPeriodWrite(supabase, userId, {
+            vehicleId: vehicle?.id ?? null,
+            kind,
+            startDate,
+            odometerStart: odometerStart ?? null,
+          });
+          if (!r.ok) return `The logbook period was not started: ${r.error}`;
+          const p = r.value;
+          return `✓ ${p.kind === "base" ? "Base year" : "Sample period"} started: ${logbookDateLabel(p.start_date)} to ${logbookDateLabel(p.end_date)}${vehicle ? ` (${vehicle.name})` : ""}.` +
+            (p.odometer_start == null ? " The odometer at the start is not recorded yet." : "") +
+            " Readings and progress: /expenses?tab=mileage.";
+        } catch {
+          return "The logbook period was not started. Please try again.";
+        }
+      },
+    }),
+
+    // ── VEHICLE LOGBOOK: an odometer reading ─────────────────────────────────
+    recordOdometerReading: tool({
+      description:
+        "Record an odometer reading the agent reads out, for a reading logbookStatus lists as due: a logbook period's start ('period_start') or end ('period_end'), or a base year's month end ('month_end', with the date). Call logbookStatus first for the period id and date. Gated by the approval card.",
+      inputSchema: z.object({
+        kind: z.enum(["period_start", "month_end", "period_end"]),
+        km: z.number().nonnegative().describe("The odometer reading, in km"),
+        periodId: z.string().uuid().optional().describe("The logbook period (period_start / period_end), from logbookStatus"),
+        date: z.string().optional().describe("month_end only: the last day of the month, YYYY-MM-DD"),
+        vehicleName: z.string().optional().describe("Which vehicle, by name, when the agent has more than one"),
+      }),
+      needsApproval: true,
+      execute: async ({ kind, km, periodId, date, vehicleName }) => {
+        try {
+          let vehicleId: string | null = null;
+          if (periodId) {
+            const { data } = await supabase.from("vehicle_logbook_periods").select("vehicle_id").eq("id", periodId).eq("user_id", userId).maybeSingle();
+            vehicleId = (data as { vehicle_id: string } | null)?.vehicle_id ?? null;
+          }
+          if (!vehicleId) {
+            const vehicle = await resolveVehicle(vehicleName);
+            if (vehicle && "error" in vehicle) return vehicle.error;
+            vehicleId = vehicle?.id ?? null;
+          }
+          if (!vehicleId) return "There is no vehicle to record a reading for. A logbook period has to be started first (startLogbookPeriod).";
+          const r = await recordOdometerReadingWrite(supabase, userId, { kind, vehicleId, periodId: periodId ?? null, date: date ?? null, km });
+          if (!r.ok) return `The reading was not saved: ${r.error}`;
+          return `✓ Odometer ${km} km recorded.`;
+        } catch {
+          return "The reading was not saved. Please try again.";
         }
       },
     }),
@@ -2352,7 +2550,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
         try {
           let query = supabase
             .from("mileage_logs")
-            .select("id, trip_date, km, deduction, from_location, to_location, purpose")
+            .select("id, trip_date, km, from_location, to_location, purpose")
             .eq("user_id", userId)
             .order("trip_date", { ascending: false })
             .limit(maxResults ?? 20);
@@ -2367,11 +2565,11 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
           if (!data || data.length === 0) return "No mileage logs found matching your criteria.";
 
           const totalKm = data.reduce((sum: number, m: { km: number }) => sum + Number(m.km), 0);
-          const totalDeduction = data.reduce((sum: number, m: { deduction: number }) => sum + Number(m.deduction), 0);
 
-          const header = `Found ${data.length} trip${data.length === 1 ? "" : "s"} — ${totalKm.toFixed(1)} km total, $${totalDeduction.toFixed(2)} deduction:`;
-          const list = data.map((m: { trip_date: string; km: number; deduction: number; from_location: string | null; to_location: string | null; purpose: string | null }) =>
-            `• ${m.trip_date} — ${m.km} km ($${Number(m.deduction).toFixed(2)}) ${m.from_location ? `from ${m.from_location}` : ""}${m.to_location ? ` to ${m.to_location}` : ""}${m.purpose ? ` — ${m.purpose}` : ""}`
+          // No per-trip dollar figure: km × CRA's per-km rate is an employer-allowance benchmark, not a deduction.
+          const header = `Found ${data.length} trip${data.length === 1 ? "" : "s"}, ${totalKm.toFixed(1)} km total:`;
+          const list = data.map((m: { trip_date: string; km: number; from_location: string | null; to_location: string | null; purpose: string | null }) =>
+            `• ${m.trip_date}: ${m.km} km ${m.from_location ? `from ${m.from_location}` : ""}${m.to_location ? ` to ${m.to_location}` : ""}${m.purpose ? `, ${m.purpose}` : ""}`
           ).join("\n");
 
           return `${header}\n${list}`;
@@ -2514,12 +2712,14 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
                 .lt("activity_date", days.to)
                 .order("id")
                 .range(from, to)),
-            supabase
+            fetchAllRows<{ km: number }>((from, to) => supabase
               .from("mileage_logs")
-              .select("km, deduction")
+              .select("id, km")
               .eq("user_id", userId)
               .gte("trip_date", start)
-              .lte("trip_date", end),
+              .lte("trip_date", end)
+              .order("id")
+              .range(from, to)),
             supabase
               .from("pipeline_deals")
               .select("id, stage, estimated_price")
@@ -2543,7 +2743,8 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
           const taxCtx = await getExpenseTaxCtx();
           const totalExpenses = aggregateReceiptTotals(expenses, taxCtx).total;
           const totalKm = mileage.reduce((s: number, m: { km: number }) => s + Number(m.km || 0), 0);
-          const totalMileageDed = mileage.reduce((s: number, m: { deduction: number }) => s + Number(m.deduction || 0), 0);
+          // km × CRA's per-km allowance rate: an employer-allowance benchmark, not a deduction.
+          const mileageAllowance = allowanceRateFigure(totalKm, Number(start.slice(0, 4)));
           const pipelineValue = newDeals.reduce((s: number, d: { estimated_price: number }) => s + Number(d.estimated_price || 0), 0);
 
           // Activity breakdown
@@ -2582,7 +2783,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
 
           // Mileage
           if (mileage.length > 0) {
-            sections.push(`🚗 **Mileage**: ${totalKm.toFixed(1)} km across ${mileage.length} trips — $${totalMileageDed.toFixed(2)} deduction`);
+            sections.push(`🚗 **Mileage**: ${totalKm.toFixed(1)} business km across ${mileage.length} trips (at CRA's ${mileageAllowance.rates.year} per-km allowance rates, $${mileageAllowance.amount.toFixed(2)}: an employer-allowance benchmark, not the T2125 vehicle deduction)`);
           }
 
           // Net
@@ -3208,11 +3409,14 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
               return `You have **${count ?? 0} pending outreach items** in Flight Control.`;
             }
             case "ytd_mileage": {
-              const { data, error } = await supabase.from("mileage_logs").select("km, deduction").eq("user_id", userId).gte("trip_date", ytdStart);
+              const { data, error } = await fetchAllRows<{ km: number }>((from, to) =>
+                supabase.from("mileage_logs").select("id, km").eq("user_id", userId).gte("trip_date", ytdStart).order("id").range(from, to));
               if (error) return `Query failed: ${error.message}`;
-              const km = (data ?? []).reduce((s: number, m: { km: number }) => s + Number(m.km || 0), 0);
-              const ded = (data ?? []).reduce((s: number, m: { deduction: number }) => s + Number(m.deduction || 0), 0);
-              return `YTD mileage: **${km.toFixed(0)} km** across ${data?.length ?? 0} trips — **$${ded.toFixed(2)} deduction**.`;
+              const km = data.reduce((s: number, m: { km: number }) => s + Number(m.km || 0), 0);
+              const allowance = allowanceRateFigure(km, Number(ytdStart.slice(0, 4)));
+              const ctx = await getExpenseTaxCtx();
+              const use = ctx.vehicleBusinessUse;
+              return `YTD mileage: **${km.toFixed(0)} business km** across ${data.length} trips. At CRA's ${allowance.rates.year} per-km allowance rates that is $${allowance.amount.toFixed(2)}. ${ALLOWANCE_RATE_NOTE}${use ? ` Vehicle business use applied: ${use.label}.` : ""}`;
             }
             case "active_referrals": {
               const { count, error } = await supabase.from("referrals").select("id", { count: "exact", head: true }).eq("user_id", userId).in("status", ["pending", "active"]);
@@ -3499,7 +3703,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
             .eq("user_id", userId);
 
           if (error) return `Failed to update mileage: ${error.message}`;
-          return `✓ Mileage entry updated: ${changed.join(", ")}. Note: the CRA deduction will recalculate based on your YTD total km.`;
+          return `✓ Mileage entry updated: ${changed.join(", ")}. The year's km and the logbook figures use the new value.`;
         } catch { return "Failed to update mileage. Please try again."; }
       },
     }),
@@ -3521,7 +3725,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
             .eq("user_id", userId);
 
           if (error) return `Failed to delete mileage: ${error.message}`;
-          return `✓ Mileage entry deleted — ${tripDescription}. Your YTD mileage totals and deductions will update.`;
+          return `✓ Mileage entry deleted: ${tripDescription}. The year's km and the logbook figures no longer count it.`;
         } catch { return "Failed to delete mileage. Please try again."; }
       },
     }),
@@ -4031,6 +4235,9 @@ export function createCoreAgentTools(supabase: SupabaseClient, userId: string): 
     logExpense: all.logExpense,
     updateExpense: all.updateExpense,
     logMileage: all.logMileage,
+    logbookStatus: all.logbookStatus,
+    startLogbookPeriod: all.startLogbookPeriod,
+    recordOdometerReading: all.recordOdometerReading,
     recordReferral: all.recordReferral,
     // Writes (transactions / CCA / listings)
     recordTransaction: all.recordTransaction,
@@ -4120,6 +4327,10 @@ export function createPersonaAgentTools(
       logExpense: all.logExpense,
       updateExpense: all.updateExpense,
       logMileage: all.logMileage,
+      // CRA's vehicle logbook: status (read), and the writes the agent asks for.
+      logbookStatus: all.logbookStatus,
+      startLogbookPeriod: all.startLogbookPeriod,
+      recordOdometerReading: all.recordOdometerReading,
       recordTransaction: all.recordTransaction,
       updateTransaction: all.updateTransaction,
       // Cash or accrual (Settings → Tax Filing): the agent's choice, applied on approval.

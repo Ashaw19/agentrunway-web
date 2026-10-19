@@ -41,8 +41,8 @@ import type { ActivityType, TaskPriority } from "../../types/database";
  *   - record_consent: the CASL consent ledger's recordConsent tool ("she said
  *     yes to the market emails"). Args = that tool's shape, Dispatcher lane.
  *   - log_trip odometer fields (vehicle logbook): odometer_start/odometer_end
- *     on RawLogTrip, carried into LogMileageArgs once the mileage writer and
- *     the logMileage tool take them.
+ *     on RawLogTrip, carried into LogMileageArgs (odometerStart, odometerEnd:
+ *     the writer and the logMileage tool take them since the logbook PR).
  */
 export const CAPTURE_INTENTS = [
   "log_activity",
@@ -223,13 +223,22 @@ export interface UpdatePipelineDealCloseDateArgs {
   closeDate: string;
 }
 
-/** logMileage. EXTENSION POINT (vehicle logbook): odometer readings. */
+/** logMileage. Vehicle and odometer fields: CRA's vehicle logbook (migration 00184). */
 export interface LogMileageArgs {
   tripDate: string;
+  /** Km driven. 0 with both odometer readings given: worked out from them. */
   km: number;
   description: string;
   fromLocation?: string;
   toLocation?: string;
+  /** Short purpose ("Client showing"). Defaults to the description. */
+  purpose?: string;
+  /** Odometer at the start and end of the trip, in km. */
+  odometerStart?: number;
+  odometerEnd?: number;
+  /** The agent's vehicle. Omitted: the default vehicle (defaultVehicleId). */
+  vehicleId?: string;
+  notes?: string;
 }
 
 /** logExpense */

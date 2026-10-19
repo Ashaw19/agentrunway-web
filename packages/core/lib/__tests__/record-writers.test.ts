@@ -102,9 +102,12 @@ describe("writeMileage (logMileage)", () => {
     const { db, writes } = fakeDb();
     const out = await writeMileage(db, USER, { tripDate: "2026-10-17", km: 18, description: "Showing at 12 Elm St", toLocation: "12 Elm St", fromLocation: " " });
     expect(out.ok).toBe(true);
+    // cra_rate_per_km: CRA's 2026 allowance rate (the column's default was
+    // 2025's $0.72). No vehicle or odometer columns when none are given.
     expect(writes[0].payload).toEqual({
       user_id: USER, trip_date: "2026-10-17", km: 18, description: "Showing at 12 Elm St",
       from_location: null, to_location: "12 Elm St", purpose: "Showing at 12 Elm St",
+      cra_rate_per_km: 0.73, notes: null,
     });
   });
 

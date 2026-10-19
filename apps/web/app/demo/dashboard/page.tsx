@@ -525,11 +525,13 @@ export default function DemoDashboardPage() {
   // sample monthly figures above (the demo has no receipts or recurring
   // expenses): year-to-date expenses, the monthly figure, and which expense
   // categories the tax cards treat as tracked.
+  // The demo has no logbook: its vehicle share is the sample settings' declared one.
+  const demoCtx = expenseTaxContext(DEMO_SETTINGS, null);
   const demoExpenses = ytdExpenseTotals({
     receipts: [],
     recurring: [],
     expenseItems: DEMO_EXPENSE_CATEGORIES.flatMap((cat) => cat.items),
-    ctx: expenseTaxContext(DEMO_SETTINGS),
+    ctx: demoCtx,
     now: atlanticNoon(),
   });
   const demoDeductionTracking = deductionTrackingFlags(demoExpenses.tracked.lines, DEMO_EXPENSE_CATEGORIES);
@@ -579,6 +581,7 @@ export default function DemoDashboardPage() {
               expensesRemaining={demoExpenses.expensesRemaining}
               expensesNextYear={demoExpenses.expensesNextYear}
               deductionTracking={demoDeductionTracking}
+              vehicleBusinessUsePct={demoCtx.vehicleBusinessUsePct}
               initialDashboardView="standard"
               isPro={true}
               showUpgradeBanner={false}

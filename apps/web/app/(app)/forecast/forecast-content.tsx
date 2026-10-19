@@ -92,6 +92,12 @@ interface Props {
    */
   deductionTracking: DeductionTrackingFlags;
   mileageKmTotal?: number;
+  /**
+   * The vehicle business-use share applied this year: the page's
+   * expenseTaxContext(settings, logbook).vehicleBusinessUsePct (the logbook's
+   * figure when it covers the year, else the declared setting).
+   */
+  vehicleBusinessUsePct: number;
   ccaAssetCount?: number;
   /** Still to come this year: ytdExpenseTotals(...).expensesRemaining. expensesYTD + this = the year's expenses. */
   expensesRemaining: number;
@@ -108,6 +114,7 @@ export function ForecastContent({
   monthlyRecurring = 0,
   deductionTracking,
   mileageKmTotal = 0,
+  vehicleBusinessUsePct,
   ccaAssetCount = 0,
   expensesRemaining,
 }: Props) {
@@ -342,7 +349,7 @@ export function ForecastContent({
     homeOfficeMaintenanceAnnual: settings.home_office_maintenance_annual,
     homeOfficeCondoFeesMonthly: settings.home_office_condo_fees_monthly,
     vehicleType: (settings.vehicle_type as "own" | "lease" | "none") ?? "none",
-    vehicleBusinessUsePct: settings.vehicle_business_use_pct,
+    vehicleBusinessUsePct,
     hasTrackedMileage: mileageKmTotal > 0,
     annualMileageKm: mileageKmTotal,
     gstHstRegistered: settings.gst_hst_registered,

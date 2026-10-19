@@ -26,6 +26,8 @@ import { activityRow, clientRow, contactTaskRow, mileageRow, receiptExpenseRow, 
 import { FIELD_LIMITS, validateCommissionPaidDate } from "../validation/input-guards";
 import type { ActivityType, PipelineStage, TaskPriority } from "../types/database";
 import { isIsoDay } from "./capture/dates";
+import { mileageTripRow, ownsVehicle, type TripInput, type WriteResult } from "./vehicle-logbook-writes";
+import type { MileageLog } from "../types/database";
 import type {
   CaptureTool,
   CaptureToolArgs,
@@ -46,6 +48,8 @@ export interface WriteOutcome {
   offline?: boolean;
   /** The PostgREST error code, when the database refused it. */
   code?: string;
+  /** The saved row, for a caller that shows it (writeMileage: the web Mileage tab, the phone). */
+  row?: Record<string, unknown>;
 }
 
 interface DbError {
@@ -267,32 +271,72 @@ export async function writeDealCloseDate(
 /** Most km one trip line takes (mileage_logs.km is NUMERIC(8,1)); a typo past it is refused. */
 export const MAX_TRIP_KM = 5000;
 
-/** logMileage. EXTENSION POINT (vehicle logbook): odometer readings go on the row here. */
+/**
+ * logMileage. The row is vehicle-logbook-writes' `mileageTripRow`: km from
+ * the odometer when only the two readings are given (and refused when both
+ * are given and disagree), CRA's allowance rate for the trip's year in
+ * `cra_rate_per_km`, the vehicle and odometer columns only when set. A
+ * vehicle id has to be the agent's own. Returns the saved row.
+ */
 export async function writeMileage(db: DbClient, userId: string, args: LogMileageArgs): Promise<WriteOutcome> {
   const description = (args.description ?? "").trim();
   if (!isIsoDay(args.tripDate)) return fail("The trip date isn't a real date.");
-  if (!(typeof args.km === "number" && args.km > 0)) return fail("The trip needs the kilometres driven.");
-  if (args.km > MAX_TRIP_KM) return fail(`${args.km} km is more than one trip line takes (${MAX_TRIP_KM} km).`);
+  const km = typeof args.km === "number" && args.km > 0 ? args.km : null;
+  const odometers = typeof args.odometerStart === "number" && typeof args.odometerEnd === "number";
+  if (km == null && !odometers) return fail("The trip needs the kilometres driven.");
+  if (km != null && km > MAX_TRIP_KM) return fail(`${km} km is more than one trip line takes (${MAX_TRIP_KM} km).`);
   if (!description) return fail("The trip needs a purpose.");
+  const row = mileageTripRow(userId, {
+    tripDate: args.tripDate,
+    description,
+    km,
+    odometerStart: args.odometerStart ?? null,
+    odometerEnd: args.odometerEnd ?? null,
+    vehicleId: args.vehicleId ?? null,
+    fromLocation: args.fromLocation ?? null,
+    toLocation: args.toLocation ?? null,
+    purpose: args.purpose?.trim() || description,
+    notes: args.notes ?? null,
+  });
+  if (!row.ok) return fail(row.error);
   try {
+    if (args.vehicleId) {
+      const owned = await ownsVehicle(db, userId, args.vehicleId);
+      if (!owned.ok) return fail(owned.error);
+    }
     const { data, error } = await db
       .from("mileage_logs")
-      .insert(mileageRow({
-        user_id: userId,
-        trip_date: args.tripDate,
-        km: args.km,
-        description,
-        from_location: args.fromLocation,
-        to_location: args.toLocation,
-        purpose: description,
-      }))
-      .select("id")
+      .insert(mileageRow(row.value))
+      .select("*")
       .single();
     if (error) return refused("log the trip", error);
-    return { ok: true, message: `Trip logged: ${args.km} km on ${args.tripDate}.`, id: data?.id };
+    const savedKm = data?.km ?? row.value.km;
+    return { ok: true, message: `Trip logged: ${savedKm} km on ${args.tripDate}.`, id: data?.id, row: data ?? undefined };
   } catch (err) {
     return thrown("log the trip", err);
   }
+}
+
+/**
+ * writeMileage for callers that hold a TripInput and show the saved row: the
+ * web Mileage tab, the phone's Mileage screen, MCP log_mileage. Same writer,
+ * same rules.
+ */
+export async function logTrip(db: DbClient, userId: string, t: TripInput): Promise<WriteResult<MileageLog>> {
+  const out = await writeMileage(db, userId, {
+    tripDate: t.tripDate,
+    km: t.km ?? 0,
+    description: t.description,
+    fromLocation: t.fromLocation ?? undefined,
+    toLocation: t.toLocation ?? undefined,
+    purpose: t.purpose ?? undefined,
+    odometerStart: t.odometerStart ?? undefined,
+    odometerEnd: t.odometerEnd ?? undefined,
+    vehicleId: t.vehicleId ?? undefined,
+    notes: t.notes ?? undefined,
+  });
+  if (!out.ok || !out.row) return { ok: false, error: out.message };
+  return { ok: true, value: out.row as unknown as MileageLog };
 }
 
 // ── Expense ──────────────────────────────────────────────────────────────────

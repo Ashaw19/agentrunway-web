@@ -26,6 +26,7 @@ import {
   TrendingUp,
   ChevronRight,
   Receipt,
+  Car,
   Target,
   Zap,
   Sun,
@@ -407,6 +408,16 @@ export default function ProfileScreen() {
               label={t("tools.scanReceipt")}
               description={t("tools.scanReceiptDesc")}
               onPress={() => router.push("/profile/expenses")}
+              c={c}
+            />
+            <Divider c={c} />
+            {/* English in packages/i18n/mobile/en/profile.json; other locales fall back to it. */}
+            <MenuItem
+              icon={<Car size={18} color={c.success} />}
+              iconBg={c.successDim}
+              label={t("tools.mileage", { defaultValue: "Mileage" })}
+              description={t("tools.mileageDesc", { defaultValue: "Log a trip and odometer readings" })}
+              onPress={() => router.push("/profile/mileage")}
               c={c}
             />
           </Card>

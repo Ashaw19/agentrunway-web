@@ -19,7 +19,7 @@ import {
   seasonalFractionElapsed,
 } from "../lib/projection-engine.ts";
 import { CANONICAL_TAX_DISCLAIMER } from "../lib/constants.ts";
-import { loadExpenseInputs } from "../lib/expense-inputs.ts";
+import { loadExpenseInputs, vehicleUseSummary } from "../lib/expense-inputs.ts";
 import { getFilingPeriods } from "../../_shared/core/engines/filing-period-engine.ts";
 import { atlanticISODate, atlanticYear } from "../../_shared/core/lib/local-date.ts";
 import {
@@ -626,7 +626,7 @@ export function getAnalyticsTools(supabase: SupabaseClient, userId: string): Mcp
     {
       name: "get_hst_status",
       description:
-        "Returns the agent's GST/HST status for the current year: registration flag, YTD GCI, collected amount, input tax credits (ITCs) estimated from recorded receipts and recurring expenses, net owing, remittance path (self vs brokerage), filing frequency, and the next filing period deadline. ESTIMATE ONLY — not tax advice.",
+        "Returns the agent's GST/HST status for the current year: registration flag, YTD GCI, collected amount, input tax credits (ITCs) estimated from recorded receipts and recurring expenses (vehicle_business_use is the business-use share the vehicle ITCs are limited to: computed from the CRA logbook when it covers the year, else declared in Settings; pct is a percentage), net owing, remittance path (self vs brokerage), filing frequency, and the next filing period deadline. ESTIMATE ONLY — not tax advice.",
       inputSchema: { type: "object", properties: {}, additionalProperties: false },
       annotations: {
         title: "GST/HST Status",
@@ -734,6 +734,9 @@ export function getAnalyticsTools(supabase: SupabaseClient, userId: string): Mcp
               itcs_basis: isRegistered
                 ? `Estimated from the ${label} recorded on this year's receipts and on recurring expenses charged to date. CRA limits applied: 50% on meals and entertainment, the business-use share on vehicle costs and on home bills.`
                 : `Not registered for ${label}: no input tax credits are claimed.`,
+              // The share the vehicle ITCs above were limited to: the
+              // logbook's for the year when it covers it, else the setting.
+              vehicle_business_use: vehicleUseSummary(expenseInputs.vehicleUse),
               net_owing: Math.round(netOwing),
               next_filing_period: nextFilingPeriod,
               source: "CRA — canada.ca/en/revenue-agency/services/tax/businesses/topics/gst-hst-businesses/charge-collect-which-rate.html",

@@ -15,7 +15,15 @@
 
 import { EXPENSE_RATIO_COPY, expenseRatioBandsList } from "@agent-runway/core/engines/expense-ratio-bands";
 import { TAX_YEAR } from "@agent-runway/core/engines/canadian-tax-engine";
-import { INCOME_REPORTING_METHOD_RULES, INCOME_REPORTING_METHOD_SETTING, TAX_ENGINE_TABLES } from "@agent-runway/core/tax-copy";
+import {
+  ALLOWANCE_RATE_NOTE,
+  INCOME_REPORTING_METHOD_RULES,
+  INCOME_REPORTING_METHOD_SETTING,
+  SIMPLIFIED_LOGBOOK_RULE,
+  TAX_ENGINE_TABLES,
+  VEHICLE_LOGBOOK_RULE,
+  allowanceRatesSentence,
+} from "@agent-runway/core/tax-copy";
 import {
   SCORE_VERSION,
   SURVIVAL_SCORE_STEPS,
@@ -570,11 +578,16 @@ The item decides three things: the row the expense shows under on the Expenses p
 - GST/HST can be added later. A receipt: tell Flight Crew the amount (updateExpense), or open the receipt on the Expenses page and fill in the tax field. A recurring expense: edit the entry in the Recurring Expenses list on the Expenses page, tick "This amount includes HST" and type the amount from the bill in the Override box. No Flight Crew member can edit an existing recurring expense yet.
 - There is no travel item. Flights and hotels go under Other: Miscellaneous unless the agent names another item.
 
-### Mileage Calculation (CRA 2025 rates)
-- First 5,000 km: $0.72/km
-- After 5,000 km: $0.66/km
-- Deduction = (min(totalKm, 5000) × $0.72) + (max(totalKm − 5000, 0) × $0.66)
-- Must be business-use km only (personal excluded)
+### Mileage: CRA's per-km allowance rates, and the logbook
+- CRA's per-km allowance rates: ${allowanceRatesSentence(TAX_YEAR)}.
+- The Mileage tab shows business km × those rates as "At CRA's per-km allowance rates". ${ALLOWANCE_RATE_NOTE} Until 2026-10-18 it was labelled "Total deduction", and the rates were 2025's under the current year's label.
+- Vehicle business use: ${SIMPLIFIED_LOGBOOK_RULE} The share applied to vehicle costs is the logbook's for a year it covers (a finished January-to-December base year, or a finished sample period after a base year, within CRA's 10% range), and the declared Settings % for any other year. See VEHICLE LOGBOOK in the knowledge base.
+
+**"Why does my vehicle % on the T2125 differ from Settings?"**
+→ The logbook covers that year, so its figure applies (Expenses → Mileage → CRA logbook shows how it was worked out). Settings holds the declared % for years the logbook does not cover.
+
+**"My logbook says no figure for this year"**
+→ The card lists why: a base year still running or not January to December, a sample period not finished, an odometer reading missing (each period's start and end, and a base year's month ends for the months a later sample uses), or a calculated figure outside CRA's 10% range. Until then the declared % applies, labelled as declared.
 
 ### Receipt OCR
 Camera capture → image uploaded to Supabase Storage → /api/receipts/process for OCR extraction → fields pre-filled (vendor, amount, date, category suggestion) → user reviews and saves.
@@ -607,7 +620,7 @@ The Expenses page shows an amber-bordered "Tax IQ" card — CRA-referenced educa
 
 Active tips the agent might ask about:
 - Meals & entertainment: Only 50% deductible (also affects ITCs)
-- Vehicle logbook: Required for CRA audit compliance; base-year method available
+- Vehicle logbook: CRA's motor vehicle records rules, including the simplified (base year and sample period) method
 - Home office: Must be principal place of business or exclusive regular use
 - Insurance: GST/HST-exempt — no ITC can be claimed on premiums
 - ITC 4-year limit: Missed ITCs can still be claimed within 4 years
@@ -669,7 +682,7 @@ If a user asks "what are these tips?" or "why is Agent Runway showing me this?" 
 → No data changed. The Recurring Expenses list started counting in Est. Tax Deductible and on the T2125 lines that day. It was already part of YTD Expenses.
 
 **"Why is the Deductible amount on my lease less than the YTD amount?"**
-→ Vehicle costs count at the vehicle business-use % (Expenses → Est. Tax Deductible → "Vehicle biz use"). The row shows the % beside the amount.
+→ Vehicle costs count at the vehicle business-use share: the logbook's for a year it covers, else the declared % (Expenses → Est. Tax Deductible says which). The row shows the % beside the amount.
 
 **"Why is this expense on line 9270 Other?" / "What is 'No item chosen' / 'Not in a category above'?"**
 → The expense has no category, or is under a custom item, so there is no T2125 line of its own for it. It counts in full on line 9270. Editing the receipt or recurring expense and choosing a specific item moves it to that item's line. "No item chosen" is an expense filed under the whole category; it counts as that category's first-choice item.
@@ -700,10 +713,9 @@ If a user asks "what are these tips?" or "why is Agent Runway showing me this?" 
 **"Receipt scan didn't capture correctly"**
 → OCR works best with clear photos, good lighting, and flat receipts. Crumpled/faded receipts may need manual entry.
 
-**"My mileage deduction seems low"**
-1. Check total km entered — is it business-only or total?
-2. Check vehicle business-use % in Settings
-3. The rate drops from $0.72 to $0.66 after 5,000 km
+**"My mileage figure seems low" / "Where is my mileage deduction?"**
+1. The Mileage tab's dollar figure is business km × CRA's per-km allowance rates (${allowanceRatesSentence(TAX_YEAR)}): an employer-allowance benchmark, not the T2125 deduction.
+2. The T2125 vehicle deduction is the business part of actual vehicle costs (line 9281), at the logbook's business-use share for a year it covers, else the declared % in Settings.
 
 **"What's the difference between YTD and monthly recurring?"**
 → YTD = actual amounts entered/imported this year. Monthly recurring = fixed amounts that repeat (auto-annualized in projections).
@@ -2203,44 +2215,32 @@ What-if modeling that never changes the agent's records. It is on the Scenarios 
   // ═══════════════════════════════════════════════════════════════════════════
   // MILEAGE
   // ═══════════════════════════════════════════════════════════════════════════
-  mileage: `## TROUBLESHOOTING: MILEAGE TRACKING
+  mileage: `## TROUBLESHOOTING: MILEAGE TRACKING AND THE VEHICLE LOGBOOK
 
-### How Mileage Tracking Works
-Agent Runway logs business driving for CRA mileage deductions under the T2125.
+### How it works (since 2026-10-18)
+Expenses → Mileage (/expenses?tab=mileage) holds the trip log and CRA's vehicle logbook.
 
-**Key Fields per Trip:**
-- Trip date
-- Kilometres driven
-- From / To locations
-- Purpose (showing, listing, client meeting, open house, etc.)
-- Deduction (auto-calculated using CRA rates)
+**Each trip:** date, km (or the odometer at its start and end, and the km are worked out), from / to, purpose, description, vehicle (when there is more than one). Saved places and "Repeat last trip" fill the form faster, on the web and in the phone app (More → Mileage).
 
-### CRA Mileage Rates (2025)
-- First 5,000 km: $0.72/km
-- After 5,000 km: $0.66/km
-- These rates are applied automatically based on YTD cumulative km
+**CRA's rules ("Motor vehicle records", canada.ca):** ${VEHICLE_LOGBOOK_RULE} ${SIMPLIFIED_LOGBOOK_RULE}
 
-### Deduction Calculation
-The deduction uses the tiered CRA rate:
-- If YTD km ≤ 5,000: deduction = km × $0.72
-- If YTD km > 5,000: first 5,000 km at $0.72, remainder at $0.66
-- Business use percentage from Settings is applied on top
+**The logbook in Agent Runway:** vehicles, and per vehicle a base year (12 months) or a sample period (3 months), each from the 1st of a month, with the odometer as it begins, at its end, and at each month end of a base year. The vehicle business-use share for a year is the full logbook's when a finished base year runs January to December of that year, or CRA's simplified figure ((sample % ÷ base-year same-period %) × base-year annual %, within 10 percentage points of the base year) when a finished sample period in that year follows a finished base year. Any other year uses the declared % in Settings, labelled as declared. That one share is applied to T2125 line 9281, Est. Tax Deductible, the GST/HST return's vehicle ITC and the tax estimate everywhere.
+
+### CRA's per-km allowance rates
+- ${allowanceRatesSentence(TAX_YEAR)}.
+- km × those rates shows as "At CRA's per-km allowance rates". ${ALLOWANCE_RATE_NOTE}
 
 ### Common Issues
-- **"My deduction seems low"**: Check your vehicle business-use percentage in Settings. If it's set to 50%, only half your km count.
-- **"Mileage not showing in deductions"**: Mileage deductions appear on the Overhead page under vehicle expenses. Make sure trips are logged.
-- **"I forgot to log trips"**: You can backdate mileage entries. Use the Flight Crew: "I drove 45km to a showing last Tuesday."
-- **"Rate changed mid-year"**: CRA rates are set annually. The platform uses the current year's rates for all entries in that year.
-
-### Best Practices
-- Log trips the same day — easier to remember details
-- Include the property address and purpose for CRA compliance
-- Keep a separate log book as backup (CRA may request it)
-- The Flight Crew can log mileage: "I drove 32km to a showing at 88 King Street"
+- **"Why isn't my mileage a deduction?" / "Where is my mileage deduction?"**: For a self-employed agent the T2125 motor vehicle deduction is the business part of actual vehicle costs (fuel, insurance, maintenance, lease or CCA), on line 9281. Trips and odometer readings are what the business-use share is worked out from. The per-km figure is CRA's employer-allowance benchmark, shown for scale.
+- **"My vehicle % on the T2125 is not what I typed in Settings"**: the logbook covers that year, so its figure applies. The CRA logbook card shows how it was worked out (the formula with the agent's numbers, and CRA's range).
+- **"The logbook shows no figure for this year"**: the card lists why (a base year still running or not January to December, a sample period not finished, a missing odometer reading, or a calculated figure outside CRA's 10% range).
+- **"I forgot to log trips"**: trips can be backdated. Flight Crew: "I drove 45 km to a showing last Tuesday."
+- **"Which km count?"**: the trip log is business trips only. Total km come from the odometer readings.
 
 ### Where to Find It
-- **Expenses page** (/expenses) → Mileage tab
-- **Overhead page** (/overhead) → Vehicle deductions section
+- **Expenses page** (/expenses?tab=mileage) → Mileage tab: trips, the CRA logbook card, odometer readings
+- **Reports** (/reports) → T2125: line 9281 and the PDF's mileage page
+- **Phone app** → More → Mileage: trips and odometer readings due
 `,
 
   // ═══════════════════════════════════════════════════════════════════════════

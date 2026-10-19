@@ -1,5 +1,26 @@
 "use client";
 
+/**
+ * Expenses → Mileage.
+ *
+ * Trips, CRA's logbook (vehicles, base and sample periods, odometer readings,
+ * expenses-logbook-card.tsx) and the vehicle business-use share they give.
+ *
+ * Changed 2026-10-18:
+ *   - The km × CRA per-km figure was labelled as a deduction (a KPI card,
+ *     the rate breakdown, the trip table and its footer). CRA's per-km rates are the
+ *     reasonable allowance an employer pays an employee; a self-employed
+ *     agent's T2125 vehicle deduction is the business part of actual vehicle
+ *     costs. The figure is now "At CRA's per-km allowance rates", with that
+ *     note, and per-trip amounts are gone.
+ *   - The rates were 2025's under the current year's label
+ *     (CRA_MILEAGE_RATES). They come from craAllowanceRates(year), which
+ *     names the year of the rates it used.
+ *   - The "claimed % vs logged %" banner compared the declared % with logged
+ *     km over an assumed 20,000 km a year. The logbook replaces it: total km
+ *     come from the odometer.
+ */
+
 import { useState, useMemo } from "react";
 import { toast }              from "sonner";
 import { createClient }       from "@/lib/supabase/client";
@@ -14,126 +35,216 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import {
-  Car, Plus, Trash2, Download, Info, X, Check, Loader2, AlertTriangle, ShieldCheck,
+  Car, Plus, Trash2, Download, Info, X, Check, Loader2, Repeat,
 } from "lucide-react";
 import { fmtCurrency }         from "@/lib/formatters";
-import { cn }                  from "@/lib/utils";
-import { CRA_MILEAGE_RATES }   from "@/lib/types/database";
-import type { MileageLog }     from "@/lib/types/database";
+import type { MileageLog, MileagePlace } from "@/lib/types/database";
 import Link                    from "next/link";
 import { CollapsibleCard }     from "@/components/collapsible-card";
 import { localISODate } from "@agent-runway/core/lib/local-date";
-
-// ── CRA 2025 rates ────────────────────────────────────────────────────────────
-const RATE_FIRST  = CRA_MILEAGE_RATES.first5000;    // $0.72/km
-const RATE_BEYOND = CRA_MILEAGE_RATES.beyond5000;   // $0.66/km
-const THRESHOLD   = CRA_MILEAGE_RATES.threshold;    // 5,000 km
-
-// Common trip purpose suggestions
-const PURPOSES = [
-  "Client showing",
-  "Open house",
-  "Client meeting",
-  "Board / MLS office",
-  "Property inspection",
-  "Listing appointment",
-  "Stager / photographer",
-  "Office supply run",
-  "Professional development",
-  "Other business",
-];
+import type { ExpenseTaxLogbook } from "@agent-runway/core/engines/expense-totals-engine";
+import {
+  allowanceRateFigure,
+  defaultVehicleId,
+  type LogbookRows,
+  type VehicleBusinessUse,
+} from "@agent-runway/core/engines/vehicle-logbook-engine";
+import { loadLogbookRows } from "@agent-runway/core/lib/vehicle-logbook-rows";
+import { MILEAGE_TRIP_PURPOSES } from "@agent-runway/core/lib/vehicle-logbook-writes";
+import { logTrip } from "@agent-runway/core/lib/record-writers";
+import {
+  ALLOWANCE_RATE_NOTE,
+  CRA_MOTOR_VEHICLE_SOURCES,
+  VEHICLE_BUSINESS_PART_RULE,
+  VEHICLE_LOGBOOK_RULE,
+  allowanceRatesSentence,
+} from "@agent-runway/core/tax-copy";
+import { ExpensesLogbookCard } from "./expenses-logbook-card";
 
 interface Props {
+  /** This year's trips, newest first. */
   mileageLogs: MileageLog[];
   year: number;
-  settings: { display_name?: string; province?: string; vehicle_business_use_pct?: number } | null;
+  /** The year's logbook rows (loadVehicleLogbook), owned by ExpensesContent. */
+  logbook: ExpenseTaxLogbook;
+  /** Re-read rows after a logbook write, so the page's vehicle share moves. */
+  onLogbookChange: (rows: LogbookRows | null) => void;
+  /** The share the page applies (expenseTaxContext(...).vehicleBusinessUse). */
+  vehicleUse: VehicleBusinessUse | null;
+  /** user_settings.vehicle_business_use_pct, as currently saved. */
+  declaredVehiclePct: number;
+  mileagePlaces: MileagePlace[];
   /** The Trip Log's minimized state, kept with the rest of the Expenses page's sections. */
   tripLogSection?: { id: string; collapsed: boolean; onToggle: () => void };
 }
 
-export function ExpensesMileageTab({ mileageLogs, year, settings, tripLogSection }: Props) {
+const EMPTY_FORM = {
+  trip_date:      "",
+  description:    "",
+  from_location:  "",
+  to_location:    "",
+  km:             "",
+  odometer_start: "",
+  odometer_end:   "",
+  purpose:        "",
+  notes:          "",
+  vehicle_id:     "",
+  save_place:     false,
+};
+
+const pctLabel = (p: number) => {
+  const v = Math.round(p * 1000) / 10;
+  return `${v % 1 === 0 ? v.toFixed(0) : v.toFixed(1)}%`;
+};
+
+const toNumber = (raw: string): number | null => {
+  const t = raw.trim().replace(/,/g, "");
+  if (!t) return null;
+  const n = Number(t);
+  return Number.isFinite(n) ? n : NaN;
+};
+
+export function ExpensesMileageTab({
+  mileageLogs, year, logbook, onLogbookChange, vehicleUse, declaredVehiclePct, mileagePlaces, tripLogSection,
+}: Props) {
+  const supabase = useMemo(() => createClient(), []);
   const [logs,     setLogs]     = useState<MileageLog[]>(mileageLogs);
+  const [places,   setPlaces]   = useState<MileagePlace[]>(mileagePlaces);
   const [adding,   setAdding]   = useState(false);
   const [saving,   setSaving]   = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
 
+  const vehicles = useMemo(
+    () => [...(logbook.rows?.vehicles ?? [])].sort((a, b) => a.created_at.localeCompare(b.created_at)),
+    [logbook.rows],
+  );
+  const activeVehicles = vehicles.filter((v) => v.is_active);
+  const defaultVehicle = defaultVehicleId(vehicles);
+  const vehicleName = (id: string | null) => vehicles.find((v) => v.id === (id ?? defaultVehicle))?.name ?? null;
+
   // ── New trip form state ────────────────────────────────────────────────────
   const today = localISODate();
-  const [form, setForm] = useState({
-    trip_date:     today,
-    description:   "",
-    from_location: "",
-    to_location:   "",
-    km:            "",
-    purpose:       "",
-    notes:         "",
-  });
+  const [form, setForm] = useState({ ...EMPTY_FORM, trip_date: today });
 
   // ── Aggregates ─────────────────────────────────────────────────────────────
-  const { totalKm, totalDeduction, rateBreakdown } = useMemo(() => {
-    const km = logs.reduce((s, l) => s + Number(l.km), 0);
-    let deduction = 0;
-    if (km <= THRESHOLD) {
-      deduction = km * RATE_FIRST;
-    } else {
-      deduction = THRESHOLD * RATE_FIRST + (km - THRESHOLD) * RATE_BEYOND;
-    }
-    const firstKm  = Math.min(km, THRESHOLD);
-    const beyondKm = Math.max(0, km - THRESHOLD);
-    return { totalKm: km, totalDeduction: deduction, rateBreakdown: { firstKm, beyondKm } };
-  }, [logs]);
+  const totalKm = useMemo(() => logs.reduce((s, l) => s + Number(l.km), 0), [logs]);
+  // km × CRA's per-km allowance rates: an employer-allowance benchmark, never a deduction.
+  const allowance = useMemo(() => allowanceRateFigure(totalKm, year), [totalKm, year]);
+  const ratesYear = allowance.rates.year;
 
   const currentMonth = new Date().getMonth() + 1; // 1–12
   const projectedKm  = currentMonth > 0 ? (totalKm / currentMonth) * 12 : 0;
 
+  const odoStart = toNumber(form.odometer_start);
+  const odoEnd   = toNumber(form.odometer_end);
+  const odometerKm = odoStart != null && odoEnd != null && Number.isFinite(odoStart) && Number.isFinite(odoEnd) && odoEnd >= odoStart
+    ? Math.round((odoEnd - odoStart) * 10) / 10
+    : null;
+
+  const placeSuggestions = useMemo(() => {
+    const names = new Set<string>();
+    for (const p of places) names.add(p.address ? `${p.name}, ${p.address}` : p.name);
+    for (const l of logs.slice(0, 100)) {
+      if (l.to_location) names.add(l.to_location);
+      if (l.from_location) names.add(l.from_location);
+    }
+    return [...names].slice(0, 60);
+  }, [places, logs]);
+
   // ── Handlers ───────────────────────────────────────────────────────────────
   function resetForm() {
-    setForm({ trip_date: today, description: "", from_location: "", to_location: "", km: "", purpose: "", notes: "" });
+    setForm({ ...EMPTY_FORM, trip_date: today });
     setAdding(false);
   }
 
+  function repeatLastTrip() {
+    const last = logs[0];
+    if (!last) return;
+    setForm({
+      ...EMPTY_FORM,
+      trip_date: today,
+      description: last.description,
+      from_location: last.from_location ?? "",
+      to_location: last.to_location ?? "",
+      km: String(last.km),
+      purpose: last.purpose ?? "",
+      notes: "",
+      vehicle_id: last.vehicle_id ?? "",
+    });
+    setAdding(true);
+  }
+
+  function pickPlace(value: string) {
+    const place = places.find((p) => (p.address ? `${p.name}, ${p.address}` : p.name) === value);
+    setForm((f) => ({
+      ...f,
+      to_location: value,
+      km: place?.default_km != null && !f.km ? String(place.default_km) : f.km,
+    }));
+  }
+
+  async function reloadLogbook(userId: string) {
+    try {
+      onLogbookChange(await loadLogbookRows(supabase, userId, year));
+    } catch (err) {
+      console.error("[mileage] logbook not reloaded:", err);
+    }
+  }
+
   async function handleAdd() {
-    const kmNum = parseFloat(form.km);
-    if (!form.description.trim() || isNaN(kmNum) || kmNum <= 0) {
-      toast.error("Please enter a description and valid km distance.");
+    const km = toNumber(form.km);
+    if (Number.isNaN(km) || Number.isNaN(odoStart) || Number.isNaN(odoEnd)) {
+      toast.error("Distances and odometer readings are numbers of km.");
       return;
     }
     setSaving(true);
-    const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { setSaving(false); return; }
 
-    const ratePerKm = totalKm < THRESHOLD ? RATE_FIRST : RATE_BEYOND;
+    // The trip's vehicle: the one picked, else the default (none before any exists).
+    const vehicleId = form.vehicle_id || defaultVehicle || null;
+    const result = await logTrip(supabase, user.id, {
+      tripDate: form.trip_date,
+      description: form.description,
+      km,
+      odometerStart: odoStart,
+      odometerEnd: odoEnd,
+      vehicleId,
+      fromLocation: form.from_location,
+      toLocation: form.to_location,
+      purpose: form.purpose,
+      notes: form.notes,
+    });
 
-    const { data, error } = await supabase
-      .from("mileage_logs")
-      .insert({
-        user_id:         user.id,
-        trip_date:       form.trip_date,
-        description:     form.description.trim(),
-        from_location:   form.from_location.trim() || null,
-        to_location:     form.to_location.trim()   || null,
-        km:              kmNum,
-        cra_rate_per_km: ratePerKm,
-        purpose:         form.purpose || null,
-        notes:           form.notes.trim() || null,
-      })
-      .select()
-      .single();
-
-    setSaving(false);
-    if (error || !data) {
-      toast.error("Couldn't save trip — please try again.");
+    if (!result.ok) {
+      setSaving(false);
+      toast.error(result.error);
       return;
     }
-    setLogs((prev) => [data as MileageLog, ...prev].sort((a, b) => b.trip_date.localeCompare(a.trip_date)));
+    const saved = result.value;
+    if (saved.trip_date.startsWith(String(year))) {
+      setLogs((prev) => [saved, ...prev].sort((a, b) => b.trip_date.localeCompare(a.trip_date)));
+    }
+
+    const to = form.to_location.trim();
+    if (form.save_place && to && !places.some((p) => p.name === to)) {
+      const { data: place, error } = await supabase
+        .from("mileage_places")
+        .insert({ user_id: user.id, name: to.slice(0, 80), default_km: Number(saved.km) || null })
+        .select("*")
+        .single();
+      if (error || !place) toast.error("Trip saved. The place was not saved.");
+      else setPlaces((prev) => [...prev, place as MileagePlace].sort((a, b) => a.name.localeCompare(b.name)));
+    }
+
+    setSaving(false);
     toast.success("Trip logged ✓");
     resetForm();
+    if ((logbook.rows?.periods.length ?? 0) > 0) await reloadLogbook(user.id);
   }
 
   async function handleDelete(id: string) {
     setDeleting(id);
-    const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { setDeleting(null); return; }
     const { error } = await supabase.from("mileage_logs").delete().eq("id", id).eq("user_id", user.id);
@@ -145,11 +256,12 @@ export function ExpensesMileageTab({ mileageLogs, year, settings, tripLogSection
     setLogs((prev) => prev.filter((l) => l.id !== id));
     setDeleting(null);
     toast("Trip removed");
+    if ((logbook.rows?.periods.length ?? 0) > 0) await reloadLogbook(user.id);
   }
 
   function downloadCsv() {
     const rows = [
-      ["Date", "Description", "From", "To", "Purpose", "KM", "Rate ($/km)", "Deduction ($CAD)", "Notes"],
+      ["Date", "Description", "From", "To", "Purpose", "KM", "Vehicle", "Odometer start", "Odometer end", "Notes"],
       ...logs.map((l) => [
         l.trip_date,
         l.description,
@@ -157,8 +269,9 @@ export function ExpensesMileageTab({ mileageLogs, year, settings, tripLogSection
         l.to_location   ?? "",
         l.purpose       ?? "",
         String(l.km),
-        String(l.cra_rate_per_km),
-        Number(l.deduction).toFixed(2),
+        vehicleName(l.vehicle_id ?? null) ?? "",
+        l.odometer_start == null ? "" : String(l.odometer_start),
+        l.odometer_end == null ? "" : String(l.odometer_end),
         l.notes ?? "",
       ]),
     ];
@@ -173,6 +286,9 @@ export function ExpensesMileageTab({ mileageLogs, year, settings, tripLogSection
     toast.success("Mileage log downloaded ✓");
   }
 
+  const showVehicleColumn = vehicles.length > 1;
+  const showOdometerColumn = logs.some((l) => l.odometer_start != null || l.odometer_end != null);
+
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div className="space-y-6">
@@ -180,9 +296,15 @@ export function ExpensesMileageTab({ mileageLogs, year, settings, tripLogSection
       {/* Sub-header + actions */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-muted-foreground">
-          CRA {year} allowance rates: ${RATE_FIRST}/km (first {THRESHOLD.toLocaleString()} km) · ${RATE_BEYOND}/km after
+          CRA&apos;s per-km allowance rates: {allowanceRatesSentence(year)}
         </p>
         <div className="flex items-center gap-2">
+          {logs.length > 0 && (
+            <Button size="sm" variant="outline" onClick={repeatLastTrip} className="gap-1.5">
+              <Repeat className="h-3.5 w-3.5" />
+              Repeat last trip
+            </Button>
+          )}
           <Button size="sm" onClick={() => setAdding(true)} className="gap-1.5">
             <Plus className="h-3.5 w-3.5" />
             Log Trip
@@ -205,7 +327,7 @@ export function ExpensesMileageTab({ mileageLogs, year, settings, tripLogSection
         <Card className="rounded-2xl border border-blue-200 bg-blue-50/70 shadow-sm">
           <CardHeader className="pb-2">
             <CardDescription className="text-xs font-semibold uppercase tracking-wide text-blue-700">
-              YTD Kilometres
+              YTD Business Kilometres
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -213,39 +335,48 @@ export function ExpensesMileageTab({ mileageLogs, year, settings, tripLogSection
               {totalKm.toLocaleString("en-CA", { maximumFractionDigits: 0 })} km
             </div>
             <p className="mt-1 text-xs text-blue-600/80">
-              {totalKm >= THRESHOLD
-                ? `${THRESHOLD.toLocaleString()} @ $${RATE_FIRST} + ${(totalKm - THRESHOLD).toLocaleString()} @ $${RATE_BEYOND}`
-                : `${(THRESHOLD - totalKm).toLocaleString()} km left at $${RATE_FIRST}/km`}
+              {logs.length} trip{logs.length !== 1 ? "s" : ""} logged
+              {logs.length > 0 && ` · ${(totalKm / logs.length).toFixed(1)} km avg`}
             </p>
-          </CardContent>
-        </Card>
-
-        <Card className="rounded-2xl border border-emerald-200 bg-emerald-50/70 shadow-sm">
-          <CardHeader className="pb-2">
-            <CardDescription className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
-              Est. Deduction
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold tracking-tight text-emerald-700">
-              {fmtCurrency(totalDeduction)}
-            </div>
-            <p className="mt-1 text-xs text-emerald-600/80">Planning estimate at CRA allowance rates</p>
           </CardContent>
         </Card>
 
         <Card className="rounded-2xl border border-slate-200 bg-slate-50/70 shadow-sm">
           <CardHeader className="pb-2">
             <CardDescription className="text-xs font-semibold uppercase tracking-wide text-slate-600">
-              Trips Logged
+              At CRA&apos;s Per-km Allowance Rates
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold tracking-tight text-slate-800">{logs.length}</div>
+            <div className="text-3xl font-bold tracking-tight text-slate-800">
+              {fmtCurrency(allowance.amount)}
+            </div>
             <p className="mt-1 text-xs text-muted-foreground">
-              {logs.length > 0
-                ? `${(totalKm / logs.length).toFixed(1)} km avg per trip`
-                : "No trips yet"}
+              Employer allowance benchmark ({ratesYear} rates), not a T2125 deduction
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className={vehicleUse && vehicleUse.method !== "declared"
+          ? "rounded-2xl border border-emerald-200 bg-emerald-50/70 shadow-sm"
+          : "rounded-2xl border border-amber-200 bg-amber-50/60 shadow-sm"}>
+          <CardHeader className="pb-2">
+            <CardDescription className={vehicleUse && vehicleUse.method !== "declared"
+              ? "text-xs font-semibold uppercase tracking-wide text-emerald-700"
+              : "text-xs font-semibold uppercase tracking-wide text-amber-700"}>
+              Vehicle Business Use
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold tracking-tight text-slate-800">
+              {pctLabel(vehicleUse?.pct ?? declaredVehiclePct)}
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {vehicleUse?.method === "full" && `From the ${year} logbook`}
+              {vehicleUse?.method === "simplified" && "From the logbook, CRA's simplified method"}
+              {(!vehicleUse || vehicleUse.method === "declared") && (
+                <>Declared in <Link href="/settings" className="underline underline-offset-2">Settings</Link>, not from a logbook</>
+              )}
             </p>
           </CardContent>
         </Card>
@@ -260,103 +391,52 @@ export function ExpensesMileageTab({ mileageLogs, year, settings, tripLogSection
             <div className="text-3xl font-bold tracking-tight text-slate-800">
               {Math.round(projectedKm).toLocaleString()} km
             </div>
-            <p className="mt-1 text-xs text-violet-600/80">At current pace · {year}</p>
+            <p className="mt-1 text-xs text-violet-600/80">Business km at the current pace · {year}</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Rate breakdown card */}
-      {rateBreakdown.firstKm > 0 && (
-        <Card className="border-l-4 border-l-blue-400">
+      {/* Allowance-rate breakdown */}
+      {allowance.firstKm > 0 && (
+        <Card className="border-l-4 border-l-slate-300">
           <CardContent className="flex flex-wrap items-center gap-6 py-3">
             <div className="flex items-center gap-2">
               <span className="inline-block h-2 w-2 rounded-full bg-blue-500" />
               <span className="text-sm">
-                <span className="font-semibold text-blue-700">{rateBreakdown.firstKm.toLocaleString()} km</span>
-                <span className="text-muted-foreground"> @ ${RATE_FIRST}/km = </span>
-                <span className="font-semibold">{fmtCurrency(rateBreakdown.firstKm * RATE_FIRST)}</span>
+                <span className="font-semibold text-blue-700">{allowance.firstKm.toLocaleString("en-CA")} km</span>
+                <span className="text-muted-foreground"> @ ${allowance.rates.first5000.toFixed(2)}/km = </span>
+                <span className="font-semibold">{fmtCurrency(allowance.firstKm * allowance.rates.first5000)}</span>
               </span>
             </div>
-            {rateBreakdown.beyondKm > 0 && (
+            {allowance.beyondKm > 0 && (
               <div className="flex items-center gap-2">
                 <span className="inline-block h-2 w-2 rounded-full bg-violet-400" />
                 <span className="text-sm">
-                  <span className="font-semibold text-violet-700">{rateBreakdown.beyondKm.toLocaleString()} km</span>
-                  <span className="text-muted-foreground"> @ ${RATE_BEYOND}/km = </span>
-                  <span className="font-semibold">{fmtCurrency(rateBreakdown.beyondKm * RATE_BEYOND)}</span>
+                  <span className="font-semibold text-violet-700">{allowance.beyondKm.toLocaleString("en-CA")} km</span>
+                  <span className="text-muted-foreground"> @ ${allowance.rates.beyond5000.toFixed(2)}/km = </span>
+                  <span className="font-semibold">{fmtCurrency(allowance.beyondKm * allowance.rates.beyond5000)}</span>
                 </span>
               </div>
             )}
             <div className="ml-auto text-sm">
-              <span className="text-muted-foreground">Total deduction: </span>
-              <span className="font-bold text-emerald-600">{fmtCurrency(totalDeduction)}</span>
+              <span className="text-muted-foreground">At CRA&apos;s allowance rates ({ratesYear}): </span>
+              <span className="font-bold text-slate-800">{fmtCurrency(allowance.amount)}</span>
             </div>
           </CardContent>
         </Card>
       )}
 
-      {/* Business-use % comparison banner */}
-      {(() => {
-        const claimedPct = settings?.vehicle_business_use_pct ?? 0;
-        // Assumed total driving: 20,000 km a year, prorated by months elapsed.
-        // Agent Runway's placeholder, not a published average.
-        const estTotalAnnualKm = 20_000;
-        const monthsElapsed = Math.max(1, new Date().getMonth() + 1);
-        const estTotalKmSoFar = (estTotalAnnualKm / 12) * monthsElapsed;
-        const loggedPct = estTotalKmSoFar > 0 ? totalKm / estTotalKmSoFar : 0;
-        const hasMeaningfulLogs = totalKm > 100 && logs.length >= 3;
-        const gap = claimedPct - loggedPct;
-        const showGapWarning = claimedPct > 0 && hasMeaningfulLogs && gap > 0.15;
-        const showOnTrack = claimedPct > 0 && hasMeaningfulLogs && gap <= 0.15;
-
-        if (claimedPct === 0) return null;
-
-        return (
-          <>
-            {showGapWarning && (
-              <Card className="border-amber-300 bg-amber-50/70">
-                <CardContent className="flex items-start gap-3 py-3">
-                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
-                  <div className="space-y-1">
-                    <p className="text-sm font-semibold text-amber-900">
-                      Mileage log doesn&apos;t yet support your claimed business-use %
-                    </p>
-                    <p className="text-xs text-amber-800 leading-relaxed">
-                      Your Settings claim <strong>{Math.round(claimedPct * 100)}% business use</strong>, but
-                      your logged trips so far ({totalKm.toLocaleString()} km across {logs.length} trips) suggest
-                      roughly <strong>{Math.round(loggedPct * 100)}%</strong> of estimated total driving.
-                      CRA&apos;s motor vehicle rules base the business share on kilometres driven to earn
-                      income against total kilometres driven in the year.
-                    </p>
-                    <p className="text-[10px] text-amber-700/80">
-                      Estimate assumes about {estTotalAnnualKm.toLocaleString()} km of total driving a year.
-                      That is Agent Runway&apos;s placeholder, not a published average. Your actual total
-                      may differ.
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-            {showOnTrack && (
-              <Card className="border-emerald-200 bg-emerald-50/60">
-                <CardContent className="flex items-start gap-3 py-3">
-                  <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
-                  <div>
-                    <p className="text-sm font-semibold text-emerald-900">
-                      Mileage log supports your claimed business-use %
-                    </p>
-                    <p className="text-xs text-emerald-800">
-                      Your logged trips ({totalKm.toLocaleString()} km) align with your
-                      claimed <strong>{Math.round(claimedPct * 100)}%</strong> business use.
-                      Keep logging to maintain CRA-ready documentation.
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-          </>
-        );
-      })()}
+      {/* CRA logbook: vehicles, periods, odometer readings, the share */}
+      <ExpensesLogbookCard
+        year={year}
+        rows={logbook.rows}
+        vehicleUse={vehicleUse}
+        declaredVehiclePct={declaredVehiclePct}
+        onChanged={async () => {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user) await reloadLogbook(user.id);
+        }}
+      />
 
       {/* Add trip form */}
       {adding && (
@@ -373,6 +453,9 @@ export function ExpensesMileageTab({ mileageLogs, year, settings, tripLogSection
             </div>
           </CardHeader>
           <CardContent>
+            <datalist id="mileage-places">
+              {placeSuggestions.map((p) => <option key={p} value={p} />)}
+            </datalist>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               <div className="space-y-1.5">
                 <Label className="text-xs font-semibold">Date</Label>
@@ -384,12 +467,14 @@ export function ExpensesMileageTab({ mileageLogs, year, settings, tripLogSection
                 />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs font-semibold">Distance (km)</Label>
+                <Label className="text-xs font-semibold">
+                  Distance (km) <span className="font-normal text-muted-foreground">(or the odometer below)</span>
+                </Label>
                 <Input
                   type="number"
                   step="0.1"
                   min="0"
-                  placeholder="e.g. 23.5"
+                  placeholder={odometerKm != null ? String(odometerKm) : "e.g. 23.5"}
                   value={form.km}
                   onChange={(e) => setForm((f) => ({ ...f, km: e.target.value }))}
                   className="h-8 text-sm"
@@ -403,15 +488,15 @@ export function ExpensesMileageTab({ mileageLogs, year, settings, tripLogSection
                   className="h-8 w-full rounded-md border border-input bg-background px-3 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
                 >
                   <option value="">Select purpose…</option>
-                  {PURPOSES.map((p) => <option key={p} value={p}>{p}</option>)}
+                  {MILEAGE_TRIP_PURPOSES.map((p) => <option key={p} value={p}>{p}</option>)}
                 </select>
               </div>
               <div className="space-y-1.5 sm:col-span-2 lg:col-span-3">
                 <Label className="text-xs font-semibold">
-                  Description <span className="font-normal text-muted-foreground">(required for CRA records)</span>
+                  Description <span className="font-normal text-muted-foreground">(where and why: CRA&apos;s logbook lists destination and purpose)</span>
                 </Label>
                 <Input
-                  placeholder="e.g. Client showing — 123 Oak St, Toronto"
+                  placeholder="e.g. Client showing, 123 Oak St"
                   value={form.description}
                   onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
                   className="h-8 text-sm"
@@ -420,6 +505,7 @@ export function ExpensesMileageTab({ mileageLogs, year, settings, tripLogSection
               <div className="space-y-1.5">
                 <Label className="text-xs font-semibold">From <span className="font-normal text-muted-foreground">(optional)</span></Label>
                 <Input
+                  list="mileage-places"
                   placeholder="Starting address"
                   value={form.from_location}
                   onChange={(e) => setForm((f) => ({ ...f, from_location: e.target.value }))}
@@ -429,29 +515,72 @@ export function ExpensesMileageTab({ mileageLogs, year, settings, tripLogSection
               <div className="space-y-1.5">
                 <Label className="text-xs font-semibold">To <span className="font-normal text-muted-foreground">(optional)</span></Label>
                 <Input
-                  placeholder="Destination address"
+                  list="mileage-places"
+                  placeholder="Destination or a saved place"
                   value={form.to_location}
-                  onChange={(e) => setForm((f) => ({ ...f, to_location: e.target.value }))}
+                  onChange={(e) => pickPlace(e.target.value)}
                   className="h-8 text-sm"
                 />
+                {form.to_location.trim() && !places.some((p) => p.name === form.to_location.trim() || `${p.name}, ${p.address}` === form.to_location.trim()) && (
+                  <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                    <input
+                      type="checkbox"
+                      checked={form.save_place}
+                      onChange={(e) => setForm((f) => ({ ...f, save_place: e.target.checked }))}
+                    />
+                    Save as a place
+                  </label>
+                )}
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs font-semibold">Notes <span className="font-normal text-muted-foreground">(optional)</span></Label>
                 <Input
-                  placeholder="e.g. Buyer was John Smith"
+                  placeholder="e.g. Buyer consultation"
                   value={form.notes}
                   onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
                   className="h-8 text-sm"
                 />
               </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold">Odometer at start <span className="font-normal text-muted-foreground">(optional)</span></Label>
+                <Input
+                  inputMode="decimal"
+                  placeholder="km"
+                  value={form.odometer_start}
+                  onChange={(e) => setForm((f) => ({ ...f, odometer_start: e.target.value }))}
+                  className="h-8 text-sm"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold">Odometer at end <span className="font-normal text-muted-foreground">(optional)</span></Label>
+                <Input
+                  inputMode="decimal"
+                  placeholder="km"
+                  value={form.odometer_end}
+                  onChange={(e) => setForm((f) => ({ ...f, odometer_end: e.target.value }))}
+                  className="h-8 text-sm"
+                />
+              </div>
+              {activeVehicles.length > 1 && (
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold">Vehicle</Label>
+                  <select
+                    value={form.vehicle_id || defaultVehicle || ""}
+                    onChange={(e) => setForm((f) => ({ ...f, vehicle_id: e.target.value }))}
+                    className="h-8 w-full rounded-md border border-input bg-background px-3 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                  >
+                    {activeVehicles.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
+                  </select>
+                </div>
+              )}
             </div>
 
-            {parseFloat(form.km) > 0 && (
+            {(Number(form.km) > 0 || odometerKm != null) && (
               <div className="mt-3 flex items-center gap-2 rounded-md bg-emerald-100/60 px-3 py-2 text-sm">
                 <Check className="h-3.5 w-3.5 text-emerald-600" />
                 <span className="text-emerald-800">
-                  {parseFloat(form.km).toFixed(1)} km × ${totalKm < THRESHOLD ? RATE_FIRST : RATE_BEYOND}/km ={" "}
-                  <strong>{fmtCurrency(parseFloat(form.km) * (totalKm < THRESHOLD ? RATE_FIRST : RATE_BEYOND))}</strong> deduction
+                  {(Number(form.km) > 0 ? Number(form.km) : odometerKm ?? 0).toFixed(1)} km
+                  {odometerKm != null && !form.km && " from the odometer"}
                 </span>
               </div>
             )}
@@ -467,42 +596,32 @@ export function ExpensesMileageTab({ mileageLogs, year, settings, tripLogSection
         </Card>
       )}
 
-      {/* Onboarding tip */}
+      {/* What a logbook holds, when nothing is logged yet */}
       {logs.length === 0 && !adding && (
         <Card className="border-blue-200 bg-blue-50/60">
           <CardContent className="flex items-start gap-3 py-4">
             <Info className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" />
             <div>
-              <p className="text-sm font-semibold text-blue-900">
-                CRA requires a contemporaneous mileage log.
-              </p>
-              <p className="mt-0.5 text-xs text-blue-700">
-                Record each business drive with date, destination, km, and purpose. The CRA {year} deductible rates are{" "}
-                <strong>${RATE_FIRST}/km</strong> for the first {THRESHOLD.toLocaleString()} km and{" "}
-                <strong>${RATE_BEYOND}/km</strong> thereafter. Log trips regularly — the CRA can deny claims without records.
-              </p>
+              <p className="text-sm font-semibold text-blue-900">What CRA&apos;s logbook holds</p>
+              <p className="mt-0.5 text-xs text-blue-700">{VEHICLE_LOGBOOK_RULE}</p>
             </div>
           </CardContent>
         </Card>
       )}
 
-      {/* Vehicle business use % note */}
+      {/* What the per-km figure is, and how the T2125 deduction works */}
       <Card className="border-amber-200 bg-amber-50/40">
         <CardContent className="flex items-start gap-3 py-3">
           <Info className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
           <div className="text-xs text-amber-800 space-y-1.5">
+            <p>{ALLOWANCE_RATE_NOTE}</p>
             <p>
-              <strong>Important:</strong> The CRA per-km rates shown (${RATE_FIRST}/${RATE_BEYOND}) are <em>reasonable automobile allowance</em> benchmarks
-              (employer-to-employee). Your actual T2125 vehicle deduction is based on your <strong>logged expenses</strong> (fuel,
-              insurance, maintenance, CCA/lease) prorated by business-use percentage, not a per-km calculation.
-            </p>
-            <p>
-              This mileage log helps substantiate your business-use percentage and provides a planning estimate.
-              If you claim actual vehicle costs (insurance, fuel, depreciation), set your{" "}
+              {VEHICLE_BUSINESS_PART_RULE} The share Agent Runway applies to vehicle costs is the logbook&apos;s figure for a year it
+              covers, and the{" "}
               <Link href="/settings" className="underline underline-offset-2 font-medium">
-                vehicle business use %
+                declared vehicle business use %
               </Link>{" "}
-              in Settings. Discuss the best method with your accountant.
+              for any other year.
             </p>
           </div>
         </CardContent>
@@ -539,9 +658,9 @@ export function ExpensesMileageTab({ mileageLogs, year, settings, tripLogSection
                     <TableHead>Date</TableHead>
                     <TableHead>Description</TableHead>
                     <TableHead>Purpose</TableHead>
+                    {showVehicleColumn && <TableHead>Vehicle</TableHead>}
+                    {showOdometerColumn && <TableHead className="text-right">Odometer</TableHead>}
                     <TableHead className="text-right">KM</TableHead>
-                    <TableHead className="text-right">Rate</TableHead>
-                    <TableHead className="text-right">Deduction</TableHead>
                     <TableHead className="w-[40px]" />
                   </TableRow>
                 </TableHeader>
@@ -569,17 +688,18 @@ export function ExpensesMileageTab({ mileageLogs, year, settings, tripLogSection
                           <Badge variant="outline" className="text-xs font-normal">{log.purpose}</Badge>
                         ) : "—"}
                       </TableCell>
+                      {showVehicleColumn && (
+                        <TableCell className="text-sm text-muted-foreground">{vehicleName(log.vehicle_id ?? null) ?? "—"}</TableCell>
+                      )}
+                      {showOdometerColumn && (
+                        <TableCell className="text-right text-xs tabular-nums text-muted-foreground">
+                          {log.odometer_start != null || log.odometer_end != null
+                            ? `${log.odometer_start ?? "?"} → ${log.odometer_end ?? "?"}`
+                            : "—"}
+                        </TableCell>
+                      )}
                       <TableCell className="text-right font-medium tabular-nums">
                         {Number(log.km).toFixed(1)}
-                      </TableCell>
-                      <TableCell className={cn(
-                        "text-right text-xs tabular-nums",
-                        Number(log.cra_rate_per_km) === RATE_FIRST ? "text-blue-600" : "text-violet-600",
-                      )}>
-                        ${Number(log.cra_rate_per_km).toFixed(2)}
-                      </TableCell>
-                      <TableCell className="text-right font-semibold tabular-nums text-emerald-700">
-                        {fmtCurrency(Number(log.deduction))}
                       </TableCell>
                       <TableCell>
                         <button
@@ -601,33 +721,28 @@ export function ExpensesMileageTab({ mileageLogs, year, settings, tripLogSection
             {/* Footer totals */}
             <div className="flex items-center justify-between border-t bg-muted/30 px-4 py-3 text-sm">
               <span className="font-semibold text-muted-foreground">Total {year}</span>
-              <div className="flex items-center gap-8">
-                <span>
-                  <span className="text-muted-foreground">KM: </span>
-                  <span className="font-bold">{totalKm.toFixed(1)}</span>
-                </span>
-                <span>
-                  <span className="text-muted-foreground">Deduction: </span>
-                  <span className="font-bold text-emerald-700">{fmtCurrency(totalDeduction)}</span>
-                </span>
-              </div>
+              <span>
+                <span className="text-muted-foreground">Business km: </span>
+                <span className="font-bold">{totalKm.toFixed(1)}</span>
+              </span>
             </div>
           </CardContent>
         </CollapsibleCard>
       )}
 
-      {/* CRA disclaimer */}
+      {/* CRA source and disclaimer */}
       <p className="text-center text-xs leading-relaxed text-muted-foreground/60 pb-2">
-        CRA rates shown are for {year}. Always verify current rates at{" "}
+        Per-km rates shown are CRA&apos;s for {ratesYear}
+        {!allowance.exactYear && ` (Agent Runway's table has no ${year} rates from CRA yet)`}. Source:{" "}
         <a
-          href="https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/payroll/benefits-allowances/automobile/automobile-motor-vehicle-allowances/reasonable-kilometre-rates.html"
+          href={CRA_MOTOR_VEHICLE_SOURCES.allowanceRates.url}
           target="_blank"
           rel="noopener noreferrer"
           className="underline underline-offset-2 hover:text-muted-foreground"
         >
           canada.ca
         </a>
-        . This log is for planning purposes only — not tax advice. Consult a qualified accountant.
+        . This log is for planning purposes only, not tax advice. Verify with your accountant.
       </p>
     </div>
   );

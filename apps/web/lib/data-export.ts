@@ -57,6 +57,10 @@ const EXPORT_TABLES: readonly ExportTable[] = [
   { table: "recurring_expense_entries", filename: "recurring-expense-entries.csv", description: "Recurring expense ledger entries" },
   { table: "receipt_expenses", filename: "receipt-expenses.csv", description: "Expenses parsed from uploaded receipts" },
   { table: "mileage_logs", filename: "mileage-logs.csv", description: "Vehicle mileage logs" },
+  { table: "vehicles", filename: "vehicles.csv", description: "Vehicles in the CRA logbook" },
+  { table: "vehicle_logbook_periods", filename: "vehicle-logbook-periods.csv", description: "CRA logbook base years and sample periods" },
+  { table: "vehicle_odometer_readings", filename: "vehicle-odometer-readings.csv", description: "Odometer readings for the CRA logbook" },
+  { table: "mileage_places", filename: "mileage-places.csv", description: "Saved places for trip entry" },
   { table: "t2125_cca_assets", filename: "t2125-cca-assets.csv", description: "Capital cost allowance assets (T2125)" },
 
   // ── CRM & clients ─────────────────────────────────────────────────────────

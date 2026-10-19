@@ -126,6 +126,8 @@ import type { CcaAsset } from "@/lib/types/database";
 import type { T2125ExpenseEntry } from "@/lib/engines/t2125-engine";
 import type { DeductionTrackingFlags } from "@/lib/engines/tax-optimization-engine";
 import { ReportsT2125Tab } from "./reports-t2125-tab";
+import type { YearMileageTotals } from "@/lib/vehicle-logbook/load";
+import type { VehicleBusinessUse } from "@agent-runway/core/engines/vehicle-logbook-engine";
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
@@ -150,7 +152,13 @@ interface Props {
   homeOfficeCosts?: Record<string, number>;
   /** Which commonly missed expense categories are already tracked (`deductionTrackingFlags`). */
   deductionTracking: DeductionTrackingFlags;
-  mileageLogs?: { km: number; deduction: number; trip_date: string }[];
+  /** This year's business km and trips (loadYearMileageTotals). */
+  mileageTotals?: YearMileageTotals;
+  /**
+   * The vehicle business-use share for the year and where it comes from:
+   * the page's expenseTaxContext(settings, logbook).vehicleBusinessUse.
+   */
+  vehicleBusinessUse: VehicleBusinessUse | null;
   taxYear?: number;
   userId?: string;
   /** Referral summary for PDF Page 7 */
@@ -259,7 +267,8 @@ export function ReportsContent({
   t2125Expenses = [],
   homeOfficeCosts = {},
   deductionTracking,
-  mileageLogs = [],
+  mileageTotals = { km: 0, tripCount: 0 },
+  vehicleBusinessUse,
   taxYear,
   userId = "",
   referralSummary,
@@ -768,7 +777,8 @@ export function ReportsContent({
           homeOfficeCosts={homeOfficeCosts}
           deductionTracking={deductionTracking}
           ccaAssets={ccaAssets}
-          mileageLogs={mileageLogs}
+          mileageTotals={mileageTotals}
+          vehicleBusinessUse={vehicleBusinessUse}
           taxYear={taxYear ?? new Date().getFullYear()}
           userId={userId}
           referralSummary={referralSummary}
