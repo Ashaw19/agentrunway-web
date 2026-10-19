@@ -6,10 +6,10 @@
  *   bank_name  — string label (e.g. "RBC Business Chequing")
  *   account_label — optional masked account number (e.g. "****1234")
  *
- * CSV format: a flexible header-detection parser that supports the most
- * common Canadian business-bank exports. It scans the header row for
- * recognizable column names and maps them to: date, description, debit,
- * credit, amount (if signed), balance.
+ * CSV format: the shared Canadian bank export parser
+ * (lib/import/bank-csv/parse.ts): known layouts by their header or shape,
+ * else column names, else column contents. Lines come back signed here
+ * (negative = money out), as corp_bank_lines stores them.
  *
  * Auto-match algorithm runs synchronously after insert:
  *   Pass 1 — exact date + ABS(amount) within $0.02 → confidence 1.0
@@ -22,6 +22,7 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { parseStatementCsv } from "@/lib/import/bank-csv/parse";
 
 export const maxDuration = 60;
 
@@ -30,6 +31,10 @@ const ALLOWED_EMAILS = new Set(["andrew@andrewdshaw.ca"]);
 const AMOUNT_TOLERANCE = 0.02;
 
 // ── CSV parsing ───────────────────────────────────────────────────────────────
+// The shared bank and card export parser (lib/import/bank-csv/parse.ts), the
+// same one the Expenses → Imports upload uses: RBC, TD, Scotiabank, BMO,
+// CIBC, National Bank, Tangerine, Simplii, Desjardins, Amex and generic
+// layouts, with account and card numbers removed from descriptions.
 
 type ParsedLine = {
   line_date: string;       // YYYY-MM-DD
@@ -38,117 +43,13 @@ type ParsedLine = {
   balance_cad: number | null;
 };
 
-function normalizeHeader(h: string) {
-  return h.toLowerCase().replace(/[^a-z0-9]/g, "");
-}
-
-function parseDate(raw: string): string | null {
-  const s = raw.trim();
-  // YYYY-MM-DD
-  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-  // MM/DD/YYYY or DD/MM/YYYY — we'll assume MM/DD/YYYY (RBC/TD North American format)
-  const m1 = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if (m1) return `${m1[3]}-${m1[1].padStart(2, "0")}-${m1[2].padStart(2, "0")}`;
-  // DD-Mon-YYYY (e.g. 01-Apr-2026)
-  const months: Record<string, string> = {
-    jan:"01",feb:"02",mar:"03",apr:"04",may:"05",jun:"06",
-    jul:"07",aug:"08",sep:"09",oct:"10",nov:"11",dec:"12",
-  };
-  const m2 = s.match(/^(\d{1,2})-([A-Za-z]{3})-(\d{4})$/);
-  if (m2) {
-    const mon = months[m2[2].toLowerCase()];
-    if (mon) return `${m2[3]}-${mon}-${m2[1].padStart(2, "0")}`;
-  }
-  return null;
-}
-
-function parseAmount(raw: string): number | null {
-  const s = raw.trim().replace(/[$,\s]/g, "");
-  if (s === "" || s === "-") return null;
-  const n = parseFloat(s);
-  return isNaN(n) ? null : n;
-}
-
-function parseCsvRow(row: string): string[] {
-  const result: string[] = [];
-  let current = "";
-  let inQuotes = false;
-  for (let i = 0; i < row.length; i++) {
-    const ch = row[i];
-    if (ch === '"') {
-      if (inQuotes && row[i + 1] === '"') { current += '"'; i++; }
-      else inQuotes = !inQuotes;
-    } else if (ch === "," && !inQuotes) {
-      result.push(current.trim());
-      current = "";
-    } else {
-      current += ch;
-    }
-  }
-  result.push(current.trim());
-  return result;
-}
-
 function parseCsv(text: string): ParsedLine[] {
-  const lines = text.split(/\r?\n/).filter(l => l.trim());
-  if (lines.length < 2) return [];
-
-  // Find header row — scan first 5 rows for one that has "date" in it
-  let headerIdx = 0;
-  for (let i = 0; i < Math.min(5, lines.length); i++) {
-    if (lines[i].toLowerCase().includes("date")) { headerIdx = i; break; }
-  }
-
-  const headers = parseCsvRow(lines[headerIdx]).map(normalizeHeader);
-
-  // Column index resolution
-  const col = (names: string[]): number =>
-    names.reduce((found, n) => found >= 0 ? found : headers.indexOf(n), -1);
-
-  const dateIdx   = col(["date", "transactiondate", "posteddate"]);
-  const descIdx   = col(["description", "transactiondetails", "memo", "details", "payee", "transactiontype"]);
-  const debitIdx  = col(["debit", "withdrawals", "withdrawal", "debitamount", "charges"]);
-  const creditIdx = col(["credit", "deposits", "deposit", "creditamount", "payments"]);
-  const amtIdx    = col(["amount", "amt"]); // signed single-column format
-  const balIdx    = col(["balance", "runningbalance"]);
-
-  if (dateIdx < 0 || (descIdx < 0)) return [];
-  const hasSplitDebitCredit = debitIdx >= 0 && creditIdx >= 0;
-  const hasSignedAmount = amtIdx >= 0;
-  if (!hasSplitDebitCredit && !hasSignedAmount) return [];
-
-  const result: ParsedLine[] = [];
-  for (let i = headerIdx + 1; i < lines.length; i++) {
-    const cells = parseCsvRow(lines[i]);
-    if (cells.length < 2) continue;
-
-    const dateStr = parseDate(cells[dateIdx] ?? "");
-    if (!dateStr) continue;
-
-    const desc = (cells[descIdx] ?? "").trim();
-    if (!desc) continue;
-
-    let amount: number | null = null;
-    if (hasSplitDebitCredit) {
-      const debit  = parseAmount(cells[debitIdx] ?? "");
-      const credit = parseAmount(cells[creditIdx] ?? "");
-      if (debit != null && debit !== 0) amount = -Math.abs(debit);
-      else if (credit != null && credit !== 0) amount = Math.abs(credit);
-      else amount = 0;
-    } else {
-      amount = parseAmount(cells[amtIdx] ?? "");
-    }
-
-    if (amount == null) continue;
-
-    result.push({
-      line_date: dateStr,
-      description_raw: desc,
-      amount_cad: amount,
-      balance_cad: balIdx >= 0 ? (parseAmount(cells[balIdx] ?? "") ?? null) : null,
-    });
-  }
-  return result;
+  return parseStatementCsv(text, { kind: "bank" }).lines.map((l) => ({
+    line_date: l.date,
+    description_raw: l.description,
+    amount_cad: l.direction === "out" ? -l.amount : l.amount,
+    balance_cad: l.balance,
+  }));
 }
 
 // ── Auto-match ────────────────────────────────────────────────────────────────

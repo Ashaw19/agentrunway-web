@@ -1,0 +1,5 @@
+Date,Date Processed,Description,Amount,Foreign Spend Amount,Commission,Exchange Rate,Additional Information,Merchant,Address,City / Province,Postal Code,Country,Reference
+02 Sep 2026,03 Sep 2026,ADVERTISING PLATFORM,150.00,,,,,"AD PLATFORM INC","1 Example St
+Suite 200","TORONTO ON","M5V 0A1","CANADA",'320260902000000123'
+05 Sep 2026,05 Sep 2026,PAYMENT RECEIVED - THANK YOU,-500.00,,,,,,,,,,'320260905000000124'
+08 Sep 2026,09 Sep 2026,BOOKSTORE ONLINE,38.50,,,,,"BOOKSTORE ONLINE",,,,,'320260908000000125'

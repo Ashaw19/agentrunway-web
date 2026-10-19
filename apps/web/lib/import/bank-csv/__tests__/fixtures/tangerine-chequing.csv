@@ -1,0 +1,4 @@
+Date,Transaction,Name,Memo,Amount
+9/2/2026,DEBIT,COFFEE CO,,-3.85
+9/3/2026,CREDIT,EFT Deposit from ACME,PAYROLL,1450.00
+9/7/2026,OTHER,INTERAC e-Transfer To: A FRIEND,Sent,-60.00

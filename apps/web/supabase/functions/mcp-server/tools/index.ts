@@ -11,6 +11,7 @@ import { getSettingsTools } from "./settings.ts";
 import { getCaptureTools } from "./capture.ts";
 import { getConsentTools } from "./consent.ts";
 import { getAiActivityTools } from "./ai-activity.ts";
+import { getStatementImportTools } from "./statement-import.ts";
 
 // MCP tool annotations (per MCP spec).
 // These are behavioral hints for clients — they do NOT enforce anything
@@ -105,8 +106,11 @@ export function buildToolRegistry(
                   "get_client_consent", "list_consent_lapsing", "record_consent", "withdraw_consent",
                   // AI run ledger (00182)
                   "get_ai_activity",
+                  // Statement imports (Expenses → Imports)
+                  "list_import_review_lines", "draft_line_categories", "explain_import_line",
+                  "match_receipt_to_line", "confirm_import_lines",
                 ],
-                phase: "Phase 1 + Opportunities + Note capture + CASL consent + Vehicle logbook + AI activity — 32 tools live",
+                phase: "Phase 1 + Opportunities + Note capture + CASL consent + Vehicle logbook + AI activity + Statement imports — 37 tools live",
               },
               null,
               2,
@@ -128,5 +132,6 @@ export function buildToolRegistry(
     ...getCaptureTools(supabase, userId, accessToken), // Note capture (2026-10-18)
     ...getConsentTools(supabase, userId),      // CASL consent ledger (00183)
     ...getAiActivityTools(supabase, userId),   // AI run ledger (00182)
+    ...getStatementImportTools(supabase, userId), // Statement imports
   ];
 }

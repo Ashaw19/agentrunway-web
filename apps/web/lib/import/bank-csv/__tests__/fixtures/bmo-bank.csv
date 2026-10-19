@@ -1,0 +1,9 @@
+﻿Following data is valid as of 20260930093000 (Year/Month/Day/Hour/Minute/Second)
+
+
+First Bank Card,Transaction Type,Date Posted, Transaction Amount,Description
+
+
+'5000123412341234',DEBIT,20260902,-42.10,[CW] COFFEE CO      
+'5000123412341234',CREDIT,20260903,900.00,[DN] DEPOSIT ACME 
+'5000123412341234',DEBIT,20260906,-19.99,[DS] SOFTWARECO      

@@ -2130,6 +2130,89 @@ export interface CorpBankReconciliationSummaryRow {
   period_days:     number;
 }
 
+// ── Statement import (migration 00185) ──────────────────────────────────────
+// Bank and credit-card statements the agent uploads on Expenses → Imports.
+// Lines are staged for review; a confirmed line becomes a receipt_expenses
+// row (source 'statement_import', statement_line_id set). Decisions:
+// packages/core/engines/statement-import-engine.ts.
+
+export type ImportedStatementKind = "bank" | "credit_card";
+export type ImportedStatementStatus = "review" | "done";
+
+export interface ImportedStatement {
+  id:               string;
+  user_id:          string;
+  kind:             ImportedStatementKind;
+  /** How it was read: 'csv:rbc', 'csv:generic', 'xlsx:amex', 'pdf'. */
+  source_format:    string;
+  institution:      string | null;
+  /** What the agent calls the account. Never an account number. */
+  account_label:    string;
+  file_name:        string | null;
+  /** SHA-256 of the file's bytes. */
+  file_hash:        string;
+  period_start:     string;
+  period_end:       string;
+  stated_total_out: number | null;
+  stated_total_in:  number | null;
+  opening_balance:  number | null;
+  closing_balance:  number | null;
+  /** not_applicable (CSV/Excel), reconciled, mismatch or unverified (PDF). */
+  verification:     "not_applicable" | "reconciled" | "mismatch" | "unverified";
+  warnings:         string[];
+  status:           ImportedStatementStatus;
+  line_count:       number;
+  pending_count:    number;
+  confirmed_count:  number;
+  skipped_count:    number;
+  created_at:       string;
+  updated_at:       string;
+}
+
+export type StatementLineDirection = "out" | "in";
+export type StatementLineStatus = "pending" | "confirmed" | "skipped";
+export type StatementLineSkipReason = "personal" | "transfer" | "payment" | "income" | "duplicate" | "user";
+export type StatementLineCategorySource = "hint" | "model" | "statement" | "agent";
+export type StatementLineMatchMethod = "exact" | "window" | "manual";
+
+export interface StatementLine {
+  id:                        string;
+  user_id:                   string;
+  statement_id:              string;
+  line_date:                 string;
+  posted_date:               string | null;
+  /** As printed, account and card numbers removed. */
+  description:               string;
+  merchant:                  string | null;
+  /** Always positive; `direction` is the sign. */
+  amount:                    number;
+  direction:                 StatementLineDirection;
+  fingerprint:               string;
+  source_category:           string | null;
+  suggested_category_key:    string | null;
+  category_key:              string | null;
+  category_source:           StatementLineCategorySource | null;
+  business_likelihood:       number | null;
+  likelihood_reason:         string | null;
+  status:                    StatementLineStatus;
+  skip_reason:               StatementLineSkipReason | null;
+  match_receipt_id:          string | null;
+  match_method:              StatementLineMatchMethod | null;
+  match_confidence:          number | null;
+  recurring_expense_id:      string | null;
+  recurring_charge_date:     string | null;
+  duplicate_candidate_count: number;
+  /** Set when the line is held for the agent (statement-import-engine StatementHoldReason). */
+  hold_reason:               "several" | "other_import" | "near_match" | "recurring_off_date" | "refund" | "later_receipt" | "recurring_changed" | null;
+  related_line_id:           string | null;
+  related_receipt_id:        string | null;
+  duplicate_dismissed:       boolean;
+  expense_deleted_at:        string | null;
+  confirmed_at:              string | null;
+  created_at:                string;
+  updated_at:                string;
+}
+
 // ── Corp documents ────────────────────────────────────────────────────────────
 
 export type CorpDocumentType =

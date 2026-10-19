@@ -77,24 +77,24 @@ export function totalRecurringMonthly(
 // before `end_date`.
 
 /**
- * Count how many times a recurring expense fires within [start, end] inclusive.
- * Respects the expense's own start_date and end_date.
+ * The charge dates of a recurring expense within [start, end] inclusive,
+ * in date order. Respects the expense's own start_date and end_date.
  */
-function occurrencesInRange(re: RecurringExpense, start: Date, end: Date): number {
+function chargeDatesInRange(re: RecurringExpense, start: Date, end: Date): Date[] {
   const reStart = re.start_date ? new Date(re.start_date + "T00:00:00") : null;
   const reEnd   = re.end_date   ? new Date(re.end_date   + "T23:59:59") : null;
   const lo = reStart && reStart > start ? reStart : start;
   const hi = reEnd   && reEnd   < end   ? reEnd   : end;
-  if (lo > hi) return 0;
+  if (lo > hi) return [];
 
   const freq = re.frequency ?? "monthly";
-  let count = 0;
+  const dates: Date[] = [];
 
   if (freq === "annual") {
     for (let yr = lo.getFullYear(); yr <= hi.getFullYear(); yr++) {
       const m = (re.month_of_year ?? 1) - 1;
       const d = new Date(yr, m, re.day_of_month);
-      if (d >= lo && d <= hi) count++;
+      if (d >= lo && d <= hi) dates.push(d);
     }
   } else if (freq === "quarterly") {
     const startM = (re.month_of_year ?? 1) - 1;
@@ -102,20 +102,47 @@ function occurrencesInRange(re: RecurringExpense, start: Date, end: Date): numbe
       for (let q = 0; q < 4; q++) {
         const m = (startM + q * 3) % 12;
         const d = new Date(yr, m, Math.min(re.day_of_month, 28));
-        if (d >= lo && d <= hi) count++;
+        if (d >= lo && d <= hi) dates.push(d);
       }
     }
+    dates.sort((a, b) => a.getTime() - b.getTime());
   } else {
     // Monthly — iterate month by month through the range
     const cursor = new Date(lo.getFullYear(), lo.getMonth(), 1);
     while (cursor <= hi) {
       const d = new Date(cursor.getFullYear(), cursor.getMonth(), Math.min(re.day_of_month, 28));
-      if (d >= lo && d <= hi) count++;
+      if (d >= lo && d <= hi) dates.push(d);
       cursor.setMonth(cursor.getMonth() + 1);
     }
   }
 
-  return count;
+  return dates;
+}
+
+/**
+ * Count how many times a recurring expense fires within [start, end] inclusive.
+ * Respects the expense's own start_date and end_date.
+ */
+function occurrencesInRange(re: RecurringExpense, start: Date, end: Date): number {
+  return chargeDatesInRange(re, start, end).length;
+}
+
+/**
+ * The days (YYYY-MM-DD) a recurring expense is charged from `fromDate` to
+ * `toDate` inclusive: the same charge dates every total above counts. A bank
+ * or card statement import checks its lines against them, because a charge
+ * the Recurring Expenses list already counts on its date must not be added a
+ * second time as an expense (statement-import-engine). An inactive row has
+ * none.
+ */
+export function recurringChargeDatesBetween(
+  re: RecurringExpense,
+  fromDate: string, // YYYY-MM-DD
+  toDate: string,   // YYYY-MM-DD
+): string[] {
+  if (!re.is_active) return [];
+  return chargeDatesInRange(re, new Date(fromDate + "T00:00:00"), new Date(toDate + "T23:59:59"))
+    .map((d) => localISODate(d));
 }
 
 // ── YTD calculation ───────────────────────────────────────────────────────

@@ -3,7 +3,7 @@
   "server_name": "Agent Runway",
   "server_version": "1.0.0",
   "display_name": "Agent Runway: Canadian Real Estate Analytics",
-  "description": "Connect your AI assistant to your Agent Runway real estate business data. 22 read tools cover transactions, pipeline deals, CRM clients, CASL consent, expenses, mileage and the CRA vehicle logbook, tax estimates, forecasts and what the in-app AI changed, and read a pasted call or showing note into proposed changes. 10 write tools create and update pipeline opportunities, save the note items the agent approves, record CASL consent and withdrawals, and log trips, logbook periods and odometer readings.",
+  "description": "Connect your AI assistant to your Agent Runway real estate business data. 25 read tools cover transactions, pipeline deals, CRM clients, CASL consent, expenses, mileage and the CRA vehicle logbook, imported statement lines, tax estimates, forecasts and what the in-app AI changed, and read a pasted call or showing note into proposed changes. 12 write tools create and update pipeline opportunities, save the note items the agent approves, record CASL consent and withdrawals, log trips, logbook periods and odometer readings, and confirm imported statement lines.",
   "homepage": "https://agentrunway.ca",
   "documentation_url": "https://agentrunway.ca/mcp",
   "logo_url": "https://agentrunway.ca/logo.png",
@@ -34,9 +34,9 @@
     "forecast"
   ],
   "tool_counts": {
-    "total": 32,
-    "read_only": 22,
-    "write": 10
+    "total": 37,
+    "read_only": 25,
+    "write": 12
   },
   "tools": [
     {
@@ -153,6 +153,31 @@
     {
       "name": "record_odometer_reading",
       "description": "Records an odometer reading the logbook lists as due: a period's start or end, or a base year's month end.",
+      "read_only": false
+    },
+    {
+      "name": "list_import_review_lines",
+      "description": "Imported bank and card statement lines waiting for review, with estimates, duplicates and reconciliation lists.",
+      "read_only": true
+    },
+    {
+      "name": "draft_line_categories",
+      "description": "Drafts an expense item and business likelihood for statement lines; nothing saved.",
+      "read_only": true
+    },
+    {
+      "name": "explain_import_line",
+      "description": "Why a statement line got its estimate, and what confirming it does.",
+      "read_only": true
+    },
+    {
+      "name": "match_receipt_to_line",
+      "description": "Matches a receipt on file to an imported card charge so the charge counts once.",
+      "read_only": false
+    },
+    {
+      "name": "confirm_import_lines",
+      "description": "Adds agreed statement lines to the expense records; a charge already on file is linked, not added again.",
       "read_only": false
     },
     {

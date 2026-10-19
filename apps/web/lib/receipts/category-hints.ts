@@ -44,7 +44,7 @@ const HINT_RULES: HintRule[] = [
 
   // ── Vehicle / Fuel ─────────────────────────────────────────────────────────
   {
-    pattern: /shell|esso|petro.?canada|irving oil|husky|pioneer|ultramar|sunoco|chevron|mobil|bp\s|co-op gas|fas gas|cardlock|circle\s*k|couche.?tard|flying j|pilot travel|kwik trip|fuel|gasoline|diesel|gas station|gas bar|car wash/i,
+    pattern: /shell|(?<![a-z])esso(?![a-z])|petro.?canada|irving oil|husky|(?<![a-z])pioneer(?![a-z])|ultramar|sunoco|chevron|exxon|(?<![a-z])mobil(?![a-z])|bp\s|co-op gas|fas gas|cardlock|circle\s*k|couche.?tard|flying j|pilot travel|kwik trip|fuel|gasoline|diesel|gas station|gas bar|car wash/i,
     categoryKey: "vehicle_fuel",
   },
   {
@@ -54,7 +54,7 @@ const HINT_RULES: HintRule[] = [
 
   // ── Meals & Coffee ─────────────────────────────────────────────────────────
   {
-    pattern: /starbucks|tim hortons|timmies|mcdonald|burger king|wendy|subway|a&w|dairy queen|pizza hut|domino|pizza pizza|little caesars|panera|chipotle|restaurant|brasserie|bistro|café|cafe|coffee|breakfast|brunch|lunch|dinner|sushi|pho|ramen|thai|chinese food|greek|italian|indian food|food delivery|skip the dishes|uber eats|doordash|grubhub|boston pizza|jack astor|milestones|keg steakhouse|earls|cactus club|moxie|montana|kelsey|east side mario|la belle province|harvey|orange julius|second cup|country style|robin's|williams coffee|bridgehead/i,
+    pattern: /starbucks|tim hortons|timmies|mcdonald|burger king|wendy|subway|a&w|dairy queen|pizza hut|domino|pizza pizza|little caesars|panera|chipotle|restaurant|brasserie|bistro|café|cafe|coffee|breakfast|brunch|lunch|dinner|sushi|(?<![a-z])pho(?![a-z])|ramen|(?<![a-z])thai(?!land)|chinese food|greek|italian|indian food|food delivery|skip the dishes|uber eats|doordash|grubhub|boston pizza|jack astor|milestones|keg steakhouse|(?<![a-z])earls(?![a-z])|cactus club|moxie|montana|kelsey|east side mario|la belle province|harvey|orange julius|second cup|country style|robin's|williams coffee|bridgehead/i,
     categoryKey: "meals_client",
   },
 
@@ -70,17 +70,18 @@ const HINT_RULES: HintRule[] = [
 
   // ── Office & Tech (Software / Subscriptions) ───────────────────────────────
   {
-    pattern: /canva|adobe|figma|sketch|microsoft 365|office 365|dropbox|google workspace|slack|notion|zoom|teams|webex|asana|monday\.com|trello|clickup|github|vercel|netlify|aws\b|amazon web services|cloudflare|digitalocean|heroku|stripe\.com|twilio|sendgrid|mailgun|intercom|zendesk|freshdesk|openai|anthropic|apple\.com\/bill|icloud|google one|spotify|1password|lastpass|nordvpn|expressvpn/i,
+    pattern: /canva|adobe|figma|sketch|microsoft 365|office 365|dropbox|google workspace|slack|(?<![a-z])notion(?![a-z])|zoom|(?<![a-z])teams(?![a-z])|webex|quickbooks|intuit|freshbooks|asana|monday\.com|trello|clickup|github|vercel|netlify|aws\b|amazon web services|cloudflare|digitalocean|heroku|stripe\.com|twilio|sendgrid|mailgun|intercom|zendesk|freshdesk|openai|anthropic|apple\.com\/bill|icloud|google one|spotify|1password|lastpass|nordvpn|expressvpn/i,
     categoryKey: "office_software",
   },
   {
-    pattern: /staples|bureau en gros|office depot|best buy|the source|bestbuy|london drugs|walmart|amazon\.ca|amazon\.com|costco|dollarama|dollar tree|paper|toner|ink cartridge|printer|monitor|keyboard|mouse|laptop|computer|tablet|ipad|iphone|samsung|headphone|webcam|hard drive|usb|flash drive|cable|charger|office chair|desk|shredder/i,
+    // A carrier's bill ("ROGERS CABLE", "BELL MOBILITY IPHONE") is Phone & Internet, below.
+    pattern: /^(?!.*\b(?:rogers|bell canada|bell mobility|bell aliant|telus|fido|koodo|virgin plus|freedom mobile|videotron|cogeco|eastlink|shaw)\b).*(?:staples|bureau en gros|office depot|best buy|the source|bestbuy|london drugs|walmart|amazon\.ca|amazon\.com|costco|dollarama|dollar tree|paper|toner|ink cartridge|printer|monitor|keyboard|mouse|laptop|computer|tablet|ipad|iphone|samsung|headphone|webcam|hard drive|usb|flash drive|cable|charger|office chair|desk|shredder)/i,
     categoryKey: "office_supplies",
   },
 
   // ── Professional Fees ──────────────────────────────────────────────────────
   {
-    pattern: /realtor\.ca|crea\b|orea\b|reco\b|rebgv|creb|trreb|mls\b|board dues|board fee|licensing|license renewal|real estate council/i,
+    pattern: /realtor\.ca|(?<![a-z])(?:crea|orea|reco|creb|mls)(?![a-z])|rebgv|trreb|board dues|board fee|licensing|license renewal|real estate council/i,
     categoryKey: "prof_board_mls",
   },
   {
@@ -94,7 +95,7 @@ const HINT_RULES: HintRule[] = [
 
   // ── Education ─────────────────────────────────────────────────────────────
   {
-    pattern: /udemy|coursera|linkedin learning|skillshare|masterclass|real estate school|humber college|coaching program|mastermind|real estate conference|rein\b|seminar|workshop|webinar|online course/i,
+    pattern: /udemy|coursera|linkedin learning|skillshare|masterclass|real estate school|humber college|coaching program|mastermind|real estate conference|(?<![a-z])rein(?![a-z])|seminar|workshop|webinar|online course/i,
     categoryKey: "edu_courses",
   },
   {
@@ -108,8 +109,18 @@ const HINT_RULES: HintRule[] = [
 
   // ── Entertainment ──────────────────────────────────────────────────────────
   {
-    pattern: /eventbrite|ticketmaster|live nation|sportsnet|maple leafs|raptors|blue jays|canucks|flames|oilers|senators|canadiens|blue bombers|cfl\b|nhl\b|nba\b|mlb\b|concert|theatre|theater|cinema|movie|imax|sports event|golf course|golf|spa|resort/i,
+    pattern: /eventbrite|ticketmaster|live nation|sportsnet|maple leafs|raptors|blue jays|canucks|flames|oilers|senators|canadiens|blue bombers|cfl\b|nhl\b|nba\b|mlb\b|concert|theatre|theater|cinema|movie|imax|sports event|golf course|golf|(?<![a-z])spa(?![a-z])|resort/i,
     categoryKey: "ent_events",
+  },
+
+  // ── Phone & Internet ───────────────────────────────────────────────────────
+  // Carriers by name (a statement line names the carrier, not the service).
+  // Last, so a venue or event named after one is placed above ("Rogers
+  // Centre" tickets, "TELUS Convention Centre", "Shaw Festival Theatre"),
+  // and never for a venue word.
+  {
+    pattern: /^(?!.*\b(?:centre|center|festival|theatre|theater|arena|stadium|field|place|park|gardens?|amphitheatre|hall|convention)\b).*\b(?:rogers|bell canada|bell mobility|bell aliant|telus|fido|koodo|virgin plus|virgin mobile|freedom mobile|chatr|public mobile|videotron|vid[eé]otron|cogeco|eastlink|shaw|xplore|starlink)\b/i,
+    categoryKey: "office_phone",
   },
 ];
 

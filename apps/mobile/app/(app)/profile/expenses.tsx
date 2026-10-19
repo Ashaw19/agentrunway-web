@@ -24,6 +24,7 @@ import {
   DollarSign,
   TrendingDown,
   Hash,
+  FileText,
 } from "lucide-react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import * as ImagePicker from "expo-image-picker";
@@ -183,16 +184,30 @@ export default function ScanScreen() {
     [receipts, expenseTaxCtx],
   );
 
+  // Statement imports (Expenses → Imports on the web): the phone shows only
+  // how many charges wait for review. Review happens on the web (mobile
+  // scope: capture, glance, respond). A count, so nothing is cached.
+  const [importReviewCount, setImportReviewCount] = useState(0);
+  const fetchImportReviewCount = useCallback(async () => {
+    const { count, error } = await supabase
+      .from("statement_lines")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "pending")
+      .eq("direction", "out");
+    if (!error) setImportReviewCount(count ?? 0);
+  }, []);
+
   useEffect(() => {
     fetchReceipts();
     fetchLogbook();
-  }, [fetchReceipts, fetchLogbook]);
+    fetchImportReviewCount();
+  }, [fetchReceipts, fetchLogbook, fetchImportReviewCount]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await Promise.all([fetchReceipts(), fetchLogbook()]);
+    await Promise.all([fetchReceipts(), fetchLogbook(), fetchImportReviewCount()]);
     setRefreshing(false);
-  }, [fetchReceipts, fetchLogbook]);
+  }, [fetchReceipts, fetchLogbook, fetchImportReviewCount]);
 
   // ── Camera ─────────────────────────────────────────────────────────────────
 
@@ -765,6 +780,21 @@ export default function ScanScreen() {
           Receipts dated this year. Recurring expenses and monthly figures are counted in YTD Expenses on the web.
           {expenseTaxCtx.gstHstRegistered ? " Totals are net of the GST/HST claimed as input tax credits." : ""}
         </Text>
+
+        {/* ── Statement lines waiting for review (review is on the web) ── */}
+        {importReviewCount > 0 && (
+          <Card style={{ marginBottom: Space.xl, flexDirection: "row", alignItems: "center", gap: Space.md }}>
+            <FileText size={18} color={c.primary} />
+            <View style={{ flex: 1 }}>
+              <Text style={{ ...Type.bodyBold, color: c.text }}>
+                {importReviewCount} imported {importReviewCount === 1 ? "charge is" : "charges are"} waiting for review
+              </Text>
+              <Text style={{ ...Type.caption, color: c.textDim, marginTop: 2 }}>
+                From your bank and card statements. Review happens on the web: Expenses, Imports.
+              </Text>
+            </View>
+          </Card>
+        )}
 
         {/* ── Scan Buttons ── */}
         <View style={{ flexDirection: "row", gap: Space.md, marginBottom: Space.xxl }}>

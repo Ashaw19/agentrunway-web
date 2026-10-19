@@ -1,0 +1,4 @@
+﻿"Filter","Date","Description","Sub-description","Type of Transaction","Amount","Balance"
+"September 2026, From date=2026-09-01, To date=2026-09-30","2026-09-02","pos purchase","COFFEE CO","Debit","-4.50","995.50"
+"","2026-09-05","deposit","PAYROLL ACME","Credit","1200.00","2195.50"
+"","2026-09-09","pos purchase","PRINT SHOP SIGNS","Debit","-88.00","2107.50"
