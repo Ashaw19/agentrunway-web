@@ -44,6 +44,8 @@ export const TOOL_REQUESTS: ToolRequestCase[] = [
   { persona: "navigator", request: "drove 48 km to a showing in Quispamsis yesterday", first: ["logMileage"] },
   { persona: "navigator", request: "I pay $29 a month for Canva", first: ["createRecurringExpense", "searchRecurringExpenses"] },
   { persona: "navigator", request: "Canva stopped at the end of September", first: ["searchRecurringExpenses", "updateRecurringExpense"] },
+  { persona: "navigator", request: "my Canva subscription has $3.77 HST in each charge", first: ["searchRecurringExpenses", "updateRecurringExpense"] },
+  { persona: "navigator", request: "my MLS dues went up to $95 a month", first: ["searchRecurringExpenses", "updateRecurringExpense"] },
   { persona: "navigator", request: "how much have I spent on client meals this year", first: ["searchExpenses", "getQuickStats"] },
   { persona: "navigator", request: "record the sale of 12 Example St, closed Oct 3 at $410,000, 2.5% commission, buyer side, client Sam Example", first: ["recordTransaction", "searchTransactions"] },
   { persona: "navigator", request: "the Example St deal was actually 415k, fix it", first: ["searchTransactions", "updateTransaction"] },

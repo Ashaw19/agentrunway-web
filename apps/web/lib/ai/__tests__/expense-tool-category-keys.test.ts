@@ -26,6 +26,10 @@
  *      out. Until 2026-10-13 neither recurring tool wrote those columns, so
  *      a recurring expense set up through Flight Crew had no input tax
  *      credit on the GST34 pre-fill and counted in full for a registrant.
+ *   6. Navigator can add it to an existing one: searchRecurringExpenses
+ *      shows the GST/HST on each entry and its ID, updateRecurringExpense
+ *      takes it, the chat prompt routes there, and no copy the model reads
+ *      says Flight Crew can't (2026-10-19).
  */
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
@@ -314,6 +318,8 @@ describe("createRecurringExpense — GST/HST", () => {
     const notRegistered = await run(tools().tools, "createRecurringExpense", canva);
 
     expect(withoutTax).toContain("no input tax credit");
+    // The way to add it later: the agent states the amount (Navigator), or the Expenses page.
+    expect(withoutTax).toContain("updateRecurringExpense");
     expect(withTax).not.toContain("no input tax credit");
     expect(notRegistered).not.toContain("input tax credit");
   });
@@ -422,6 +428,64 @@ describe("updateRecurringExpense — GST/HST", () => {
     expect(card).toContain("Canva");
     expect(card).toContain("$15.00");
     expect(card).toContain("GST/HST");
+  });
+});
+
+describe("Navigator adds GST/HST to an existing recurring expense", () => {
+  const HERE = path.dirname(fileURLToPath(import.meta.url));
+  const WEB = path.resolve(HERE, "../../..");
+  const source = (file: string) => readFileSync(path.resolve(WEB, file), "utf8");
+  const ROGERS = "00000000-0000-4000-8000-000000000002";
+  const rows = {
+    recurring_expenses: [
+      {
+        id: EXPENSE, user_id: USER, name: "Canva", amount: 115, category_key: "office_software", frequency: "monthly",
+        day_of_month: 1, hst_included: true, hst_amount: 15, start_date: "2026-01-01", end_date: null, is_active: true, notes: null,
+      },
+      {
+        id: ROGERS, user_id: USER, name: "Rogers", amount: 92, category_key: "office_phone", frequency: "monthly",
+        day_of_month: 5, hst_included: false, hst_amount: 0, start_date: "2026-01-01", end_date: null, is_active: true, notes: null,
+      },
+    ],
+    ...REGISTRANT,
+  };
+  const lineFor = (out: string, name: string) => out.split("\n").find((l) => l.includes(name)) ?? "";
+
+  it("searchRecurringExpenses shows the GST/HST recorded on each charge, or that none is", async () => {
+    const out = await run(tools(rows).tools, "searchRecurringExpenses", {});
+
+    expect(lineFor(out, "Canva")).toContain("$15.00 GST/HST");
+    expect(lineFor(out, "Rogers")).toContain("no GST/HST recorded");
+    // The amounts as charged: the GST/HST is inside the $115, not added to it.
+    expect(lineFor(out, "Canva")).toContain("$115.00/month");
+  });
+
+  it("the ID search prints is the one updateRecurringExpense takes", async () => {
+    const t = tools(rows);
+    const found = await run(t.tools, "searchRecurringExpenses", { query: "rogers" });
+    const id = found.match(/\(ID: ([0-9a-f-]{36})\)/)?.[1];
+    expect(id).toBe(ROGERS);
+
+    const out = await run(t.tools, "updateRecurringExpense", { recurringExpenseId: id, hstAmount: 12 });
+    expect(t.writes).toEqual([
+      expect.objectContaining({ table: "recurring_expenses", op: "update", payload: expect.objectContaining({ hst_included: true, hst_amount: 12 }) }),
+    ]);
+    expect(out).toContain("none recorded → $12.00");
+  });
+
+  it("the chat prompt sends a change to an existing entry through search, then update", () => {
+    const trigger = source("app/api/chat/route.ts").split("\n").find((l) => /existing recurring expense/i.test(l) && l.startsWith("- ")) ?? "";
+    expect(trigger).toContain("searchRecurringExpenses → updateRecurringExpense");
+    expect(trigger).toContain("hstAmount");
+    expect(trigger).toMatch(/never worked out from a rate/);
+  });
+
+  it("nothing the model reads says Flight Crew can't change an existing recurring expense", () => {
+    const cannot = /no flight crew member can (?:edit|change)|(?:flight crew|navigator) can(?:not|'t| not) (?:edit|change)|can(?:not|'t| not) edit an existing recurring|can be added by editing the entry in the Recurring Expenses list\./i;
+    for (const file of ["lib/ai/tools.ts", "lib/troubleshooting-playbooks.ts", "lib/knowledge-base.ts", "app/api/chat/route.ts"]) {
+      const hits = source(file).split("\n").filter((l) => cannot.test(l));
+      expect(hits, file).toEqual([]);
+    }
   });
 });
 

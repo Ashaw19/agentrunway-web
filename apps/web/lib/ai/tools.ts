@@ -1948,7 +1948,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
         // or the model creates it a second time.
         const taxCtx = hstAmount === undefined ? await getExpenseTaxCtx().catch(() => null) : null;
         const itcNote = taxCtx?.gstHstRegistered
-          ? " No GST/HST amount was given, so none is recorded and no input tax credit is counted on this expense. If the bill shows GST/HST, the amount can be added by editing the entry in the Recurring Expenses list."
+          ? " No GST/HST amount was given, so none is recorded and no input tax credit is counted on this expense. If the bill shows GST/HST, the agent can give the amount and it is added to this entry (searchRecurringExpenses, then updateRecurringExpense with hstAmount), or it can be added in the Recurring Expenses list on the Expenses page."
           : "";
         return `✓ Recurring expense created: $${amount.toLocaleString()}/month for ${name}${taxNote}, recurring on day ${dayOfMonth}. It counts in your expense totals by its schedule, with nothing to confirm each month.${itcNote} Manage recurring expenses in **Expenses** (/expenses) under **Recurring Expenses**.`;
       },
@@ -3832,7 +3832,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
 
     // ── SEARCH: Recurring Expenses ────────────────────────────────────────────
     searchRecurringExpenses: tool({
-      description: "Search recurring expenses by vendor name. Use to find IDs before updating, ending, pausing, or deleting. Each line states whether the expense is active, ended (its end date has passed; the charges up to that date still count) or paused (counts in no total).",
+      description: "Search recurring expenses by vendor name. Use to find IDs before updating, ending, pausing, or deleting. Each line gives the amount as charged with the GST/HST recorded inside it (or that none is recorded), and states whether the expense is active, ended (its end date has passed; the charges up to that date still count) or paused (counts in no total).",
       inputSchema: z.object({
         query: z.string().optional().describe("Vendor/name keyword to search for"),
         activeOnly: z.boolean().optional().describe("Leave out paused recurring expenses (ended ones are still listed)"),
@@ -3841,7 +3841,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
         try {
           let q = supabase
             .from("recurring_expenses")
-            .select("id, name, amount, category_key, frequency, day_of_month, is_active, start_date, end_date, notes")
+            .select("id, name, amount, hst_amount, category_key, frequency, day_of_month, is_active, start_date, end_date, notes")
             .eq("user_id", userId)
             .order("name");
 
@@ -3855,13 +3855,16 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
           const today = atlanticNoon();
           return data.map((r: Record<string, unknown>) => {
             const per = r.frequency === "annual" ? "year" : r.frequency === "quarterly" ? "quarter" : "month";
+            // What the GST34 pre-fill claims on each charge (hst_amount), as recorded.
+            const hst = Number(r.hst_amount ?? 0);
+            const tax = hst > 0 ? ` incl. $${hst.toFixed(2)} GST/HST` : ", no GST/HST recorded";
             const endDate = typeof r.end_date === "string" ? r.end_date : null;
             const status = !r.is_active
               ? "⚪ Paused"
               : recurringHasEnded({ end_date: endDate }, today)
                 ? `⏹ Ended ${endDate}`
                 : `🟢 Active${endDate ? `, ends ${endDate}` : ""}`;
-            return `• ${r.name} (ID: ${r.id}) — $${Number(r.amount).toFixed(2)}/${per} (day ${r.day_of_month}) — ${receiptCategoryFullLabel(typeof r.category_key === "string" ? r.category_key : null)} — ${status}${r.notes ? ` — "${r.notes}"` : ""}`;
+            return `• ${r.name} (ID: ${r.id}) — $${Number(r.amount).toFixed(2)}/${per}${tax} (day ${r.day_of_month}) — ${receiptCategoryFullLabel(typeof r.category_key === "string" ? r.category_key : null)} — ${status}${r.notes ? ` — "${r.notes}"` : ""}`;
           }).join("\n");
         } catch { return "Recurring expense search temporarily unavailable."; }
       },
