@@ -42,6 +42,7 @@ import {
 } from "@/lib/engines/projection-engine";
 import { calculate as calculateTax, gstHstRate, gstHstLabel, marginalRate } from "@/lib/engines/canadian-tax-engine";
 import { computeHSTCollected } from "@/lib/engines/hst-engine";
+import { statementHstShare } from "@agent-runway/core/engines/commission-hst-engine";
 import { calculateCorporateTax } from "@/lib/engines/corporate-tax-engine";
 import { probabilityBands, fiveYearBands } from "@/lib/engines/probabilistic-forecast-engine";
 import { survivalResult, riskColorBand, type RiskColorBand } from "@/lib/engines/survival-engine";
@@ -252,6 +253,8 @@ export function ForecastContent({
     hstRate: taxRate,
     isRegistered: isGstRegistered ?? false,
     brokerageWithholdsHst: settings.brokerage_withholds_hst ?? false,
+    // The HST commission statements show, on the deals it was entered for.
+    recorded: statementHstShare(ytdTx),
   });
   const gstHstCollectedProjected = computeHSTCollected({
     ytdGCI: projectedGCI,

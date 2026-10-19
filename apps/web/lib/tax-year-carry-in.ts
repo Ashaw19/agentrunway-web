@@ -15,6 +15,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { incomeReportingMethod } from "@agent-runway/core/engines/tax-year";
+import { gstHstCommissionTiming } from "@agent-runway/core/engines/commission-hst-engine";
 import type { Transaction, UserSettings } from "@/lib/types/database";
 
 /**
@@ -31,6 +32,31 @@ export async function loadTaxYearCarryIn(
   year: number,
 ): Promise<Transaction[]> {
   if (incomeReportingMethod(settings) !== "cash") return [];
+  return loadClosedBeforePaidIn(supabase, userId, year);
+}
+
+/**
+ * The same rows for the GST/HST return card when the agent places
+ * commissions by the date paid (user_settings.gst_hst_commission_timing,
+ * commission-hst-engine): a December closing paid in January belongs on a
+ * return of January's year. That setting is separate from the income
+ * reporting method. Empty, with no query, under closing-date timing.
+ */
+export async function loadGstHstCarryIn(
+  supabase: SupabaseClient,
+  userId: string,
+  settings: Pick<UserSettings, "gst_hst_commission_timing"> | null | undefined,
+  year: number,
+): Promise<Transaction[]> {
+  if (gstHstCommissionTiming(settings) !== "paid") return [];
+  return loadClosedBeforePaidIn(supabase, userId, year);
+}
+
+async function loadClosedBeforePaidIn(
+  supabase: SupabaseClient,
+  userId: string,
+  year: number,
+): Promise<Transaction[]> {
   try {
     const { data, error } = await supabase
       .from("transactions")

@@ -123,6 +123,11 @@ export {
   INCOME_REPORTING_METHOD_SETTING,
   incomeReportingMethodHint,
   commissionPaidDateHint,
+  GST_HST_COMMISSION_TIMING_RULE,
+  CRA_GST_HST_TIMING_SOURCE,
+  GST_HST_COMMISSION_TIMING_SETTING,
+  gstHstCommissionTimingHint,
+  COMMISSION_HST_HINT,
   type GstHstReportNoteInput,
   type GstHstRateGroup,
 } from "./cra-rules";

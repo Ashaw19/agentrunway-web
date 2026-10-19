@@ -170,6 +170,21 @@ export function validateCommissionPaidDate(
   return ok();
 }
 
+/**
+ * The GST/HST a commission statement shows was paid to the agent
+ * (transactions.commission_hst, migration 00187). Optional. More than 15%
+ * (the highest GST/HST rate) of the commission is refused: it is most likely
+ * the net pay or the commission typed in the wrong box.
+ */
+export function validateCommissionHst(hst: number | null, commission: number | null): ValidationResult {
+  if (hst == null) return ok(); // optional
+  if (!Number.isFinite(hst) || hst < 0) return fail("GST/HST paid to you must be $0 or more");
+  if (commission != null && commission > 0 && hst > commission * 0.15 + 0.01) {
+    return fail("GST/HST paid to you is more than 15% of the commission");
+  }
+  return ok();
+}
+
 /** A real calendar day written YYYY-MM-DD. */
 function isISODate(value: string): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
@@ -193,6 +208,8 @@ export interface TransactionInput {
   date?: string;
   /** Commission paid date (YYYY-MM-DD); blank = not entered. */
   commission_paid_date?: string | null;
+  /** GST/HST paid to the agent on this commission, from the statement; blank = not entered. */
+  commission_hst?: string | null;
 }
 
 export interface TransactionParsed {
@@ -202,6 +219,8 @@ export interface TransactionParsed {
   team_split_pct: number | null;
   /** null when blank. */
   commission_paid_date: string | null;
+  /** null when blank. */
+  commission_hst: number | null;
 }
 
 export function validateTransaction(input: TransactionInput): ValidationResult & { parsed?: TransactionParsed } {
@@ -213,6 +232,10 @@ export function validateTransaction(input: TransactionInput): ValidationResult &
       ? parsePercent(input.team_split_pct)
       : null;
 
+  const hstRaw = (input.commission_hst ?? "").trim();
+  const hst = hstRaw ? parseDollar(hstRaw) : null;
+  const commission = gci ?? (sp != null && cp != null ? sp * cp * (tsp ?? 1) : null);
+
   const result = merge(
     validateSalePrice(sp),
     validateCommissionPct(cp),
@@ -221,6 +244,7 @@ export function validateTransaction(input: TransactionInput): ValidationResult &
     validateAddress(input.address),
     validateNotes(input.notes),
     validateCommissionPaidDate(input.date, input.commission_paid_date),
+    hstRaw && hst == null ? fail("GST/HST paid to you isn't a valid amount") : validateCommissionHst(hst, commission),
   );
 
   if (!result.valid) return result;
@@ -233,6 +257,7 @@ export function validateTransaction(input: TransactionInput): ValidationResult &
       gci_override: gci,
       team_split_pct: tsp,
       commission_paid_date: input.commission_paid_date || null,
+      commission_hst: hst,
     },
   };
 }

@@ -12,6 +12,7 @@ import { loadVehicleLogbook } from "@/lib/vehicle-logbook/load";
 import { loadMileagePlaces } from "@agent-runway/core/lib/vehicle-logbook-rows";
 import { atlanticYear } from "@agent-runway/core/lib/local-date";
 import { loadCapYearCarryOver } from "@/lib/cap-year-carry-over";
+import { loadGstHstCarryIn } from "@/lib/tax-year-carry-in";
 
 // ── Default expense categories ───────────────────────────────────────────────
 const DEFAULT_CATEGORIES = [
@@ -363,6 +364,9 @@ export default async function ExpensesPage({
   // contains it: the plan waterfall's cap carries across January 1 (the
   // dashboard's carry-over, cap-year-carry-over.ts). No query otherwise.
   const carryOverTx = await loadCapYearCarryOver(supabase, user.id, settings, year);
+  // Earlier closings paid this year, for the GST/HST return card when the
+  // agent places commissions by the date paid (empty otherwise).
+  const gstHstCarryIn = await loadGstHstCarryIn(supabase, user.id, settings, year);
   const categories = cats
     .map((cat) => ({
       ...cat,
@@ -394,6 +398,7 @@ export default async function ExpensesPage({
       isPro={isPro}
       transactions={txResult.data ?? []}
       carryOverTx={carryOverTx}
+      gstHstCarryIn={gstHstCarryIn}
       initialReceipts={receiptsResult.data ?? []}
       receiptTotalRows={receiptTotalsResult.data ?? []}
       priorYearHistory={historyResult.data ?? []}

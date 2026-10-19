@@ -29,11 +29,16 @@ import {
   INCOME_REPORTING_METHOD_RULE_LIST,
   INCOME_REPORTING_METHOD_RULES,
   INCOME_REPORTING_METHOD_SETTING,
+  GST_HST_COMMISSION_TIMING_SETTING,
+  GST_HST_COMMISSION_TIMING_RULE,
+  CRA_GST_HST_TIMING_SOURCE,
+  gstHstCommissionTimingHint,
   incomeReportingMethodHint,
   SIMPLIFIED_LOGBOOK_RULE,
   VEHICLE_LOGBOOK_RULE,
 } from "@agent-runway/core/tax-copy";
 import { incomeReportingMethod, type IncomeReportingMethod } from "@agent-runway/core/engines/tax-year";
+import { gstHstCommissionTiming, type GstHstCommissionTiming } from "@agent-runway/core/engines/commission-hst-engine";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -601,6 +606,9 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
   // the change the agent is about to make.
   const savedIncomeMethod = incomeReportingMethod(settings);
   const [incomeMethod, setIncomeMethod] = useState<IncomeReportingMethod>(savedIncomeMethod);
+  // Which date places a commission on a GST/HST return (migration 00187,
+  // engines/commission-hst-engine.ts). Separate from the income method.
+  const [gstHstTiming, setGstHstTiming] = useState<GstHstCommissionTiming>(gstHstCommissionTiming(settings));
   const [savingFiling, setSavingFiling] = useState(false);
   const filingSaved = useSaved();
 
@@ -614,6 +622,7 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
         business_number: trimmedBN,
         fiscal_year_end_month: parseInt(fiscalYearEnd) || 12,
         income_reporting_method: incomeMethod,
+        gst_hst_commission_timing: gstHstTiming,
         // Entering a CRA BN is conclusive proof of GST/HST registration.
         // Only flip to true — never flip back to false from here.
         ...(trimmedBN ? { gst_hst_registered: true } : {}),
@@ -2189,6 +2198,36 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
                 {"; "}
                 <a href={CRA_REPORTING_METHOD_SOURCES.accountingMethods.url} target="_blank" rel="noopener noreferrer" className="underline">
                   {CRA_REPORTING_METHOD_SOURCES.accountingMethods.label}
+                </a>
+              </p>
+            </details>
+          </div>
+
+          {/* GST/HST return: which date places each commission (closing | paid) */}
+          <div className="grid gap-1.5">
+            <Label htmlFor="gst-hst-commission-timing">{GST_HST_COMMISSION_TIMING_SETTING.label}</Label>
+            <Select
+              value={gstHstTiming}
+              onValueChange={(v) => setGstHstTiming(v === "paid" ? "paid" : "closing")}
+            >
+              <SelectTrigger id="gst-hst-commission-timing" className="sm:max-w-md">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="closing">{GST_HST_COMMISSION_TIMING_SETTING.options.closing}</SelectItem>
+                <SelectItem value="paid">{GST_HST_COMMISSION_TIMING_SETTING.options.paid}</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">{gstHstCommissionTimingHint(gstHstTiming)}</p>
+            <details className="text-xs text-muted-foreground">
+              <summary className="cursor-pointer select-none font-medium text-foreground/80">
+                CRA&apos;s rule on when GST/HST is collectible
+              </summary>
+              <p className="mt-1.5">{GST_HST_COMMISSION_TIMING_RULE}</p>
+              <p className="mt-1.5">
+                Source:{" "}
+                <a href={CRA_GST_HST_TIMING_SOURCE.url} target="_blank" rel="noopener noreferrer" className="underline">
+                  {CRA_GST_HST_TIMING_SOURCE.label}
                 </a>
               </p>
             </details>

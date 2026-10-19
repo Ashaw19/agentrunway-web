@@ -51,6 +51,12 @@
 
 import { gstHstRate, gstHstLabel } from "./canadian-tax-engine";
 import { isFullVehicleDeductionKey, isHomeOfficeKey, t2125LineForExpenseKey } from "./t2125-engine";
+import {
+  commissionHstTotals,
+  type CommissionHstInput,
+  type CommissionHstTotals,
+  type GstHstCommissionTiming,
+} from "./commission-hst-engine";
 import type { FilingPeriod, FilingFrequency } from "../types/database";
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -62,8 +68,17 @@ export interface GST34Input {
   period: FilingPeriod;
   /** Filing frequency */
   frequency: FilingFrequency;
-  /** Closed transactions in this period — array of { gci: number } */
-  periodTransactions: { gci: number }[];
+  /**
+   * The commissions this return covers (commissionsInGstHstPeriod in
+   * commission-hst-engine): each one's full commission and, when entered,
+   * the HST its commission statement shows (commissionHstInput).
+   */
+  periodTransactions: CommissionHstInput[];
+  /**
+   * How the deals were placed in this period (gstHstCommissionTiming), for
+   * the line 101 note only. Omitted = by closing date.
+   */
+  commissionTiming?: GstHstCommissionTiming;
   /** Receipts in this period — array of { total_amount, tax_amount, category_key } */
   periodReceipts: {
     total_amount: number | null;
@@ -150,6 +165,8 @@ export interface GST34Result {
   line115: number; // Amount owing (0 if a refund)
   /** Balance: positive = owing, negative = refund. Same as line113C. */
   line113: number;
+  /** Lines 101 and 103 by source: statement figures and estimates (commission-hst-engine). */
+  commissionHst: CommissionHstTotals;
   /** Tax rate used */
   taxRate: number;
   /** Tax label (HST, GST, GST + QST) */
@@ -262,21 +279,19 @@ export function computeGST34(input: GST34Input): GST34Result {
     instalmentsPaid,
     vehicleBusinessUsePct,
     homeOfficeBusinessUsePct = 0,
+    commissionTiming = "closing",
   } = input;
 
   const rate = gstHstRate(province);
   const label = gstHstLabel(province);
 
-  // ── Line 101: Total sales and other revenue ──────────────────────────
-  // Sum of GCI from closed transactions in this period (before HST)
-  const line101 = periodTransactions.reduce(
-    (sum, tx) => sum + (tx.gci ?? 0),
-    0,
-  );
-
-  // ── Line 103: GST/HST collected or collectible ──────────────────────
-  // GCI × applicable tax rate
-  const line103 = line101 * rate;
+  // ── Lines 101 and 103: commissions and the GST/HST on them ───────────
+  // Per deal (commission-hst-engine): the HST its commission statement shows
+  // when entered, on the commission that HST implies; otherwise the rate ×
+  // the full commission, the estimate every account had before 2026-10-19.
+  const commission = commissionHstTotals(periodTransactions, rate);
+  const line101 = commission.base;
+  const line103 = commission.hst;
 
   // ── Line 104: Adjustments added to net tax (not tracked) ─────────────
   const line104 = 0;
@@ -364,6 +379,16 @@ export function computeGST34(input: GST34Input): GST34Result {
     ? `${label} paid on ${paidOn}: $${cents(hstPaidOnExpenses).toFixed(2)}, less $${cents(itcNotClaimable).toFixed(2)} that can't be claimed (${notClaimableParts.join("; ")})`
     : `${label} paid on ${paidOn}`;
 
+  // Lines 101 and 103 in words: which deals carry their statement's figure.
+  const dealWord = (n: number) => `${n} deal${n !== 1 ? "s" : ""}`;
+  const placed = commissionTiming === "paid" ? " (placed by the date each commission was paid, or its closing date when no paid date is entered)" : "";
+  const line101Note = commission.recordedCount === 0
+    ? `Commission income (GCI) from ${periodTransactions.length} closed deal${periodTransactions.length !== 1 ? "s" : ""} in ${period.label}${placed}, before ${label}`
+    : `Commissions from ${dealWord(periodTransactions.length)} in ${period.label}${placed}, before ${label}: for ${dealWord(commission.recordedCount)}, the commission your statement charged ${label} on (${label} ÷ ${rateDisplay})${commission.estimatedCount > 0 ? `; for ${dealWord(commission.estimatedCount)}, the full commission` : ""}`;
+  const line103Note = commission.recordedCount === 0
+    ? `Line 101 × ${rateDisplay}`
+    : `${label} your commission statements show for ${dealWord(commission.recordedCount)}: $${cents(commission.recordedHst).toFixed(2)}${commission.estimatedCount > 0 ? `, plus ${rateDisplay} of the full commission on ${dealWord(commission.estimatedCount)} with no statement figure entered: $${cents(commission.estimatedHst).toFixed(2)}` : ""}`;
+
   const f101 = cents(line101);
   const f103 = cents(line103);
   const f104 = 0;
@@ -385,11 +410,11 @@ export function computeGST34(input: GST34Input): GST34Result {
   const filingLines: GST34FilingLine[] = [
     {
       line: "101", label: "Sales and other revenue", amount: f101, how: "enter", tracked: true,
-      note: `Commission income (GCI) from ${periodTransactions.length} closed deal${periodTransactions.length !== 1 ? "s" : ""} in ${period.label}, before ${label}`,
+      note: line101Note,
     },
     {
       line: "103", label: `${label} collected or collectible`, amount: f103, how: "enter", tracked: true,
-      note: `Line 101 × ${rateDisplay}`,
+      note: line103Note,
     },
     {
       line: "104", label: "Adjustments to be added to the net tax", amount: f104, how: "enter", tracked: false,
@@ -486,6 +511,7 @@ export function computeGST34(input: GST34Input): GST34Result {
     line114,
     line115,
     line113: line113C,
+    commissionHst: commission,
     taxRate: rate,
     taxLabel: label,
     periodLabel: period.label,

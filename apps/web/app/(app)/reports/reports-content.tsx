@@ -90,6 +90,7 @@ import {
   gstHstLabel,
 } from "@/lib/engines/canadian-tax-engine";
 import { computeHSTCollected } from "@/lib/engines/hst-engine";
+import { recordedCommissionHst, statementHstShare } from "@agent-runway/core/engines/commission-hst-engine";
 import { gstHstReportNote, INCOME_REPORTING_METHOD_SETTING } from "@agent-runway/core/tax-copy";
 import { incomeReportingMethod, taxYearGCIAdjustment, taxYearProjectedGCI } from "@agent-runway/core/engines/tax-year";
 import type { BusinessReportPDFProps } from "@/components/pdf/business-report-pdf";
@@ -417,7 +418,11 @@ export function ReportsContent({
     hstRate: taxRate,
     isRegistered: settings.gst_hst_registered ?? false,
     brokerageWithholdsHst: settings.brokerage_withholds_hst ?? false,
+    // The HST commission statements show, on the deals it was entered for.
+    recorded: statementHstShare(ytdTx),
   });
+  // How many of those deals carry the statement's figure, for the note.
+  const hstStatementDeals = ytdTx.filter((tx) => recordedCommissionHst(tx) != null).length;
   const afterTaxNet = Math.max(0, netForTax - taxBurden);
 
   // ── Benchmark ─────────────────────────────────────────────────────────────────
@@ -636,6 +641,7 @@ export function ReportsContent({
         projectedNet,
         taxResult,
         gstHstCollectedYTD,
+        gstHstStatementDeals: hstStatementDeals,
         gstHstLabel: taxLabel,
         gstHstRegistered: settings.gst_hst_registered ?? false,
         brokerageWithholdsHst: settings.brokerage_withholds_hst ?? false,
@@ -1276,6 +1282,7 @@ export function ReportsContent({
               brokerageWithholds: settings.brokerage_withholds_hst ?? false,
               collectedYTD: gstHstCollectedYTD,
               ytdGCI,
+              statementDeals: hstStatementDeals,
             })}
           </p>
         </CardContent>

@@ -32,6 +32,7 @@ import {
 import { calculate as calculateCanadianTax, gstHstRate } from "./canadian-tax-engine";
 import { calculateCorporateTax } from "./corporate-tax-engine";
 import { computeHSTCollected } from "./hst-engine";
+import { recordedCommissionHstShare } from "./commission-hst-engine";
 import {
   computePlanGross,
   type CompSettingsSlice,
@@ -294,11 +295,17 @@ export function computeEffectiveCashForSurvival(
   // D-4 fix (Audit 1 2026-04-22): canonical HST helper. Returns 0 if not
   // registered OR brokerage withholds. See hst-engine.ts.
   const hstRateValue = gstHstRate(settings.province);
+  // The statement's HST on this year's deals that have it entered
+  // (commission-hst-engine); the carry-over deals before January 1 are not
+  // in ytdGCI, so they are left out here too.
   const ytdHstCollected = computeHSTCollected({
     ytdGCI,
     hstRate: hstRateValue,
     isRegistered: settings.gst_hst_registered ?? false,
     brokerageWithholdsHst: settings.brokerage_withholds_hst ?? false,
+    recorded: recordedCommissionHstShare(
+      inputs.transactions.filter((d) => d.date >= yearStart && d.date < yearEnd),
+    ),
   });
   // `expensesYTD` is already net of the ITCs a registrant claims
   // (expense-totals-engine), so there is nothing further to take off the HST

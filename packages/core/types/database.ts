@@ -378,6 +378,10 @@ export interface UserSettings {
   // 'accrual' (year earned, default) | 'cash' (year received). Read it with
   // incomeReportingMethod() in engines/tax-year.ts.
   income_reporting_method: 'accrual' | 'cash';
+  // Which date places a commission on a GST/HST return (migration 00187):
+  // 'closing' (default) | 'paid' (the commission paid date when entered).
+  // Read it with gstHstCommissionTiming() in engines/commission-hst-engine.ts.
+  gst_hst_commission_timing?: 'closing' | 'paid';
 
   // Timestamps
   created_at: string;
@@ -514,6 +518,12 @@ export interface Transaction {
   // Read only through engines/tax-year.ts: a cash-method agent's deal is
   // income of this date's tax year. Production metrics stay on `date`.
   commission_paid_date?: string | null;
+
+  // The GST/HST the brokerage's commission statement shows was paid to the
+  // agent on this commission (migration 00187). NULL = not entered: the
+  // estimate (rate × the full commission) is used. Read only through
+  // engines/commission-hst-engine.ts.
+  commission_hst?: number | null;
 
   // Import provenance + edit protection (migration 00121)
   // import_external_id: stable natural-key fingerprint set on imported rows;

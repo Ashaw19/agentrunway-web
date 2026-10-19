@@ -131,6 +131,7 @@ import {
 import { getCurrentFilingPeriod, deadlineUrgency } from "@agent-runway/core/engines/filing-period-engine";
 import { gstHstLabel, gstHstRate } from "@agent-runway/core/engines/canadian-tax-engine";
 import { computeHSTCollected } from "@agent-runway/core/engines/hst-engine";
+import { statementHstShare } from "@agent-runway/core/engines/commission-hst-engine";
 import {
   seasonalFractionElapsed,
   projectedYearEndGCI,
@@ -778,6 +779,8 @@ export function DashboardContent({
     hstRate: hstRateValue,
     isRegistered: settings?.gst_hst_registered ?? false,
     brokerageWithholdsHst: settings?.brokerage_withholds_hst ?? false,
+    // The HST commission statements show, on the deals it was entered for.
+    recorded: statementHstShare(transactions),
   });
   // expensesYTD is already net of the ITCs a registrant claims
   // (expense-totals-engine), so no further ITC comes off the HST owing: that

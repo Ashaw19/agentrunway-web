@@ -61,6 +61,7 @@ import {
   type UserSettings,
 } from "../types/database";
 import { localISODate } from "../lib/local-date";
+import { recordedCommissionHst } from "./commission-hst-engine";
 
 // ── Inputs ────────────────────────────────────────────────────────────────────
 
@@ -90,6 +91,12 @@ export interface RealDealInput {
   /** Close date, YYYY-MM-DD. */
   date: string;
   gci: number;
+  /**
+   * The HST the deal's commission statement shows (transactions.
+   * commission_hst), when entered. Not read by the waterfall: carried for
+   * the HST-collected figures (commission-hst-engine).
+   */
+  recordedHst?: number | null;
 }
 
 // ── Outputs ───────────────────────────────────────────────────────────────────
@@ -419,7 +426,7 @@ export type CarryOverSettings =
 export type PlanDealRow = Pick<
   Transaction,
   "date" | "sale_price" | "commission_pct" | "team_split_pct" | "gci_override"
-> & { id?: string };
+> & { id?: string; commission_hst?: number | string | null };
 
 /**
  * The first close date whose deal the waterfall needs to price `year`'s deals:
@@ -464,7 +471,12 @@ export function toPlanDeals(
   carryOverTx: readonly PlanDealRow[],
   ytdTx: readonly PlanDealRow[],
 ): RealDealInput[] {
-  return [...carryOverTx, ...ytdTx].map((tx) => ({ id: tx.id, date: tx.date, gci: computeGCI(tx) }));
+  return [...carryOverTx, ...ytdTx].map((tx) => ({
+    id: tx.id,
+    date: tx.date,
+    gci: computeGCI(tx),
+    recordedHst: recordedCommissionHst(tx),
+  }));
 }
 
 // ── Analytic simulation (scenarios / projections — no deal list) ─────────────
