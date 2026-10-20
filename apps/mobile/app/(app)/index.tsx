@@ -91,6 +91,11 @@ function formatLastSyncedKey(ts: number): { key: string; count?: number } {
 /** How often the dashboard re-reads the clock: the band, what comes back from Later, "Updated". */
 const CLOCK_TICK_MS = 30_000;
 
+/** The "+" button floats this far up, at this size. The list's bottom
+ *  padding matches it, so the last row (and its count) scrolls clear. */
+const FAB_BOTTOM = 100;
+const FAB_SIZE = 56;
+
 // ── Activity Type Pill Selector ─────────────────────────────────────────────
 
 const ACTIVITY_TYPES = ["call", "text", "showing", "meeting", "note"] as const;
@@ -765,7 +770,7 @@ export default function DashboardScreen() {
 
       <ScrollView
         ref={scrollRef}
-        contentContainerStyle={{ paddingHorizontal: Space.xl, paddingBottom: 120 }}
+        contentContainerStyle={{ paddingHorizontal: Space.xl, paddingBottom: FAB_BOTTOM + FAB_SIZE }}
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={c.primary} />}
       >
@@ -837,11 +842,11 @@ export default function DashboardScreen() {
         style={({ pressed }) => [
           {
             position: "absolute",
-            bottom: 100,
+            bottom: FAB_BOTTOM,
             right: 20,
-            width: 56,
-            height: 56,
-            borderRadius: 28,
+            width: FAB_SIZE,
+            height: FAB_SIZE,
+            borderRadius: FAB_SIZE / 2,
             overflow: "hidden",
             zIndex: 20,
             ...sh.cardLg,

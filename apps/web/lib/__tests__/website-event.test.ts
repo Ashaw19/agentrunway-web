@@ -21,21 +21,21 @@ function lead(over: Partial<Extract<WebsiteEvent, { type: "lead" }>> = {}): Webs
   return websiteEventSchema.parse({
     type: "lead", event_id: "evt-0001-abc", occurred_at: "2026-10-09T14:00:00Z",
     source: "contact", topic: "selling", message: "Thinking of listing in the spring.",
-    contact: { name: "Sam  Porter", email: "Sam.Porter@Example.com", phone: "(506) 555-0100" },
+    contact: { name: "Sam  Porter", email: "Sam.Porter@PorterHome.ca", phone: "(506) 555-0100" },
     ...over,
   });
 }
 
 function known(over: Partial<MatchedClient> = {}): MatchedClient {
   return {
-    id: "c1", name: "Sam Porter", email: "sam.porter@example.com", phone: null, tags: ["VIP"],
+    id: "c1", name: "Sam Porter", email: "sam.porter@porterhome.ca", phone: null, tags: ["VIP"],
     archived_at: null, email_opt_out_at: null, hasOpenChecklistItem: false, ...over,
   };
 }
 
 describe("event schema", () => {
   it("lower-cases the email and rejects unknown sources", () => {
-    expect((lead().contact.email)).toBe("sam.porter@example.com");
+    expect((lead().contact.email)).toBe("sam.porter@porterhome.ca");
     expect(websiteEventSchema.safeParse({ type: "lead", event_id: "evt-0001-abc", source: "spam", contact: {} }).success).toBe(false);
   });
 });
@@ -49,7 +49,7 @@ describe("formatted text from the site", () => {
       detail: "<b>Rothesay</b> &amp; <em>Quispamsis</em>&nbsp;· heat pump",
       address: "12 <i>Elm</i>  St",
       message: "<p>Hi there,</p><p>call me&#39;s fine</p>",
-      contact: { name: "<b>Sam</b>  Porter", email: "sam@example.com" },
+      contact: { name: "<b>Sam</b>  Porter", email: "sam@porterhome.ca" },
     });
     if (e.type !== "lead") throw new Error("lead expected");
     expect(e.detail).toBe("Rothesay & Quispamsis · heat pump");
@@ -80,7 +80,7 @@ describe("a new person", () => {
     const p = planWebsiteEvent(lead(), null, NOW);
     expect(p.create).toMatchObject({
       name: "Sam Porter", first_name: "Sam", last_name: "Porter", name_search: "sam porter",
-      email: "sam.porter@example.com", phone: "(506) 555-0100",
+      email: "sam.porter@porterhome.ca", phone: "(506) 555-0100",
       status: "boarding", lead_source: "Website", tags: ["Website: Contact form"],
     });
     expect(p.note).toBe('Website: sent you a message about selling. Message: "Thinking of listing in the spring."');
@@ -93,10 +93,10 @@ describe("a new person", () => {
 
   it("starts light sign-ups in Scheduled with no Checklist item", () => {
     const p = planWebsiteEvent(lead({
-      source: "market_letter", topic: undefined, message: undefined, contact: { email: "reader@example.com" },
+      source: "market_letter", topic: undefined, message: undefined, contact: { email: "reader@porterhome.ca" },
       consent: { kind: "market_letter", text: "Yes, email me the monthly market letter.", at: "2026-10-09T14:00:00Z", ip: "1.2.3.4" },
     }), null, NOW);
-    expect(p.create).toMatchObject({ name: "reader@example.com", status: "scheduled", tags: ["Website: Market letter"] });
+    expect(p.create).toMatchObject({ name: "reader@porterhome.ca", status: "scheduled", tags: ["Website: Market letter"] });
     expect(p.checklist).toBeUndefined();
     expect(p.consent).toEqual({ kind: "market_letter", text: "Yes, email me the monthly market letter.", at: "2026-10-09T14:00:00Z", ip: "1.2.3.4" });
   });
@@ -124,6 +124,31 @@ describe("a new person", () => {
   it("ignores an event with no way to reach anyone", () => {
     const p = planWebsiteEvent(lead({ contact: { name: "No Contact" } }), null, NOW);
     expect(p.skip).toBe("no_contact");
+  });
+});
+
+describe("test addresses", () => {
+  // 2026-10-19: the site's build ran its tests with the live key and a
+  // buyer@example.com alert landed in the CRM as a new lead. No person can
+  // own these domains (RFC 2606 / RFC 6761), so a sign-up from one is a test.
+  it("a sign-up from a reserved test domain changes nothing", () => {
+    for (const email of ["buyer@example.com", "a@mail.example.org", "x@example.net", "q@site.test", "q@foo.example", "z@nope.invalid", "dev@app.localhost"]) {
+      const p = planWebsiteEvent(lead({ source: "alerts", topic: undefined, contact: { email } }), null, NOW);
+      expect(p).toEqual({ skip: "test_address", occurredAt: "2026-10-09T14:00:00Z" });
+    }
+  });
+
+  it("even when the address matches someone already in the CRM", () => {
+    const p = planWebsiteEvent(lead({ contact: { email: "sam.porter@example.com" } }), known({ email: "sam.porter@example.com" }), NOW);
+    expect(p.skip).toBe("test_address");
+  });
+
+  it("real domains that only look like them still come through", () => {
+    for (const email of ["sam@myexample.com", "sam@example.ca", "sam@testing.ca", "sam@test.com"]) {
+      const p = planWebsiteEvent(lead({ contact: { email } }), null, NOW);
+      expect(p.skip).toBeUndefined();
+      expect(p.create).toBeDefined();
+    }
   });
 });
 
@@ -163,7 +188,7 @@ describe("someone already in the CRM", () => {
   it("a newer unsubscribe replaces an older one (the latest stands), and one the agent recorded stays the agent's", () => {
     const again = (over: Parameters<typeof known>[0]) => planWebsiteEvent(websiteEventSchema.parse({
       type: "unsubscribe", event_id: "evt-0003-abc", occurred_at: "2026-10-09T14:30:00Z",
-      scope: "all", contact: { email: "sam.porter@example.com" },
+      scope: "all", contact: { email: "sam.porter@porterhome.ca" },
     }), known(over), NOW);
     expect(again({ email_opt_out_at: "2026-09-01T12:00:00+00:00", email_opt_out_source: "agent", sms_opt_out_at: "2026-09-01T12:00:00+00:00" }).patch).toEqual({
       email_opt_out_at: "2026-10-09T14:30:00Z", email_opt_out_source: "agent",
@@ -186,7 +211,7 @@ describe("someone already in the CRM", () => {
 describe("unsubscribes", () => {
   const unsub = (scope: string): WebsiteEvent => websiteEventSchema.parse({
     type: "unsubscribe", event_id: "evt-0002-abc", occurred_at: "2026-10-09T14:30:00Z",
-    scope, contact: { email: "sam.porter@example.com" },
+    scope, contact: { email: "sam.porter@porterhome.ca" },
   });
 
   it("from everything: opt out of email and texts, withdraw every consent, note it", () => {

@@ -1108,7 +1108,7 @@ Flight Control also includes a newsletter builder for mass updates (market repor
 → Settings → Website leads → Connect my website. Copy the key (it's shown once) and add it to your website's settings as AGENT_RUNWAY_INBOUND_KEY. From then on each sign-up, message and unsubscribe arrives as it happens: new people as clients tagged Website, what they did as a note on their Activity tab, and the ones worth a call on your Checklist. The card shows when the last event arrived. Making a new key replaces the old one, so the website stops sending until the new key is pasted in.
 
 **"A website sign-up didn't show up in my CRM"**
-→ Check Settings → Website leads: it should say Connected with a recent "last event". If it says Not connected or the last event is old, the website's key is missing or was replaced; make a new key and paste it into the website's settings. Someone already in your CRM with the same email isn't duplicated: look on their Activity tab for a "Website:" note.
+→ Check Settings → Website leads: it should say Connected with a recent "last event". If it says Not connected or the last event is old, the website's key is missing or was replaced; make a new key and paste it into the website's settings. Someone already in your CRM with the same email isn't duplicated: look on their Activity tab for a "Website:" note. A sign-up made with a test address (anything at example.com, or ending in .test) is ignored on purpose.
 
 **"Why does a card say Call, don't email. They unsubscribed?"**
 → They unsubscribed from all your website's emails, so Agent Runway won't draft an email to them anywhere (Flight Control, Flight Crew, Flight Plan templates). A note on their Activity tab shows when. If they sign up on your website again, that lifts it.
