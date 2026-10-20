@@ -844,7 +844,7 @@ export default function DashboardScreen() {
           {!isOnline
             ? t("sync.offline")
             : offlinePending > 0
-              ? t(offlinePending === 1 ? "sync.pendingSync" : "sync.pendingSync_plural", { count: offlinePending })
+              ? t("sync.pendingSync", { count: offlinePending })
               : isLoading
                 ? t("sync.updating")
                 : lastFetched
@@ -1067,7 +1067,7 @@ export default function DashboardScreen() {
                     color: c.primary,
                   }}
                 >
-                  {t(briefing.length === 1 ? "briefing.itemCount" : "briefing.itemCount_plural", { count: briefing.length })}
+                  {t("briefing.itemCount", { count: briefing.length })}
                 </Text>
               </View>
             </View>

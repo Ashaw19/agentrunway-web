@@ -1,119 +1,127 @@
 {
   "greeting": {
-    "morning": "Good morning",
-    "afternoon": "Good afternoon",
-    "evening": "Good evening"
+    "morning": "Magandang umaga",
+    "afternoon": "Magandang hapon",
+    "evening": "Magandang gabi"
   },
   "score": {
-    "runwayScore": "RUNWAY SCORE",
+    "runwayScore": "Runway Score",
     "outOf": "/100",
-    "strong": "Strong",
-    "onTrack": "On Track",
-    "building": "Building",
-    "atRisk": "At Risk",
-    "tapForDetails": "{{label}} · Tap for details",
-    "description": "Based on goal pace, pipeline coverage, expenses, and cash reserves"
+    "strong": "Malakas",
+    "onTrack": "Nasa tamang takbo",
+    "building": "Umuusad",
+    "atRisk": "Nanganganib",
+    "tapForDetails": "{{label}} · I-tap para sa detalye",
+    "description": "Batay sa bilis papunta sa goal, laman ng pipeline, mga gastos, at reserbang pera"
   },
   "scoreBar": {
-    "pace": "Pace",
+    "pace": "Bilis",
     "pipeline": "Pipeline",
-    "expenses": "Expenses",
-    "bench": "Bench",
-    "survival": "Survival"
+    "expenses": "Gastos",
+    "bench": "Paghahambing",
+    "survival": "Tibay"
   },
   "metrics": {
-    "ytdGci": "YTD GCI",
-    "goalPace": "Goal Pace",
-    "activePipeline": "Active Pipeline",
-    "closedDeals": "Closed Deals",
-    "dealsClosed": "Deals Closed",
-    "pipelineValue": "Pipeline Value",
+    "ytdGci": "GCI ngayong taon",
+    "goalPace": "Bilis papunta sa goal",
+    "activePipeline": "Aktibong pipeline",
+    "closedDeals": "Mga naisarang deal",
+    "dealsClosed": "Mga naisarang deal",
+    "pipelineValue": "Halaga ng pipeline",
     "pipeline": "Pipeline",
-    "clients": "Clients",
-    "pending": "Pending",
-    "deals": "{{count}} deals",
-    "needFollowUp": "{{count}} need follow-up"
+    "clients": "Mga kliyente",
+    "pending": "Nakabinbin",
+    "deals_one": "{{count}} deal",
+    "deals_other": "{{count}} deal",
+    "needFollowUp_one": "{{count}} ang naghihintay ng follow-up",
+    "needFollowUp_other": "{{count}} ang naghihintay ng follow-up"
   },
   "actions": {
-    "overdue": "overdue",
-    "ready": "ready",
-    "pending": "pending",
-    "followUps": "follow-ups",
-    "newLeads": "New Leads",
-    "pendingDeals": "Pending Deals",
-    "allCaughtUp": "All caught up"
+    "overdue": "lampas na",
+    "ready": "handa na",
+    "pending": "nakabinbin",
+    "followUps": "mga follow-up",
+    "newLeads": "Mga bagong lead",
+    "pendingDeals": "Mga nakabinbing deal",
+    "allCaughtUp": "Nakahabol na sa lahat"
   },
   "sync": {
-    "offline": "Offline — changes saved locally",
-    "pendingSync": "{{count}} change pending sync",
-    "pendingSync_plural": "{{count}} changes pending sync",
-    "updating": "Updating…"
+    "offline": "Walang koneksyon: naka-save sa device na ito ang mga pagbabago",
+    "pendingSync_one": "{{count}} pagbabago ang naghihintay ma-sync",
+    "pendingSync_other": "{{count}} pagbabago ang naghihintay ma-sync",
+    "updating": "Nag-a-update…"
   },
   "streak": {
-    "loggedToday": "{{count}} logged today",
-    "dayStreak": "{{count}}-day streak"
+    "loggedToday_one": "{{count}} ang na-log ngayong araw",
+    "loggedToday_other": "{{count}} ang na-log ngayong araw",
+    "dayStreak_one": "{{count}} araw na tuloy-tuloy",
+    "dayStreak_other": "{{count}} araw na tuloy-tuloy"
   },
   "briefing": {
-    "title": "TODAY'S FOCUS",
-    "noBriefing": "No briefing items today",
-    "itemCount": "{{count}} item",
-    "itemCount_plural": "{{count}} items",
+    "title": "UUNAHIN NGAYONG ARAW",
+    "noBriefing": "Walang laman ang briefing ngayong araw",
+    "itemCount_one": "{{count}} item",
+    "itemCount_other": "{{count}} item",
     "types": {
-      "vip_overdue": "VIP overdue",
-      "uncontacted_lead": "Uncontacted lead",
-      "in_flight_stale": "Active deal silent",
-      "birthday_today": "Birthday today",
-      "birthday_soon": "Birthday soon",
-      "closing_anniversary": "Closing anniversary",
-      "mortgage_renewal_window": "Mortgage renewal window",
-      "mortgage_renewal_due": "Mortgage renewal due",
-      "past_client_check_in": "Past-client check-in",
-      "timeframe_approaching": "Timeframe approaching",
-      "property_value_milestone": "Property value milestone",
-      "no_contact_info": "Missing contact info",
-      "possible_duplicate": "Possible duplicate",
-      "listing_appointment_overdue": "Listing appointment overdue",
-      "listing_stale": "Listing stale",
-      "hot_pipeline": "Hot pipeline",
-      "task_due_today": "Task due today",
-      "overdue_followup": "Overdue follow-up",
-      "unknown": "Action needed"
+      "vip_overdue": "VIP na matagal nang hindi nakokontak",
+      "uncontacted_lead": "Lead na hindi pa nakokontak",
+      "in_flight_stale": "Aktibong deal na tahimik",
+      "birthday_today": "Kaarawan ngayon",
+      "birthday_soon": "Malapit na ang kaarawan",
+      "closing_anniversary": "Anibersaryo ng closing",
+      "mortgage_renewal_window": "Paparating na mortgage renewal",
+      "mortgage_renewal_due": "Malapit na ang mortgage renewal",
+      "past_client_check_in": "Kumustahin ang dating kliyente",
+      "timeframe_approaching": "Malapit na ang takdang panahon",
+      "property_value_milestone": "Milestone sa halaga ng property",
+      "no_contact_info": "Kulang ang contact info",
+      "possible_duplicate": "Posibleng doble",
+      "listing_appointment_overdue": "Listing appointment na lampas na",
+      "listing_stale": "Listing na walang galaw",
+      "hot_pipeline": "Mainit na deal sa pipeline",
+      "task_due_today": "Task na due ngayong araw",
+      "overdue_followup": "Follow-up na lampas na",
+      "unknown": "May aksyong naghihintay"
     }
   },
   "goal": {
-    "annualGoal": "ANNUAL GOAL",
-    "ofGoal": "{{current}} of {{goal}}"
+    "annualGoal": "TAUNANG GOAL",
+    "ofGoal": "{{current}} sa {{goal}}"
   },
   "nextUp": {
     "title": "NEXT UP",
-    "overdue": "Overdue",
-    "high": "HIGH"
+    "overdue": "Lampas na",
+    "high": "MATAAS",
+    "seeAll": "Checklist ({{count}})",
+    "tickOff": "I-tap para i-tick",
+    "ticked": "Na-tick na."
   },
   "pipelinePreview": {
     "title": "PIPELINE",
-    "seeAll": "See all",
-    "pipelineDeal": "Pipeline Deal"
+    "seeAll": "Tingnan lahat",
+    "pipelineDeal": "Deal sa pipeline"
   },
   "quickAccess": {
-    "label": "QUICK ACCESS",
+    "label": "MABILISANG ACCESS",
     "briefing": "Briefing",
     "outreach": "Flight Control",
-    "forecast": "Forecast",
-    "receipt": "Receipt"
+    "forecast": "Pagtataya",
+    "receipt": "Resibo"
   },
   "quickCapture": {
-    "title": "Quick Capture",
-    "clientLabel": "CLIENT",
-    "typeLabel": "TYPE",
-    "notesLabel": "NOTES",
-    "searchClient": "Search client name...",
-    "notesPlaceholder": "What happened?",
+    "title": "Mabilisang tala",
+    "clientLabel": "KLIYENTE",
+    "typeLabel": "URI",
+    "notesLabel": "MGA TALA",
+    "searchClient": "Hanapin ang pangalan ng kliyente...",
+    "notesPlaceholder": "Ano'ng nangyari?",
     "activityTypes": {
-      "call": "Call",
+      "call": "Tawag",
       "text": "Text",
       "showing": "Showing",
       "meeting": "Meeting",
-      "note": "Note"
-    }
+      "note": "Tala"
+    },
+    "noteNotContact": "Hindi binibilang na contact ang mga tala. Piliin ang Tawag, Text, Showing o Meeting kung nakausap mo sila."
   }
 }

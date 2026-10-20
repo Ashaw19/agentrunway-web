@@ -1,119 +1,121 @@
 {
   "greeting": {
-    "morning": "Good morning",
-    "afternoon": "Good afternoon",
-    "evening": "Good evening"
+    "morning": "早上好",
+    "afternoon": "下午好",
+    "evening": "晚上好"
   },
   "score": {
-    "runwayScore": "RUNWAY SCORE",
+    "runwayScore": "Runway 评分",
     "outOf": "/100",
-    "strong": "Strong",
-    "onTrack": "On Track",
-    "building": "Building",
-    "atRisk": "At Risk",
-    "tapForDetails": "{{label}} · Tap for details",
-    "description": "Based on goal pace, pipeline coverage, expenses, and cash reserves"
+    "strong": "强劲",
+    "onTrack": "进展顺利",
+    "building": "提升中",
+    "atRisk": "有风险",
+    "tapForDetails": "{{label}} · 点按查看详情",
+    "description": "依据目标进度、在谈交易覆盖率、支出和现金储备"
   },
   "scoreBar": {
-    "pace": "Pace",
-    "pipeline": "Pipeline",
-    "expenses": "Expenses",
-    "bench": "Bench",
-    "survival": "Survival"
+    "pace": "进度",
+    "pipeline": "在谈交易",
+    "expenses": "支出",
+    "bench": "对比",
+    "survival": "现金续航"
   },
   "metrics": {
-    "ytdGci": "YTD GCI",
-    "goalPace": "Goal Pace",
-    "activePipeline": "Active Pipeline",
-    "closedDeals": "Closed Deals",
-    "dealsClosed": "Deals Closed",
-    "pipelineValue": "Pipeline Value",
-    "pipeline": "Pipeline",
-    "clients": "Clients",
-    "pending": "Pending",
-    "deals": "{{count}} deals",
-    "needFollowUp": "{{count}} need follow-up"
+    "ytdGci": "今年佣金总额",
+    "goalPace": "目标进度",
+    "activePipeline": "在谈交易",
+    "closedDeals": "已成交",
+    "dealsClosed": "已成交",
+    "pipelineValue": "在谈交易金额",
+    "pipeline": "在谈交易",
+    "clients": "客户",
+    "pending": "待交割",
+    "deals_other": "{{count}} 笔交易",
+    "needFollowUp_other": "{{count}} 位待跟进"
   },
   "actions": {
-    "overdue": "overdue",
-    "ready": "ready",
-    "pending": "pending",
-    "followUps": "follow-ups",
-    "newLeads": "New Leads",
-    "pendingDeals": "Pending Deals",
-    "allCaughtUp": "All caught up"
+    "overdue": "已逾期",
+    "ready": "待发送",
+    "pending": "待交割",
+    "followUps": "待跟进",
+    "newLeads": "新线索",
+    "pendingDeals": "待交割交易",
+    "allCaughtUp": "全部处理完毕"
   },
   "sync": {
-    "offline": "Offline — changes saved locally",
-    "pendingSync": "{{count}} change pending sync",
-    "pendingSync_plural": "{{count}} changes pending sync",
-    "updating": "Updating…"
+    "offline": "离线：更改已保存在本机",
+    "pendingSync_other": "{{count}} 项更改等待同步",
+    "updating": "正在更新…"
   },
   "streak": {
-    "loggedToday": "{{count}} logged today",
-    "dayStreak": "{{count}}-day streak"
+    "loggedToday_other": "今天已记录 {{count}} 条",
+    "dayStreak_other": "连续 {{count}} 天"
   },
   "briefing": {
-    "title": "TODAY'S FOCUS",
-    "noBriefing": "No briefing items today",
-    "itemCount": "{{count}} item",
-    "itemCount_plural": "{{count}} items",
+    "title": "今日重点",
+    "noBriefing": "今天没有简报事项",
+    "itemCount_other": "{{count}} 项",
     "types": {
-      "vip_overdue": "VIP overdue",
-      "uncontacted_lead": "Uncontacted lead",
-      "in_flight_stale": "Active deal silent",
-      "birthday_today": "Birthday today",
-      "birthday_soon": "Birthday soon",
-      "closing_anniversary": "Closing anniversary",
-      "mortgage_renewal_window": "Mortgage renewal window",
-      "mortgage_renewal_due": "Mortgage renewal due",
-      "past_client_check_in": "Past-client check-in",
-      "timeframe_approaching": "Timeframe approaching",
-      "property_value_milestone": "Property value milestone",
-      "no_contact_info": "Missing contact info",
-      "possible_duplicate": "Possible duplicate",
-      "listing_appointment_overdue": "Listing appointment overdue",
-      "listing_stale": "Listing stale",
-      "hot_pipeline": "Hot pipeline",
-      "task_due_today": "Task due today",
-      "overdue_followup": "Overdue follow-up",
-      "unknown": "Action needed"
+      "vip_overdue": "VIP 客户久未联系",
+      "uncontacted_lead": "未联系的线索",
+      "in_flight_stale": "进行中的交易没有动静",
+      "birthday_today": "今天生日",
+      "birthday_soon": "生日将至",
+      "closing_anniversary": "成交周年",
+      "mortgage_renewal_window": "房贷续约窗口期",
+      "mortgage_renewal_due": "房贷续约即将到期",
+      "past_client_check_in": "问候老客户",
+      "timeframe_approaching": "客户的时间节点临近",
+      "property_value_milestone": "房产价值里程碑",
+      "no_contact_info": "缺少联系方式",
+      "possible_duplicate": "可能重复",
+      "listing_appointment_overdue": "上市面谈已逾期",
+      "listing_stale": "房源没有动静",
+      "hot_pipeline": "热门在谈交易",
+      "task_due_today": "今天到期的任务",
+      "overdue_followup": "跟进已逾期",
+      "unknown": "待处理"
     }
   },
   "goal": {
-    "annualGoal": "ANNUAL GOAL",
-    "ofGoal": "{{current}} of {{goal}}"
+    "annualGoal": "年度目标",
+    "ofGoal": "{{current}} / {{goal}}"
   },
   "nextUp": {
     "title": "NEXT UP",
-    "overdue": "Overdue",
-    "high": "HIGH"
+    "overdue": "已逾期",
+    "high": "高",
+    "seeAll": "清单（{{count}}）",
+    "tickOff": "点按即可勾选完成",
+    "ticked": "已勾选完成。"
   },
   "pipelinePreview": {
-    "title": "PIPELINE",
-    "seeAll": "See all",
-    "pipelineDeal": "Pipeline Deal"
+    "title": "在谈交易",
+    "seeAll": "查看全部",
+    "pipelineDeal": "在谈交易"
   },
   "quickAccess": {
-    "label": "QUICK ACCESS",
-    "briefing": "Briefing",
+    "label": "快捷入口",
+    "briefing": "简报",
     "outreach": "Flight Control",
-    "forecast": "Forecast",
-    "receipt": "Receipt"
+    "forecast": "预测",
+    "receipt": "收据"
   },
   "quickCapture": {
-    "title": "Quick Capture",
-    "clientLabel": "CLIENT",
-    "typeLabel": "TYPE",
-    "notesLabel": "NOTES",
-    "searchClient": "Search client name...",
-    "notesPlaceholder": "What happened?",
+    "title": "快速记录",
+    "clientLabel": "客户",
+    "typeLabel": "类型",
+    "notesLabel": "备注",
+    "searchClient": "搜索客户姓名...",
+    "notesPlaceholder": "发生了什么？",
     "activityTypes": {
-      "call": "Call",
-      "text": "Text",
-      "showing": "Showing",
-      "meeting": "Meeting",
-      "note": "Note"
-    }
+      "call": "通话",
+      "text": "短信",
+      "showing": "看房",
+      "meeting": "会面",
+      "note": "备注"
+    },
+    "noteNotContact": "备注不算联系。如果你和对方交谈过，请选择通话、短信、看房或会面。"
   }
 }
