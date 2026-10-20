@@ -30,6 +30,7 @@ import {
   fmtCurrency,
   dayOfYear,
 } from "@/lib/theme";
+import { ADD_CLEARANCE } from "@/components/add/AddButton";
 
 const daysInYear = (y: number) => ((y % 4 === 0 && y % 100 !== 0) || y % 400 === 0) ? 366 : 365;
 
@@ -108,7 +109,7 @@ export default function ForecastScreen() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: c.bg }} edges={["bottom"]}>
       <ScrollView
-        contentContainerStyle={{ paddingHorizontal: Space.xl, paddingBottom: 100, paddingTop: Space.md }}
+        contentContainerStyle={{ paddingHorizontal: Space.xl, paddingBottom: ADD_CLEARANCE, paddingTop: Space.md }}
         showsVerticalScrollIndicator={false}
       >
         {/* ── Projection Hero Card ── */}

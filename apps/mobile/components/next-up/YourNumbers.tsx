@@ -16,6 +16,7 @@ import { computeGCI } from "@agent-runway/core/types/database";
 import { useDataStore } from "@/stores/data-store";
 import { Radius, Space, Type, fmtCompact, fmtCurrency, gradients, shadows, useColors, useTheme } from "@/lib/theme";
 import { Sparkline } from "@/components/ui/Sparkline";
+import { NAV } from "@/lib/app-nav";
 
 export function YourNumbers({ onOpen }: { onOpen: (href: string) => void }) {
   const c = useColors();
@@ -94,14 +95,14 @@ export function YourNumbers({ onOpen }: { onOpen: (href: string) => void }) {
           icon={<Briefcase size={16} color={c.primaryLight} />}
           color={c.primaryLight}
           c={c} sh={sh}
-          onPress={() => onOpen("/deals")}
+          onPress={() => onOpen(NAV.deals)}
         />
       </View>
 
       {/* ── Goal progress ── */}
       {goalGci > 0 && (
         <Pressable
-          onPress={() => onOpen("/profile/forecast")}
+          onPress={() => onOpen(NAV.forecast)}
           accessibilityRole="button"
           style={({ pressed }) => [
             {

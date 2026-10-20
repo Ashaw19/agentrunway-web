@@ -17,12 +17,13 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+import { NAV } from "@/lib/app-nav";
 import { Ionicons } from "@expo/vector-icons";
 import {
   Search as SearchIcon,
   X,
   Clock,
-  UserPlus,
+  Sparkles,
   Handshake,
   Receipt,
   ChevronRight,
@@ -91,7 +92,7 @@ type DealRow = { type: "deal"; data: ReturnType<typeof useDataStore.getState>["p
 type TransactionRow = { type: "transaction"; data: ReturnType<typeof useDataStore.getState>["transactions"][number] };
 type EmptyRow = { type: "empty"; query: string };
 type RecentRow = { type: "recent"; query: string };
-type QuickActionsRow = { type: "quickActions" };
+type AskRow = { type: "ask"; query: string };
 type RecentHeader = { type: "recentHeader" };
 
 type ListItem =
@@ -101,7 +102,7 @@ type ListItem =
   | TransactionRow
   | EmptyRow
   | RecentRow
-  | QuickActionsRow
+  | AskRow
   | RecentHeader;
 
 // ── Component ───────────────────────────────────────────────────────────────
@@ -139,26 +140,28 @@ export default function SearchScreen() {
 
   // Build flat list data
   const listData = useMemo<ListItem[]>(() => {
-    // Empty query: show recent + quick actions
+    // Empty query: ask Flight Crew, then recent searches. Adding things is
+    // the "+" on each tab now (components/add), not quick actions here.
     if (!results) {
-      const items: ListItem[] = [];
+      const items: ListItem[] = [{ type: "ask", query: "" }];
 
       if (recentSearches.length > 0) {
         items.push({ type: "recentHeader" });
         recentSearches.forEach((q) => items.push({ type: "recent", query: q }));
       }
-
-      items.push({ type: "quickActions" });
       return items;
     }
 
+    // What was typed can be asked as well as found.
+    const items: ListItem[] = [{ type: "ask", query: query.trim() }];
+
     // Has query but no results
     if (totalResults === 0) {
-      return [{ type: "empty", query }];
+      items.push({ type: "empty", query });
+      return items;
     }
 
-    // Build grouped results
-    const items: ListItem[] = [];
+    // Grouped results
 
     if (results.clients.length > 0) {
       items.push({ type: "header", title: t("search.clients") });
@@ -200,15 +203,16 @@ export default function SearchScreen() {
       setRecentSearches(updated);
       Keyboard.dismiss();
 
+      // Open the record tapped, not just its tab.
       switch (item.type) {
         case "client":
-          router.navigate("/(app)/clients");
+          router.navigate({ pathname: NAV.clients, params: { clientId: item.data.id } });
           break;
         case "deal":
-          router.navigate("/(app)/deals");
+          router.navigate({ pathname: NAV.deals, params: { dealId: item.data.id } });
           break;
         case "transaction":
-          router.navigate("/(app)/deals");
+          router.navigate({ pathname: NAV.deals, params: { txId: item.data.id } });
           break;
       }
     },
@@ -238,8 +242,15 @@ export default function SearchScreen() {
           );
         case "recent":
           return <RecentRowView query={item.query} colors={c} onPress={() => handleRecentTap(item.query)} />;
-        case "quickActions":
-          return <QuickActionsView colors={c} mode={mode} sh={sh} router={router} t={t} />;
+        case "ask":
+          return (
+            <AskFlightCrewView
+              query={item.query}
+              colors={c}
+              t={t}
+              onPress={() => router.push({ pathname: NAV.flightCrew, params: item.query ? { q: item.query } : {} })}
+            />
+          );
         default:
           return null;
       }
@@ -547,80 +558,42 @@ function RecentRowView({
   );
 }
 
-function QuickActionsView({
+/** Ask Flight Crew: what was typed goes to the chat, ready to send. */
+function AskFlightCrewView({
+  query,
   colors: c,
-  mode,
-  sh,
-  router,
   t,
+  onPress,
 }: {
+  query: string;
   colors: ReturnType<typeof useColors>;
-  mode: string;
-  sh: ReturnType<typeof shadows>;
-  router: ReturnType<typeof useRouter>;
-  t: (key: string) => string;
+  t: (key: string, opts?: Record<string, unknown>) => string;
+  onPress: () => void;
 }) {
-  const actions = [
-    {
-      icon: UserPlus,
-      label: t("search.addClient"),
-      color: c.primary,
-      onPress: () => router.navigate("/(app)/clients"),
-    },
-    {
-      icon: Handshake,
-      label: t("search.addDeal"),
-      color: c.success,
-      onPress: () => router.navigate("/(app)/deals"),
-    },
-    {
-      icon: Receipt,
-      label: t("search.scanReceipt"),
-      color: c.gold,
-      onPress: () => router.navigate("/profile/expenses"),
-    },
-  ];
-
   return (
-    <View style={{ paddingHorizontal: Space.lg, paddingTop: Space.xl }}>
-      <Text style={[Type.label, { color: c.textMuted, marginBottom: Space.md }]}>{t("search.quickActions")}</Text>
-      <View style={styles.quickActionsGrid}>
-        {actions.map((action) => (
-          <Pressable
-            key={action.label}
-            onPress={action.onPress}
-            style={({ pressed }) => [
-              styles.quickAction,
-              {
-                backgroundColor: c.card,
-                borderColor: c.cardBorder,
-                borderWidth: 1,
-                borderRadius: Radius.lg,
-                opacity: pressed ? 0.8 : 1,
-                ...sh.card,
-              },
-            ]}
-          >
-            <View
-              style={[
-                styles.quickActionIcon,
-                {
-                  backgroundColor: action.color + "18",
-                  borderRadius: Radius.md,
-                },
-              ]}
-            >
-              <action.icon size={20} color={action.color} strokeWidth={2} />
-            </View>
-            <Text
-              style={[Type.caption, { color: c.text, marginTop: Space.sm, textAlign: "center" }]}
-              numberOfLines={1}
-            >
-              {action.label}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
+    <View style={{ paddingHorizontal: Space.lg, paddingTop: Space.sm, paddingBottom: Space.xs }}>
+      <Pressable
+        onPress={onPress}
+        accessibilityRole="button"
+        style={({ pressed }) => ({
+          flexDirection: "row",
+          alignItems: "center",
+          gap: Space.md,
+          padding: Space.md,
+          borderRadius: Radius.lg,
+          backgroundColor: pressed ? c.primaryBorder : c.primaryDim,
+        })}
+      >
+        <View style={{ width: 34, height: 34, borderRadius: Radius.md, backgroundColor: c.primary, alignItems: "center", justifyContent: "center" }}>
+          <Sparkles size={18} color="#FFFFFF" strokeWidth={2} />
+        </View>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={[Type.bodyBold, { color: c.primary }]}>{t("search.askFlightCrew")}</Text>
+          <Text style={[Type.caption, { color: c.textMuted }]} numberOfLines={2}>
+            {query ? `\u201C${query}\u201D` : t("search.askHint")}
+          </Text>
+        </View>
+      </Pressable>
     </View>
   );
 }
@@ -856,22 +829,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingTop: Space.hero,
     paddingHorizontal: Space.xxxl,
-  },
-  quickActionsGrid: {
-    flexDirection: "row",
-    gap: Space.md,
-  },
-  quickAction: {
-    flex: 1,
-    alignItems: "center",
-    paddingVertical: Space.lg,
-    paddingHorizontal: Space.sm,
-  },
-  quickActionIcon: {
-    width: 44,
-    height: 44,
-    alignItems: "center",
-    justifyContent: "center",
   },
   quickNoteBtn: {
     width: 30,

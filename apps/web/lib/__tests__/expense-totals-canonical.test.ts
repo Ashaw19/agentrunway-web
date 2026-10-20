@@ -196,7 +196,7 @@ const ALLOWED_RECEIPTS_BY_KEY: Record<string, { count: number; why: string }> = 
 const YTD_EXPENSES_LABEL = /\b(?:YTD|Year[- ]to[- ][Dd]ate) (?:Total|Expenses|expenses)\b|\bTotal Expenses\b/g;
 
 /** The phone's Expenses screen: receipts only, and labelled as receipts. */
-const MOBILE_EXPENSES_SCREEN = "apps/mobile/app/(app)/profile/expenses.tsx";
+const MOBILE_EXPENSES_SCREEN = "apps/mobile/components/money/ExpensesView.tsx";
 
 /** Allowed only where the match opens `phrase`, so the label on a figure is never excused. */
 const ALLOWED_YTD_EXPENSES_LABELS: Record<string, { count: number; phrase: string; why: string }> = {
@@ -275,7 +275,7 @@ describe("REGRESSION — expense totals are net of ITCs through expense-totals-e
       "apps/web/app/api/chat/route.ts",
       "apps/web/lib/ai/tools.ts",
       "apps/web/supabase/functions/mcp-server/lib/expense-inputs.ts",
-      "apps/mobile/app/(app)/profile/expenses.tsx",
+      "apps/mobile/components/money/ExpensesView.tsx",
     ]) {
       expect(files.map(rel)).toContain(must);
     }

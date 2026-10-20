@@ -3,13 +3,16 @@
     "dashboard": "Tableau de bord",
     "deals": "Transactions",
     "clients": "Clients",
-    "more": "Plus"
+    "more": "Plus",
+    "today": "Aujourd'hui",
+    "money": "Argent"
   },
   "nav": {
     "back": "Retour",
     "close": "Fermer",
     "cancel": "Annuler",
-    "done": "Termin\u00e9"
+    "done": "Terminé",
+    "goTo": "Aller à"
   },
   "actions": {
     "save": "Enregistrer",
@@ -19,21 +22,34 @@
     "delete": "Supprimer",
     "search": "Rechercher",
     "refresh": "Actualiser",
-    "retry": "R\u00e9essayer",
-    "signOut": "D\u00e9connexion",
+    "retry": "Réessayer",
+    "signOut": "Déconnexion",
     "confirm": "Confirmer",
     "viewAll": "Tout voir"
   },
   "status": {
     "loading": "Chargement...",
-    "noResults": "Aucun r\u00e9sultat",
+    "noResults": "Aucun résultat",
     "error": "Une erreur est survenue",
-    "offline": "Vous \u00eates hors ligne",
-    "updatedJustNow": "Mis \u00e0 jour \u00e0 l'instant",
-    "updatedMinAgo": "Mis \u00e0 jour il y a {{count}} min"
+    "offline": "Vous êtes hors ligne",
+    "updatedJustNow": "Mis à jour à l'instant",
+    "updatedMinAgo": "Mis à jour il y a {{count}} min"
   },
   "empty": {
     "noMatches": "Aucune correspondance",
-    "noMatchesFor": "Aucun r\u00e9sultat pour \u00ab {{query}} \u00bb"
+    "noMatchesFor": "Aucun résultat pour « {{query}} »"
+  },
+  "add": {
+    "title": "Ajouter",
+    "log": "Noter un appel ou un texto",
+    "receipt": "Reçu",
+    "trip": "Trajet",
+    "client": "Client",
+    "deal": "Transaction"
+  },
+  "money": {
+    "expenses": "Dépenses",
+    "mileage": "Kilométrage",
+    "forecast": "Prévisions"
   }
 }

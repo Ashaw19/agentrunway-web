@@ -46,7 +46,7 @@ describe("the phone's writes go through core write-rows", () => {
 
 describe("closing a deal on the phone records the sale", () => {
   const store = read("apps/mobile/stores/data-store.ts");
-  const deals = read("apps/mobile/app/(app)/deals.tsx");
+  const deals = read("apps/mobile/app/(app)/(tabs)/deals.tsx");
 
   it("closes through the shared writer, as both web screens do", () => {
     expect(store).toMatch(/recordPipelineDealClose\(supabase, \{/);
@@ -69,10 +69,10 @@ describe("closing a deal on the phone records the sale", () => {
   it("counts GCI with core computeGCI, never its own formula", () => {
     for (const rel of [
       "apps/mobile/stores/data-store.ts",
-      "apps/mobile/app/(app)/deals.tsx",
-      "apps/mobile/app/(app)/index.tsx",
-      "apps/mobile/app/(app)/search.tsx",
-      "apps/mobile/app/(app)/clients.tsx",
+      "apps/mobile/app/(app)/(tabs)/deals.tsx",
+      "apps/mobile/app/(app)/(tabs)/index.tsx",
+      "apps/mobile/app/(app)/(tabs)/search.tsx",
+      "apps/mobile/app/(app)/(tabs)/clients.tsx",
     ]) {
       expect(read(rel), rel).not.toMatch(/team_split_pct \?\? 1/);
     }

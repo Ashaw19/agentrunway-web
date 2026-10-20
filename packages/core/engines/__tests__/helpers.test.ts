@@ -231,8 +231,8 @@ describe("Pipeline Deal Computations", () => {
 
     it("covers all 6 pipeline stage defaults", () => {
       // Canonical default-probability map — shared between web engine,
-      // pipeline-forecast engine, and mobile `apps/mobile/app/(app)/deals.tsx`
-      // + `apps/mobile/app/(app)/profile/forecast.tsx`. If you change any
+      // pipeline-forecast engine, and mobile `apps/mobile/app/(app)/(tabs)/deals.tsx`
+      // + `apps/mobile/components/money/ForecastView.tsx`. If you change any
       // value here, every surface picks it up automatically. See audit
       // red flag #4 (memory/project_mobile_parity_audit_2026-05-26.md).
       expect(PIPELINE_STAGE_DEFAULTS.lead).toBe(0.1);

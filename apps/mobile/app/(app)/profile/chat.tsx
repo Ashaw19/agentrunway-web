@@ -34,7 +34,9 @@ import {
   Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Send, Square, Trash2 } from "lucide-react-native";
+import { History, Send, Square, Trash2 } from "lucide-react-native";
+import { Stack, useLocalSearchParams, useRouter } from "expo-router";
+import { NAV } from "@/lib/app-nav";
 import * as Haptics from "expo-haptics";
 import { useColors, Radius, Space, Type, useTheme, shadows } from "@/lib/theme";
 import { useOfflineQueueStore } from "@/stores/offline-queue";
@@ -82,6 +84,15 @@ export default function ChatScreen() {
   } = useChatStore();
 
   const [input, setInput] = useState("");
+
+  // Asked from Search: the words typed arrive ready to send.
+  const router = useRouter();
+  const { q } = useLocalSearchParams<{ q?: string }>();
+  useEffect(() => {
+    if (!q) return;
+    setInput(q);
+    router.setParams({ q: undefined });
+  }, [q]);
   const [selectorOpen, setSelectorOpen] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const listRef = useRef<FlatList<ChatMessage>>(null);
@@ -340,6 +351,21 @@ export default function ChatScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: c.bg }} edges={["bottom"]}>
+      {/* What Flight Crew changed today (AI activity, which lived on More): from here. */}
+      <Stack.Screen
+        options={{
+          headerRight: () => (
+            <Pressable
+              onPress={() => router.push(NAV.aiActivity)}
+              accessibilityRole="button"
+              accessibilityLabel="AI activity"
+              hitSlop={10}
+            >
+              <History size={22} color={c.primary} strokeWidth={2} />
+            </Pressable>
+          ),
+        }}
+      />
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : undefined}
         style={{ flex: 1 }}

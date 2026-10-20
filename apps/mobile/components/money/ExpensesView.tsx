@@ -10,6 +10,7 @@ import {
   Alert,
   Image,
   KeyboardAvoidingView,
+  Modal,
   Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -49,6 +50,7 @@ import {
   fmtCurrency,
   fmtCompact,
 } from "@/lib/theme";
+import { ADD_CLEARANCE } from "@/components/add/AddButton";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { EXPENSE_CATEGORY_LABELS } from "@/lib/expense-categories";
@@ -140,7 +142,12 @@ function categoryColor(key: string | null): string {
 
 // ── Component ──────────────────────────────────────────────────────────────────
 
-export default function ScanScreen() {
+/**
+ * Expenses, the first view of the Money tab (app/(app)/(tabs)/money.tsx).
+ * `autoScan` opens the receipt camera once on arrival (the "+" sheet's
+ * Receipt); the host clears it through `onAutoScanHandled`.
+ */
+export default function ExpensesView({ autoScan = false, onAutoScanHandled }: { autoScan?: boolean; onAutoScanHandled?: () => void } = {}) {
   const { receipts, fetchReceipts, settings } = useDataStore();
   const [state, setState] = useState<ScreenState>("idle");
   const [refreshing, setRefreshing] = useState(false);
@@ -272,6 +279,13 @@ export default function ScanScreen() {
     }
     setState("camera");
   }, [permission, requestPermission]);
+
+  // The "+" sheet's Receipt: straight to the camera, once.
+  useEffect(() => {
+    if (!autoScan) return;
+    onAutoScanHandled?.();
+    void openCamera();
+  }, [autoScan, onAutoScanHandled, openCamera]);
 
   const capturePhoto = useCallback(async () => {
     if (!cameraRef.current) return;
@@ -437,9 +451,12 @@ export default function ScanScreen() {
   }, []);
 
   // ── Camera View ───────────────────────────────────────────────────────────
+  // Full screen over the tabs: the view sits under the Money header, the
+  // camera doesn't.
 
   if (state === "camera") {
     return (
+      <Modal visible animationType="slide" presentationStyle="fullScreen" onRequestClose={() => setState("idle")}>
       <View style={{ flex: 1, backgroundColor: "#000" }}>
         <CameraView
           ref={cameraRef}
@@ -534,6 +551,7 @@ export default function ScanScreen() {
           </SafeAreaView>
         </CameraView>
       </View>
+      </Modal>
     );
   }
 
@@ -549,7 +567,7 @@ export default function ScanScreen() {
           style={{ flex: 1 }}
         >
           <ScrollView
-            contentContainerStyle={{ padding: Space.xl, paddingBottom: 120, gap: Space.lg }}
+            contentContainerStyle={{ padding: Space.xl, paddingBottom: ADD_CLEARANCE, gap: Space.lg }}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
@@ -783,7 +801,7 @@ export default function ScanScreen() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: c.bg }}>
       <ScrollView
-        contentContainerStyle={{ paddingHorizontal: Space.xl, paddingBottom: 120 }}
+        contentContainerStyle={{ paddingHorizontal: Space.xl, paddingBottom: ADD_CLEARANCE }}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl

@@ -135,7 +135,9 @@
       "showing": "Visite",
       "meeting": "Réunion"
     },
-    "noteNotContact": "Les notes ne comptent pas comme un contact. Choisissez Appel, Texto, Visite ou Rencontre si vous lui avez parlé."
+    "noteNotContact": "Les notes ne comptent pas comme un contact. Choisissez Appel, Texto, Visite ou Rencontre si vous lui avez parlé.",
+    "askFlightCrew": "Demander à l'Équipage de vol",
+    "askHint": "Questions sur votre entreprise, vos clients ou vos transactions"
   },
   "legal": {
     "title": "Mentions légales et confidentialité",
@@ -350,5 +352,11 @@
     "receiptCount_other": "{{count}} reçus",
     "receiptCountPartial_one": "{{count}} reçu sur {{total}}",
     "receiptCountPartial_other": "{{count}} reçus sur {{total}}"
+  },
+  "you": {
+    "title": "Vous",
+    "open": "Ouvrir vos réglages",
+    "business": "Votre entreprise",
+    "app": "Application"
   }
 }

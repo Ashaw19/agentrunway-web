@@ -45,6 +45,8 @@ const SCAN_ROOTS = [
   "apps/web/app",
   "apps/web/lib",
   "apps/mobile/app",
+  // The Money tab's views (Expenses, Mileage, Forecast) live here since 2026-10-20.
+  "apps/mobile/components",
   "packages/core/engines",
 ] as const;
 
