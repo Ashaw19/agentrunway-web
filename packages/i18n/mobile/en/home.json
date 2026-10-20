@@ -210,5 +210,67 @@
     "open": "Open",
     "notNow": "Not now",
     "recordNote": "Record a note"
+  },
+  "later": {
+    "title": "Bring it back",
+    "inAnHour": "In an hour",
+    "tonight": "Tonight",
+    "tomorrow": "Tomorrow morning"
+  },
+  "dismiss": {
+    "title": "Not now for {{name}}?",
+    "alreadyTalked": "Already talked to them",
+    "later": "Later",
+    "skip": "Skip this time",
+    "stop": "Stop suggesting",
+    "threeMonths": "For 3 months",
+    "sixMonths": "For 6 months",
+    "hangar": "Move to the Hangar",
+    "inPerson": "In person",
+    "call": "Call",
+    "text": "Text",
+    "hangarConfirmTitle": "Move {{name}} to the Hangar?",
+    "hangarConfirmBody": "They leave your active client list and stop coming up here. Their history and deals stay, and you can bring them back from the Hangar any time.",
+    "cancel": "Cancel",
+    "thisClient": "this client"
+  },
+  "postCall": {
+    "title": "How did the call with {{name}} go?",
+    "logOnly": "Just log the call",
+    "notNow": "Not now",
+    "dayTitle": "How did today go?",
+    "review": "Review your note"
+  },
+  "nextUpToast": {
+    "skipped": "Skipped {{name}} this time. They come back at their next reason to reach out.",
+    "backInAnHour": "{{name}} is back in an hour.",
+    "backTonight": "{{name}} is back tonight.",
+    "backTomorrow": "{{name}} is back tomorrow.",
+    "backLater": "{{name}} is back later.",
+    "cardInAnHour": "Back in an hour.",
+    "cardTonight": "Back tonight.",
+    "cardTomorrow": "Back tomorrow morning.",
+    "stoppedThreeMonths": "No suggestions for {{name}} for 3 months.",
+    "stoppedSixMonths": "No suggestions for {{name}} for 6 months.",
+    "stoppedAWhile": "No suggestions for {{name}} for a while.",
+    "hangar": "{{name}} moved to the Hangar.",
+    "loggedCall": "Logged your call with {{name}}.",
+    "loggedText": "Logged your text with {{name}}.",
+    "loggedMeeting": "Logged your meeting with {{name}}.",
+    "resumed": "Suggestions are back on for this client.",
+    "offline": "No connection. Try again.",
+    "couldntSave": "Couldn't save that for {{name}}. Try again.",
+    "undo": "Undo",
+    "undoFailed": "Couldn't undo. Try again.",
+    "undoNoPin": "Undone. They may not show on today's list until tomorrow.",
+    "thisClient": "this client",
+    "thisClientStart": "This client"
+  },
+  "textFlow": {
+    "callInstead": "Call instead",
+    "notQueuedTitle": "Not in your queue",
+    "notQueued": "This text isn't waiting to be sent any more.",
+    "draftFailedTitle": "Couldn't draft the text",
+    "noDraft": "No text was drafted for {{name}}."
   }
 }

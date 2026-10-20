@@ -68,9 +68,11 @@ const patch = (w: ProposedWrite, p: Record<string, unknown>): ProposedWrite => (
 interface Props {
   proposal: CaptureProposal;
   onClose: () => void;
+  /** Called after a confirm that saved (or queued) at least one item. */
+  onSaved?: () => void;
 }
 
-export function VoiceCaptureCard({ proposal, onClose }: Props) {
+export function VoiceCaptureCard({ proposal, onClose, onSaved }: Props) {
   const c = useColors();
   // The signed-in user from the app's session, known with no connection, so
   // a save offline queues instead of failing.
@@ -106,6 +108,7 @@ export function VoiceCaptureCard({ proposal, onClose }: Props) {
       setWrites((ws) => settleSavedClients(ws, out));
       const s = summarizeSave(out);
       useToastStore.getState().show(s.text, s.failed > 0 ? "error" : s.queued > 0 ? "info" : "success");
+      if (s.saved + s.queued > 0) onSaved?.();
       void Haptics.notificationAsync(s.failed > 0 ? Haptics.NotificationFeedbackType.Warning : Haptics.NotificationFeedbackType.Success);
     } finally {
       setSaving(false);

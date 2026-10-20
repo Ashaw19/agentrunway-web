@@ -4,6 +4,8 @@
  * Renders a small bar at the top of the screen (below safe-area inset).
  * Variants: success (green checkmark), error (red X), info (blue info).
  * Auto-dismisses success/info after 2.5 s. Error stays until tapped.
+ * A toast with an action (Undo) shows its button on the right and stays
+ * 6 s, so there is time to tap it.
  */
 
 import { useEffect, useRef } from "react";
@@ -21,7 +23,7 @@ const ICON: Record<string, string> = {
 };
 
 export default function Toast() {
-  const { message, variant, onRetry, hide } = useToastStore();
+  const { message, variant, onRetry, action, hide } = useToastStore();
   const c = useColors();
   const insets = useSafeAreaInsets();
   const translateY = useRef(new Animated.Value(-100)).current;
@@ -46,7 +48,7 @@ export default function Toast() {
       if (variant !== "error") {
         timerRef.current = setTimeout(() => {
           dismiss();
-        }, 2500);
+        }, action ? 6000 : 2500);
       }
     } else {
       // Slide out instantly (already hidden)
@@ -59,12 +61,14 @@ export default function Toast() {
   }, [message]);
 
   function dismiss() {
+    // A toast shown while this one slides out (an Undo's answer) stays.
+    const shown = useToastStore.getState().message;
     Animated.timing(translateY, {
       toValue: -100,
       duration: 200,
       useNativeDriver: true,
-    }).start(() => {
-      hide();
+    }).start(({ finished }) => {
+      if (finished && useToastStore.getState().message === shown) hide();
     });
   }
 
@@ -150,10 +154,30 @@ export default function Toast() {
             color: c.text,
             flex: 1,
           }}
-          numberOfLines={2}
+          numberOfLines={action ? 3 : 2}
         >
           {message}
         </Text>
+
+        {action ? (
+          <Pressable
+            onPress={() => {
+              dismiss();
+              void action.onPress();
+            }}
+            hitSlop={Space.sm}
+            accessibilityRole="button"
+            accessibilityLabel={action.label}
+            style={({ pressed }) => ({
+              paddingHorizontal: Space.md,
+              paddingVertical: Space.xs,
+              borderRadius: Radius.pill,
+              backgroundColor: pressed ? c.primaryDim : "transparent",
+            })}
+          >
+            <Text style={{ ...Type.caption, color: c.primary, fontWeight: "800" }}>{action.label}</Text>
+          </Pressable>
+        ) : null}
       </Pressable>
     </Animated.View>
   );

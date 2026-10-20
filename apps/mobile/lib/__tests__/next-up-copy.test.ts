@@ -9,6 +9,7 @@
  *     picked by i18next itself, so its callers choose it by hand)
  *   - the welcome's context and progress lines, the card and row lines, the
  *     all-clear card
+ *   - the toasts after a card's button, as web Flight Control words them
  *   - the new strings carry no em dash and no "should"
  */
 import { describe, expect, it, vi } from "vitest";
@@ -20,6 +21,7 @@ import {
   actionLabel,
   allClearCopy,
   cardCopy,
+  handledToast,
   contextLine,
   dayLabel,
   greetingLine,
@@ -34,8 +36,11 @@ vi.mock("../mmkv", () => ({ storage: { getString: () => undefined, set: () => {}
 
 const t = i18n.getFixedT("en", "home") as unknown as (key: string, options?: Record<string, unknown>) => string;
 
-/** The namespaces this build adds to home.json. */
-const NEW_NAMESPACES = ["welcome", "stack", "alsoWaiting", "allClear", "cardActions"] as const;
+/** The namespaces this build adds to home.json (the card buttons' sheets and toasts too). */
+const NEW_NAMESPACES = [
+  "welcome", "stack", "alsoWaiting", "allClear", "cardActions",
+  "later", "dismiss", "postCall", "nextUpToast", "textFlow",
+] as const;
 
 type Tree = { [key: string]: string | Tree };
 
@@ -233,6 +238,25 @@ describe("days", () => {
     expect(dayLabel("2026-10-15", -4, t, "en-CA")).toBe(new Date("2026-10-15T12:00:00").toLocaleDateString("en-CA", { weekday: "long" }));
     expect(dayLabel("2026-10-15", -4, t, "en-CA")).toBe("Thursday");
     expect(dayLabel("2026-11-02", 14, t, "en-CA")).toBe(new Date("2026-11-02T12:00:00").toLocaleDateString("en-CA", { month: "short", day: "numeric" }));
+  });
+});
+
+describe("handledToast", () => {
+  it("words each handled card as Flight Control's Dismiss does", () => {
+    expect(handledToast({ kind: "skip" }, "Sam Lee", t)).toBe("Skipped Sam Lee this time. They come back at their next reason to reach out.");
+    expect(handledToast({ kind: "later", choice: "tonight" }, "Sam Lee", t)).toBe("Sam Lee is back tonight.");
+    expect(handledToast({ kind: "later", choice: "tomorrow" }, "Sam Lee", t)).toBe("Sam Lee is back tomorrow.");
+    expect(handledToast({ kind: "stop", months: 6 }, "Sam Lee", t)).toBe("No suggestions for Sam Lee for 6 months.");
+    expect(handledToast({ kind: "hangar" }, "Sam Lee", t)).toBe("Sam Lee moved to the Hangar.");
+    expect(handledToast({ kind: "logged", type: "call" }, "Sam Lee", t)).toBe("Logged your call with Sam Lee.");
+  });
+
+  it("reads 'this client' with no name, and a phone-only card's Later needs none", () => {
+    expect(handledToast({ kind: "skip" }, "  ", t)).toBe("Skipped this client this time. They come back at their next reason to reach out.");
+    expect(handledToast({ kind: "hangar" }, null, t)).toBe("This client moved to the Hangar.");
+    expect(handledToast({ kind: "snoozed", choice: "in_an_hour" }, null, t)).toBe("Back in an hour.");
+    expect(handledToast({ kind: "snoozed", choice: "tomorrow" }, null, t)).toBe("Back tomorrow morning.");
+    expect(handledToast({ kind: "snoozed", choice: "tonight" }, "Kim Fox", t)).toBe("Kim Fox is back tonight.");
   });
 });
 

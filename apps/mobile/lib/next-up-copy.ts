@@ -1,6 +1,6 @@
 /**
- * The words on the dashboard's welcome, Next up cards, "Also waiting" rows
- * and all-clear card, from the "home" namespace
+ * The words on the dashboard's welcome, Next up cards, "Also waiting" rows,
+ * all-clear card and the toasts after a card's button, from the "home" namespace
  * (packages/i18n/mobile/<locale>/home.json).
  *
  * Counts go through i18next plurals: the app runs i18next 24 (JSON v4), so a
@@ -15,6 +15,7 @@
 import type { AlsoWaitingRow, NextUpAction, NextUpCard, NextUpView } from "@agent-runway/core/lib/next-up/build";
 import { daysBetweenISO } from "@agent-runway/core/lib/local-date";
 import type { TimeBand } from "@agent-runway/core/lib/next-up/rules";
+import type { LaterChoice } from "@agent-runway/core/lib/suggestion-dismissals";
 import { greetingKey } from "./next-up-view";
 
 /** i18next's t for the "home" namespace, narrowed to what these helpers call. */
@@ -266,4 +267,52 @@ export function allClearCopy(
     title,
     detail: t(allClear.kind === "showing" ? "allClear.nextShowing" : "allClear.nextAppointment", { day }),
   };
+}
+
+// ── After a card's button ────────────────────────────────────────────────────
+
+/** What was done to a card, for its toast. Mirrors Flight Control's (apps/web/lib/crm/dismiss-menu.ts). */
+export type HandledCard =
+  | { kind: "skip" }
+  | { kind: "later"; choice?: LaterChoice }
+  | { kind: "stop"; months?: 3 | 6 }
+  | { kind: "hangar" }
+  | { kind: "logged"; type: "call" | "text" | "meeting" }
+  /** A phone-only Later (a card that isn't a handful client's). */
+  | { kind: "snoozed"; choice: LaterChoice };
+
+const BACK_KEYS: Readonly<Record<LaterChoice, string>> = {
+  in_an_hour: "nextUpToast.backInAnHour",
+  tonight: "nextUpToast.backTonight",
+  tomorrow: "nextUpToast.backTomorrow",
+};
+const CARD_BACK_KEYS: Readonly<Record<LaterChoice, string>> = {
+  in_an_hour: "nextUpToast.cardInAnHour",
+  tonight: "nextUpToast.cardTonight",
+  tomorrow: "nextUpToast.cardTomorrow",
+};
+const LOGGED_KEYS = { call: "nextUpToast.loggedCall", text: "nextUpToast.loggedText", meeting: "nextUpToast.loggedMeeting" } as const;
+
+/** The toast after a card was handled. `name` is the client's; blank reads "this client". */
+export function handledToast(done: HandledCard, name: string | null | undefined, t: Translate): string {
+  const named = name?.trim();
+  const mid = named || t("nextUpToast.thisClient");
+  const start = named || t("nextUpToast.thisClientStart");
+  switch (done.kind) {
+    case "skip":
+      return t("nextUpToast.skipped", { name: mid });
+    case "later":
+      return t(done.choice ? BACK_KEYS[done.choice] : "nextUpToast.backLater", { name: start });
+    case "snoozed":
+      return named ? t(BACK_KEYS[done.choice], { name: named }) : t(CARD_BACK_KEYS[done.choice]);
+    case "stop":
+      return t(
+        done.months === 3 ? "nextUpToast.stoppedThreeMonths" : done.months === 6 ? "nextUpToast.stoppedSixMonths" : "nextUpToast.stoppedAWhile",
+        { name: mid },
+      );
+    case "hangar":
+      return t("nextUpToast.hangar", { name: start });
+    case "logged":
+      return t(LOGGED_KEYS[done.type], { name: mid });
+  }
 }

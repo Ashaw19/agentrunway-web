@@ -7,7 +7,7 @@
  * otherwise.
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { FlatList, View, useWindowDimensions, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
 import * as Haptics from "expo-haptics";
 import type { NextUpAction, NextUpCard as Card } from "@agent-runway/core/lib/next-up/build";
@@ -31,6 +31,9 @@ export function NextUpStack({ cards, onAction, busyKey = null }: NextUpStackProp
   const [width, setWidth] = useState(windowWidth - Space.xl * 2);
   const [page, setPage] = useState(0);
   const listRef = useRef<FlatList<Card>>(null);
+  // The list re-renders its cards when any of these change (a new handler
+  // included, so a tap never reaches a stale one).
+  const extraData = useMemo(() => [width, busyKey, onAction], [width, busyKey, onAction]);
 
   // A card that leaves (handled, put off) can leave the page past the end.
   const last = Math.max(0, cards.length - 1);
@@ -89,7 +92,7 @@ export function NextUpStack({ cards, onAction, busyKey = null }: NextUpStackProp
           onScroll={onScroll}
           scrollEventThrottle={32}
           getItemLayout={(_, i) => ({ length: width, offset: width * i, index: i })}
-          extraData={`${width}:${busyKey ?? ""}`}
+          extraData={extraData}
           style={{ height: CARD_HEIGHT + PEEK }}
           renderItem={({ item, index }) => (
             <View style={{ width, height: CARD_HEIGHT }}>

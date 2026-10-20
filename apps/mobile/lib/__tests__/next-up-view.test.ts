@@ -5,7 +5,7 @@
  * when the Checklist row's count is red. Every row is synthetic.
  */
 import { describe, expect, it } from "vitest";
-import { buildNextUp, type NextUpAction } from "@agent-runway/core/lib/next-up/build";
+import { buildNextUp, type NextUpAction, type NextUpCard } from "@agent-runway/core/lib/next-up/build";
 import { timeBand } from "@agent-runway/core/lib/next-up/rules";
 import type { NextUpPayload } from "@agent-runway/core/lib/next-up/types";
 import {
@@ -15,6 +15,7 @@ import {
   greetingKey,
   nextUpInput,
   snoozeEndedBetween,
+  textPlan,
   type NextUpSources,
 } from "../next-up-view";
 
@@ -138,5 +139,41 @@ describe("checklistRowHasOverdue", () => {
     expect(checklistRowHasOverdue(covering(["t1"]), [overdue, dueToday], TODAY)).toBe(false);
     expect(checklistRowHasOverdue(covering([]), [dueToday], TODAY)).toBe(false);
     expect(checklistRowHasOverdue(covering([]), [{ ...overdue, completed_at: "2026-10-18T12:00:00Z" }], TODAY)).toBe(false);
+  });
+});
+
+describe("textPlan (CASL: Text only where the server said a text can go)", () => {
+  const handful = (over: Partial<NextUpCard> = {}): NextUpCard => ({
+    key: "handful_client:c9", kind: "handful_client", clientId: "c9", clientName: "Sam Lee", phone: "5065550101",
+    count: 1, itemIds: ["c9"], detail: { label: "Birthday today", whyNow: "Their birthday is today." },
+    text: { status: "draftable" }, occurrence: { opportunity_type: "birthday", trigger_date: TODAY },
+    ...over,
+  });
+
+  it("a ready text is sent from the queue row the server named", () => {
+    expect(textPlan(handful({ text: { status: "ready", queue_id: "q7", body: "Hi" } }))).toEqual({ kind: "send", queueId: "q7" });
+  });
+
+  it("a draftable card drafts with the card's purpose and Flight Control's label", () => {
+    expect(textPlan(handful())).toEqual({ kind: "draft", purpose: "check_in", note: "Birthday today" });
+    expect(textPlan(handful({ occurrence: { opportunity_type: "consent_lapsing", trigger_date: TODAY }, detail: { label: "Consent ends soon" } })))
+      .toEqual({ kind: "draft", purpose: "consent_request", note: "Consent ends soon" });
+  });
+
+  it("a new lead with a number drafts a first-contact check-in (the server checks consent)", () => {
+    const lead: NextUpCard = {
+      key: "new_lead:c3", kind: "new_lead", clientId: "c3", clientName: "Kim Fox", phone: "5065550133",
+      count: 1, itemIds: ["c3"], detail: {},
+    };
+    expect(textPlan(lead)).toEqual({ kind: "draft", purpose: "check_in", note: "New lead, first contact" });
+    expect(textPlan({ ...lead, phone: null })).toBeNull();
+  });
+
+  it("never texts a call-only client, one with no number, a card back from Later, or any other card", () => {
+    expect(textPlan(handful({ text: { status: "call_only", reason: "Opted out of texts." } }))).toBeNull();
+    expect(textPlan(handful({ text: { status: "no_phone" } }))).toBeNull();
+    expect(textPlan(handful({ text: undefined, occurrence: undefined, detail: { returning: true } }))).toBeNull();
+    expect(textPlan(handful({ phone: null }))).toBeNull();
+    expect(textPlan(handful({ kind: "schedule" }))).toBeNull();
   });
 });

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Redirect, Slot, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { View, ActivityIndicator } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import * as SplashScreen from "expo-splash-screen";
 import { AuthProvider, useAuth } from "@/lib/auth-context";
 import { useTheme, useColors } from "@/lib/theme";
@@ -101,9 +102,13 @@ export default function RootLayout() {
 
   if (!storageReady) return null;
 
+  // Gestures (the dashboard's swipe to mark a Checklist row done) need the
+  // gesture handler's root view at the top of the app.
   return (
-    <AuthProvider>
-      <RootLayoutNav />
-    </AuthProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <AuthProvider>
+        <RootLayoutNav />
+      </AuthProvider>
+    </GestureHandlerRootView>
   );
 }
