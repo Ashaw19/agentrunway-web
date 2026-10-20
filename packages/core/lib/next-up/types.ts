@@ -7,8 +7,8 @@
  */
 
 /**
- * Whether a handful card can offer Text, checked under CASL (core
- * consentStatus, text channel) when the payload is built:
+ * Whether a handful or new-lead card can offer Text, checked under CASL
+ * (core consentStatus, text channel) when the payload is built:
  *   ready      today's text is drafted and waiting in outreach_queue (sms)
  *   draftable  a text is allowed and there's a number to text; not drafted yet
  *   call_only  no text: consent refuses it, the consent request can't go as
@@ -36,7 +36,21 @@ export interface HandfulItem {
   text:             HandfulTextStatus;
 }
 
+/**
+ * The payload's shape. A reader ignores a payload with any other version, or
+ * none (version 1 had none: no `new_leads`), rather than read it as this one.
+ */
+export const NEXT_UP_PAYLOAD_VERSION = 2;
+
+/** A new lead's Text, checked under CASL as a handful card's is (HandfulTextStatus). */
+export interface NewLeadText {
+  client_id: string;
+  text:      HandfulTextStatus;
+}
+
 export interface NextUpPayload {
+  /** NEXT_UP_PAYLOAD_VERSION. */
+  version:      typeof NEXT_UP_PAYLOAD_VERSION;
   /** The Atlantic day the handful is for (YYYY-MM-DD). */
   day:          string;
   /** HANDFUL_TARGET. */
@@ -51,4 +65,9 @@ export interface NextUpPayload {
   snoozed:      { client_id: string; client_name: string; until: string; phone: string | null }[];
   /** The always-on-top counts, by the rules in ./rules. */
   urgent:       { new_leads: number; overdue_tasks: number; deal_deadlines: number };
+  /**
+   * Whether each new lead (newest first, at most a stack's worth) can be
+   * texted, under CASL as the handful is. A lead not listed is call only.
+   */
+  new_leads:    NewLeadText[];
 }

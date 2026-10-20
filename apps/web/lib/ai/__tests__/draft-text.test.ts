@@ -220,13 +220,15 @@ describe("draftTextForClient — the queued text", () => {
     });
   });
 
-  it("a Next up draft never replaces today's text the agent skipped; drafting on request still does", async () => {
+  it("the Next up background draft never replaces today's text the agent skipped; drafting on request still does", async () => {
     const skipped = {
       id: "q-7", user_id: USER, client_id: CLIENT, opportunity_type: "text_message", trigger_date: "2026-10-14",
       status: "skipped", ai_body: "Hi Sam, quick hello.", final_body: null,
     };
     const background = fakeSupabase(tables({ outreach_queue: [skipped] }));
-    const r = await draftTextForClient({ supabase: background.client, userId: USER, clientId: CLIENT, purpose: "check_in", source: "next_up" });
+    const r = await draftTextForClient({
+      supabase: background.client, userId: USER, clientId: CLIENT, purpose: "check_in", source: "next_up", background: true,
+    });
     expect(r).toMatchObject({ status: "skipped", queueItemId: "q-7" });
     expect(mockGenerate).not.toHaveBeenCalled();
     expect(background.writes).toEqual([]);
@@ -236,6 +238,23 @@ describe("draftTextForClient — the queued text", () => {
     const again = await draftTextForClient({ supabase: onRequest.client, userId: USER, clientId: CLIENT, purpose: "check_in" });
     expect(again.status).toBe("created");
     expect(onRequest.writes.filter((w) => w.table === "outreach_queue" && w.op === "upsert")).toHaveLength(1);
+  });
+
+  it("tapping Text on a Next up card tags the draft next_up and may still draft over a skipped text (R32)", async () => {
+    const skipped = {
+      id: "q-7", user_id: USER, client_id: CLIENT, opportunity_type: "text_message", trigger_date: "2026-10-14",
+      status: "skipped", ai_body: "Hi Sam, quick hello.", final_body: null,
+    };
+    const { client, writes } = fakeSupabase(tables({ outreach_queue: [skipped] }));
+    const r = await draftTextForClient({
+      supabase: client, userId: USER, clientId: CLIENT, purpose: "check_in", note: "New lead, first contact", source: "next_up",
+    });
+    expect(r.status).toBe("created");
+    const row = writes.find((w) => w.table === "outreach_queue" && w.op === "upsert")?.payload as Row;
+    expect(row.context).toEqual({
+      purpose: "check_in", note: "New lead, first contact", phone: "(506) 555-0101", source: "next_up",
+    });
+    expect(row.status).toBe("ready");
   });
 
   it("leaves off the name, brokerage and opt-out line when the agent turned the footer off", async () => {

@@ -617,6 +617,9 @@ const TOOL_LABELS: Readonly<Record<string, string>> = {
   confirmImportLines: "Confirmed statement lines",
   matchReceiptToLine: "Matched a receipt to a statement line",
   recordOdometerReading: "Recorded an odometer reading",
+  skipSuggestedClient: "Skipped a suggested client",
+  snoozeSuggestedClient: "Put a suggested client on Later",
+  stopSuggestingClient: "Stopped suggesting a client",
 };
 
 /** "Logged an expense": the tool's plain-words label. */

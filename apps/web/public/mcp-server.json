@@ -3,7 +3,7 @@
   "server_name": "Agent Runway",
   "server_version": "1.0.0",
   "display_name": "Agent Runway: Canadian Real Estate Analytics",
-  "description": "Connect your AI assistant to your Agent Runway real estate business data. 25 read tools cover transactions, pipeline deals, CRM clients, CASL consent, expenses, mileage and the CRA vehicle logbook, imported statement lines, tax estimates, forecasts and what the in-app AI changed, and read a pasted call or showing note into proposed changes. 12 write tools create and update pipeline opportunities, save the note items the agent approves, record CASL consent and withdrawals, log trips, logbook periods and odometer readings, and confirm imported statement lines.",
+  "description": "Connect your AI assistant to your Agent Runway real estate business data. 26 read tools cover transactions, pipeline deals, CRM clients, today's suggested clients, CASL consent, expenses, mileage and the CRA vehicle logbook, imported statement lines, tax estimates, forecasts and what the in-app AI changed, and read a pasted call or showing note into proposed changes. 15 write tools create and update pipeline opportunities, skip, snooze or stop a suggested client, save the note items the agent approves, record CASL consent and withdrawals, log trips, logbook periods and odometer readings, and confirm imported statement lines.",
   "homepage": "https://agentrunway.ca",
   "documentation_url": "https://agentrunway.ca/mcp",
   "logo_url": "https://agentrunway.ca/logo.png",
@@ -34,9 +34,9 @@
     "forecast"
   ],
   "tool_counts": {
-    "total": 37,
-    "read_only": 25,
-    "write": 12
+    "total": 41,
+    "read_only": 26,
+    "write": 15
   },
   "tools": [
     {
@@ -179,6 +179,29 @@
       "name": "confirm_import_lines",
       "description": "Adds agreed statement lines to the expense records; a charge already on file is linked, not added again.",
       "read_only": false
+    },
+    {
+      "name": "get_next_up",
+      "description": "Today's handful of suggested clients (the same as the iPhone app's Next up and Flight Control Scan), with Flight Control's reasons, who is on Later, how many are done today, and the always-on-top counts.",
+      "read_only": true
+    },
+    {
+      "name": "skip_suggested_client",
+      "description": "Skips a client in today's handful this time; they come back at their next reason to reach out.",
+      "read_only": false,
+      "destructive": false
+    },
+    {
+      "name": "snooze_suggested_client",
+      "description": "Puts a client on Later: no suggestions for them until in an hour, tonight or tomorrow (Atlantic time).",
+      "read_only": false,
+      "destructive": false
+    },
+    {
+      "name": "stop_suggesting_client",
+      "description": "No suggestions for a client for 3 or 6 months, or moves them to the Hangar (archived).",
+      "read_only": false,
+      "destructive": true
     },
     {
       "name": "get_flight_control_priorities",

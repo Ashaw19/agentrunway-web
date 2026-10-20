@@ -116,6 +116,10 @@ export default async function OAuthConsentPage({ searchParams }: PageProps) {
               </li>
               <li className="flex items-center gap-2 text-sm">
                 <span className="text-[#1A6EF0]">✓</span>
+                <span>Skip, snooze or stop today&apos;s suggested clients, including moving a client to the Hangar</span>
+              </li>
+              <li className="flex items-center gap-2 text-sm">
+                <span className="text-[#1A6EF0]">✓</span>
                 <span>Log trips, vehicle logbook periods and odometer readings</span>
               </li>
               <li className="flex items-center gap-2 text-sm">

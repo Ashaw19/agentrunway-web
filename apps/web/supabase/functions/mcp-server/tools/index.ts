@@ -12,6 +12,7 @@ import { getCaptureTools } from "./capture.ts";
 import { getConsentTools } from "./consent.ts";
 import { getAiActivityTools } from "./ai-activity.ts";
 import { getStatementImportTools } from "./statement-import.ts";
+import { getNextUpTools } from "./next-up.ts";
 
 // MCP tool annotations (per MCP spec).
 // These are behavioral hints for clients — they do NOT enforce anything
@@ -47,8 +48,9 @@ export interface McpToolResult {
 
 /**
  * `accessToken` is the caller's own Supabase session token (the Bearer token
- * this request came with). Only capture_note uses it, to call the web app's
- * /api/voice-extract as that user.
+ * this request came with). capture_note uses it to call the web app's
+ * /api/voice-extract as that user, and the Next up tools to read
+ * /api/next-up as that user.
  */
 export function buildToolRegistry(
   supabase: SupabaseClient,
@@ -109,8 +111,11 @@ export function buildToolRegistry(
                   // Statement imports (Expenses → Imports)
                   "list_import_review_lines", "draft_line_categories", "explain_import_line",
                   "match_receipt_to_line", "confirm_import_lines",
+                  // Next up (the iPhone app's dashboard, 2026-10-19)
+                  "get_next_up", "skip_suggested_client", "snooze_suggested_client",
+                  "stop_suggesting_client",
                 ],
-                phase: "Phase 1 + Opportunities + Note capture + CASL consent + Vehicle logbook + AI activity + Statement imports — 37 tools live",
+                phase: "Phase 1 + Opportunities + Note capture + CASL consent + Vehicle logbook + AI activity + Statement imports + Next up — 41 tools live",
               },
               null,
               2,
@@ -133,5 +138,6 @@ export function buildToolRegistry(
     ...getConsentTools(supabase, userId),      // CASL consent ledger (00183)
     ...getAiActivityTools(supabase, userId),   // AI run ledger (00182)
     ...getStatementImportTools(supabase, userId), // Statement imports
+    ...getNextUpTools(supabase, userId, accessToken), // Next up (2026-10-19)
   ];
 }

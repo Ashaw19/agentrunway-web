@@ -80,7 +80,9 @@ export async function GET(req: Request): Promise<NextResponse> {
 /**
  * Draft each card's text, one at a time: each is an AI call. The card's
  * label (Flight Control's reason) is the drafter's note; source "next_up"
- * lets the handful skip the text if the client is handled before it's sent.
+ * lets the handful skip the text if the client is handled before it's sent,
+ * and background never replaces a text already there today (skipped in
+ * Messages, failed).
  * At most DRAFT_ATTEMPTS_PER_DAY tries a client on the handful's Atlantic
  * day, counted on the client's own key whatever the outcome. A limiter that
  * throws drafts nothing for that card. Never throws.
@@ -101,8 +103,9 @@ async function draftHandfulTexts(
         userId,
         clientId: item.client_id,
         purpose:  textPurposeFor(item.opportunity_type),
-        note:     item.label,
-        source:   "next_up",
+        note:       item.label,
+        source:     "next_up",
+        background: true,
       });
     } catch (err) {
       console.error("[next-up] text not drafted:", err instanceof Error ? err.message : err);

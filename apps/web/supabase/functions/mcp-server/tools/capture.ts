@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "npm:@supabase/supabase-js@2";
 import type { McpTool } from "./index.ts";
+import { appUrl } from "../lib/app-url.ts";
 import { atlanticISODate } from "../../_shared/core/lib/local-date.ts";
 import { EXPENSE_KEY_TO_T2125 } from "../../_shared/core/engines/t2125-engine.ts";
 import { applyCaptureWrites, argTypeProblems, checkWrite, summarizeSave } from "../../_shared/core/lib/capture/proposals.ts";
@@ -23,11 +24,6 @@ import { CAPTURE_TOOLS, CAPTURE_TOOL_CREW, type CaptureTool, type ProposedWrite 
  * step. The model call stays in the web app, which logs it with every other
  * model call; this function never holds a model key.
  */
-
-/** Where the web app runs. Set AGENT_RUNWAY_APP_URL to point at a preview deploy. Read per call (tests run without Deno). */
-function appUrl(): string {
-  return (Deno.env.get("AGENT_RUNWAY_APP_URL") ?? "https://agentrunway.ca").replace(/\/+$/, "");
-}
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MAX_WRITES = 12;

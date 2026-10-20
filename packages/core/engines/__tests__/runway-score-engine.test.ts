@@ -28,6 +28,7 @@
 import { describe, it, expect } from "vitest";
 import {
   compute,
+  gradeForScore,
   stateLabel,
   bandColorHexForScore,
   survivalSubScore,
@@ -317,6 +318,28 @@ describe("Grade Boundaries", () => {
     // 50×0.35 + 50×0.30 + 50×0.15 + 50×0.05 + 50×0.15 = 50
     expect(result.score).toBe(50);
     expect(result.grade).toBe("D");
+  });
+});
+
+describe("gradeForScore (the glyph a surface prints without running compute)", () => {
+  it("sits on the same edges as compute(): 92 / 85 / 75 / 62 / 50", () => {
+    const edges: [number, string][] = [
+      [100, "A+"], [92, "A+"], [91, "A"], [85, "A"], [84, "B"], [75, "B"],
+      [74, "C"], [62, "C"], [61, "D"], [50, "D"], [49, "F"], [34, "F"], [0, "F"],
+    ];
+    for (const [score, glyph] of edges) expect(gradeForScore(score), String(score)).toBe(glyph);
+  });
+
+  it("gives the glyph compute() gives for the score it returns", () => {
+    for (const pace of [10, 40, 60, 75, 90, 100]) {
+      const result = compute(makeReport({ paceScore: pace, pipelineScore: pace, expenseScore: pace }), pace, 6);
+      expect(gradeForScore(result.score)).toBe(result.grade);
+    }
+  });
+
+  it("reads a broken score as no grade, not an F", () => {
+    expect(gradeForScore(Number.NaN)).toBe("\u2014");
+    expect(gradeForScore(Number.POSITIVE_INFINITY)).toBe("\u2014");
   });
 });
 

@@ -18,6 +18,7 @@ import { hydrateLanguage } from "./i18n";
 import { useDataStore } from "../stores/data-store";
 import { useOfflineQueueStore } from "../stores/offline-queue";
 import { useChatStore } from "../stores/chat-store";
+import { useNextUpStore } from "../stores/next-up-store";
 
 /** Longest the splash waits for storage; past it the app opens without saved values. */
 const STORAGE_TIMEOUT_MS = 4000;
@@ -33,6 +34,7 @@ function hydrateAll(): void {
     ["data cache", () => useDataStore.getState().hydrate()],
     ["offline queue", () => useOfflineQueueStore.getState().hydrate()],
     ["chat", () => useChatStore.getState().hydrate()],
+    ["next up", () => useNextUpStore.getState().hydrate()],
   ];
   for (const [name, step] of steps) {
     try {

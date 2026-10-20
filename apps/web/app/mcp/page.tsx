@@ -22,7 +22,7 @@ const { total: TOOL_TOTAL, read: READ_TOOLS, write: WRITE_TOOLS } = MCP_TOOL_COU
 
 export const metadata: Metadata = {
   title: "MCP Server: Connect AI to Your Real Estate Data",
-  description: `Connect an MCP client such as Claude or Cursor to your Agent Runway business data. ${READ_TOOLS} read tools for transactions, pipeline, CRM, expenses, imported statements, forecasts and Canadian tax estimates, plus ${WRITE_TOOLS} write tools for pipeline opportunities, approved notes from a call or showing, CASL consent, the vehicle logbook and imported statement lines.`,
+  description: `Connect an MCP client such as Claude or Cursor to your Agent Runway business data. ${READ_TOOLS} read tools for transactions, pipeline, CRM, today's suggested clients, expenses, imported statements, forecasts and Canadian tax estimates, plus ${WRITE_TOOLS} write tools for pipeline opportunities, skipping, snoozing or stopping a suggested client, approved notes from a call or showing, CASL consent, the vehicle logbook and imported statement lines.`,
   openGraph: {
     url: "https://agentrunway.ca/mcp",
     images: [{ url: "/og-image-v2.png", width: 1200, height: 630 }],
@@ -34,9 +34,9 @@ export const metadata: Metadata = {
 
 const mcpWebPage = webPageSchema({
   name: "Agent Runway MCP Server: Connect AI to Your Real Estate Data",
-  description: `The Agent Runway MCP server has ${TOOL_TOTAL} tools. ${READ_TOOLS} read transactions, pipeline, CRM, expenses, imported statements, forecasts and Canadian tax estimates. ${WRITE_TOOLS} write tools create and update pipeline opportunities, save approved notes from a call or showing, record CASL consent, log trips, logbook periods and odometer readings, and confirm imported statement lines. It works with MCP clients that can send a Bearer token, such as Claude or Cursor.`,
+  description: `The Agent Runway MCP server has ${TOOL_TOTAL} tools. ${READ_TOOLS} read transactions, pipeline, CRM, today's suggested clients, expenses, imported statements, forecasts and Canadian tax estimates. ${WRITE_TOOLS} write tools create and update pipeline opportunities, skip, snooze or stop a suggested client, save approved notes from a call or showing, record CASL consent, log trips, logbook periods and odometer readings, and confirm imported statement lines. It works with MCP clients that can send a Bearer token, such as Claude or Cursor.`,
   url: "/mcp",
-  lastReviewed: "2026-10-07",
+  lastReviewed: "2026-10-19",
 });
 
 const mcpBreadcrumb = breadcrumbSchema([
@@ -52,6 +52,7 @@ const GROUP_STYLE: Record<string, { icon: LucideIcon; iconClass: string }> = {
   Pipeline: { icon: Zap, iconClass: "text-amber-400" },
   Opportunities: { icon: Target, iconClass: "text-orange-400" },
   CRM: { icon: Users, iconClass: "text-purple-400" },
+  "Next up": { icon: Target, iconClass: "text-emerald-400" },
   "Expenses & Mileage": { icon: Receipt, iconClass: "text-rose-400" },
   "Outreach & Settings": { icon: MessageSquare, iconClass: "text-cyan-400" },
 };
@@ -87,9 +88,10 @@ export default function McpPage() {
               Agent Runway&apos;s MCP server lets an AI assistant such as
               Claude or Cursor work with your business data directly.{" "}
               {READ_TOOLS} tools read your transactions, pipeline, CRM,
-              expenses, imported statements, forecasts and Canadian tax
-              estimates. {WRITE_TOOLS} tools create or update pipeline
-              opportunities, save the changes you approve from a pasted call
+              today&apos;s suggested clients, expenses, imported statements,
+              forecasts and Canadian tax estimates. {WRITE_TOOLS} tools create
+              or update pipeline opportunities, skip, snooze or stop a
+              suggested client, save the changes you approve from a pasted call
               or showing note, record CASL consent, log trips, vehicle logbook
               periods and odometer readings, and confirm imported statement
               lines.
@@ -208,10 +210,12 @@ export default function McpPage() {
             <p className="mx-auto mb-12 max-w-2xl text-center text-slate-400">
               Every tool returns JSON. {READ_TOOLS} tools only read data. The{" "}
               {WRITE_TOOLS} marked <span className="text-amber-300">write</span>{" "}
-              create or change pipeline opportunities, save approved notes,
-              record CASL consent, log trips, logbook periods and odometer
-              readings or confirm imported statement lines, and
-              mark_opportunity_lost is flagged destructive.
+              create or change pipeline opportunities, skip, snooze or stop a
+              suggested client, save approved notes, record CASL consent, log
+              trips, logbook periods and odometer readings or confirm imported
+              statement lines. mark_opportunity_lost and
+              stop_suggesting_client (it can move a client to the Hangar) are
+              flagged destructive.
             </p>
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
               {MCP_TOOL_CATALOG.map((group) => {
