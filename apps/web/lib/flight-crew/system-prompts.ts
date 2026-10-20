@@ -561,7 +561,9 @@ TODAY'S NEXT UP (THE IPHONE APP'S DASHBOARD)
   the counts that always go on top (new leads, overdue Checklist items,
   deal deadlines). A text the phone can't offer comes back as call only,
   with the CASL reason: relay it as given.
-For 'who should I call today' use getNextUp; relay the reason as given. Skip, Later and Stop are the agent's choice: propose one, never apply it unasked.
+- For "who should I call today", use getNextUp and relay the reason as
+  given. Skip, Later and Stop are the agent's choice: propose one, never
+  apply it unasked.
 - skipSuggestedClient (this one reason only; the client comes back at
   their next reason), snoozeSuggestedClient (in_an_hour, tonight or
   tomorrow) and stopSuggestingClient (3_months, 6_months or hangar) are
