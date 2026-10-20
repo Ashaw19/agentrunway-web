@@ -23,7 +23,7 @@
  *     puts the client back on today's list
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { NextUpPayload } from "@agent-runway/core/lib/next-up/types";
+import { NEXT_UP_PAYLOAD_VERSION, type NextUpPayload } from "@agent-runway/core/lib/next-up/types";
 // The vi.mock calls below are hoisted over these imports, so they load the mocks.
 import "../i18n";
 import { onNextUpClientChange, useNextUpStore } from "../../stores/next-up-store";
@@ -83,6 +83,7 @@ const handfulItem = (clientId: string, name: string): NextUpPayload["handful"][n
 });
 
 const payload = (over: Partial<NextUpPayload> = {}): NextUpPayload => ({
+  version: NEXT_UP_PAYLOAD_VERSION,
   day: "2026-10-19",
   target: 5,
   done_today: 1,
@@ -90,8 +91,15 @@ const payload = (over: Partial<NextUpPayload> = {}): NextUpPayload => ({
   handful: [handfulItem("c1", "Sam Lee"), handfulItem("c2", "Pat Roy")],
   snoozed: [],
   urgent: { new_leads: 0, overdue_tasks: 0, deal_deadlines: 0 },
+  new_leads: [],
   ...over,
 });
+
+/** A payload as the server sent it before `version` and `new_leads` (R31). */
+const versionOne = () => {
+  const { version: _v, new_leads: _l, ...older } = payload();
+  return older;
+};
 
 const ok = (body: unknown) => ({ ok: true, status: 200, json: async () => body });
 
@@ -175,6 +183,21 @@ describe("hydrate", () => {
     expect(state().payload).toBeNull();
   });
 
+  it("ignores a payload saved in an older shape (no version, no new leads' text): it isn't read as today's (R31)", () => {
+    mem.set("next_up_payload", JSON.stringify(versionOne()));
+    state().hydrate();
+    expect(state().payload).toBeNull();
+    expect(state().fetchedAt).toBeNull();
+
+    mem.set("next_up_payload", JSON.stringify({ ...payload(), version: 99 }));
+    state().hydrate();
+    expect(state().payload).toBeNull();
+
+    mem.set("next_up_payload", JSON.stringify({ ...payload(), new_leads: undefined }));
+    state().hydrate();
+    expect(state().payload).toBeNull();
+  });
+
   it("does not overwrite a payload fetched before storage finished loading", async () => {
     const fresh = payload({ done_today: 3, generated_at: "2026-10-19T15:00:00.000Z" });
     fetchMock.mockResolvedValue(ok(fresh));
@@ -188,6 +211,37 @@ describe("hydrate", () => {
 
     expect(state().payload?.done_today).toBe(3);
     expect(state().localSnoozes).toEqual({ "a:1": "2099-01-01T00:00:00.000Z", "b:2": "2099-01-01T00:00:00.000Z" });
+  });
+});
+
+// ── The pending call (R34) ───────────────────────────────────────────────────
+
+describe("noteAppBackgrounded", () => {
+  it("stamps the call waiting with when the app went to the background, and saves it", () => {
+    const call = { clientId: "c1", clientName: "Sam Lee", at: Date.now() - 2_000 };
+    state().setPendingCall(call);
+    state().noteAppBackgrounded(Date.now());
+    expect(state().pendingCall).toEqual({ ...call, backgroundedAt: Date.now() });
+    expect(JSON.parse(mem.get("next_up_pending_call") as string)).toEqual({ ...call, backgroundedAt: Date.now() });
+
+    // A second trip away keeps the first stamp.
+    const first = Date.now();
+    vi.advanceTimersByTime(60_000);
+    state().noteAppBackgrounded(Date.now());
+    expect(state().pendingCall?.backgroundedAt).toBe(first);
+  });
+
+  it("does nothing with no call waiting", () => {
+    state().noteAppBackgrounded(Date.now());
+    expect(state().pendingCall).toBeNull();
+    expect(mem.has("next_up_pending_call")).toBe(false);
+  });
+
+  it("the stamp survives a restart (hydrate), so a call that outlived the app still asks", () => {
+    const saved = { clientId: "c1", clientName: "Sam Lee", at: 1_760_000_000_000, backgroundedAt: 1_760_000_001_000 };
+    mem.set("next_up_pending_call", JSON.stringify(saved));
+    state().hydrate();
+    expect(state().pendingCall).toEqual(saved);
   });
 });
 
@@ -239,6 +293,20 @@ describe("fetchNextUp", () => {
     expect(state().payload).toEqual(cached);
 
     fetchMock.mockResolvedValue({ ok: true, status: 200, json: async () => { throw new SyntaxError("Unexpected token <"); } });
+    await state().fetchNextUp({ force: true });
+    expect(state().payload).toEqual(cached);
+    expect(mem.has("next_up_payload")).toBe(false);
+  });
+
+  it("keeps the cached payload when the answer is in an older or unknown shape (R31)", async () => {
+    const cached = payload();
+    useNextUpStore.setState({ payload: cached });
+    fetchMock.mockResolvedValue(ok(versionOne()));
+
+    await state().fetchNextUp();
+    expect(state().payload).toEqual(cached);
+
+    fetchMock.mockResolvedValue(ok({ ...payload({ done_today: 4 }), version: 3 }));
     await state().fetchNextUp({ force: true });
     expect(state().payload).toEqual(cached);
     expect(mem.has("next_up_payload")).toBe(false);
@@ -609,19 +677,23 @@ describe("holdSuggestion", () => {
     expect(state().payload?.snoozed).toEqual([]);
   });
 
-  it("a Later a running Stop blocked writes nothing: the card stays, the writer's words show, no Undo", async () => {
+  it("a Later a running Stop blocked writes nothing: the card stays, the writer's words show, no Undo, and the server is asked again", async () => {
     useNextUpStore.setState({ payload: payload() });
     writers.writeSuggestionHold.mockResolvedValue({
       ok: true, alreadySaved: true, stoppedUntil: "2027-01-19T04:00:00.000Z",
       message: "Suggestions for Sam Lee are already stopped until January 19.",
     });
+    // The server knows about the Stop: its answer no longer lists them (fix 6).
+    answerWithout("c1");
 
     await expect(state().holdSuggestion({ client_id: "c1", client_name: "Sam Lee" }, "later", until(), "in_an_hour")).resolves.toBe(false);
 
     expect(state().payload).toEqual(payload());
     expect(toast().message).toBe("Suggestions for Sam Lee are already stopped until January 19.");
     expect(toast().action).toBeUndefined();
-    expect(fetchMock).not.toHaveBeenCalled();
+    await settle();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(state().payload?.handful.map((h) => h.client_id)).toEqual(["c2"]);
   });
 
   it("Stop frees the slot (counted done); Undo resumes and reopens today's pin", async () => {

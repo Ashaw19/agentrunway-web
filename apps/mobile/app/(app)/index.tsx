@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import {
   Alert,
   AppState,
   Linking,
+  Platform,
   View,
   Text,
   ScrollView,
@@ -37,9 +38,9 @@ import * as Haptics from "expo-haptics";
 import { useTranslation } from "react-i18next";
 import {
   buildNextUp,
+  type AlsoWaitingRow,
   type NextUpAction,
   type NextUpCard as NextUpCardData,
-  type SectionKey,
 } from "@agent-runway/core/lib/next-up/build";
 import type { HandfulItem } from "@agent-runway/core/lib/next-up/types";
 import {
@@ -49,17 +50,21 @@ import {
 } from "@agent-runway/core/lib/suggestion-dismissals";
 import { laterChoicesAt, laterUntilAt, nextUpClock, stopUntilAt } from "@/lib/next-up-clock";
 import {
-  ACTION_ROUTES,
-  SECTION_ROUTES,
+  actionRoute,
   checklistRowHasOverdue,
+  handfulFocusKey,
+  handfulForced,
   nextUpInput,
+  rowTap,
   snoozeEndedBetween,
   textPlan,
+  type HandfulShown,
 } from "@/lib/next-up-view";
 import { handledToast } from "@/lib/next-up-copy";
 import { scoreView } from "@/lib/score-view";
+import { SCORE_SHEETS_CLOSED, scoreSheets } from "@/lib/score-sheets";
 import { localISODate } from "@agent-runway/core/lib/local-date";
-import { shouldAskAfterCall, telUrl } from "@/lib/post-call";
+import { afterCallReturn, telUrl } from "@/lib/post-call";
 import { sendQueuedText } from "@/lib/send-queued-text";
 import { queuedTextDeps } from "@/lib/queued-text-deps";
 import { WelcomeHeader } from "@/components/next-up/WelcomeHeader";
@@ -85,13 +90,6 @@ function formatLastSyncedKey(ts: number): { key: string; count?: number } {
 
 /** How often the dashboard re-reads the clock: the band, what comes back from Later, "Updated". */
 const CLOCK_TICK_MS = 30_000;
-
-/**
- * "Full breakdown" closes the score sheet, then opens the breakdown. iOS shows
- * one modal at a time, so the second waits for the first to finish sliding
- * away (LanguagePicker waits 300 ms for an alert; this is a little longer).
- */
-const SHEET_HANDOFF_MS = 450;
 
 // ── Activity Type Pill Selector ─────────────────────────────────────────────
 
@@ -385,12 +383,16 @@ export default function DashboardScreen() {
   const { payload, localSnoozes, voiceNoteDoneOn, fetchNextUp } = useNextUpStore();
   const [refreshing, setRefreshing] = useState(false);
   const [now, setNow] = useState(() => new Date());
+  const scrollRef = useRef<ScrollView>(null);
+  // The "Today's handful" row was tapped: its cards join the stack until the
+  // band changes (R33). Not saved, so a restart clears it. `handfulFocusSeq`
+  // counts the taps; each one scrolls the stack to the first handful card.
+  const [handfulShown, setHandfulShown] = useState<HandfulShown | null>(null);
+  const [handfulFocusSeq, setHandfulFocusSeq] = useState(0);
   const [showCapture, setShowCapture] = useState(false);
-  // The Runway Score badge's sheet, and the existing breakdown it links to.
-  const [scoreOpen, setScoreOpen] = useState(false);
-  const [breakdownOpen, setBreakdownOpen] = useState(false);
-  const handoffTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => () => { if (handoffTimer.current) clearTimeout(handoffTimer.current); }, []);
+  // The Runway Score badge's sheet, and the existing breakdown it links to
+  // (lib/score-sheets.ts: on iOS the breakdown waits for the sheet's onDismiss).
+  const [sheets, dispatchSheets] = useReducer(scoreSheets, SCORE_SHEETS_CLOSED);
   // False only for the first frame, before the first refresh has begun.
   const [started, setStarted] = useState(false);
 
@@ -406,16 +408,26 @@ export default function DashboardScreen() {
   const [noteSheet, setNoteSheet] = useState<{ kind: "call"; call: PendingCall } | { kind: "day" } | null>(null);
   const [loggingCall, setLoggingCall] = useState(false);
   const [tickingTask, setTickingTask] = useState<ContactTask | null>(null);
-  // iOS shows one sheet at a time: the after-call question waits while another is open.
+  // iOS shows one sheet at a time: the after-call question waits while another
+  // is open (or the breakdown is waiting for the score sheet to go), and the
+  // breakdown never opens over another.
+  const otherSheetOpen = useRef(false);
+  otherSheetOpen.current = !!(later || dismiss || noteSheet || tickingTask || showCapture);
   const sheetOpen = useRef(false);
-  sheetOpen.current = !!(later || dismiss || noteSheet || tickingTask || showCapture || scoreOpen || breakdownOpen);
+  sheetOpen.current = otherSheetOpen.current || sheets.score || sheets.breakdown || sheets.pendingBreakdown;
 
-  /** A call placed from Next up: ask how it went, within 2 hours of dialling. */
+  /**
+   * A call placed from Next up: ask how it went, if the app went to the
+   * background after dialling (the call took the phone) and within 2 hours.
+   * A return with no trip to the background is iOS's "Call …?" prompt
+   * cancelled: no call, so nothing is asked and the call is let go (R34).
+   */
   const askAboutCall = useCallback(() => {
     const call = useNextUpStore.getState().pendingCall;
     if (!call || sheetOpen.current) return;
-    if (shouldAskAfterCall(call, Date.now())) setNoteSheet({ kind: "call", call });
-    else useNextUpStore.getState().clearPendingCall();
+    const next = afterCallReturn(call, Date.now());
+    if (next === "ask") setNoteSheet({ kind: "call", call });
+    else if (next === "clear") useNextUpStore.getState().clearPendingCall();
   }, []);
 
   useEffect(() => { fetchAll(); fetchOutreach(); fetchReceipts(); setStarted(true); }, []);
@@ -429,6 +441,8 @@ export default function DashboardScreen() {
   const appStateRef = useRef(AppState.currentState);
   useEffect(() => {
     const sub = AppState.addEventListener("change", (nextState) => {
+      // A call placed from Next up took the phone: the after-call question may ask.
+      if (nextState === "background") useNextUpStore.getState().noteAppBackgrounded(Date.now());
       if (appStateRef.current.match(/inactive|background/) && nextState === "active") {
         // Back in front: the band may have moved and a Later may have run out.
         setNow(new Date());
@@ -461,11 +475,23 @@ export default function DashboardScreen() {
     const view = buildNextUp(nextUpInput({
       clients, tasks, pipeline, clientRecords, receipts, outreachQueue, schedule, tripsLoggedToday,
       briefingCount: todayBriefing().length,
-      payload, localSnoozes, voiceNoteDoneOn,
+      payload, localSnoozes, voiceNoteDoneOn, handfulShown,
     }, clock, now));
     return { clock, view };
   }, [now, clients, tasks, pipeline, clientRecords, receipts, outreachQueue, schedule, tripsLoggedToday,
-      briefings, todayBriefing, payload, localSnoozes, voiceNoteDoneOn]);
+      briefings, todayBriefing, payload, localSnoozes, voiceNoteDoneOn, handfulShown]);
+
+  // The handful row's tap lasts until the band changes: then let it go.
+  useEffect(() => {
+    if (handfulShown && !handfulForced(handfulShown, clock)) setHandfulShown(null);
+  }, [handfulShown, clock]);
+
+  // Where the stack scrolls after a tap on the handful row.
+  const stackFocus = useMemo(() => {
+    if (handfulFocusSeq === 0) return null;
+    const key = handfulFocusKey(view.stack, payload);
+    return key ? { key, seq: handfulFocusSeq } : null;
+  }, [handfulFocusSeq, view.stack, payload]);
 
   // A handful client's Later ran out while the screen was open: ask the
   // server again, so their card gets its Text button and Skip back.
@@ -526,7 +552,7 @@ export default function DashboardScreen() {
       let queueId: string | null = plan.kind === "send" ? plan.queueId : null;
       let notQueuedReason: string | null = null;
       if (plan.kind === "draft") {
-        const drafted = await data.draftTexts([clientId], plan.purpose, plan.note);
+        const drafted = await data.draftTexts([clientId], plan.purpose, plan.note, { source: plan.source });
         if ("error" in drafted) {
           Alert.alert(t("textFlow.draftFailedTitle"), drafted.error);
           return;
@@ -636,7 +662,7 @@ export default function DashboardScreen() {
   }, [t, refetchNextUp]);
 
   const handleAction = useCallback((action: NextUpAction, card: NextUpCardData) => {
-    const href = ACTION_ROUTES[action];
+    const href = actionRoute(action, card);
     if (href) {
       router.push(href);
       return;
@@ -655,10 +681,22 @@ export default function DashboardScreen() {
     }
   }, [router, handleCall, handleText, openDismiss, tickTask]);
 
-  const handleOpenSection = useCallback((section: SectionKey) => {
+  /**
+   * A row opens its section (Messages: the tab that holds its items). The
+   * handful row brings the handful's cards into the stack, whatever the time
+   * of day, and scrolls to the first of them (R33).
+   */
+  const handleOpenRow = useCallback((row: AlsoWaitingRow) => {
     try { Haptics.selectionAsync(); } catch {}
-    router.push(SECTION_ROUTES[section]);
-  }, [router]);
+    const tap = rowTap(row);
+    if (tap.kind === "open") {
+      router.push(tap.href);
+      return;
+    }
+    setHandfulShown({ day: clock.today, band: clock.band });
+    setHandfulFocusSeq((n) => n + 1);
+    scrollRef.current?.scrollTo({ y: 0, animated: true });
+  }, [router, clock.today, clock.band]);
 
   // The Checklist row's one task: the same as the card's Mark one done.
   const handleSwipeDone = useCallback((taskId: string) => { void tickTask(taskId); }, [tickTask]);
@@ -695,15 +733,21 @@ export default function DashboardScreen() {
 
   /** A tile or the goal on the sheet: close the sheet, so it isn't left over the screen. */
   const openFromScoreSheet = useCallback((href: string) => {
-    setScoreOpen(false);
+    dispatchSheets({ type: "close_score" });
     router.push(href);
   }, [router]);
 
-  /** Full breakdown: the score sheet closes, then the existing breakdown opens. */
+  /**
+   * Full breakdown: the score sheet closes, then the existing breakdown
+   * opens. On iOS it waits for the score sheet's onDismiss (one modal at a
+   * time); React Native reports that on iOS only, so elsewhere it opens now.
+   */
   const openBreakdown = useCallback(() => {
-    setScoreOpen(false);
-    if (handoffTimer.current) clearTimeout(handoffTimer.current);
-    handoffTimer.current = setTimeout(() => setBreakdownOpen(true), SHEET_HANDOFF_MS);
+    dispatchSheets({ type: "full_breakdown", waitForDismiss: Platform.OS === "ios" });
+  }, []);
+
+  const scoreSheetDismissed = useCallback(() => {
+    dispatchSheets({ type: "score_dismissed", otherSheetOpen: otherSheetOpen.current });
   }, []);
 
   const handleFabPress = () => {
@@ -720,6 +764,7 @@ export default function DashboardScreen() {
       )}
 
       <ScrollView
+        ref={scrollRef}
         contentContainerStyle={{ paddingHorizontal: Space.xl, paddingBottom: 120 }}
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={c.primary} />}
@@ -732,7 +777,7 @@ export default function DashboardScreen() {
             context={view.context}
             progress={view.progress}
             streak={streak}
-            badge={<ScoreBadge view={score} onPress={() => setScoreOpen(true)} />}
+            badge={<ScoreBadge view={score} onPress={() => dispatchSheets({ type: "open_score" })} />}
           />
         </FadeIn>
 
@@ -760,7 +805,7 @@ export default function DashboardScreen() {
         {view.stack.length > 0 ? (
           <FadeIn delay={60}>
             <View style={{ marginBottom: Space.xl }}>
-              <NextUpStack cards={view.stack} onAction={handleAction} busyKey={busyKey} />
+              <NextUpStack cards={view.stack} onAction={handleAction} busyKey={busyKey} focus={stackFocus} />
             </View>
           </FadeIn>
         ) : (
@@ -777,7 +822,7 @@ export default function DashboardScreen() {
             <View style={{ marginBottom: Space.xl }}>
               <AlsoWaitingList
                 rows={view.alsoWaiting}
-                onOpen={handleOpenSection}
+                onOpen={handleOpenRow}
                 onSwipeDone={handleSwipeDone}
                 checklistOverdue={checklistOverdue}
               />
@@ -816,16 +861,17 @@ export default function DashboardScreen() {
 
       {/* ── The score badge's sheets ── */}
       <ScoreSheet
-        visible={scoreOpen}
-        onClose={() => setScoreOpen(false)}
+        visible={sheets.score}
+        onClose={() => dispatchSheets({ type: "close_score" })}
+        onDismiss={scoreSheetDismissed}
         view={score}
         today={phoneToday}
         onFullBreakdown={openBreakdown}
         onOpen={openFromScoreSheet}
       />
       <ScoreBreakdownSheet
-        visible={breakdownOpen}
-        onClose={() => setBreakdownOpen(false)}
+        visible={sheets.breakdown}
+        onClose={() => dispatchSheets({ type: "close_breakdown" })}
         totalScore={score?.score ?? 0}
       />
 

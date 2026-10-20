@@ -67,7 +67,8 @@ import {
   isNewLead,
   isOverdueTask,
 } from "@agent-runway/core/lib/next-up/rules";
-import type { HandfulItem, NextUpPayload } from "@agent-runway/core/lib/next-up/types";
+import { NEXT_UP_PAYLOAD_VERSION, type HandfulItem, type NextUpPayload } from "@agent-runway/core/lib/next-up/types";
+import { STACK_LIMIT } from "@agent-runway/core/lib/next-up/build";
 import { fakeSupabase, type Row } from "../ai/__tests__/helpers/fake-supabase";
 
 const USER = "user-1";
@@ -456,7 +457,7 @@ describe("GET /api/next-up: drafting the handful's texts", () => {
     expect(draftTextForClient).toHaveBeenCalledTimes(1);
     expect(draftTextForClient).toHaveBeenCalledWith({
       supabase: state.client, userId: USER, clientId: "c-draft",
-      purpose: "check_in", note: "Dana · birthday Oct 25", source: "next_up",
+      purpose: "check_in", note: "Dana · birthday Oct 25", source: "next_up", background: true,
     });
   });
 
@@ -677,6 +678,75 @@ describe("GET /api/next-up: urgent counts", () => {
     expect(p.urgent.overdue_tasks).toBe(0);
     expect(p.urgent.deal_deadlines).toBe(0);
     expect(p.handful).toHaveLength(5);
+  });
+});
+
+describe("GET /api/next-up: new leads' Text (CASL, R31)", () => {
+  const newLead = (id: string, name: string, created_at: string, over: Row = {}) =>
+    client(id, name, { status: "boarding", last_contact_at: null, created_at, ...over });
+  const leadTables = (leads: Row[], extra: Record<string, Row[]> = {}) =>
+    fiveTables({ clients: [...fiveTables().clients, ...leads], ...extra });
+  const textOf = (p: NextUpPayload, id: string) => p.new_leads.find((l) => l.client_id === id)?.text;
+
+  it("carries the payload version and each new lead's text status, newest first", async () => {
+    setup(leadTables([
+      newLead("l-older", "Opal Older", "2026-10-18T12:00:00Z"),
+      newLead("l-newer", "Nell Newer", "2026-10-19T15:00:00Z"),
+      newLead("l-49h", "Bea Before", "2026-10-17T17:00:00Z"),
+    ]));
+    const p = await payloadOf("?draft=0&persist=0");
+    expect(p.version).toBe(NEXT_UP_PAYLOAD_VERSION);
+    expect(p.new_leads).toEqual([
+      { client_id: "l-newer", text: { status: "draftable" } },
+      { client_id: "l-older", text: { status: "draftable" } },
+    ]);
+    expect(p.urgent.new_leads).toBe(2);
+  });
+
+  it("an opted-out new lead is call_only; a lead with no number to text is no_phone", async () => {
+    setup(leadTables([
+      newLead("l-out", "Olly Out", "2026-10-19T15:00:00Z", { sms_opt_out_at: "2026-10-19T16:00:00Z" }),
+      newLead("l-none", "Nat None", "2026-10-19T14:00:00Z", { phone: "555-0101", phone_type: "home" }),
+    ]));
+    const p = await payloadOf("?draft=0&persist=0");
+    expect(textOf(p, "l-out")).toEqual({ status: "call_only", reason: expect.stringMatching(/unsubscribed from your texts/) });
+    expect(textOf(p, "l-none")).toEqual({ status: "no_phone" });
+  });
+
+  it("a lead's text waiting today is ready; one already sent today is call_only", async () => {
+    setup(leadTables(
+      [newLead("l-q", "Quin Queued", "2026-10-19T15:00:00Z"), newLead("l-s", "Sal Sent", "2026-10-19T14:00:00Z")],
+      { outreach_queue: [smsRow("l-q", { ai_body: "Hi Quin" }), smsRow("l-s", { status: "sent", sent_at: "2026-10-19T16:00:00Z" })] },
+    ));
+    const p = await payloadOf("?draft=0&persist=0");
+    expect(textOf(p, "l-q")).toEqual({ status: "ready", queue_id: "q-l-q", body: "Hi Quin" });
+    expect(textOf(p, "l-s")).toEqual({ status: "call_only", reason: "You already texted Sal Sent today." });
+  });
+
+  it("consent that can't be read makes every new lead call_only (fails closed)", async () => {
+    const tables = leadTables([newLead("l-1", "Lou One", "2026-10-19T15:00:00Z")]);
+    const user = fakeSupabase(tables, { readError: ["client_email_consents"] });
+    setup(tables);
+    state.client = user.client;
+    const p = await payloadOf("?draft=0&persist=0");
+    expect(textOf(p, "l-1")).toEqual({ status: "call_only", reason: CONSENT_READ_FAILED });
+  });
+
+  it(`checks at most a stack's worth (${STACK_LIMIT}), the newest`, async () => {
+    const many = Array.from({ length: STACK_LIMIT + 2 }, (_, i) =>
+      newLead(`l-${i}`, `Lead ${i}`, new Date(NOW.getTime() - (i + 1) * 3_600_000).toISOString()));
+    setup(leadTables(many));
+    const p = await payloadOf("?draft=0&persist=0");
+    expect(p.new_leads.map((l) => l.client_id)).toEqual(many.slice(0, STACK_LIMIT).map((c) => c.id));
+    expect(p.urgent.new_leads).toBe(STACK_LIMIT + 2);
+  });
+
+  it("a new lead's text is never drafted in the background (Text drafts it on the tap)", async () => {
+    setup(leadTables([newLead("l-1", "Lou One", "2026-10-19T15:00:00Z")]));
+    const p = await payloadOf("?persist=0");
+    await Promise.all(pending);
+    expect(textOf(p, "l-1")).toEqual({ status: "draftable" });
+    expect(draftTextForClient.mock.calls.map(([i]) => i.clientId)).not.toContain("l-1");
   });
 });
 

@@ -21,7 +21,7 @@ import {
   isUncontactedLead,
   type TimeBand,
 } from "../next-up/rules";
-import type { HandfulItem, NextUpPayload } from "../next-up/types";
+import { NEXT_UP_PAYLOAD_VERSION, type HandfulItem, type NextUpPayload } from "../next-up/types";
 
 /**
  * The phone dashboard's Next up, built from the cached /api/next-up payload
@@ -69,8 +69,9 @@ function item(client_id: string, client_name: string, over: Partial<HandfulItem>
 
 function payload(over: Partial<NextUpPayload> = {}): NextUpPayload {
   return {
+    version: NEXT_UP_PAYLOAD_VERSION,
     day: TODAY, target: 5, done_today: 0, generated_at: hoursAgo(1),
-    handful: [], snoozed: [],
+    handful: [], snoozed: [], new_leads: [],
     urgent: { new_leads: 0, overdue_tasks: 0, deal_deadlines: 0 },
     ...over,
   };
@@ -372,6 +373,62 @@ describe("buildNextUp: one client, one card", () => {
   });
 });
 
+describe("buildNextUp: a new lead's Text (CASL, R31)", () => {
+  const leads = () => [lead("l-ok", "Lia Okay", 2), lead("l-out", "Ola Out", 3), lead("l-none", "Ned None", 4)];
+  const withLeads = (newLeads: NextUpPayload["new_leads"]) =>
+    buildNextUp(input({ clients: leads(), payload: payload({ new_leads: newLeads }) }));
+
+  it("a lead the server checked as draftable or ready offers Text; the card carries its status", () => {
+    const v = withLeads([
+      { client_id: "l-ok", text: { status: "draftable" } },
+      { client_id: "l-out", text: { status: "ready", queue_id: "q-1", body: "Hi Ola" } },
+    ]);
+    expect(card(v, "new_lead:l-ok").text).toEqual({ status: "draftable" });
+    expect(cardActions(card(v, "new_lead:l-ok"))).toEqual(["call", "text", "later"]);
+    expect(cardActions(card(v, "new_lead:l-out"))).toEqual(["call", "text", "later"]);
+  });
+
+  it("an SMS opt-out, a lapsed or call-only lead, or one with no number to text gets Call only", () => {
+    const v = withLeads([
+      { client_id: "l-ok", text: { status: "call_only", reason: "Ola unsubscribed from your texts." } },
+      { client_id: "l-out", text: { status: "no_phone" } },
+    ]);
+    expect(cardActions(card(v, "new_lead:l-ok"))).toEqual(["call", "later"]);
+    expect(cardActions(card(v, "new_lead:l-out"))).toEqual(["call", "later"]);
+  });
+
+  it("a lead the server didn't check is call only: not in the list, no payload, or a payload without the list", () => {
+    const missing = withLeads([{ client_id: "l-ok", text: { status: "draftable" } }]);
+    expect(card(missing, "new_lead:l-none").text).toBeUndefined();
+    expect(cardActions(card(missing, "new_lead:l-none"))).toEqual(["call", "later"]);
+
+    const none = buildNextUp(input({ clients: leads(), payload: null }));
+    for (const c of none.stack) expect(cardActions(c)).toEqual(["call", "later"]);
+
+    const { new_leads: _dropped, ...older } = payload();
+    const old = buildNextUp(input({ clients: leads(), payload: older as NextUpPayload }));
+    expect(old.stack.map((c) => c.kind)).toEqual(["new_lead", "new_lead", "new_lead"]);
+    for (const c of old.stack) expect(cardActions(c)).toEqual(["call", "later"]);
+  });
+
+  it("with no number on file the card opens the client, whatever the server said", () => {
+    const v = buildNextUp(input({
+      clients: [lead("l-ok", "Lia Okay", 2, { phone: null })],
+      payload: payload({ new_leads: [{ client_id: "l-ok", text: { status: "draftable" } }] }),
+    }));
+    expect(cardActions(card(v, "new_lead:l-ok"))).toEqual(["open_client", "later"]);
+  });
+
+  it("a lead's text waiting to send is the lead card's Text, not also a message ready", () => {
+    const v = buildNextUp(input({
+      clients: leads(),
+      payload: payload({ new_leads: [{ client_id: "l-ok", text: { status: "ready", queue_id: "q-1", body: "Hi" } }] }),
+      outreachReady: [{ client_id: "l-ok", channel: "sms" }, { client_id: "o-1", channel: "email" }],
+    }));
+    expect(card(v, `messages_ready:${TODAY}`).count).toBe(1);
+  });
+});
+
 describe("buildNextUp: rows", () => {
   /** Every section with items, some on the stack and some not. */
   function busy(band: TimeBand, over: Partial<NextUpInput> = {}): NextUpInput {
@@ -574,6 +631,48 @@ describe("buildNextUp: the handful", () => {
     expect(buildNextUp(input({ payload: payload({ handful: five, done_today: 7 }) })).progress).toEqual({ done: 5, target: 5 });
   });
 
+  describe("forceHandful: the handful row was tapped (R33)", () => {
+    const overdue = [task("t-1", "2026-10-15")];
+
+    it("brings the handful cards in whatever the band: after always on top, before the band's cards", () => {
+      for (const band of ["morning", "evening"] as TimeBand[]) {
+        const base = input({ band, tasks: overdue, briefingCount: 2, undatedReceipts: 1, payload: payload({ handful: five.slice(0, 2) }) });
+        expect(buildNextUp(base).stack.some((c) => c.kind === "handful_client")).toBe(false);
+        expect(row(buildNextUp(base), "handful")).toMatchObject({ count: 2 });
+
+        const v = buildNextUp({ ...base, forceHandful: true });
+        const bandCard = band === "morning" ? `briefing:${TODAY}` : `undated_receipts:${TODAY}`;
+        expect(v.stack.map((c) => c.key)).toEqual([`overdue_tasks:${TODAY}`, "handful_client:h-1", "handful_client:h-2", bandCard]);
+        // Every pick is on the stack now, so the row has gone.
+        expect(row(v, "handful")).toBeUndefined();
+      }
+    });
+
+    it("brings them in once today's 5 are done, too: the row was the way to the rest", () => {
+      const done = input({ payload: payload({ handful: five.slice(0, 2), done_today: 5 }) });
+      expect(kinds(buildNextUp(done))).toEqual([]);
+      expect(kinds(buildNextUp({ ...done, forceHandful: true }))).toEqual(["handful_client", "handful_client"]);
+    });
+
+    it("changes nothing at midday, where the handful already is", () => {
+      const midday = input({ tasks: overdue, outreachReady: [{ client_id: "o-1", channel: "email" }], payload: payload({ handful: five.slice(0, 2) }) });
+      expect(buildNextUp({ ...midday, forceHandful: true }).stack.map((c) => c.key))
+        .toEqual(buildNextUp(midday).stack.map((c) => c.key));
+    });
+
+    it("still keeps one card a client, and a pick on Later stays away", () => {
+      const v = buildNextUp(input({
+        band: "morning", forceHandful: true,
+        clients: [lead("h-1", "Ann One", 2)],
+        payload: payload({
+          handful: five.slice(0, 2),
+          snoozed: [{ client_id: "h-9", client_name: "Nine Later", until: "2026-10-19T22:00:00Z", phone: null }],
+        }),
+      }));
+      expect(v.stack.map((c) => c.key)).toEqual(["new_lead:h-1", "handful_client:h-2"]);
+    });
+  });
+
   it("yesterday's payload shows 0 of 5", () => {
     const v = buildNextUp(input({ payload: payload({ day: YESTERDAY, handful: five, done_today: 5 }) }));
     expect(v.progress).toEqual({ done: 0, target: 5 });
@@ -673,6 +772,30 @@ describe("buildNextUp: the handful", () => {
     const onlyHandful = buildNextUp(input({ payload: p, outreachReady: [ready[0], ready[2]] }));
     expect(kinds(onlyHandful)).toEqual(["handful_client"]);
     expect(row(onlyHandful, "messages")).toBeUndefined();
+  });
+});
+
+describe("buildNextUp: which messages wait (fix 9)", () => {
+  const texts = [{ client_id: "o-1", channel: "sms" as const }, { client_id: "o-2", channel: "sms" as const }];
+  const email = { client_id: "o-3", channel: "email" as const };
+
+  it("the Messages card and row say when every message waiting is a text", () => {
+    expect(card(buildNextUp(input({ outreachReady: texts })), `messages_ready:${TODAY}`).detail.textsOnly).toBe(true);
+    expect(row(buildNextUp(input({ band: "morning", outreachReady: texts })), "messages")).toMatchObject({ count: 2, textsOnly: true });
+  });
+
+  it("any email among them and it isn't texts only", () => {
+    expect(card(buildNextUp(input({ outreachReady: [...texts, email] })), `messages_ready:${TODAY}`).detail.textsOnly).toBe(false);
+    expect(row(buildNextUp(input({ band: "morning", outreachReady: [email] })), "messages")).toMatchObject({ count: 1, textsOnly: false });
+  });
+
+  it("a handful client's text isn't one of them: what's left is the emails", () => {
+    const v = buildNextUp(input({
+      band: "morning",
+      payload: payload({ handful: [item("h-1", "Ann One")] }),
+      outreachReady: [{ client_id: "h-1", channel: "sms" }, email],
+    }));
+    expect(row(v, "messages")).toMatchObject({ count: 1, textsOnly: false });
   });
 });
 
@@ -841,7 +964,12 @@ describe("cardActions", () => {
   });
 
   it("each card's buttons suit its job", () => {
-    expect(of({ kind: "new_lead", phone: "506-555-0101" })).toEqual(["call", "text", "later"]);
+    // A new lead texts only where the server's CASL check said a text can go (R31).
+    expect(of({ kind: "new_lead", phone: "506-555-0101", text: { status: "draftable" } })).toEqual(["call", "text", "later"]);
+    expect(of({ kind: "new_lead", phone: "506-555-0101", text: { status: "ready", queue_id: "q-1", body: "Hi" } }))
+      .toEqual(["call", "text", "later"]);
+    expect(of({ kind: "new_lead", phone: "506-555-0101", text: { status: "call_only", reason: "Opted out." } })).toEqual(["call", "later"]);
+    expect(of({ kind: "new_lead", phone: "506-555-0101" })).toEqual(["call", "later"]);
     expect(of({ kind: "new_lead", phone: null })).toEqual(["open_client", "later"]);
     // Later on a task card is a phone-only snooze (correction 15).
     expect(of({ kind: "overdue_tasks" })).toEqual(["open_checklist", "mark_one_done", "later"]);

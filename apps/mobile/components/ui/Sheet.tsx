@@ -21,12 +21,18 @@ import { useColors, Space, Radius, Type } from "@/lib/theme";
 interface SheetProps {
   visible: boolean;
   onClose: () => void;
+  /**
+   * Called once the sheet has finished closing (React Native calls it on iOS
+   * only). Lets another sheet open after this one: iOS shows one modal at a
+   * time (lib/score-sheets.ts).
+   */
+  onDismiss?: () => void;
   title?: string;
   maxHeight?: number | `${number}%`;
   children: React.ReactNode;
 }
 
-export function Sheet({ visible, onClose, title, maxHeight, children }: SheetProps) {
+export function Sheet({ visible, onClose, onDismiss, title, maxHeight, children }: SheetProps) {
   const c = useColors();
   const insets = useSafeAreaInsets();
 
@@ -36,6 +42,7 @@ export function Sheet({ visible, onClose, title, maxHeight, children }: SheetPro
       transparent
       animationType="slide"
       onRequestClose={onClose}
+      onDismiss={onDismiss}
       statusBarTranslucent
     >
       <View style={[styles.backdrop, { backgroundColor: c.overlay }]}>

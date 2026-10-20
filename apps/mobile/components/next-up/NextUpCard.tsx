@@ -206,6 +206,8 @@ export function NextUpCard({ card, index, total, onAction, busy = false }: NextU
               disabled={busy}
               accessibilityRole="button"
               accessibilityLabel={label}
+              // 32pt tall: the slop brings the target near 44pt without crowding the row.
+              hitSlop={6}
               style={({ pressed }) => ({
                 flexDirection: "row", alignItems: "center", gap: 5, height: 32, paddingHorizontal: 12, borderRadius: 16,
                 flexShrink: 1, minWidth: 0,

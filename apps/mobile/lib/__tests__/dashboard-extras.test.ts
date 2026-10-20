@@ -512,6 +512,25 @@ describe("a logged activity", () => {
 
 // ── After a refresh ──────────────────────────────────────────────────────────
 
+describe("draftTexts: the Next up tag (R32)", () => {
+  const created = { ok: true, status: 200, json: async () => ({ results: [{ status: "created", clientId: SAM, clientName: "Sam Lee", queueItemId: "q-1" }] }) };
+  const sentBody = () => JSON.parse(String((fetchMock.mock.calls[0][1] as { body: string }).body));
+
+  it("a Next up card's Text sends source next_up, so the text is skipped once the client is handled", async () => {
+    fetchMock.mockResolvedValue(created);
+    const r = await store().draftTexts([SAM], "check_in", "New lead, first contact", { source: "next_up" });
+    expect(r).toEqual({ results: [{ status: "created", clientId: SAM, clientName: "Sam Lee", queueItemId: "q-1" }] });
+    expect(String(fetchMock.mock.calls[0][0])).toMatch(/\/api\/mobile\/outreach\/draft-texts$/);
+    expect(sentBody()).toEqual({ client_ids: [SAM], purpose: "check_in", note: "New lead, first contact", source: "next_up" });
+  });
+
+  it("the Clients screen's texts carry no source", async () => {
+    fetchMock.mockResolvedValue(created);
+    await store().draftTexts([SAM, PAT], "market_update", null);
+    expect(sentBody()).toEqual({ client_ids: [SAM, PAT], purpose: "market_update" });
+  });
+});
+
 describe("fetchAll", () => {
   beforeEach(() => {
     net.tables.user_settings = [{ user_id: "u1", subscription_tier: "pro", runway_score_snapshot: snapshot(at(2026, 10, 18, 9)) }];

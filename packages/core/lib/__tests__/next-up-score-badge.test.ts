@@ -10,14 +10,16 @@ import {
   PART_LABELS,
   SCORE_STALE_DAYS,
   SCORE_TREND_DAYS,
+  SCORE_TREND_MAX_DAYS,
   lowestPart,
   scoreAsOf,
   scoreTrend,
 } from "../next-up/score-badge";
 
 describe("the constants", () => {
-  it("compares with a week ago and calls a score stale after 3 days", () => {
+  it("compares with a week ago (up to two weeks back) and calls a score stale after 3 days", () => {
     expect(SCORE_TREND_DAYS).toBe(7);
+    expect(SCORE_TREND_MAX_DAYS).toBe(14);
     expect(SCORE_STALE_DAYS).toBe(3);
   });
 });
@@ -33,8 +35,14 @@ describe("scoreTrend", () => {
     expect(scoreTrend(saved, { captured_on: "2026-10-13", score: 37 })).toBeNull();
   });
 
-  it("takes any row older than 7 days", () => {
-    expect(scoreTrend(saved, { captured_on: "2026-09-01", score: 30 })).toEqual({ delta: 4, direction: "up" });
+  it("takes a row 7 to 14 days older than the save: 'since last week' holds", () => {
+    expect(scoreTrend(saved, { captured_on: "2026-10-09", score: 30 })).toEqual({ delta: 4, direction: "up" });
+    expect(scoreTrend(saved, { captured_on: "2026-10-05", score: 30 })).toEqual({ delta: 4, direction: "up" });
+  });
+
+  it("is null when the compare row is more than 14 days older: no row in the 7 to 14 day window, no tag (fix 8)", () => {
+    expect(scoreTrend(saved, { captured_on: "2026-10-04", score: 30 })).toBeNull();
+    expect(scoreTrend(saved, { captured_on: "2026-09-01", score: 30 })).toBeNull();
   });
 
   it("is null when nothing changed", () => {
@@ -53,6 +61,12 @@ describe("scoreTrend", () => {
     expect(scoreTrend({ score: 50, savedOn: "2027-01-03" }, { captured_on: "2026-12-27", score: 48 }))
       .toEqual({ delta: 2, direction: "up" });
     expect(scoreTrend({ score: 50, savedOn: "2027-01-03" }, { captured_on: "2026-12-28", score: 48 })).toBeNull();
+  });
+
+  it("counts the 14 days on the calendar across a month end", () => {
+    expect(scoreTrend({ score: 50, savedOn: "2026-11-03" }, { captured_on: "2026-10-20", score: 48 }))
+      .toEqual({ delta: 2, direction: "up" });
+    expect(scoreTrend({ score: 50, savedOn: "2026-11-03" }, { captured_on: "2026-10-19", score: 48 })).toBeNull();
   });
 
   it("gives the size of the change as a positive number either way", () => {

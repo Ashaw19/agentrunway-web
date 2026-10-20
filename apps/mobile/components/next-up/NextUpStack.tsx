@@ -5,6 +5,10 @@
  *
  * Shown only with at least one card; the dashboard shows the all-clear card
  * otherwise.
+ *
+ * `focus` scrolls the stack to one card, once per `seq`: the dashboard sets
+ * it when the "Today's handful" row is tapped (R33), to the first handful
+ * card it brought in.
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -22,9 +26,11 @@ export interface NextUpStackProps {
   onAction: (action: NextUpAction, card: Card) => void;
   /** The key of the card whose tap is being handled, if any. */
   busyKey?: string | null;
+  /** Scroll to this card; a new `seq` scrolls again. */
+  focus?: { key: string; seq: number } | null;
 }
 
-export function NextUpStack({ cards, onAction, busyKey = null }: NextUpStackProps) {
+export function NextUpStack({ cards, onAction, busyKey = null, focus = null }: NextUpStackProps) {
   const c = useColors();
   const { mode } = useTheme();
   const { width: windowWidth } = useWindowDimensions();
@@ -34,6 +40,19 @@ export function NextUpStack({ cards, onAction, busyKey = null }: NextUpStackProp
   // The list re-renders its cards when any of these change (a new handler
   // included, so a tap never reaches a stale one).
   const extraData = useMemo(() => [width, busyKey, onAction], [width, busyKey, onAction]);
+
+  // Scroll to the focused card once per seq. A stack that has only just
+  // appeared scrolls on the next frame, once its list is there.
+  const focusedSeq = useRef<number | null>(null);
+  useEffect(() => {
+    if (!focus || focus.seq === focusedSeq.current) return;
+    focusedSeq.current = focus.seq;
+    const index = cards.findIndex((card) => card.key === focus.key);
+    if (index < 0) return;
+    setPage(index);
+    // Not cancelled on a re-render: the seq is spent, so this scroll is the only one.
+    requestAnimationFrame(() => listRef.current?.scrollToOffset({ offset: index * width, animated: true }));
+  }, [focus, cards, width]);
 
   // A card that leaves (handled, put off) can leave the page past the end.
   const last = Math.max(0, cards.length - 1);

@@ -127,5 +127,9 @@ describe("Next up parity: /api/next-up and the phone's stack", () => {
     expect(payload.urgent).toEqual(found);
     // And the fixture exercises each count.
     expect(found).toEqual({ new_leads: 2, overdue_tasks: 2, deal_deadlines: 3 });
+    // Every new-lead card has its CASL-checked text status, in the stack's order (R31).
+    expect(payload.new_leads.map((l) => l.client_id))
+      .toEqual(view.stack.filter((c) => c.kind === "new_lead").map((c) => c.clientId));
+    for (const c of view.stack.filter((x) => x.kind === "new_lead")) expect(c.text).toEqual({ status: "draftable" });
   });
 });

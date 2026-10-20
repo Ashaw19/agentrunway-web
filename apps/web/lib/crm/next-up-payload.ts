@@ -2,11 +2,15 @@
  * The phone dashboard's "Next up" payload (GET /api/next-up). Flight Crew
  * and the MCP server read the same one, so every surface shows the same day.
  *
+ *   version   NEXT_UP_PAYLOAD_VERSION: the phone ignores any other shape
  *   handful   today's handful (lib/crm/next-up-handful.ts: Flight Control's
  *             picks, pinned per client), each with whether it can be texted
  *   snoozed   handful clients on Later, with their number
  *   urgent    the always-on-top counts: new leads, overdue tasks, deal
  *             deadlines (core lib/next-up/rules)
+ *   new_leads whether each new lead can be texted (R31), newest first, at
+ *             most STACK_LIMIT: no more lead cards fit on the phone's stack.
+ *             A lead not listed is call only on the phone
  *
  * A card's text status is checked under CASL when the payload is built: core
  * consentStatus on the text channel (lib/crm/consent-gate.ts, the gate every
@@ -14,7 +18,8 @@
  * window and sign-off, as draftTextForClient checks them. A lapsed past
  * client, an SMS opt-out or a consent record that can't be read is
  * call_only: no Text button. Checked before a waiting draft is offered, so a
- * text drafted before an opt-out is never "ready".
+ * text drafted before an opt-out is never "ready". A new lead is checked the
+ * same way, for a check-in text.
  *
  * This builder never drafts and never sends; the route drafts the
  * draftable cards after it responds. Its only writes are the handful's own
@@ -22,7 +27,7 @@
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { activePipelineDeals, type TopOpportunity } from "@agent-runway/core/types/database";
+import { activePipelineDeals } from "@agent-runway/core/types/database";
 import { addDaysISO, atlanticISODate } from "@agent-runway/core/lib/local-date";
 import {
   DEAL_DEADLINE_DAYS,
@@ -33,7 +38,13 @@ import {
   isNewLead,
   textPurposeFor,
 } from "@agent-runway/core/lib/next-up/rules";
-import type { HandfulItem, HandfulTextStatus, NextUpPayload } from "@agent-runway/core/lib/next-up/types";
+import { STACK_LIMIT } from "@agent-runway/core/lib/next-up/build";
+import {
+  NEXT_UP_PAYLOAD_VERSION,
+  type HandfulItem,
+  type HandfulTextStatus,
+  type NextUpPayload,
+} from "@agent-runway/core/lib/next-up/types";
 import { loadNextUpHandful } from "@/lib/crm/next-up-handful";
 import {
   consentBlockReason,
@@ -64,6 +75,13 @@ interface QueuedText {
 
 type TextSender = ConsentSender & { textFooter: boolean };
 
+/** Who a text status is for: a handful pick (its purpose by its reason) or a new lead (a check-in). */
+interface TextTarget {
+  client_id:   string;
+  client_name: string | null;
+  purpose:     "check_in" | "consent_request";
+}
+
 /** The number to call: the texting number (mobile first), else any number on file. */
 function callNumber(row: PhoneRow | undefined): string | null {
   if (!row) return null;
@@ -83,20 +101,20 @@ function callNumber(row: PhoneRow | undefined): string | null {
 async function textStatusFor(
   supabase: SupabaseClient,
   userId:   string,
-  pick:     TopOpportunity,
+  target:   TextTarget,
   row:      PhoneRow | undefined,
   queued:   QueuedText | undefined | "unread",
   today:    string,
   sender:   () => Promise<TextSender>,
 ): Promise<HandfulTextStatus> {
-  const name = pick.client_name?.trim() || row?.name?.trim() || "This client";
+  const name = target.client_name?.trim() || row?.name?.trim() || "This client";
 
-  const consent = await readClientConsent(supabase, userId, pick.client_id);
+  const consent = await readClientConsent(supabase, userId, target.client_id);
   if (!consent.ok) return { status: "call_only", reason: consent.reason };
   const blocked = consentBlockReason(consent.inputs, "sms", null, name, today);
   if (blocked) return { status: "call_only", reason: blocked };
 
-  if (textPurposeFor(pick.opportunity_type) === "consent_request") {
+  if (target.purpose === "consent_request") {
     const window = consentRequestWindow(consent.inputs, "sms", name, today);
     if (!window.ok) return { status: "call_only", reason: window.reason };
     const signOff = consentRequestTextSignOff(await sender());
@@ -114,15 +132,17 @@ async function textStatusFor(
 }
 
 /**
- * The always-on-top counts, by the core rules the phone's builder uses.
- * A count that can't be read is 0 (logged): the handful is still served.
+ * The always-on-top counts, by the core rules the phone's builder uses, and
+ * the new leads (newest first, as the phone stacks them). A count that can't
+ * be read is 0 (logged): the handful is still served. Unread leads are none,
+ * so no lead offers Text.
  */
 async function urgentCounts(
   supabase: SupabaseClient,
   userId:   string,
   now:      Date,
   today:    string,
-): Promise<NextUpPayload["urgent"]> {
+): Promise<{ urgent: NextUpPayload["urgent"]; newLeadIds: string[] }> {
   const leadsSince = new Date(now.getTime() - NEW_LEAD_HOURS * 3_600_000);
   const windowEnd = addDaysISO(today, DEAL_DEADLINE_DAYS);
 
@@ -168,9 +188,11 @@ async function urgentCounts(
     return !!error;
   };
 
-  const newLeads = failed("new leads", leadsRes.error)
-    ? 0
-    : leadsRes.data.filter((c) => isNewLead(c, now)).length;
+  const leads = failed("new leads", leadsRes.error)
+    ? []
+    : leadsRes.data
+        .filter((c) => isNewLead(c, now))
+        .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
   const overdueTasks = failed("overdue tasks", tasksRes.error) ? 0 : (tasksRes.count ?? 0);
   const deals = failed("deal deadlines", dealsRes.error)
     ? 0
@@ -180,7 +202,10 @@ async function urgentCounts(
     ? 0
     : conditionsRes.data.filter((r) => conditionDeadlineDays(r, today) !== null).length;
 
-  return { new_leads: newLeads, overdue_tasks: overdueTasks, deal_deadlines: deals + conditions };
+  return {
+    urgent:     { new_leads: leads.length, overdue_tasks: overdueTasks, deal_deadlines: deals + conditions },
+    newLeadIds: leads.map((c) => c.id),
+  };
 }
 
 /**
@@ -195,17 +220,20 @@ export async function buildNextUpPayload(
   const { now } = opts;
   const today = atlanticISODate(now);
 
-  const [handful, urgent] = await Promise.all([
+  const [handful, { urgent, newLeadIds }] = await Promise.all([
     loadNextUpHandful(userId, supabase, { persist: opts.persist, now }),
     urgentCounts(supabase, userId, now, today),
   ]);
   const day = handful.day;
   const picks = handful.opportunities.slice(0, HANDFUL_TARGET);
   const pickIds = picks.map((p) => p.client_id);
-  const clientIds = [...new Set([...pickIds, ...handful.snoozed.map((s) => s.client_id)])];
+  const leadIds = newLeadIds.slice(0, STACK_LIMIT);
+  const textIds = [...new Set([...pickIds, ...leadIds])];
+  const clientIds = [...new Set([...textIds, ...handful.snoozed.map((s) => s.client_id)])];
 
   // One read each: the clients' numbers (no request with no ids), and
-  // today's texts for the handful (at most one a client a day).
+  // today's texts for the handful and the new leads (at most one a client a
+  // day).
   const [phonesRes, queuedRes] = await Promise.all([
     fetchAllIn<string, PhoneRow>(
       clientIds,
@@ -217,7 +245,7 @@ export async function buildNextUpPayload(
         .order("id")
         .range(from, to),
     ),
-    pickIds.length === 0
+    textIds.length === 0
       ? Promise.resolve({ data: [] as QueuedText[], error: null })
       : supabase
           .from("outreach_queue")
@@ -226,7 +254,7 @@ export async function buildNextUpPayload(
           .eq("channel", "sms")
           .eq("opportunity_type", TEXT_OPPORTUNITY_TYPE)
           .eq("trigger_date", day)
-          .in("client_id", pickIds),
+          .in("client_id", textIds),
   ]);
   if (phonesRes.error) console.error(`[next-up] phone numbers not read: ${phonesRes.error.message}`);
   // Unread, the textable cards are call_only (textStatusFor).
@@ -259,12 +287,18 @@ export async function buildNextUpPayload(
     };
   })());
 
-  const statuses = await Promise.all(picks.map((p) =>
-    textStatusFor(
-      supabase, userId, p, rows.get(p.client_id),
-      queuedRes.error ? "unread" : queued.get(p.client_id),
-      day, sender,
-    )));
+  const statusOf = (target: TextTarget) => textStatusFor(
+    supabase, userId, target, rows.get(target.client_id),
+    queuedRes.error ? "unread" : queued.get(target.client_id),
+    day, sender,
+  );
+  const [statuses, leadStatuses] = await Promise.all([
+    Promise.all(picks.map((p) => statusOf({
+      client_id: p.client_id, client_name: p.client_name, purpose: textPurposeFor(p.opportunity_type),
+    }))),
+    // A new lead's first text is a check-in (the phone's Text drafts it so).
+    Promise.all(leadIds.map((id) => statusOf({ client_id: id, client_name: null, purpose: "check_in" }))),
+  ]);
 
   const items: HandfulItem[] = picks.map((p, i) => ({
     client_id:        p.client_id,
@@ -279,6 +313,7 @@ export async function buildNextUpPayload(
   }));
 
   return {
+    version:      NEXT_UP_PAYLOAD_VERSION,
     day,
     target:       HANDFUL_TARGET,
     done_today:   handful.doneToday,
@@ -286,5 +321,6 @@ export async function buildNextUpPayload(
     handful:      items,
     snoozed:      handful.snoozed.map((s) => ({ ...s, phone: callNumber(rows.get(s.client_id)) })),
     urgent,
+    new_leads:    leadIds.map((client_id, i) => ({ client_id, text: leadStatuses[i] })),
   };
 }

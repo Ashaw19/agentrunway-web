@@ -14,7 +14,7 @@
  * Hangar writer needs. Synthetic rows only.
  */
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import type { HandfulItem, NextUpPayload } from "@agent-runway/core/lib/next-up/types";
+import { NEXT_UP_PAYLOAD_VERSION, type HandfulItem, type NextUpPayload } from "@agent-runway/core/lib/next-up/types";
 import { laterUntil, stopUntil } from "@agent-runway/core/lib/suggestion-dismissals";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { fakeSupabase, type Row } from "../../mcp-server/__tests__/tool-harness";
@@ -59,6 +59,7 @@ const item = (over: Partial<HandfulItem> = {}): HandfulItem => ({
 });
 
 const payload = (over: Partial<NextUpPayload> = {}): NextUpPayload => ({
+  version:      NEXT_UP_PAYLOAD_VERSION,
   day:          "2026-10-19",
   target:       5,
   done_today:   2,
@@ -66,6 +67,7 @@ const payload = (over: Partial<NextUpPayload> = {}): NextUpPayload => ({
   handful:      [item()],
   snoozed:      [],
   urgent:       { new_leads: 1, overdue_tasks: 0, deal_deadlines: 2 },
+  new_leads:    [],
   ...over,
 });
 

@@ -11,11 +11,14 @@
  * The stack, in order (both read from the constants):
  *   1 always on top (ALWAYS_ON_TOP): new leads newest first, deal deadlines
  *     soonest first, then one card for every overdue task
- *   2 the current band's cards (BAND_KINDS); nothing from another band
+ *   2 the handful's cards, when the "Today's handful" row was tapped
+ *     (forceHandful, R33), whatever the band and even once today's handful
+ *     is done
+ *   3 the current band's cards (BAND_KINDS); nothing from another band
  * A card leaves it when the phone put it on Later (localSnoozes, until a
  * later instant), when it's a handful card and the day's handful is done
- * (progress.done >= target), or when its client already has an earlier card.
- * Then at most STACK_LIMIT cards.
+ * (progress.done >= target) and the row wasn't tapped, or when its client
+ * already has an earlier card. Then at most STACK_LIMIT cards.
  *
  * Later on a card keyed by the day lasts past midnight: a "tomorrow" chosen
  * at 21:00 is saved on yesterday's key, and still hides today's card until
@@ -79,10 +82,15 @@ export interface NextUpCard {
    *                               expected close) or "conditions" (a deal's condition date)
    *   handful_client              the server's label and why_now; returning when back from Later
    *   schedule, voice_note, trips today's showings and listing appointments
+   *   messages_ready              textsOnly: every message waiting is a text
    */
   detail: { title?: string; due?: string; days?: number; address?: string; label?: string; whyNow?: string;
-            showings?: number; appointments?: number; returning?: boolean };
-  /** Handful cards from today's picks; a client back from Later has none (no Text). */
+            showings?: number; appointments?: number; returning?: boolean; textsOnly?: boolean };
+  /**
+   * The server's CASL-checked text status: handful cards from today's picks
+   * (a client back from Later has none), new-lead cards from the payload's
+   * new_leads. None means no Text.
+   */
   text?: HandfulTextStatus; occurrence?: { opportunity_type: string; trigger_date: string };
 }
 
@@ -91,9 +99,13 @@ export interface NextUpCard {
  * exactly one (swipe marks it done). A row holding one item names it:
  * firstName of its client, and days: overdue for the checklist (0 = due
  * today); for deals, days from today to the date (negative once passed:
- * -3 is a close date 3 days ago; 0 to 7 is a deadline).
+ * -3 is a close date 3 days ago; 0 to 7 is a deadline). The messages row
+ * says textsOnly: true when every message waiting is a text (so it opens
+ * the Texts tab), false with any email.
  */
-export interface AlsoWaitingRow { section: SectionKey; count: number; swipeTaskId: string | null; firstName?: string; days?: number }
+export interface AlsoWaitingRow {
+  section: SectionKey; count: number; swipeTaskId: string | null; firstName?: string; days?: number; textsOnly?: boolean;
+}
 
 export interface NextUpView {
   stack: NextUpCard[]; alsoWaiting: AlsoWaitingRow[];
@@ -120,6 +132,8 @@ export interface NextUpInput {
   schedule: readonly { kind: "showing" | "appointment"; client_id: string | null; date: string }[]; // today..+14
   tripsLoggedToday: number; briefingCount: number;
   localSnoozes: Readonly<Record<string, string>>; voiceNoteDoneOn: string | null;
+  /** The "Today's handful" row was tapped: its cards join the stack in any band (R33). */
+  forceHandful?: boolean;
 }
 
 export const STACK_LIMIT = 7;
@@ -165,30 +179,33 @@ function soleClient(clientIds: readonly (string | null)[]): string | null {
 
 /**
  * Ready messages for the "Messages ready" card and row. A text waiting for a
- * client in the handful (today's picks and those on Later) is that card's
- * Text, so it isn't counted again here. Emails always count.
+ * client in the handful (today's picks and those on Later) or a new lead the
+ * server checked is that card's Text, so it isn't counted again here. Emails
+ * always count.
  */
 export function messagesReadyCount(
-  ready:            NextUpInput["outreachReady"],
-  handfulClientIds: ReadonlySet<string>,
+  ready:             NextUpInput["outreachReady"],
+  cardTextClientIds: ReadonlySet<string>,
 ): number {
-  return ready.filter((r) => !(r.channel === "sms" && handfulClientIds.has(r.client_id))).length;
+  return ready.filter((r) => !(r.channel === "sms" && cardTextClientIds.has(r.client_id))).length;
 }
 
 /**
- * A card's buttons. Text only where a text can go: a handful card whose text
- * status is ready or draftable (checked under CASL on the server), or a new
- * lead with a number. No number: Open client instead of Call. Later on a
- * card about tasks is a phone-only snooze, as on the other non-client cards
- * (correction 15).
+ * A card's buttons. Text only where a text can go: a handful or new-lead card
+ * whose text status is ready or draftable (checked under CASL on the server,
+ * R31), and with a number. A lead the server didn't check (a payload from
+ * before new_leads, or none) is call only. No number: Open client instead of
+ * Call. Later on a card about tasks is a phone-only snooze, as on the other
+ * non-client cards (correction 15).
  */
 export function cardActions(card: NextUpCard): NextUpAction[] {
   const phone = hasPhone(card.phone);
+  const textable = card.text?.status === "ready" || card.text?.status === "draftable";
   switch (card.kind) {
     case "new_lead":
-      return phone ? ["call", "text", "later"] : ["open_client", "later"];
+      if (textable && phone) return ["call", "text", "later"];
+      return phone ? ["call", "later"] : ["open_client", "later"];
     case "handful_client": {
-      const textable = card.text?.status === "ready" || card.text?.status === "draftable";
       if (textable && phone) return ["call", "text", "later", "dismiss"];
       return phone ? ["call", "later", "dismiss"] : ["open_client", "later", "dismiss"];
     }
@@ -235,10 +252,16 @@ export function buildNextUp(input: NextUpInput): NextUpView {
     .filter((h) => !archived(h.client_id) && !onLater.has(h.client_id))
     .map((h) => ({ clientId: h.client_id, clientName: h.client_name, phone: h.phone, item: h }));
   const handful = [...returning, ...picks];
-  const handfulClientIds = new Set(
-    [...(payload?.handful ?? []), ...(payload?.snoozed ?? [])].map((h) => h.client_id),
+  // A new lead's text status, as the server checked it under CASL. A payload
+  // from before new_leads has none: every lead is call only.
+  const leadTexts = new Map((payload?.new_leads ?? []).map((l) => [l.client_id, l.text]));
+  // A text waiting for a handful client or a new lead is that card's Text.
+  const cardTextClientIds = new Set(
+    [...(payload?.handful ?? []), ...(payload?.snoozed ?? []), ...(payload?.new_leads ?? [])].map((h) => h.client_id),
   );
-  const messages = messagesReadyCount(input.outreachReady, handfulClientIds);
+  const messages = messagesReadyCount(input.outreachReady, cardTextClientIds);
+  // The messages waiting are all texts (the Texts tab holds them), or not.
+  const textsOnly = !input.outreachReady.some((r) => r.channel !== "sms");
 
   const todaySchedule = input.schedule.filter((s) => day(s.date) === today);
   const showings = todaySchedule.filter((s) => s.kind === "showing").length;
@@ -272,7 +295,10 @@ export function buildNextUp(input: NextUpInput): NextUpView {
   const newLeadCards = uncontacted
     .filter((c) => isNewLead(c, now))
     .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))
-    .map((c) => make("new_lead", c.id, { clientId: c.id, clientName: c.name, phone: c.phone, itemIds: [c.id] }));
+    .map((c) => {
+      const text = leadTexts.get(c.id);
+      return make("new_lead", c.id, { clientId: c.id, clientName: c.name, phone: c.phone, itemIds: [c.id], ...(text && { text }) });
+    });
 
   // Every deadline, with its date and client, for its card and the Deals row.
   const deadlines: { id: string; days: number; date: string; card: NextUpCard }[] = [];
@@ -319,12 +345,13 @@ export function buildNextUp(input: NextUpInput): NextUpView {
       : []),
     tasks_today:    () => taskCard("tasks_today", dueToday),
     handful_client: () => handfulCards,
-    messages_ready: () => (messages > 0 ? [make("messages_ready", today, { count: messages })] : []),
+    messages_ready: () => (messages > 0 ? [make("messages_ready", today, { count: messages, detail: { textsOnly } })] : []),
     voice_note:     () => (hadSchedule && input.voiceNoteDoneOn !== today ? [make("voice_note", today, { detail: scheduleDetail })] : []),
     undated_receipts: () => (input.undatedReceipts > 0 ? [make("undated_receipts", today, { count: input.undatedReceipts })] : []),
     trips:          () => (hadSchedule && input.tripsLoggedToday === 0 ? [make("trips", today, { detail: scheduleDetail })] : []),
   };
-  const order = [...new Set<NextUpKind>([...ALWAYS_ON_TOP, ...BAND_KINDS[band]])];
+  const forced: NextUpKind[] = input.forceHandful ? ["handful_client"] : [];
+  const order = [...new Set<NextUpKind>([...ALWAYS_ON_TOP, ...forced, ...BAND_KINDS[band]])];
   const candidates = order.flatMap((kind) => cardsOf[kind]());
 
   // ── The stack ───────────────────────────────────────────────────────────
@@ -347,7 +374,7 @@ export function buildNextUp(input: NextUpInput): NextUpView {
       if (claimed.has(card.clientId)) continue;
       claimed.add(card.clientId);
     }
-    const away = snoozed(card) || (card.kind === "handful_client" && handfulDone);
+    const away = snoozed(card) || (card.kind === "handful_client" && handfulDone && !input.forceHandful);
     if (!away) shown.push(card);
   }
   const stack = shown.slice(0, STACK_LIMIT);
@@ -369,7 +396,7 @@ export function buildNextUp(input: NextUpInput): NextUpView {
   const only = <T>(items: readonly T[]) => (items.length === 1 ? items[0] : undefined);
   const soleTask = only(checklist);
   const soleDeal = only(deals);
-  const rows: Record<SectionKey, { count: number; swipeTaskId?: string; firstName?: string; days?: number }> = {
+  const rows: Record<SectionKey, { count: number; swipeTaskId?: string; firstName?: string; days?: number; textsOnly?: boolean }> = {
     checklist: soleTask
       ? { count: 1, swipeTaskId: soleTask.id, firstName: firstName(nameOf(soleTask.client_id)),
           days: daysBetweenISO(day(soleTask.due_date), today) }
@@ -379,17 +406,18 @@ export function buildNextUp(input: NextUpInput): NextUpView {
       ? { count: 1, firstName: firstName(soleDeal.name), days: daysBetweenISO(today, soleDeal.date) }
       : { count: deals.length },
     handful:  { count: restOfHandful.length, firstName: firstName(only(restOfHandful)?.clientName) },
-    messages: { count: messages - onStack("messages_ready") },
+    messages: { count: messages - onStack("messages_ready"), textsOnly },
     receipts: { count: input.undatedReceipts - onStack("undated_receipts") },
   };
   const alsoWaiting: AlsoWaitingRow[] = SECTION_ORDER
     .filter((s) => rows[s].count > 0)
     .map((s) => {
-      const { count, swipeTaskId, firstName: name, days } = rows[s];
+      const { count, swipeTaskId, firstName: name, days, textsOnly: onlyTexts } = rows[s];
       return {
         section: s, count, swipeTaskId: swipeTaskId ?? null,
         ...(name !== undefined && { firstName: name }),
         ...(days !== undefined && { days }),
+        ...(onlyTexts !== undefined && { textsOnly: onlyTexts }),
       };
     });
 

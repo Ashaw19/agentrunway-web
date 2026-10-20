@@ -57,7 +57,10 @@ export function WelcomeHeader({ firstName, band, context, progress, streak, badg
             }}
           >
             <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: clear ? c.success : c.primary }} />
-            <Text style={{ fontSize: 12, fontWeight: "600", color: clear ? c.success : c.primary }} numberOfLines={1}>
+            <Text
+              style={{ fontSize: 12, fontWeight: "600", color: clear ? c.success : c.primary, flexShrink: 1 }}
+              numberOfLines={1}
+            >
               {contextLine(context, t)}
             </Text>
           </View>

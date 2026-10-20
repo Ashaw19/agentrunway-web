@@ -1,6 +1,8 @@
 /**
  * "Also waiting": one row per section with something no stack card covers,
- * with its count and a chevron. Tapping a row opens its section.
+ * with its count and a chevron. Tapping a row hands it to `onOpen`, which
+ * opens its section (or, for the handful row, brings the handful into the
+ * stack: lib/next-up-view rowTap).
  *
  * A Checklist row holding exactly one task (swipeTaskId) can be marked done
  * in place: swipe it left (react-native-gesture-handler's Swipeable, under
@@ -24,7 +26,7 @@ import { useDataStore } from "@/stores/data-store";
 
 export interface AlsoWaitingListProps {
   rows: AlsoWaitingRow[];
-  onOpen: (s: SectionKey) => void;
+  onOpen: (row: AlsoWaitingRow) => void;
   onSwipeDone: (taskId: string) => void;
   /** An overdue task waits in the Checklist row (lib/next-up-view checklistRowHasOverdue). */
   checklistOverdue?: boolean;
@@ -54,9 +56,10 @@ export function AlsoWaitingList({ rows, onOpen, onSwipeDone, checklistOverdue = 
     switch (section) {
       case "checklist": return checklistOverdue ? { fg: c.danger, bg: c.dangerDim } : { fg: c.primary, bg: c.primaryDim };
       case "new_leads": return { fg: c.warning, bg: c.warningDim };
-      case "deals":     return { fg: "#64748B", bg: "rgba(100,116,139,0.16)" };
+      // Theme tokens, so both read in dark mode as in light (a neutral for deals).
+      case "deals":     return { fg: c.textMuted, bg: c.cardHighBorder };
       case "handful":   return { fg: c.cyan, bg: c.cyanDim };
-      case "messages":  return { fg: "#6366F1", bg: "rgba(99,102,241,0.16)" };
+      case "messages":  return { fg: c.purple, bg: c.purpleDim };
       case "receipts":  return { fg: c.success, bg: c.successDim };
     }
   };
@@ -106,7 +109,7 @@ export function AlsoWaitingList({ rows, onOpen, onSwipeDone, checklistOverdue = 
           return swipeable(
             <Pressable
               key={row.section}
-              onPress={() => onOpen(row.section)}
+              onPress={() => onOpen(row)}
               accessibilityRole="button"
               accessibilityLabel={[copy.title, copy.detail, String(row.count)].filter(Boolean).join(", ")}
               accessibilityActions={swipeTaskId ? [{ name: "markDone", label: t("alsoWaiting.markDone") }] : undefined}
@@ -132,7 +135,8 @@ export function AlsoWaitingList({ rows, onOpen, onSwipeDone, checklistOverdue = 
               <View style={{ backgroundColor: bg, borderRadius: Radius.pill, paddingHorizontal: 8, paddingVertical: 2 }}>
                 <Text style={{ fontSize: 11.5, fontWeight: "800", color: fg }}>{row.count}</Text>
               </View>
-              <ChevronRight size={14} color={c.textFaint} strokeWidth={2.4} />
+              {/* textDim, not textFaint: textFaint all but disappears on a dark card. */}
+              <ChevronRight size={14} color={c.textDim} strokeWidth={2.4} />
             </Pressable>
           );
         })}

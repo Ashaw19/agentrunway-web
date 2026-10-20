@@ -12,7 +12,7 @@
  */
 import path from "node:path";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import type { HandfulItem, NextUpPayload } from "@agent-runway/core/lib/next-up/types";
+import { NEXT_UP_PAYLOAD_VERSION, type HandfulItem, type NextUpPayload } from "@agent-runway/core/lib/next-up/types";
 import { laterUntil, stopUntil } from "@agent-runway/core/lib/suggestion-dismissals";
 import { MCP_TOOLS_DIR } from "./registry-source";
 import { fakeSupabase, type FakeSupabase, type Row } from "./tool-harness";
@@ -58,6 +58,7 @@ const item = (over: Partial<HandfulItem> = {}): HandfulItem => ({
 });
 
 const payload = (over: Partial<NextUpPayload> = {}): NextUpPayload => ({
+  version:      NEXT_UP_PAYLOAD_VERSION,
   day:          "2026-10-19",
   target:       5,
   done_today:   1,
@@ -65,6 +66,7 @@ const payload = (over: Partial<NextUpPayload> = {}): NextUpPayload => ({
   handful:      [item()],
   snoozed:      [{ client_id: LEE, client_name: "Lee Roy", until: "2026-10-20T11:00:00.000Z", phone: null }],
   urgent:       { new_leads: 0, overdue_tasks: 3, deal_deadlines: 1 },
+  new_leads:    [],
   ...over,
 });
 

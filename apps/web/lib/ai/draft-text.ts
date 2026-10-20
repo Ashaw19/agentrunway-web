@@ -153,11 +153,19 @@ export async function draftTextForClient(input: {
   purpose: TextPurpose;
   note?: string | null;
   /**
-   * Who asked. "next_up": the phone dashboard's handful drafted it, and the
-   * text is marked skipped if the client is handled before it's sent
-   * (lib/crm/next-up-handful.ts).
+   * Who asked. "next_up": a Next up card (the handful's background drafts,
+   * or a tap on Text on a handful or new-lead card, R32). The text carries
+   * context.source "next_up", so it is marked skipped if the client is
+   * handled before it's sent (lib/crm/next-up-handful.ts). Only a tag: it
+   * changes nothing else here.
    */
   source?: "next_up";
+  /**
+   * The Next up route's own drafting after it responds (nobody tapped):
+   * today's text is never replaced once there is one in any other state
+   * (skipped in Messages, failed). A tap drafts on request, and may.
+   */
+  background?: boolean;
 }): Promise<DraftTextResult> {
   const { supabase, userId, clientId, purpose } = input;
   const note = input.note?.trim() ? input.note.trim().slice(0, 500) : null;
@@ -237,8 +245,8 @@ export async function draftTextForClient(input: {
   }
   // A background draft for the Next up handful never replaces today's text
   // once there is one in any other state (skipped in Messages, failed).
-  // Tapping Text drafts on request (no source), which may.
-  if (existing && input.source === "next_up") {
+  // Tapping Text drafts on request (not background), which may.
+  if (existing && input.background) {
     return {
       status: "skipped", clientId, clientName, phone,
       queueItemId: existing.id as string,

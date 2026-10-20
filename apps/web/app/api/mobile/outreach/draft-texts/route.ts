@@ -6,8 +6,15 @@
  * then opens iOS Messages prefilled for each one; the agent taps Send.
  *
  * Bearer token auth (Supabase access token). Pro feature, like every drafter.
- * Body: { client_ids: string[] (1–10), purpose: "check_in" | "market_update" | "custom", note?: string }
+ * Body: { client_ids: string[] (1–10), purpose: "check_in" | "market_update" | "custom" | "consent_request",
+ *         note?: string, source?: "next_up" }
  * Returns: { results: DraftTextResult[] } in the order the ids were sent.
+ *
+ * source "next_up": the tap came from a Next up card (a handful pick or a new
+ * lead). The text is tagged context.source "next_up", so it is marked
+ * skipped once the client is handled before it's sent (R32). It is only the
+ * tag: a tap may still draft over a text skipped earlier today, which the
+ * background drafter never does.
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -49,7 +56,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       );
     }
 
-    const body = (await req.json().catch(() => ({}))) as { client_ids?: unknown; purpose?: unknown; note?: unknown };
+    const body = (await req.json().catch(() => ({}))) as {
+      client_ids?: unknown; purpose?: unknown; note?: unknown; source?: unknown;
+    };
     const ids = Array.isArray(body.client_ids)
       ? [...new Set(body.client_ids.filter((v): v is string => typeof v === "string" && v.length > 0))]
       : [];
@@ -65,6 +74,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     if (!isTextPurpose(body.purpose)) {
       return NextResponse.json({ error: "purpose must be check_in, market_update or custom" }, { status: 400 });
     }
+    if (body.source !== undefined && body.source !== "next_up") {
+      return NextResponse.json({ error: "source can only be next_up." }, { status: 400 });
+    }
+    const source = body.source === "next_up" ? ("next_up" as const) : undefined;
     const purpose = body.purpose;
     const note = typeof body.note === "string" ? body.note : null;
     if (purpose === "custom" && !note?.trim()) {
@@ -77,7 +90,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       while (next < ids.length) {
         const i = next++;
         try {
-          results[i] = await draftTextForClient({ supabase: admin, userId: user!.id, clientId: ids[i], purpose, note });
+          results[i] = await draftTextForClient({
+            supabase: admin, userId: user!.id, clientId: ids[i], purpose, note, ...(source && { source }),
+          });
         } catch (err) {
           console.error("[draft-texts] draft failed:", err);
           results[i] = { status: "skipped", clientId: ids[i], clientName: "This client", reason: "Something went wrong drafting this text." };

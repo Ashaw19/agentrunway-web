@@ -6,7 +6,8 @@
  *   the five parts as bars, each with its value
  *   the lowest part and its number
  *   "Full breakdown ›" (the dashboard closes this sheet, then opens the
- *   existing breakdown sheet: iOS shows one modal at a time)
+ *   existing breakdown sheet once this one has finished closing, onDismiss:
+ *   iOS shows one modal at a time, lib/score-sheets.ts)
  *   "Your numbers": the key metrics and the annual goal
  *
  * With no score saved yet it keeps the old line sending Andrew to the web
@@ -29,6 +30,8 @@ import { YourNumbers } from "./YourNumbers";
 export interface ScoreSheetProps {
   visible: boolean;
   onClose: () => void;
+  /** The sheet has finished closing (iOS only; see Sheet). */
+  onDismiss?: () => void;
   /** Null until a score has been saved. */
   view: ScoreView | null;
   /** The phone's calendar day (YYYY-MM-DD). */
@@ -38,14 +41,14 @@ export interface ScoreSheetProps {
   onOpen: (href: string) => void;
 }
 
-export function ScoreSheet({ visible, onClose, view, today, onFullBreakdown, onOpen }: ScoreSheetProps) {
+export function ScoreSheet({ visible, onClose, onDismiss, view, today, onFullBreakdown, onOpen }: ScoreSheetProps) {
   const c = useColors();
   const { t, i18n } = useTranslation("home");
   const hasParts = !!view && view.components.length > 0;
   const lowest = view ? lowestLine(view, t) : null;
 
   return (
-    <Sheet visible={visible} onClose={onClose} title={t("score.runwayScore")}>
+    <Sheet visible={visible} onClose={onClose} onDismiss={onDismiss} title={t("score.runwayScore")}>
       <View style={{ paddingBottom: Space.lg }}>
         {/* ── The score ── */}
         <View style={{ flexDirection: "row", alignItems: "center", gap: Space.md }}>

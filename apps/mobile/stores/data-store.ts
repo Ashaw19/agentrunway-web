@@ -549,12 +549,14 @@ interface DataStore {
   /**
    * Text queue: Flight Crew drafts one short text per client (1–10) on the
    * server, then the queue is refetched. Returns each client's outcome, or
-   * an error message the screen can show.
+   * an error message the screen can show. `source` "next_up": a Next up
+   * card's Text (R32), so the text is skipped once the client is handled.
    */
   draftTexts: (
     clientIds: string[],
     purpose: TextPurpose,
     note?: string | null,
+    opts?: { source?: "next_up" },
   ) => Promise<{ results: DraftTextResult[] } | { error: string }>;
   /** The agent tapped Send in Messages: mark it sent and log a Text activity. */
   markTexted: (id: string, body: string) => Promise<boolean>;
@@ -2057,7 +2059,7 @@ export const useDataStore = create<DataStore>((set, get) => {
       return true;
     },
 
-    draftTexts: async (clientIds, purpose, note) => {
+    draftTexts: async (clientIds, purpose, note, opts) => {
       const session = (await supabase.auth.getSession()).data.session;
       if (!session) return { error: "Please sign in again." };
       const API_URL = process.env.EXPO_PUBLIC_API_URL ?? "https://agentrunway.ca";
@@ -2065,7 +2067,7 @@ export const useDataStore = create<DataStore>((set, get) => {
         const res = await fetch(`${API_URL}/api/mobile/outreach/draft-texts`, {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
-          body: JSON.stringify({ client_ids: clientIds, purpose, note: note ?? undefined }),
+          body: JSON.stringify({ client_ids: clientIds, purpose, note: note ?? undefined, source: opts?.source }),
         });
         const json = (await res.json().catch(() => ({}))) as { results?: DraftTextResult[]; error?: string };
         if (!res.ok || !json.results) {

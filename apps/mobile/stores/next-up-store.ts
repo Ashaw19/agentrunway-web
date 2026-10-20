@@ -10,7 +10,8 @@
  *                    comes back. A handful client's Later is the server's.
  *   voiceNoteDoneOn  the day the "record a voice note" card was handled
  *   pendingCall      a call just placed, so the after-call sheet can open when
- *                    the app comes back to the front
+ *                    the app comes back to the front; stamped when the app
+ *                    then went to the background (R34, lib/post-call.ts)
  *
  * Reads storage when the store is created, which is before saved storage has
  * loaded, so `hydrate` re-reads it (lib/storage-bootstrap.ts).
@@ -23,7 +24,9 @@
  * signed-in user's own client, as web Flight Control's Dismiss does
  * (apps/web/lib/crm/dismiss-menu.ts). Once one saves, the card leaves at
  * once (a Later keeps the client's slot and isn't counted done; the rest
- * free it), the server is asked again, and the toast offers Undo. Undo for
+ * free it), the server is asked again, and the toast offers Undo. A Later
+ * that a running Stop blocked saves nothing and has no Undo; the server is
+ * asked again all the same. Undo for
  * Skip, Stop and the Hangar also puts the client back on today's list
  * (reopenHandfulPin). Nothing is queued offline (correction 16): the card
  * stays and the toast says to try again.
@@ -41,7 +44,7 @@ import { nextUpClock } from "../lib/next-up-clock";
 import { handledToast, type HandledCard } from "../lib/next-up-copy";
 import { useToastStore } from "./toast-store";
 import { useOfflineQueueStore } from "./offline-queue";
-import type { HandfulItem, NextUpPayload } from "@agent-runway/core/lib/next-up/types";
+import { NEXT_UP_PAYLOAD_VERSION, type HandfulItem, type NextUpPayload } from "@agent-runway/core/lib/next-up/types";
 import type { LaterChoice } from "@agent-runway/core/lib/suggestion-dismissals";
 import { localISODate } from "@agent-runway/core/lib/local-date";
 import {
@@ -62,6 +65,8 @@ export interface PendingCall {
   clientName: string;
   /** ms timestamp of when the call was started. */
   at: number;
+  /** ms timestamp of the app's first trip to the background after that (the call took the phone). */
+  backgroundedAt?: number;
 }
 
 interface NextUpStore {
@@ -85,6 +90,8 @@ interface NextUpStore {
   markVoiceNoteDone: (day: string) => void;
   setPendingCall: (call: PendingCall) => void;
   clearPendingCall: () => void;
+  /** The app went to the background at `at`: stamps the call waiting, if any (the first time only). */
+  noteAppBackgrounded: (at: number) => void;
   /** Brings a phone-only card back before its Later ends (the toast's Undo). */
   unsnoozeCard: (key: string) => void;
   /**
@@ -129,10 +136,17 @@ const PENDING_CALL_KEY = "next_up_pending_call";
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 
-/** The parts of a payload the dashboard reads, checked so a damaged copy or an error body never replaces a good one. */
+/**
+ * The parts of a payload the dashboard reads, checked so a damaged copy or an
+ * error body never replaces a good one. A payload in another shape (an older
+ * one with no version, saved before new_leads, R31) is ignored too, so it
+ * can't be read as this one.
+ */
 function isNextUpPayload(v: unknown): v is NextUpPayload {
   return (
     isObject(v) &&
+    v.version === NEXT_UP_PAYLOAD_VERSION &&
+    Array.isArray(v.new_leads) &&
     typeof v.day === "string" &&
     typeof v.target === "number" &&
     typeof v.done_today === "number" &&
@@ -144,7 +158,10 @@ function isNextUpPayload(v: unknown): v is NextUpPayload {
 }
 
 function isPendingCall(v: unknown): v is PendingCall {
-  return isObject(v) && typeof v.clientId === "string" && typeof v.clientName === "string" && typeof v.at === "number";
+  return (
+    isObject(v) && typeof v.clientId === "string" && typeof v.clientName === "string" && typeof v.at === "number" &&
+    (v.backgroundedAt === undefined || typeof v.backgroundedAt === "number")
+  );
 }
 
 function readJson(key: string): unknown {
@@ -496,6 +513,14 @@ export const useNextUpStore = create<NextUpStore>((set, get) => {
       save(PENDING_CALL_KEY, call);
     },
 
+    noteAppBackgrounded: (at) => {
+      const call = get().pendingCall;
+      if (!call || call.backgroundedAt !== undefined) return;
+      const stamped = { ...call, backgroundedAt: at };
+      set({ pendingCall: stamped });
+      save(PENDING_CALL_KEY, stamped);
+    },
+
     clearPendingCall: () => {
       set({ pendingCall: null });
       try {
@@ -550,10 +575,12 @@ export const useNextUpStore = create<NextUpStore>((set, get) => {
         (outcome) => outcome?.message || tHome("nextUpToast.couldntSave", { name: item.client_name.trim() || tHome("nextUpToast.thisClient") }),
       );
       if (!held) return false;
-      // A running Stop blocked the Later: nothing was written, so the card
-      // stays and there is nothing to undo (resuming would delete the Stop).
+      // A running Stop blocked the Later: nothing was written, so there is
+      // nothing to undo (resuming would delete the Stop). The card stays for
+      // now; the server, which knows about the Stop, is asked again.
       if (held.stoppedUntil) {
         toast(held.message, "info");
+        void get().fetchNextUp({ force: true });
         return false;
       }
       const resume = (place: Place | null) =>

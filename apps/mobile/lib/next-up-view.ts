@@ -1,13 +1,21 @@
 /**
  * The dashboard's wiring around the core Next up builder
  * (packages/core/lib/next-up/build.ts): what it is fed from the phone's
- * stores, where each card button and "Also waiting" row goes, and when a
- * client back from Later needs a fresh /api/next-up.
+ * stores, where each card button and "Also waiting" row goes (the handful
+ * row brings the handful into the stack, R33), and when a client back from
+ * Later needs a fresh /api/next-up.
  *
  * Plain functions over plain values, so lib/__tests__ can run them.
  */
 
-import type { NextUpCard, NextUpInput, NextUpAction, NextUpView, SectionKey } from "@agent-runway/core/lib/next-up/build";
+import type {
+  AlsoWaitingRow,
+  NextUpAction,
+  NextUpCard,
+  NextUpInput,
+  NextUpView,
+  SectionKey,
+} from "@agent-runway/core/lib/next-up/build";
 import { isOverdueTask, textPurposeFor, type TimeBand } from "@agent-runway/core/lib/next-up/rules";
 import type { NextUpPayload } from "@agent-runway/core/lib/next-up/types";
 import type { NextUpClock } from "./next-up-clock";
@@ -28,6 +36,20 @@ export interface NextUpSources {
   payload: NextUpPayload | null;
   localSnoozes: Readonly<Record<string, string>>;
   voiceNoteDoneOn: string | null;
+  /** When the "Today's handful" row was tapped (the dashboard's own state, not saved). */
+  handfulShown?: HandfulShown | null;
+}
+
+/**
+ * The day and band in which the "Today's handful" row was tapped. Its cards
+ * stay on the stack until the band changes; the dashboard keeps this in its
+ * own state, so a restart clears it too.
+ */
+export interface HandfulShown { day: string; band: TimeBand }
+
+/** True while the handful row's tap holds: the same Atlantic day and band it was tapped in. */
+export function handfulForced(shown: HandfulShown | null, clock: Pick<NextUpClock, "today" | "band">): boolean {
+  return !!shown && shown.day === clock.today && shown.band === clock.band;
 }
 
 /** The builder's input: Atlantic day and band from the clock, the rest from the stores. */
@@ -50,30 +72,67 @@ export function nextUpInput(src: NextUpSources, clock: Pick<NextUpClock, "today"
     briefingCount: src.briefingCount,
     localSnoozes: src.localSnoozes,
     voiceNoteDoneOn: src.voiceNoteDoneOn,
+    forceHandful: handfulForced(src.handfulShown ?? null, clock),
   };
 }
 
 // ── Where things open ────────────────────────────────────────────────────────
 
-/** Each "Also waiting" row opens its section. */
-export const SECTION_ROUTES: Readonly<Record<SectionKey, string>> = {
+/** The rows that open a section. Messages and the handful are routed by rowTap. */
+export const SECTION_ROUTES: Readonly<Record<Exclude<SectionKey, "handful" | "messages">, string>> = {
   checklist: "/profile/checklist",
   new_leads: "/clients",
   deals: "/deals",
-  handful: "/profile/outreach",
-  messages: "/profile/outreach?tab=texts",
   receipts: "/profile/expenses",
 };
 
-/** The card buttons that open a screen. Open client is routed with its id (see the dashboard). */
+/**
+ * Messages ready opens the tab that holds its items: the Texts tab when every
+ * one is a text, else the Emails tab (the screen's default), where the emails
+ * are (fix 9).
+ */
+export const MESSAGES_ROUTES = {
+  texts: "/profile/outreach?tab=texts",
+  emails: "/profile/outreach?tab=emails",
+} as const;
+
+const messagesRoute = (textsOnly: boolean | undefined) => (textsOnly ? MESSAGES_ROUTES.texts : MESSAGES_ROUTES.emails);
+
+/** What tapping an "Also waiting" row does: open its section, or bring the handful into the stack (R33). */
+export type RowTap = { kind: "open"; href: string } | { kind: "show_handful" };
+
+export function rowTap(row: Pick<AlsoWaitingRow, "section" | "textsOnly">): RowTap {
+  if (row.section === "handful") return { kind: "show_handful" };
+  if (row.section === "messages") return { kind: "open", href: messagesRoute(row.textsOnly) };
+  return { kind: "open", href: SECTION_ROUTES[row.section] };
+}
+
+/** The card buttons that open a fixed screen. Open messages: actionRoute. Open client is routed with its id (see the dashboard). */
 export const ACTION_ROUTES: Readonly<Partial<Record<NextUpAction, string>>> = {
   open_checklist: "/profile/checklist",
   open_briefing: "/profile/briefing",
   open_deals: "/deals",
-  open_messages: "/profile/outreach?tab=texts",
   open_receipts: "/profile/expenses",
   open_mileage: "/profile/mileage",
 };
+
+/** Where a card button opens, or undefined for a button that doesn't open a screen. */
+export function actionRoute(action: NextUpAction, card: Pick<NextUpCard, "detail">): string | undefined {
+  if (action === "open_messages") return messagesRoute(card.detail.textsOnly);
+  return ACTION_ROUTES[action];
+}
+
+/**
+ * The card the stack scrolls to after the handful row was tapped: the first
+ * handful card, else the first card that holds a handful client (one client,
+ * one card: a lead card can hold their pick), else none.
+ */
+export function handfulFocusKey(stack: readonly NextUpCard[], payload: NextUpPayload | null): string | null {
+  const first = stack.find((c) => c.kind === "handful_client");
+  if (first) return first.key;
+  const ids = new Set((payload?.handful ?? []).map((h) => h.client_id));
+  return stack.find((c) => !!c.clientId && ids.has(c.clientId))?.key ?? null;
+}
 
 // ── Small reads for the screen ───────────────────────────────────────────────
 
@@ -112,32 +171,38 @@ export function checklistRowHasOverdue(
 
 // ── Text ─────────────────────────────────────────────────────────────────────
 
-/** What the Text button on a card does: send today's queued text, or draft one first. */
+/**
+ * What the Text button on a card does: send today's queued text, or draft
+ * one first. A draft is tagged source "next_up" (R32), so the handful's
+ * clean-up skips it once the client is handled before it's sent.
+ */
 export type TextPlan =
   | { kind: "send"; queueId: string }
-  | { kind: "draft"; purpose: "check_in" | "consent_request"; note: string }
+  | { kind: "draft"; purpose: "check_in" | "consent_request"; note: string; source: "next_up" }
   | null;
 
 /** The drafter's note for a new lead's first text. */
 export const NEW_LEAD_TEXT_NOTE = "New lead, first contact";
 
 /**
- * CASL: a handful card texts only when the server said a text can go (its
- * status, checked under consentStatus when the payload was built): `ready`
- * sends the queued text, `draftable` drafts one with the card's purpose and
- * Flight Control's label. A new lead drafts a first-contact check-in, and the
- * drafter checks their consent before writing a word (call_only otherwise).
- * Anything else (call only, no number, a client back from Later before the
- * server has answered again) never texts. The text check before Messages
- * opens (sendQueuedText) still runs on every send.
+ * CASL: a handful or new-lead card texts only when the server said a text
+ * can go (its status, checked under consentStatus when the payload was
+ * built, R31): `ready` sends the queued text, `draftable` drafts one. A
+ * handful card drafts with its purpose and Flight Control's label, a new
+ * lead a first-contact check-in; the drafter checks consent again before
+ * writing a word. Anything else (call only, no number, a lead the server
+ * didn't check, a client back from Later before the server has answered
+ * again) never texts. The text check before Messages opens (sendQueuedText)
+ * still runs on every send.
  */
 export function textPlan(card: NextUpCard): TextPlan {
   if (!card.phone?.trim()) return null;
-  if (card.kind === "new_lead") return { kind: "draft", purpose: "check_in", note: NEW_LEAD_TEXT_NOTE };
-  if (card.kind !== "handful_client") return null;
+  if (card.kind !== "handful_client" && card.kind !== "new_lead") return null;
   if (card.text?.status === "ready") return { kind: "send", queueId: card.text.queue_id };
-  if (card.text?.status === "draftable" && card.occurrence) {
-    return { kind: "draft", purpose: textPurposeFor(card.occurrence.opportunity_type), note: card.detail.label ?? "" };
-  }
-  return null;
+  if (card.text?.status !== "draftable") return null;
+  if (card.kind === "new_lead") return { kind: "draft", purpose: "check_in", note: NEW_LEAD_TEXT_NOTE, source: "next_up" };
+  if (!card.occurrence) return null;
+  return {
+    kind: "draft", purpose: textPurposeFor(card.occurrence.opportunity_type), note: card.detail.label ?? "", source: "next_up",
+  };
 }
