@@ -78,7 +78,8 @@ const sameText = (a: string, b: string) => a.trim().toLowerCase() === b.trim().t
 
 // ── Screen ─────────────────────────────────────────────────────────────────
 
-export default function MileageScreen() {
+/** Mileage, a view of the Money tab. `keyboardOffset`: the Money header's height. */
+export default function MileageView({ keyboardOffset = 0 }: { keyboardOffset?: number } = {}) {
   const c = useColors();
   const { mode } = useTheme();
   const sh = shadows(mode);
@@ -278,7 +279,7 @@ export default function MileageScreen() {
   const showReadings = !!use && (use.readingsDue.length > 0 || use.progress.length > 0);
 
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1, backgroundColor: c.bg }}>
+    <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} keyboardVerticalOffset={keyboardOffset} style={{ flex: 1, backgroundColor: c.bg }}>
       <ScrollView
         contentContainerStyle={{ padding: Space.xl, paddingBottom: ADD_CLEARANCE, gap: Space.xl }}
         keyboardShouldPersistTaps="handled"

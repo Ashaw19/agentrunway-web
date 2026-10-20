@@ -67,6 +67,19 @@ describe("nothing links to where a screen used to be", () => {
   });
 });
 
+describe("screens pushed over the tabs", () => {
+  // Briefing pushed "/deals" from the root stack and stacked a second copy
+  // of the tabs on top of itself (review, 2026-10-20). A tab is reached from
+  // a pushed screen by going back to the tabs: router.dismissTo.
+  it("reach a tab with dismissTo, never by pushing or navigating to it", () => {
+    const tabHref = /router\.(push|navigate|replace)\(\s*(\{\s*pathname:\s*)?(NAV\.(today|clients|deals|money|search|expenses|mileage|forecast|scanReceipt)\b|["'`]\/(clients|deals|money|search)?["'`?])/;
+    const offenders = sourceFiles(path.join(APP, "profile"))
+      .filter((file) => tabHref.test(readFileSync(file, "utf8")))
+      .map((file) => path.relative(MOBILE, file));
+    expect(offenders).toEqual([]);
+  });
+});
+
 describe("moneyView", () => {
   it("opens the view named, and Expenses for anything else", () => {
     for (const view of MONEY_VIEWS) expect(moneyView(view)).toBe(view);
@@ -88,6 +101,13 @@ describe("tabBadge", () => {
 });
 
 describe("the + sheet", () => {
+  it("the sheet itself offers every action: the voice row, the log row, and a tile for each target", () => {
+    const sheet = readFileSync(path.join(MOBILE, "components/add/AddButton.tsx"), "utf8");
+    expect(sheet).toMatch(/<VoiceCaptureButton[\s\S]*?variant="inline"/);
+    expect(sheet).toMatch(/pick\(\{ kind: "log" \}\)/);
+    for (const action of Object.keys(ADD_TARGET)) expect(sheet, action).toMatch(new RegExp(`\\{ action: "${action}"`));
+  });
+
   it("lists every way to add something, and each one that leaves the sheet has a target", () => {
     expect(ADD_ACTIONS).toEqual(["voice", "log", "receipt", "trip", "client", "deal"]);
     expect(Object.keys(ADD_TARGET).sort()).toEqual(["client", "deal", "receipt", "trip"]);

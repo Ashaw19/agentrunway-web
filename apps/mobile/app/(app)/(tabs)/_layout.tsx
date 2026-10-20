@@ -32,6 +32,8 @@ export default function TabsLayout() {
     [transactions, counts.hotPipeline],
   );
 
+  const followUpCount = counts.overdueFollowups + counts.uncontactedLeads;
+
   return (
     <NativeTabs tintColor={c.primary} minimizeBehavior="onScrollDown">
       <NativeTabs.Trigger name="index">
@@ -42,6 +44,7 @@ export default function TabsLayout() {
       <NativeTabs.Trigger name="clients">
         <Label>{t("tabs.clients")}</Label>
         <Icon sf={{ default: "person.2", selected: "person.2.fill" }} />
+        <Badge hidden={!tabBadge(followUpCount)}>{tabBadge(followUpCount)}</Badge>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="deals">
         <Label>{t("tabs.deals")}</Label>

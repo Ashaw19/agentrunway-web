@@ -3,8 +3,12 @@
  * were three rows on More, and "Scan Receipt" was the whole Expenses page).
  * `/money?view=expenses|mileage|forecast` picks the view (lib/app-nav.ts);
  * `scan=1` opens the receipt camera once (the "+" sheet's Receipt).
+ *
+ * All three views stay mounted and only the chosen one shows, so switching
+ * views never throws away a receipt being reviewed (as switching tabs
+ * didn't, when they were separate screens).
  */
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -31,6 +35,9 @@ export default function MoneyScreen() {
     router.setParams({ view: next });
   };
   const scanHandled = useCallback(() => router.setParams({ scan: undefined }), [router]);
+  // Where the views start: the keyboard-avoiding forms in them need it.
+  const [viewsTop, setViewsTop] = useState(0);
+  const shown = (key: MoneyView) => ({ flex: 1, display: view === key ? ("flex" as const) : ("none" as const) });
 
   return (
     <SafeAreaView edges={["top"]} style={{ flex: 1, backgroundColor: c.bg }}>
@@ -55,14 +62,16 @@ export default function MoneyScreen() {
           })}
         </View>
       </TabHeader>
-      <View style={{ flex: 1 }}>
-        {view === "expenses" ? (
-          <ExpensesView autoScan={params.scan === "1"} onAutoScanHandled={scanHandled} />
-        ) : view === "mileage" ? (
-          <MileageView />
-        ) : (
+      <View style={{ flex: 1 }} onLayout={(e) => setViewsTop(e.nativeEvent.layout.y)}>
+        <View style={shown("expenses")}>
+          <ExpensesView autoScan={params.scan === "1"} onAutoScanHandled={scanHandled} keyboardOffset={viewsTop} />
+        </View>
+        <View style={shown("mileage")}>
+          <MileageView keyboardOffset={viewsTop} />
+        </View>
+        <View style={shown("forecast")}>
           <ForecastView />
-        )}
+        </View>
       </View>
       <AddButton />
     </SafeAreaView>

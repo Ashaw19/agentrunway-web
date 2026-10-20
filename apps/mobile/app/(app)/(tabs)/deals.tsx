@@ -19,7 +19,7 @@ import {
   type DimensionValue,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import { useFocusEffect, useLocalSearchParams, useNavigation } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import Svg, {
   Defs,
@@ -151,29 +151,35 @@ export default function DealsScreen() {
   // Opened from elsewhere: `add=1` (the "+" sheet's Deal) opens the add form;
   // `dealId` / `txId` (a search result) opens that deal. Each param is
   // cleared once used, so the same link works again.
-  const router = useRouter();
+  // Cleared on this screen's own params (router.setParams acts on the screen
+  // in front); a link to a deal that isn't there is dropped once loading is done.
+  const navigation = useNavigation();
+  const clearParams = (keys: Record<string, undefined>) => (navigation as unknown as { setParams: (p: object) => void }).setParams(keys);
   const params = useLocalSearchParams<{ add?: string; dealId?: string; txId?: string }>();
+  const loaded = !isLoading && (pipeline.length > 0 || transactions.length > 0);
   useEffect(() => {
     if (params.add !== "1") return;
     setShowAdd(true);
-    router.setParams({ add: undefined });
+    clearParams({ add: undefined });
   }, [params.add]);
   useEffect(() => {
     if (!params.dealId) return;
     const found = pipeline.find((d) => d.id === params.dealId);
-    if (!found) return;
-    setTab("pipeline");
-    setSelectedDeal(found);
-    router.setParams({ dealId: undefined });
-  }, [params.dealId, pipeline]);
+    if (found) {
+      setTab("pipeline");
+      setSelectedDeal(found);
+    }
+    if (found || loaded) clearParams({ dealId: undefined });
+  }, [params.dealId, pipeline, loaded]);
   useEffect(() => {
     if (!params.txId) return;
     const found = transactions.find((tx) => tx.id === params.txId);
-    if (!found) return;
-    setTab(found.status === "pending" ? "pending" : "closed");
-    setSelectedTx(found);
-    router.setParams({ txId: undefined });
-  }, [params.txId, transactions]);
+    if (found) {
+      setTab(found.status === "pending" ? "pending" : "closed");
+      setSelectedTx(found);
+    }
+    if (found || loaded) clearParams({ txId: undefined });
+  }, [params.txId, transactions, loaded]);
 
   // Initial load
   useEffect(() => {

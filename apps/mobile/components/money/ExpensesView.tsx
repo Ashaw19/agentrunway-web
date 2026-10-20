@@ -145,9 +145,15 @@ function categoryColor(key: string | null): string {
 /**
  * Expenses, the first view of the Money tab (app/(app)/(tabs)/money.tsx).
  * `autoScan` opens the receipt camera once on arrival (the "+" sheet's
- * Receipt); the host clears it through `onAutoScanHandled`.
+ * Receipt); the host clears it through `onAutoScanHandled`. It never
+ * replaces a receipt being reviewed or saved. `keyboardOffset`: the height
+ * of the Money header above, so the keyboard clears the form.
  */
-export default function ExpensesView({ autoScan = false, onAutoScanHandled }: { autoScan?: boolean; onAutoScanHandled?: () => void } = {}) {
+export default function ExpensesView({
+  autoScan = false,
+  onAutoScanHandled,
+  keyboardOffset = 0,
+}: { autoScan?: boolean; onAutoScanHandled?: () => void; keyboardOffset?: number } = {}) {
   const { receipts, fetchReceipts, settings } = useDataStore();
   const [state, setState] = useState<ScreenState>("idle");
   const [refreshing, setRefreshing] = useState(false);
@@ -284,8 +290,8 @@ export default function ExpensesView({ autoScan = false, onAutoScanHandled }: { 
   useEffect(() => {
     if (!autoScan) return;
     onAutoScanHandled?.();
-    void openCamera();
-  }, [autoScan, onAutoScanHandled, openCamera]);
+    if (state === "idle") void openCamera();
+  }, [autoScan, onAutoScanHandled, openCamera, state]);
 
   const capturePhoto = useCallback(async () => {
     if (!cameraRef.current) return;
@@ -564,6 +570,7 @@ export default function ExpensesView({ autoScan = false, onAutoScanHandled }: { 
       <SafeAreaView style={{ flex: 1, backgroundColor: c.bg }}>
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : "height"}
+          keyboardVerticalOffset={keyboardOffset}
           style={{ flex: 1 }}
         >
           <ScrollView

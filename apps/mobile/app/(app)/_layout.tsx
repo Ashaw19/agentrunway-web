@@ -2,6 +2,9 @@ import { Stack } from "expo-router";
 import { useColors } from "@/lib/theme";
 import { useT } from "@/lib/useT";
 
+/** A link straight to a pushed screen still has the tabs under it, so Back works. */
+export const unstable_settings = { initialRouteName: "(tabs)" };
+
 /**
  * The signed-in app: the tabs, with every other screen pushed over them.
  * Back returns to the screen you came from (Today, Clients...), not to a

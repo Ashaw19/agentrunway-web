@@ -1,5 +1,5 @@
 /**
- * Import from Contacts — More → Import from Contacts.
+ * Import from Contacts — Clients → ⋯ menu → Import from Contacts.
  *
  * Reads the phone's address book on the device (expo-contacts), drops every
  * contact that already matches a client by phone, email or name (archived

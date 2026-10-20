@@ -37,6 +37,8 @@ interface Props {
   onProposal: (proposal: CaptureProposal) => void;
   context?: CaptureContext;
   variant?: "floating" | "inline";
+  /** True while recording or reading the note (the "+" sheet stays open meanwhile). */
+  onBusyChange?: (busy: boolean) => void;
 }
 
 const fmtElapsed = (ms: number) => {
@@ -44,7 +46,7 @@ const fmtElapsed = (ms: number) => {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 };
 
-export function VoiceCaptureButton({ onProposal, context, variant = "floating" }: Props) {
+export function VoiceCaptureButton({ onProposal, context, variant = "floating", onBusyChange }: Props) {
   const c = useColors();
   const { mode } = useTheme();
   const sh = shadows(mode);
@@ -64,8 +66,10 @@ export function VoiceCaptureButton({ onProposal, context, variant = "floating" }
   const timers = useRef<{ tick?: ReturnType<typeof setInterval>; cap?: ReturnType<typeof setTimeout> }>({});
 
   const setPhase = (p: Phase) => {
+    const wasBusy = phaseRef.current !== "idle";
     phaseRef.current = p;
     setPhaseState(p);
+    if (wasBusy !== (p !== "idle")) onBusyChange?.(p !== "idle");
   };
 
   const clearTimers = () => {

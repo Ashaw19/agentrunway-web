@@ -20,6 +20,7 @@ import type { BriefingItem } from "@/stores/data-store";
 import { BriefingRow } from "@/components/BriefingRow";
 import { supabase } from "@/lib/supabase";
 import { useT } from "@/lib/useT";
+import { NAV } from "@/lib/app-nav";
 import {
   useColors,
   Space,
@@ -391,12 +392,14 @@ export default function BriefingScreen() {
 
   const handleBriefingPress = useCallback(
     (item: BriefingItem) => {
+      // Briefing is pushed over the tabs: a tab is reached by going back to
+      // the tabs (dismissTo), never by pushing a second copy of them.
       if (item.type === "hot_pipeline") {
-        router.push("/deals");
+        router.dismissTo(NAV.deals);
       } else if (item.clientId) {
-        router.push("/clients");
+        router.dismissTo({ pathname: NAV.clients, params: { clientId: item.clientId } });
       } else if (item.type === "task_due_today") {
-        router.push("/profile/checklist");
+        router.push(NAV.checklist);
       }
     },
     [router]

@@ -57,6 +57,8 @@ export function AddButton({ onOpenChange }: { onOpenChange?: (open: boolean) => 
 
   const [menu, setMenu] = useState(false);
   const [next, setNext] = useState<Next>(null);
+  /** A voice note is being recorded or read: the sheet stays until it's done. */
+  const [voiceBusy, setVoiceBusy] = useState(false);
   const [logOpen, setLogOpen] = useState(false);
   const [proposal, setProposal] = useState<CaptureProposal | null>(null);
 
@@ -66,7 +68,12 @@ export function AddButton({ onOpenChange }: { onOpenChange?: (open: boolean) => 
 
   const open = () => {
     try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
+    setNext(null);
     setMenu(true);
+  };
+
+  const close = () => {
+    if (!voiceBusy) setMenu(false);
   };
 
   const run = useCallback((picked: Next) => {
@@ -82,7 +89,9 @@ export function AddButton({ onOpenChange }: { onOpenChange?: (open: boolean) => 
     else run(picked);
   };
 
-  const choose = (action: Exclude<AddAction, "voice" | "log">) => pick({ kind: "go", href: ADD_TARGET[action] });
+  const choose = (action: Exclude<AddAction, "voice" | "log">) => {
+    if (!voiceBusy) pick({ kind: "go", href: ADD_TARGET[action] });
+  };
 
   // The Add sheet has gone (iOS): open what was picked.
   const afterMenu = useCallback(() => {
@@ -116,14 +125,15 @@ export function AddButton({ onOpenChange }: { onOpenChange?: (open: boolean) => 
         <Plus size={26} color="#FFFFFF" strokeWidth={2.5} />
       </Pressable>
 
-      <Sheet visible={menu} onClose={() => setMenu(false)} onDismiss={afterMenu} title={t("add.title")}>
+      <Sheet visible={menu} onClose={close} onDismiss={afterMenu} title={t("add.title")}>
         <View style={{ gap: Space.md, paddingBottom: Space.md }}>
           <VoiceCaptureButton
             variant="inline"
             onProposal={(p) => pick({ kind: "voice", proposal: p })}
+            onBusyChange={setVoiceBusy}
           />
           <Pressable
-            onPress={() => pick({ kind: "log" })}
+            onPress={() => { if (!voiceBusy) pick({ kind: "log" }); }}
             accessibilityRole="button"
             style={({ pressed }) => ({
               flexDirection: "row",

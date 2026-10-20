@@ -1,16 +1,18 @@
 /**
  * The bottom of Today: the screens that used to sit on More and are opened
  * from Today, there whether or not they have something waiting (Next up and
- * Also waiting only show them when they do).
+ * Also waiting only show them when they do). Flight Crew is also Search's
+ * "Ask Flight Crew".
  */
 import { Pressable, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
-import { ChevronRight, ListChecks, Send, Sunrise } from "lucide-react-native";
+import { ChevronRight, ListChecks, Send, Sparkles, Sunrise } from "lucide-react-native";
 import { NAV } from "@/lib/app-nav";
 import { Radius, Space, Type, useColors } from "@/lib/theme";
 
 const SHORTCUTS = [
+  { href: NAV.flightCrew, label: "tools.flightCrew", Icon: Sparkles },
   { href: NAV.briefing, label: "tools.briefing", Icon: Sunrise },
   { href: NAV.checklist, label: "tools.checklist", Icon: ListChecks },
   { href: NAV.outreach, label: "tools.flightControl", Icon: Send },

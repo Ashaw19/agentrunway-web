@@ -27,7 +27,7 @@ import {
   Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter, useFocusEffect, useLocalSearchParams } from "expo-router";
+import { useRouter, useFocusEffect, useLocalSearchParams, useNavigation } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import {
@@ -194,12 +194,16 @@ export default function ClientsScreen() {
   // once, as soon as they're loaded. The param is cleared after, so opening
   // the same client again from the dashboard opens it again.
   const { clientId: openClientId, add: openAdd } = useLocalSearchParams<{ clientId?: string; add?: string }>();
+  // This screen's own params: a link is cleared here even if another screen
+  // is in front by then (router.setParams acts on the screen in front).
+  const navigation = useNavigation();
+  const clearParams = (keys: Record<string, undefined>) => (navigation as unknown as { setParams: (p: object) => void }).setParams(keys);
 
   // The "+" sheet's Client: open the add form once, then clear the param.
   useEffect(() => {
     if (openAdd !== "1") return;
     setShowAdd(true);
-    router.setParams({ add: undefined });
+    clearParams({ add: undefined });
   }, [openAdd]);
 
   // The Contacts tools, which lived on More: a menu by the title.
@@ -222,10 +226,11 @@ export default function ClientsScreen() {
   useEffect(() => {
     if (!openClientId) return;
     const found = clients.find((cl) => cl.id === openClientId);
-    if (!found) return;
-    setSelectedClient(found);
-    router.setParams({ clientId: undefined });
-  }, [openClientId, clients]);
+    if (found) setSelectedClient(found);
+    // Not loaded yet: wait. Loaded and not there: drop the link, so it can't
+    // open later out of the blue.
+    if (found || (!isLoading && clients.length > 0)) clearParams({ clientId: undefined });
+  }, [openClientId, clients, isLoading]);
 
   // Re-fetch on tab focus
   useFocusEffect(

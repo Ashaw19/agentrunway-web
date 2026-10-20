@@ -2,7 +2,7 @@
  * POST /api/ai-activity/undo
  *
  * Undo one AI change: everything one Flight Crew tool call wrote. Called by
- * the web AI activity page (session cookie) and the phone's More → AI
+ * the web AI activity page (session cookie) and the phone's Flight Crew → AI
  * activity list (Bearer token), so it resolves the user with getRequestUser.
  *
  * Body: { toolCallId: string, expected?: string }
