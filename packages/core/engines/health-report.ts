@@ -29,6 +29,23 @@ export function expenseSubScore(ytdGCI: number, expensesYTD: number): number {
 }
 
 /**
+ * Runway Score pipeline sub-score: the share of the goal still to reach that
+ * the weighted pipeline covers, as a percent, capped at 100. An empty
+ * pipeline covers none of it and scores 0 (v1.5; until 2026-10-20 it fell
+ * back to a neutral 65). Goal already met: 90. No goal set: 65, as there is
+ * nothing to measure the pipeline against.
+ */
+export function pipelineSubScore(goalGCI: number, ytdGCI: number, pipelineWeightedGCI: number): number {
+  const remaining = Math.max(0, goalGCI - ytdGCI);
+  if (remaining > 0) {
+    const weighted = Number.isFinite(pipelineWeightedGCI) && pipelineWeightedGCI > 0 ? pipelineWeightedGCI : 0;
+    return Math.min(100, Math.round((weighted / remaining) * 100));
+  }
+  if (goalGCI > 0 && ytdGCI >= goalGCI) return 90;
+  return 65;
+}
+
+/**
  * Maps agent performance metrics into the three sub-scores consumed
  * by `computeRunwayScore()`.
  *
@@ -54,16 +71,7 @@ export function buildHealthReport(
   }
 
   // ── Pipeline score: pipeline-to-remaining-goal ratio ───────────────
-  let pipelineScore = 65;
-  const remaining = Math.max(0, goalGCI - ytdGCI);
-  if (remaining > 0 && pipelineWeightedGCI > 0) {
-    pipelineScore = Math.min(
-      100,
-      Math.round((pipelineWeightedGCI / remaining) * 100),
-    );
-  } else if (goalGCI > 0 && ytdGCI >= goalGCI) {
-    pipelineScore = 90;
-  }
+  const pipelineScore = pipelineSubScore(goalGCI, ytdGCI, pipelineWeightedGCI);
 
   // ── Expense score: lower ratio = higher score ──────────────────────
   const expenseScore = expenseSubScore(ytdGCI, expensesYTD);

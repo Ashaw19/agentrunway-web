@@ -23,7 +23,7 @@ import {
 import {
   compute as computeRunwayScore,
 } from "@agent-runway/core/engines/runway-score-engine";
-import { buildHealthReport, expenseSubScore } from "@agent-runway/core/engines/health-report";
+import { buildHealthReport, expenseSubScore, pipelineSubScore } from "@agent-runway/core/engines/health-report";
 import { EXPENSE_RATIO_COPY, expenseRatioBand, expenseRatioBandRange } from "@agent-runway/core/engines/expense-ratio-bands";
 import {
   survivalResult as computeSurvivalResult,
@@ -614,7 +614,7 @@ Per-Deal Tax Portion (estimate): ${fmtCurrency(taxResult.perDealSetAside)}`;
 }
 
 /**
- * diagPipeline: uses the same linear pipeline score formula as health-report.ts.
+ * diagPipeline: the pipeline sub-score is health-report.ts's pipelineSubScore.
  */
 function diagPipeline(ctx: DiagContext): string {
   const { settings: s, pipelineDeals, pipelineWeighted, ytdGCI } = ctx;
@@ -630,15 +630,8 @@ function diagPipeline(ctx: DiagContext): string {
   const remainingGoal = Math.max(0, (s.goal_gci || 0) - ytdGCI);
   const coverageRatio = remainingGoal > 0 ? pipelineWeighted / remainingGoal : Infinity;
 
-  // Pipeline score — same linear formula as health-report.ts
-  let pipelineScore: number;
-  if (remainingGoal > 0 && pipelineWeighted > 0) {
-    pipelineScore = Math.min(100, Math.round((pipelineWeighted / remainingGoal) * 100));
-  } else if ((s.goal_gci ?? 0) > 0 && ytdGCI >= (s.goal_gci ?? 0)) {
-    pipelineScore = 90;
-  } else {
-    pipelineScore = 65;
-  }
+  // The dashboard's own pipeline sub-score, so the two can't drift.
+  const pipelineScore = pipelineSubScore(s.goal_gci || 0, ytdGCI, pipelineWeighted);
 
   const stageLines = Object.entries(stageCount)
     .map(([stage, count]) => `  ${stage}: ${count} deals, ${fmtCurrency(stageValue[stage] ?? 0)} weighted`)

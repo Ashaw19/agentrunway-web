@@ -49,6 +49,13 @@ describe("scoreTrend", () => {
     expect(scoreTrend(saved, { captured_on: "2026-10-12", score: 34 })).toBeNull();
   });
 
+  it("is null when the saved score is from a scoring change on and the row is from before it", () => {
+    // v1.5 (2026-10-20) moved an empty pipeline from 65 to 0: a drop in rules, not in the business.
+    const after = { score: 14, savedOn: "2026-10-27" };
+    expect(scoreTrend(after, { captured_on: "2026-10-19", score: 34 })).toBeNull();
+    expect(scoreTrend(after, { captured_on: "2026-10-20", score: 15 })).toEqual({ delta: 1, direction: "down" });
+  });
+
   it("is null with no compare row", () => {
     expect(scoreTrend(saved, null)).toBeNull();
   });

@@ -41,6 +41,7 @@ import {
   RISK_BAND_FLOOR_MONTHS,
   RISK_BAND_LEVELS,
 } from "../survival-engine";
+import { buildHealthReport, pipelineSubScore } from "../health-report";
 import type {
   BusinessHealthReport,
   RunwayScoreResult,
@@ -391,12 +392,37 @@ describe("State Label Boundaries", () => {
   });
 });
 
+// ── Pipeline sub-score (v1.5) ────────────────────────────────────────────────
+
+describe("Pipeline sub-score (v1.5)", () => {
+  // 2026-10-19: Andrew's pipeline was empty and Pipeline read 65. An empty
+  // pipeline skipped the formula and kept the "neutral" fallback.
+  it("an empty pipeline with a goal still to reach scores 0, not 65", () => {
+    expect(pipelineSubScore(150_000, 7_000, 0)).toBe(0);
+    expect(buildHealthReport(7_000, 150_000, 0.8, 0, 3_000).pipelineScore).toBe(0);
+  });
+
+  it("is the share of the goal still to reach that the pipeline covers, capped at 100", () => {
+    expect(pipelineSubScore(100_000, 20_000, 40_000)).toBe(50);
+    expect(pipelineSubScore(100_000, 20_000, 200_000)).toBe(100);
+  });
+
+  it("scores 90 with the goal met, and 65 with no goal to measure against", () => {
+    expect(pipelineSubScore(100_000, 120_000, 0)).toBe(90);
+    expect(pipelineSubScore(0, 7_000, 0)).toBe(65);
+  });
+
+  it("counts a pipeline total that can't be read as empty", () => {
+    expect(pipelineSubScore(100_000, 0, Number.NaN)).toBe(0);
+  });
+});
+
 // ── Metadata ─────────────────────────────────────────────────────────────────
 
 describe("Score Metadata", () => {
   it("includes version string", () => {
     const result = compute(makeReport(), 50, 5);
-    expect(SCORE_VERSION).toBe("1.4");
+    expect(SCORE_VERSION).toBe("1.5");
     expect(result.version).toBe(SCORE_VERSION);
   });
 

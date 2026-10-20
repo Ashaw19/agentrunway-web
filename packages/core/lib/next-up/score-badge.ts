@@ -13,6 +13,7 @@
  */
 
 import { addDaysISO, daysBetweenISO } from "../local-date";
+import { SCORE_VERSION_SINCE } from "../../engines/runway-score-engine";
 
 /** The trend compares with a score at least this many days older than the save. */
 export const SCORE_TREND_DAYS = 7;
@@ -50,8 +51,9 @@ export interface ScoreTrend {
 /**
  * The saved score against the latest history row at least a week older than
  * the day it was saved, and no more than two weeks older. Null (the tag is
- * hidden) with no row in that window, with no save day, or when the score
- * hasn't moved.
+ * hidden) with no row in that window, with no save day, when the score
+ * hasn't moved, or when the two were worked out under different rules (the
+ * saved score is from SCORE_VERSION_SINCE on and the row is from before it).
  */
 export function scoreTrend(
   current: { score: number; savedOn: string | null },
@@ -60,6 +62,7 @@ export function scoreTrend(
   if (!compare || !current.savedOn) return null;
   if (compare.captured_on > addDaysISO(current.savedOn, -SCORE_TREND_DAYS)) return null;
   if (compare.captured_on < addDaysISO(current.savedOn, -SCORE_TREND_MAX_DAYS)) return null;
+  if (compare.captured_on < SCORE_VERSION_SINCE && current.savedOn >= SCORE_VERSION_SINCE) return null;
   const change = current.score - compare.score;
   if (!Number.isFinite(change) || change === 0) return null;
   return { delta: Math.abs(change), direction: change > 0 ? "up" : "down" };

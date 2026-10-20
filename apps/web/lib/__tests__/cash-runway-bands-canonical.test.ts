@@ -540,8 +540,9 @@ describe("Runway Score: the Survival sub-score follows the cash runway bands", (
     expect(changed).not.toBe("");
     expect(changed).toMatch(/from 2 to under 3 months scored 30 on Survival \(At Risk, a red bar\)/);
     expect(changed).toContain("It now scores 41 (Building, amber)");
-    // A dated note keeps that day's figures; while v1.4 is current they are the ladder's.
-    expect(SCORE_VERSION).toBe("1.4");
+    // A dated note keeps that day's figures. The Survival ladder hasn't moved
+    // since v1.4 (v1.5 changed only an empty pipeline), so they are still the ladder's.
+    expect(SCORE_VERSION).toBe("1.5");
     expect(survivalSubScore(2.5)).toBe(41);
     expect(changed).toContain("No other step moved");
     expect(changed).toMatch(/Survival is 15% of the Runway Score.*1 or 2 points higher.*with nothing else changed/);
