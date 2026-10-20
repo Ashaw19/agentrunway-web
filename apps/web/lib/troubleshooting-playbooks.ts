@@ -130,7 +130,8 @@ The Runway Score is a weighted composite of 5 sub-scores, each 0–100:
 - If goal already met (ytdGCI ≥ goal): 90
 - If ratio ≥ 1.0: 100 (pipeline covers the full remaining gap)
 - If ratio = 0.5: 50 (pipeline covers half the remaining gap)
-- If no pipeline data or no goal set: 65 (neutral default)
+- Empty pipeline with a goal still to reach: 0 (it covers none of the gap; v1.5, 2026-10-20, was 65)
+- No goal set: 65 (nothing to measure the pipeline against)
 
 **Expense Score** (15%):
 - Ratio = YTD expenses ÷ YTD GCI

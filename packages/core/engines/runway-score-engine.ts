@@ -9,7 +9,16 @@ import {
   type RiskBandLevel,
 } from "./survival-engine";
 
-export const SCORE_VERSION = "1.4";
+export const SCORE_VERSION = "1.5";
+
+/**
+ * The first day (Atlantic, YYYY-MM-DD) scores were worked out under
+ * SCORE_VERSION. A score from before it was worked out under other rules, so
+ * the weekly trend doesn't compare across it. Bump both together.
+ * v1.5 (2026-10-20): an empty pipeline with a goal still to reach scores 0
+ * on Pipeline (it was a neutral 65).
+ */
+export const SCORE_VERSION_SINCE = "2026-10-20";
 
 // ── Component ───────────────────────────────────────────────────────────────
 
