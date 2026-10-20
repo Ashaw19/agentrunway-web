@@ -13,10 +13,12 @@ import {
   StyleSheet,
   Text,
   View,
+  useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useColors, Space, Radius, Type } from "@/lib/theme";
+import { sheetMaxHeight } from "@/lib/sheet-height";
 
 interface SheetProps {
   visible: boolean;
@@ -35,6 +37,9 @@ interface SheetProps {
 export function Sheet({ visible, onClose, onDismiss, title, maxHeight, children }: SheetProps) {
   const c = useColors();
   const insets = useSafeAreaInsets();
+  // In points, from the window: a percentage here resolved against a wrapper
+  // with no height and cut short sheets off (lib/sheet-height.ts).
+  const { height: windowHeight } = useWindowDimensions();
 
   return (
     <Modal
@@ -55,13 +60,12 @@ export function Sheet({ visible, onClose, onDismiss, title, maxHeight, children 
         >
           <View
             style={[
-              styles.sheet,
               {
                 backgroundColor: c.bgElevated,
                 borderTopLeftRadius: Radius.xxl,
                 borderTopRightRadius: Radius.xxl,
                 paddingBottom: Math.max(insets.bottom, Space.xxxl),
-                ...(maxHeight ? { maxHeight } : {}),
+                maxHeight: sheetMaxHeight(windowHeight, maxHeight),
               },
             ]}
           >
@@ -123,9 +127,6 @@ const styles = StyleSheet.create({
   },
   kavWrapper: {
     justifyContent: "flex-end",
-  },
-  sheet: {
-    maxHeight: "85%",
   },
   handleRow: {
     alignItems: "center",

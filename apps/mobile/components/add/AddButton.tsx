@@ -151,33 +151,36 @@ export function AddButton({ onOpenChange }: { onOpenChange?: (open: boolean) => 
             </View>
             <Text style={{ ...Type.bodyBold, color: c.text }}>{t("add.log")}</Text>
           </Pressable>
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: Space.sm }}>
-            {TILES.map(({ action, Icon }) => (
-              <Pressable
-                key={action}
-                onPress={() => choose(action)}
-                accessibilityRole="button"
-                style={({ pressed }) => ({
-                  width: "48.5%",
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: Space.sm,
-                  padding: Space.md,
-                  borderRadius: Radius.lg,
-                  borderWidth: 1,
-                  borderColor: c.cardBorder,
-                  backgroundColor: pressed ? c.primaryDim : c.card,
-                })}
-              >
-                <View style={{ width: 32, height: 32, borderRadius: Radius.md, backgroundColor: c.primaryDim, alignItems: "center", justifyContent: "center" }}>
-                  <Icon size={17} color={c.primary} strokeWidth={2} />
-                </View>
-                <Text style={{ ...Type.bodyBold, color: c.text, flexShrink: 1 }} numberOfLines={2}>
-                  {t(`add.${action}`)}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
+          {/* Two rows of two tiles. */}
+          {[TILES.slice(0, 2), TILES.slice(2, 4)].map((row) => (
+            <View key={row[0].action} style={{ flexDirection: "row", gap: Space.sm }}>
+              {row.map(({ action, Icon }) => (
+                <Pressable
+                  key={action}
+                  onPress={() => choose(action)}
+                  accessibilityRole="button"
+                  style={({ pressed }) => ({
+                    flex: 1,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: Space.sm,
+                    padding: Space.md,
+                    borderRadius: Radius.lg,
+                    borderWidth: 1,
+                    borderColor: c.cardBorder,
+                    backgroundColor: pressed ? c.primaryDim : c.card,
+                  })}
+                >
+                  <View style={{ width: 32, height: 32, borderRadius: Radius.md, backgroundColor: c.primaryDim, alignItems: "center", justifyContent: "center" }}>
+                    <Icon size={17} color={c.primary} strokeWidth={2} />
+                  </View>
+                  <Text style={{ ...Type.bodyBold, color: c.text, flexShrink: 1 }} numberOfLines={2}>
+                    {t(`add.${action}`)}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          ))}
         </View>
       </Sheet>
 

@@ -567,7 +567,7 @@ export default function ExpensesView({
     const isUploading = state === "uploading";
 
     return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: c.bg }}>
+      <SafeAreaView edges={["bottom"]} style={{ flex: 1, backgroundColor: c.bg }}>
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : "height"}
           keyboardVerticalOffset={keyboardOffset}
@@ -806,7 +806,7 @@ export default function ExpensesView({
   // ── Idle View (main screen) ───────────────────────────────────────────────
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: c.bg }}>
+    <SafeAreaView edges={["bottom"]} style={{ flex: 1, backgroundColor: c.bg }}>
       <ScrollView
         contentContainerStyle={{ paddingHorizontal: Space.xl, paddingBottom: ADD_CLEARANCE }}
         showsVerticalScrollIndicator={false}
@@ -818,12 +818,8 @@ export default function ExpensesView({
           />
         }
       >
-        {/* Header */}
-        <View style={{ paddingTop: Space.lg, paddingBottom: Space.xxl }}>
-          <Text style={{ ...Type.hero, color: c.text }}>
-            Expenses
-          </Text>
-        </View>
+        {/* No title of its own: the Money tab's header and switcher name it. */}
+        <View style={{ height: Space.md }} />
 
         {/* ── Summary Metrics ── */}
         <View style={{ flexDirection: "row", gap: Space.md, marginBottom: Space.xl }}>
