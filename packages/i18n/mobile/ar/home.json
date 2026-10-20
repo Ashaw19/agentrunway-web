@@ -1,119 +1,151 @@
 {
   "greeting": {
-    "morning": "Good morning",
-    "afternoon": "Good afternoon",
-    "evening": "Good evening"
+    "morning": "صباح الخير",
+    "afternoon": "نهارك سعيد",
+    "evening": "مساء الخير"
   },
   "score": {
-    "runwayScore": "RUNWAY SCORE",
+    "runwayScore": "درجة Runway",
     "outOf": "/100",
-    "strong": "Strong",
-    "onTrack": "On Track",
-    "building": "Building",
-    "atRisk": "At Risk",
-    "tapForDetails": "{{label}} · Tap for details",
-    "description": "Based on goal pace, pipeline coverage, expenses, and cash reserves"
+    "strong": "قوي",
+    "onTrack": "على المسار الصحيح",
+    "building": "في تقدّم",
+    "atRisk": "في خطر",
+    "tapForDetails": "{{label}} · اضغط لعرض التفاصيل",
+    "description": "بناءً على وتيرة الهدف وتغطية الصفقات الجارية والمصروفات والاحتياطي النقدي"
   },
   "scoreBar": {
-    "pace": "Pace",
-    "pipeline": "Pipeline",
-    "expenses": "Expenses",
-    "bench": "Bench",
-    "survival": "Survival"
+    "pace": "الوتيرة",
+    "pipeline": "الصفقات الجارية",
+    "expenses": "المصروفات",
+    "bench": "المقارنة",
+    "survival": "الاستمرارية"
   },
   "metrics": {
-    "ytdGci": "YTD GCI",
-    "goalPace": "Goal Pace",
-    "activePipeline": "Active Pipeline",
-    "closedDeals": "Closed Deals",
-    "dealsClosed": "Deals Closed",
-    "pipelineValue": "Pipeline Value",
-    "pipeline": "Pipeline",
-    "clients": "Clients",
-    "pending": "Pending",
-    "deals": "{{count}} deals",
-    "needFollowUp": "{{count}} need follow-up"
+    "ytdGci": "إجمالي العمولات هذا العام",
+    "goalPace": "وتيرة الهدف",
+    "activePipeline": "الصفقات الجارية",
+    "closedDeals": "الصفقات المُغلقة",
+    "dealsClosed": "الصفقات المُغلقة",
+    "pipelineValue": "قيمة الصفقات الجارية",
+    "pipeline": "الصفقات الجارية",
+    "clients": "العملاء",
+    "pending": "قيد الإغلاق",
+    "deals_zero": "لا صفقات",
+    "deals_one": "صفقة واحدة",
+    "deals_two": "صفقتان",
+    "deals_few": "{{count}} صفقات",
+    "deals_many": "{{count}} صفقة",
+    "deals_other": "{{count}} صفقة",
+    "needFollowUp_zero": "لا أحد بانتظار المتابعة",
+    "needFollowUp_one": "عميل واحد بانتظار المتابعة",
+    "needFollowUp_two": "عميلان بانتظار المتابعة",
+    "needFollowUp_few": "{{count}} عملاء بانتظار المتابعة",
+    "needFollowUp_many": "{{count}} عميلًا بانتظار المتابعة",
+    "needFollowUp_other": "{{count}} عميل بانتظار المتابعة"
   },
   "actions": {
-    "overdue": "overdue",
-    "ready": "ready",
-    "pending": "pending",
-    "followUps": "follow-ups",
-    "newLeads": "New Leads",
-    "pendingDeals": "Pending Deals",
-    "allCaughtUp": "All caught up"
+    "overdue": "متأخرة",
+    "ready": "جاهزة",
+    "pending": "قيد الإغلاق",
+    "followUps": "متابعات",
+    "newLeads": "عملاء محتملون جدد",
+    "pendingDeals": "صفقات قيد الإغلاق",
+    "allCaughtUp": "لا شيء متأخر"
   },
   "sync": {
-    "offline": "Offline — changes saved locally",
-    "pendingSync": "{{count}} change pending sync",
-    "pendingSync_plural": "{{count}} changes pending sync",
-    "updating": "Updating…"
+    "offline": "غير متصل: التغييرات محفوظة على هذا الجهاز",
+    "pendingSync_zero": "لا تغييرات في انتظار المزامنة",
+    "pendingSync_one": "تغيير واحد في انتظار المزامنة",
+    "pendingSync_two": "تغييران في انتظار المزامنة",
+    "pendingSync_few": "{{count}} تغييرات في انتظار المزامنة",
+    "pendingSync_many": "{{count}} تغييرًا في انتظار المزامنة",
+    "pendingSync_other": "{{count}} تغيير في انتظار المزامنة",
+    "updating": "جارٍ التحديث…"
   },
   "streak": {
-    "loggedToday": "{{count}} logged today",
-    "dayStreak": "{{count}}-day streak"
+    "loggedToday_zero": "لا أنشطة مسجّلة اليوم",
+    "loggedToday_one": "نشاط واحد مسجّل اليوم",
+    "loggedToday_two": "نشاطان مسجّلان اليوم",
+    "loggedToday_few": "{{count}} أنشطة مسجّلة اليوم",
+    "loggedToday_many": "{{count}} نشاطًا مسجّلًا اليوم",
+    "loggedToday_other": "{{count}} نشاط مسجّل اليوم",
+    "dayStreak_zero": "أيام متتالية: {{count}}",
+    "dayStreak_one": "يوم واحد على التوالي",
+    "dayStreak_two": "يومان على التوالي",
+    "dayStreak_few": "{{count}} أيام على التوالي",
+    "dayStreak_many": "{{count}} يومًا على التوالي",
+    "dayStreak_other": "{{count}} يوم على التوالي"
   },
   "briefing": {
-    "title": "TODAY'S FOCUS",
-    "noBriefing": "No briefing items today",
-    "itemCount": "{{count}} item",
-    "itemCount_plural": "{{count}} items",
+    "title": "أولويات اليوم",
+    "noBriefing": "لا عناصر في موجز اليوم",
+    "itemCount_zero": "لا عناصر",
+    "itemCount_one": "عنصر واحد",
+    "itemCount_two": "عنصران",
+    "itemCount_few": "{{count}} عناصر",
+    "itemCount_many": "{{count}} عنصرًا",
+    "itemCount_other": "{{count}} عنصر",
     "types": {
-      "vip_overdue": "VIP overdue",
-      "uncontacted_lead": "Uncontacted lead",
-      "in_flight_stale": "Active deal silent",
-      "birthday_today": "Birthday today",
-      "birthday_soon": "Birthday soon",
-      "closing_anniversary": "Closing anniversary",
-      "mortgage_renewal_window": "Mortgage renewal window",
-      "mortgage_renewal_due": "Mortgage renewal due",
-      "past_client_check_in": "Past-client check-in",
-      "timeframe_approaching": "Timeframe approaching",
-      "property_value_milestone": "Property value milestone",
-      "no_contact_info": "Missing contact info",
-      "possible_duplicate": "Possible duplicate",
-      "listing_appointment_overdue": "Listing appointment overdue",
-      "listing_stale": "Listing stale",
-      "hot_pipeline": "Hot pipeline",
-      "task_due_today": "Task due today",
-      "overdue_followup": "Overdue follow-up",
-      "unknown": "Action needed"
+      "vip_overdue": "عميل VIP تأخر التواصل معه",
+      "uncontacted_lead": "عميل محتمل لم يُتواصل معه",
+      "in_flight_stale": "صفقة نشطة بلا أي حركة",
+      "birthday_today": "عيد ميلاد اليوم",
+      "birthday_soon": "عيد ميلاد قريب",
+      "closing_anniversary": "ذكرى إتمام الصفقة",
+      "mortgage_renewal_window": "اقتراب فترة تجديد الرهن العقاري",
+      "mortgage_renewal_due": "تجديد الرهن العقاري قريب",
+      "past_client_check_in": "الاطمئنان على عميل سابق",
+      "timeframe_approaching": "الإطار الزمني يقترب",
+      "property_value_milestone": "محطة في قيمة العقار",
+      "no_contact_info": "معلومات الاتصال ناقصة",
+      "possible_duplicate": "تكرار محتمل",
+      "listing_appointment_overdue": "موعد إدراج متأخر",
+      "listing_stale": "إدراج بلا حركة",
+      "hot_pipeline": "صفقة جارية واعدة",
+      "task_due_today": "مهمة مستحقة اليوم",
+      "overdue_followup": "متابعة متأخرة",
+      "unknown": "إجراء معلّق"
     }
   },
   "goal": {
-    "annualGoal": "ANNUAL GOAL",
-    "ofGoal": "{{current}} of {{goal}}"
+    "annualGoal": "الهدف السنوي",
+    "ofGoal": "{{current}} من {{goal}}"
   },
   "nextUp": {
     "title": "NEXT UP",
-    "overdue": "Overdue",
-    "high": "HIGH"
+    "overdue": "متأخرة",
+    "high": "عالية",
+    "seeAll": "قائمة المهام ({{count}})",
+    "tickOff": "اضغط لتحديدها كمنجزة",
+    "ticked": "حُدّدت كمنجزة."
   },
   "pipelinePreview": {
-    "title": "PIPELINE",
-    "seeAll": "See all",
-    "pipelineDeal": "Pipeline Deal"
+    "title": "الصفقات الجارية",
+    "seeAll": "عرض الكل",
+    "pipelineDeal": "صفقة جارية"
   },
   "quickAccess": {
-    "label": "QUICK ACCESS",
-    "briefing": "Briefing",
+    "label": "وصول سريع",
+    "briefing": "الموجز",
     "outreach": "Flight Control",
-    "forecast": "Forecast",
-    "receipt": "Receipt"
+    "forecast": "التوقعات",
+    "receipt": "إيصال"
   },
   "quickCapture": {
-    "title": "Quick Capture",
-    "clientLabel": "CLIENT",
-    "typeLabel": "TYPE",
-    "notesLabel": "NOTES",
-    "searchClient": "Search client name...",
-    "notesPlaceholder": "What happened?",
+    "title": "تسجيل سريع",
+    "clientLabel": "العميل",
+    "typeLabel": "النوع",
+    "notesLabel": "الملاحظات",
+    "searchClient": "ابحث باسم العميل...",
+    "notesPlaceholder": "ماذا حدث؟",
     "activityTypes": {
-      "call": "Call",
-      "text": "Text",
-      "showing": "Showing",
-      "meeting": "Meeting",
-      "note": "Note"
-    }
+      "call": "مكالمة",
+      "text": "رسالة نصية",
+      "showing": "معاينة",
+      "meeting": "اجتماع",
+      "note": "ملاحظة"
+    },
+    "noteNotContact": "الملاحظات لا تُحتسب تواصلًا. اختر مكالمة أو رسالة نصية أو معاينة أو اجتماع إذا تحدثت معهم."
   }
 }

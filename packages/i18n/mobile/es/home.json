@@ -1,119 +1,133 @@
 {
   "greeting": {
-    "morning": "Good morning",
-    "afternoon": "Good afternoon",
-    "evening": "Good evening"
+    "morning": "Buenos días",
+    "afternoon": "Buenas tardes",
+    "evening": "Buenas noches"
   },
   "score": {
-    "runwayScore": "RUNWAY SCORE",
+    "runwayScore": "Puntuación Runway",
     "outOf": "/100",
-    "strong": "Strong",
-    "onTrack": "On Track",
-    "building": "Building",
-    "atRisk": "At Risk",
-    "tapForDetails": "{{label}} · Tap for details",
-    "description": "Based on goal pace, pipeline coverage, expenses, and cash reserves"
+    "strong": "Sólido",
+    "onTrack": "En camino",
+    "building": "En desarrollo",
+    "atRisk": "En riesgo",
+    "tapForDetails": "{{label}} · Toca para ver detalles",
+    "description": "Según el ritmo hacia tu meta, la cobertura de tu cartera, los gastos y las reservas de efectivo"
   },
   "scoreBar": {
-    "pace": "Pace",
-    "pipeline": "Pipeline",
-    "expenses": "Expenses",
-    "bench": "Bench",
-    "survival": "Survival"
+    "pace": "Ritmo",
+    "pipeline": "Cartera",
+    "expenses": "Gastos",
+    "bench": "Comparación",
+    "survival": "Supervivencia"
   },
   "metrics": {
-    "ytdGci": "YTD GCI",
-    "goalPace": "Goal Pace",
-    "activePipeline": "Active Pipeline",
-    "closedDeals": "Closed Deals",
-    "dealsClosed": "Deals Closed",
-    "pipelineValue": "Pipeline Value",
-    "pipeline": "Pipeline",
-    "clients": "Clients",
-    "pending": "Pending",
-    "deals": "{{count}} deals",
-    "needFollowUp": "{{count}} need follow-up"
+    "ytdGci": "Comisión bruta del año",
+    "goalPace": "Ritmo hacia la meta",
+    "activePipeline": "Cartera activa",
+    "closedDeals": "Operaciones cerradas",
+    "dealsClosed": "Operaciones cerradas",
+    "pipelineValue": "Valor de la cartera",
+    "pipeline": "Cartera",
+    "clients": "Clientes",
+    "pending": "Pendientes",
+    "deals_one": "{{count}} operación",
+    "deals_many": "{{count}} de operaciones",
+    "deals_other": "{{count}} operaciones",
+    "needFollowUp_one": "{{count}} con seguimiento pendiente",
+    "needFollowUp_many": "{{count}} con seguimiento pendiente",
+    "needFollowUp_other": "{{count}} con seguimiento pendiente"
   },
   "actions": {
-    "overdue": "overdue",
-    "ready": "ready",
-    "pending": "pending",
-    "followUps": "follow-ups",
-    "newLeads": "New Leads",
-    "pendingDeals": "Pending Deals",
-    "allCaughtUp": "All caught up"
+    "overdue": "vencidas",
+    "ready": "listos",
+    "pending": "pendientes",
+    "followUps": "seguimientos",
+    "newLeads": "Prospectos nuevos",
+    "pendingDeals": "Operaciones pendientes",
+    "allCaughtUp": "Todo al día"
   },
   "sync": {
-    "offline": "Offline — changes saved locally",
-    "pendingSync": "{{count}} change pending sync",
-    "pendingSync_plural": "{{count}} changes pending sync",
-    "updating": "Updating…"
+    "offline": "Sin conexión: los cambios se guardan en este dispositivo",
+    "pendingSync_one": "{{count}} cambio pendiente de sincronizar",
+    "pendingSync_many": "{{count}} de cambios pendientes de sincronizar",
+    "pendingSync_other": "{{count}} cambios pendientes de sincronizar",
+    "updating": "Actualizando…"
   },
   "streak": {
-    "loggedToday": "{{count}} logged today",
-    "dayStreak": "{{count}}-day streak"
+    "loggedToday_one": "{{count}} actividad registrada hoy",
+    "loggedToday_many": "{{count}} de actividades registradas hoy",
+    "loggedToday_other": "{{count}} actividades registradas hoy",
+    "dayStreak_one": "Racha de {{count}} día",
+    "dayStreak_many": "Racha de {{count}} de días",
+    "dayStreak_other": "Racha de {{count}} días"
   },
   "briefing": {
-    "title": "TODAY'S FOCUS",
-    "noBriefing": "No briefing items today",
-    "itemCount": "{{count}} item",
-    "itemCount_plural": "{{count}} items",
+    "title": "PRIORIDADES DE HOY",
+    "noBriefing": "No hay nada en el resumen de hoy",
+    "itemCount_one": "{{count}} elemento",
+    "itemCount_many": "{{count}} de elementos",
+    "itemCount_other": "{{count}} elementos",
     "types": {
-      "vip_overdue": "VIP overdue",
-      "uncontacted_lead": "Uncontacted lead",
-      "in_flight_stale": "Active deal silent",
-      "birthday_today": "Birthday today",
-      "birthday_soon": "Birthday soon",
-      "closing_anniversary": "Closing anniversary",
-      "mortgage_renewal_window": "Mortgage renewal window",
-      "mortgage_renewal_due": "Mortgage renewal due",
-      "past_client_check_in": "Past-client check-in",
-      "timeframe_approaching": "Timeframe approaching",
-      "property_value_milestone": "Property value milestone",
-      "no_contact_info": "Missing contact info",
-      "possible_duplicate": "Possible duplicate",
-      "listing_appointment_overdue": "Listing appointment overdue",
-      "listing_stale": "Listing stale",
-      "hot_pipeline": "Hot pipeline",
-      "task_due_today": "Task due today",
-      "overdue_followup": "Overdue follow-up",
-      "unknown": "Action needed"
+      "vip_overdue": "VIP con contacto atrasado",
+      "uncontacted_lead": "Prospecto sin contactar",
+      "in_flight_stale": "Operación activa sin movimiento",
+      "birthday_today": "Cumpleaños hoy",
+      "birthday_soon": "Cumpleaños próximo",
+      "closing_anniversary": "Aniversario de cierre",
+      "mortgage_renewal_window": "Periodo de renovación de hipoteca",
+      "mortgage_renewal_due": "Renovación de hipoteca próxima",
+      "past_client_check_in": "Saludo a un excliente",
+      "timeframe_approaching": "Se acerca su plazo",
+      "property_value_milestone": "Hito en el valor de la propiedad",
+      "no_contact_info": "Faltan datos de contacto",
+      "possible_duplicate": "Posible duplicado",
+      "listing_appointment_overdue": "Cita de listado atrasada",
+      "listing_stale": "Listado sin movimiento",
+      "hot_pipeline": "Operación prometedora",
+      "task_due_today": "Tarea para hoy",
+      "overdue_followup": "Seguimiento atrasado",
+      "unknown": "Acción pendiente"
     }
   },
   "goal": {
-    "annualGoal": "ANNUAL GOAL",
-    "ofGoal": "{{current}} of {{goal}}"
+    "annualGoal": "META ANUAL",
+    "ofGoal": "{{current}} de {{goal}}"
   },
   "nextUp": {
     "title": "NEXT UP",
-    "overdue": "Overdue",
-    "high": "HIGH"
+    "overdue": "Vencida",
+    "high": "ALTA",
+    "seeAll": "Lista de tareas ({{count}})",
+    "tickOff": "Toca para marcarla como hecha",
+    "ticked": "Marcada como hecha."
   },
   "pipelinePreview": {
-    "title": "PIPELINE",
-    "seeAll": "See all",
-    "pipelineDeal": "Pipeline Deal"
+    "title": "CARTERA",
+    "seeAll": "Ver todo",
+    "pipelineDeal": "Operación en cartera"
   },
   "quickAccess": {
-    "label": "QUICK ACCESS",
-    "briefing": "Briefing",
+    "label": "ACCESO RÁPIDO",
+    "briefing": "Resumen",
     "outreach": "Flight Control",
-    "forecast": "Forecast",
-    "receipt": "Receipt"
+    "forecast": "Proyección",
+    "receipt": "Recibo"
   },
   "quickCapture": {
-    "title": "Quick Capture",
-    "clientLabel": "CLIENT",
-    "typeLabel": "TYPE",
-    "notesLabel": "NOTES",
-    "searchClient": "Search client name...",
-    "notesPlaceholder": "What happened?",
+    "title": "Registro rápido",
+    "clientLabel": "CLIENTE",
+    "typeLabel": "TIPO",
+    "notesLabel": "NOTAS",
+    "searchClient": "Buscar por nombre del cliente...",
+    "notesPlaceholder": "¿Qué pasó?",
     "activityTypes": {
-      "call": "Call",
-      "text": "Text",
-      "showing": "Showing",
-      "meeting": "Meeting",
-      "note": "Note"
-    }
+      "call": "Llamada",
+      "text": "Texto",
+      "showing": "Visita",
+      "meeting": "Reunión",
+      "note": "Nota"
+    },
+    "noteNotContact": "Las notas no cuentan como contacto. Elige Llamada, Texto, Visita o Reunión si hablaste con esta persona."
   }
 }
