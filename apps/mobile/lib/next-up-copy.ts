@@ -5,8 +5,10 @@
  *
  * Counts go through i18next plurals: the app runs i18next 24 (JSON v4), so a
  * key with a count resolves `<key>_one` / `<key>_other` (and the other
- * plural forms a language has). `_plural` keys are not read automatically
- * (lib/__tests__/next-up-copy.test.ts renders 1 and 2 through lib/i18n.ts).
+ * plural forms a language has: Arabic six, French and Spanish three, Chinese
+ * one). A `_plural` key is never read, and none is left in any locale
+ * (lib/__tests__/next-up-copy.test.ts renders 1 and 2 through lib/i18n.ts;
+ * lib/__tests__/next-up-locales.test.ts holds the forms of every language).
  *
  * Days are calendar days (YYYY-MM-DD): printed from local noon with
  * toLocaleDateString and no timeZone, so the printed day is the day stored.

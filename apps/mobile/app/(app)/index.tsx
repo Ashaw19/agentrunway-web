@@ -748,7 +748,7 @@ export default function DashboardScreen() {
           {!isOnline
             ? t("sync.offline")
             : offlinePending > 0
-              ? t(offlinePending === 1 ? "sync.pendingSync" : "sync.pendingSync_plural", { count: offlinePending })
+              ? t("sync.pendingSync", { count: offlinePending })
               : isLoading
                 ? t("sync.updating")
                 : lastFetched

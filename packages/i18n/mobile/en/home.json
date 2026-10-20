@@ -45,8 +45,8 @@
   },
   "sync": {
     "offline": "Offline — changes saved locally",
-    "pendingSync": "{{count}} change pending sync",
-    "pendingSync_plural": "{{count}} changes pending sync",
+    "pendingSync_one": "{{count}} change pending sync",
+    "pendingSync_other": "{{count}} changes pending sync",
     "updating": "Updating…"
   },
   "streak": {
@@ -56,8 +56,8 @@
   "briefing": {
     "title": "TODAY'S FOCUS",
     "noBriefing": "No briefing items today",
-    "itemCount": "{{count}} item",
-    "itemCount_plural": "{{count}} items",
+    "itemCount_one": "{{count}} item",
+    "itemCount_other": "{{count}} items",
     "types": {
       "vip_overdue": "VIP overdue",
       "uncontacted_lead": "Uncontacted lead",

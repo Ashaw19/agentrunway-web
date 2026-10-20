@@ -5,8 +5,9 @@
  *
  * What this holds:
  *   - plurals: every count key in the new namespaces reads right at 1 and 2
- *     (i18next 24 resolves `_one` / `_other`; an old `_plural` key is never
- *     picked by i18next itself, so its callers choose it by hand)
+ *     (i18next 24 resolves `_one` / `_other`; it never picks a `_plural` key,
+ *     so the two old ones, sync.pendingSync and briefing.itemCount, are
+ *     `_one` / `_other` now and read right at 1 and 2 too)
  *   - the welcome's context and progress lines, the card and row lines, the
  *     all-clear card
  *   - the toasts after a card's button, as web Flight Control words them
@@ -93,9 +94,11 @@ describe("plurals through the app's i18n (R3)", () => {
     expect(t("stack.receipts", { count: 2 })).toBe("2 receipts have no date");
   });
 
-  it("an old _plural key is not picked by i18next 24 (its callers choose it by hand)", () => {
-    expect(t("sync.pendingSync", { count: 2 })).toBe("2 change pending sync");
-    expect(t("sync.pendingSync_plural", { count: 2 })).toBe("2 changes pending sync");
+  it("the sync line's count key, once a _plural key, resolves by itself (R23)", () => {
+    expect(t("sync.pendingSync", { count: 1 })).toBe("1 change pending sync");
+    expect(t("sync.pendingSync", { count: 2 })).toBe("2 changes pending sync");
+    expect(t("briefing.itemCount", { count: 1 })).toBe("1 item");
+    expect(t("briefing.itemCount", { count: 5 })).toBe("5 items");
   });
 });
 

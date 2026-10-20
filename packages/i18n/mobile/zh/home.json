@@ -45,8 +45,7 @@
   },
   "sync": {
     "offline": "Offline — changes saved locally",
-    "pendingSync": "{{count}} change pending sync",
-    "pendingSync_plural": "{{count}} changes pending sync",
+    "pendingSync_other": "{{count}} 项更改等待同步",
     "updating": "Updating…"
   },
   "streak": {
@@ -56,8 +55,7 @@
   "briefing": {
     "title": "TODAY'S FOCUS",
     "noBriefing": "No briefing items today",
-    "itemCount": "{{count}} item",
-    "itemCount_plural": "{{count}} items",
+    "itemCount_other": "{{count}} 项",
     "types": {
       "vip_overdue": "VIP overdue",
       "uncontacted_lead": "Uncontacted lead",
@@ -115,5 +113,153 @@
       "meeting": "Meeting",
       "note": "Note"
     }
+  },
+  "welcome": {
+    "greeting": "{{greeting}}，{{name}}",
+    "showings_other": "今天有 {{count}} 次看房",
+    "appointments_other": "今天有 {{count}} 个上市面谈",
+    "showingsAndAppointments": "今天有 {{showings}}和 {{appointments}}",
+    "showingCount_other": "{{count}} 次看房",
+    "appointmentCount_other": "{{count}} 个上市面谈",
+    "waiting_other": "{{count}} 件事待处理",
+    "allClear": "目前没有待处理的事项",
+    "progress": "今天已完成 {{done}} / {{target}}",
+    "streak": "连续 {{count}} 天"
+  },
+  "stack": {
+    "title": "NEXT UP",
+    "position": "{{index}} / {{total}}",
+    "newLead": "打电话给 {{name}}",
+    "newLeadDetail_other": "新线索 · 已过 {{count}} 小时，尚未联系",
+    "overdue_other": "{{count}} 项任务已逾期",
+    "overdueOldest": "最早的：{{title}}，截止{{day}}",
+    "taskDue": "{{title}}，截止{{day}}",
+    "tasksToday_other": "今天有 {{count}} 项任务到期",
+    "dealCloses_other": "{{address}}：还有 {{count}} 天交割",
+    "dealClosesToday": "{{address}}：今天交割",
+    "conditionsDue_other": "条件还有 {{count}} 天到期",
+    "conditionsDueToday": "条件今天到期",
+    "aDeal": "一笔交易",
+    "briefing": "你的早间简报",
+    "briefingDetail_other": "{{count}} 项待查看",
+    "returning": "从“稍后”回来",
+    "messages_other": "{{count}} 条消息待发送",
+    "messagesDetail": "已起草，等你发送",
+    "voiceNote": "今天有什么要记下的吗？",
+    "receipts_other": "{{count}} 张收据没有日期",
+    "trips": "记录今天的行程",
+    "today": "今天",
+    "tomorrow": "明天",
+    "yesterday": "昨天"
+  },
+  "alsoWaiting": {
+    "title": "另外待处理",
+    "checklist": "清单",
+    "checklistDetail_other": "{{count}} 项待勾选",
+    "newLeads": "新线索",
+    "newLeadsOne": "{{name}}，尚未联系",
+    "newLeadsDetail": "尚未联系",
+    "deals": "交易",
+    "dealsDetail": "交割日期和截止日期",
+    "dealPassed_other": "交割日已过去 {{count}} 天",
+    "dealDeadline_other": "{{count}} 天后截止",
+    "dealDeadlineToday": "今天截止",
+    "handful": "今日精选",
+    "handfulDetail": "Flight Control 今天挑出的人",
+    "messages": "待发送消息",
+    "messagesDetail": "已起草，等你发送",
+    "receipts": "收据",
+    "markDone": "标记完成"
+  },
+  "allClear": {
+    "title": "你已全部处理完毕",
+    "nothingUrgent": "目前没有紧急事项",
+    "nextShowing": "下一次看房：{{day}}",
+    "nextAppointment": "下一个上市面谈：{{day}}",
+    "nextTask": "下一项任务：{{title}}，{{day}}",
+    "nothing": "没有其他安排"
+  },
+  "cardActions": {
+    "call": "打电话",
+    "text": "发短信",
+    "later": "稍后",
+    "openChecklist": "打开清单",
+    "markOneDone": "完成一项",
+    "open": "打开",
+    "notNow": "暂不",
+    "recordNote": "语音备注"
+  },
+  "later": {
+    "title": "稍后再显示",
+    "inAnHour": "一小时后",
+    "tonight": "今晚",
+    "tomorrow": "明天早上"
+  },
+  "dismiss": {
+    "title": "{{name}} 暂不跟进？",
+    "alreadyTalked": "已经联系过了",
+    "later": "稍后",
+    "skip": "这次先跳过",
+    "stop": "不再提示",
+    "threeMonths": "3 个月内",
+    "sixMonths": "6 个月内",
+    "hangar": "移到 Hangar",
+    "inPerson": "当面",
+    "call": "电话",
+    "text": "短信",
+    "hangarConfirmTitle": "把 {{name}} 移到 Hangar？",
+    "hangarConfirmBody": "对方会从你的活跃客户列表中移出，不再出现在这里。历史记录和交易都会保留，你随时可以从 Hangar 把对方移回来。",
+    "cancel": "取消",
+    "thisClient": "这位客户"
+  },
+  "postCall": {
+    "title": "和 {{name}} 的通话怎么样？",
+    "logOnly": "只记录这次通话",
+    "notNow": "暂不",
+    "dayTitle": "今天过得怎么样？",
+    "review": "查看你的备注"
+  },
+  "nextUpToast": {
+    "skipped": "这次先跳过 {{name}}。出现下一个联系理由时会再出现。",
+    "backInAnHour": "{{name}} 一小时后回来。",
+    "backTonight": "{{name}} 今晚回来。",
+    "backTomorrow": "{{name}} 明天回来。",
+    "backLater": "{{name}} 稍后回来。",
+    "cardInAnHour": "一小时后回来。",
+    "cardTonight": "今晚回来。",
+    "cardTomorrow": "明天早上回来。",
+    "stoppedThreeMonths": "3 个月内不再提示 {{name}}。",
+    "stoppedSixMonths": "6 个月内不再提示 {{name}}。",
+    "stoppedAWhile": "一段时间内不再提示 {{name}}。",
+    "hangar": "{{name}} 已移到 Hangar。",
+    "loggedCall": "已记录你与 {{name}} 的通话。",
+    "loggedText": "已记录你与 {{name}} 的短信。",
+    "loggedMeeting": "已记录你与 {{name}} 的会面。",
+    "resumed": "已重新开启这位客户的提示。",
+    "offline": "没有网络连接。请重试。",
+    "couldntSave": "无法为 {{name}} 保存。请重试。",
+    "undo": "撤销",
+    "undoFailed": "无法撤销。请重试。",
+    "undoNoPin": "已撤销。对方可能要到明天才会出现在今天的列表中。",
+    "thisClient": "这位客户",
+    "thisClientStart": "这位客户"
+  },
+  "textFlow": {
+    "callInstead": "改为打电话",
+    "notQueuedTitle": "不在你的队列中",
+    "notQueued": "这条短信已不在待发送队列中。",
+    "draftFailedTitle": "无法起草短信",
+    "noDraft": "没有为 {{name}} 起草短信。"
+  },
+  "scoreSheet": {
+    "down": "比上周下降 {{count}}",
+    "up": "比上周上升 {{count}}",
+    "asOf": "截至 {{day}}",
+    "lowest": "最低的部分：{{part}}，{{score}} 分（满分 100）。",
+    "fullBreakdown": "完整明细",
+    "noScore": "打开网页版仪表板，生成你的评分明细。"
+  },
+  "yourNumbers": {
+    "title": "你的数据"
   }
 }
