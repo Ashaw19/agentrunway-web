@@ -1,118 +1,122 @@
 {
   "greeting": {
-    "morning": "Good morning",
-    "afternoon": "Good afternoon",
-    "evening": "Good evening"
+    "morning": "早晨",
+    "afternoon": "午安",
+    "evening": "晚上好"
   },
   "score": {
-    "runwayScore": "RUNWAY SCORE",
+    "runwayScore": "Runway 評分",
     "outOf": "/100",
-    "strong": "Strong",
-    "onTrack": "On Track",
-    "building": "Building",
-    "atRisk": "At Risk",
-    "tapForDetails": "{{label}} · Tap for details",
-    "description": "Based on goal pace, pipeline coverage, expenses, and cash reserves"
+    "strong": "強勁",
+    "onTrack": "進展順利",
+    "building": "提升中",
+    "atRisk": "有風險",
+    "tapForDetails": "{{label}} · 輕按查看詳情",
+    "description": "根據目標進度、洽談中交易覆蓋率、支出及現金儲備"
   },
   "scoreBar": {
-    "pace": "Pace",
-    "pipeline": "Pipeline",
-    "expenses": "Expenses",
-    "bench": "Bench",
-    "survival": "Survival"
+    "pace": "進度",
+    "pipeline": "洽談中交易",
+    "expenses": "支出",
+    "bench": "對比",
+    "survival": "現金續航"
   },
   "metrics": {
-    "ytdGci": "YTD GCI",
-    "goalPace": "Goal Pace",
-    "activePipeline": "Active Pipeline",
-    "closedDeals": "Closed Deals",
-    "dealsClosed": "Deals Closed",
-    "pipelineValue": "Pipeline Value",
-    "pipeline": "Pipeline",
-    "clients": "Clients",
-    "pending": "Pending",
-    "deals": "{{count}} deals",
-    "needFollowUp": "{{count}} need follow-up"
+    "ytdGci": "今年佣金總額",
+    "goalPace": "目標進度",
+    "activePipeline": "洽談中交易",
+    "closedDeals": "已成交",
+    "dealsClosed": "已成交",
+    "pipelineValue": "洽談中交易金額",
+    "pipeline": "洽談中交易",
+    "clients": "客戶",
+    "pending": "待交割",
+    "deals_other": "{{count}} 宗交易",
+    "needFollowUp_other": "{{count}} 位待跟進"
   },
   "actions": {
-    "overdue": "overdue",
-    "ready": "ready",
-    "pending": "pending",
-    "followUps": "follow-ups",
-    "newLeads": "New Leads",
-    "pendingDeals": "Pending Deals",
-    "allCaughtUp": "All caught up"
+    "overdue": "已逾期",
+    "ready": "待發送",
+    "pending": "待交割",
+    "followUps": "待跟進",
+    "newLeads": "新線索",
+    "pendingDeals": "待交割交易",
+    "allCaughtUp": "全部處理完畢"
   },
   "sync": {
-    "offline": "Offline — changes saved locally",
+    "offline": "離線：更改已儲存在本機",
     "pendingSync_other": "{{count}} 項更改等待同步",
-    "updating": "Updating…"
+    "updating": "更新中…"
   },
   "streak": {
-    "loggedToday": "{{count}} logged today",
-    "dayStreak": "{{count}}-day streak"
+    "loggedToday_other": "今日已記錄 {{count}} 項",
+    "dayStreak_other": "連續 {{count}} 日"
   },
   "briefing": {
-    "title": "TODAY'S FOCUS",
-    "noBriefing": "No briefing items today",
+    "title": "今日重點",
+    "noBriefing": "今日沒有簡報事項",
     "itemCount_other": "{{count}} 項",
     "types": {
-      "vip_overdue": "VIP overdue",
-      "uncontacted_lead": "Uncontacted lead",
-      "in_flight_stale": "Active deal silent",
-      "birthday_today": "Birthday today",
-      "birthday_soon": "Birthday soon",
-      "closing_anniversary": "Closing anniversary",
-      "mortgage_renewal_window": "Mortgage renewal window",
-      "mortgage_renewal_due": "Mortgage renewal due",
-      "past_client_check_in": "Past-client check-in",
-      "timeframe_approaching": "Timeframe approaching",
-      "property_value_milestone": "Property value milestone",
-      "no_contact_info": "Missing contact info",
-      "possible_duplicate": "Possible duplicate",
-      "listing_appointment_overdue": "Listing appointment overdue",
-      "listing_stale": "Listing stale",
-      "hot_pipeline": "Hot pipeline",
-      "task_due_today": "Task due today",
-      "overdue_followup": "Overdue follow-up",
-      "unknown": "Action needed"
+      "vip_overdue": "VIP 客戶久未聯絡",
+      "uncontacted_lead": "未聯絡的線索",
+      "in_flight_stale": "進行中的交易沒有動靜",
+      "birthday_today": "今日生日",
+      "birthday_soon": "生日將至",
+      "closing_anniversary": "成交周年",
+      "mortgage_renewal_window": "按揭續期窗口期",
+      "mortgage_renewal_due": "按揭續期即將到期",
+      "past_client_check_in": "問候舊客戶",
+      "timeframe_approaching": "客戶的時間節點臨近",
+      "property_value_milestone": "物業價值里程碑",
+      "no_contact_info": "缺少聯絡資料",
+      "possible_duplicate": "可能重複",
+      "listing_appointment_overdue": "放盤面談已逾期",
+      "listing_stale": "放盤沒有動靜",
+      "hot_pipeline": "熱門洽談中交易",
+      "task_due_today": "今日到期的任務",
+      "overdue_followup": "跟進已逾期",
+      "unknown": "待處理"
     }
   },
   "goal": {
-    "annualGoal": "ANNUAL GOAL",
-    "ofGoal": "{{current}} of {{goal}}"
+    "annualGoal": "年度目標",
+    "ofGoal": "{{current}} / {{goal}}"
   },
   "nextUp": {
     "title": "NEXT UP",
-    "overdue": "Overdue",
-    "high": "HIGH"
+    "overdue": "已逾期",
+    "high": "高",
+    "seeAll": "清單（{{count}}）",
+    "tickOff": "輕按即可剔選完成",
+    "ticked": "已剔選完成。"
   },
   "pipelinePreview": {
-    "title": "PIPELINE",
-    "seeAll": "See all",
-    "pipelineDeal": "Pipeline Deal"
+    "title": "洽談中交易",
+    "seeAll": "查看全部",
+    "pipelineDeal": "洽談中交易"
   },
   "quickAccess": {
-    "label": "QUICK ACCESS",
-    "briefing": "Briefing",
+    "label": "快捷入口",
+    "briefing": "簡報",
     "outreach": "Flight Control",
-    "forecast": "Forecast",
-    "receipt": "Receipt"
+    "forecast": "預測",
+    "receipt": "收據"
   },
   "quickCapture": {
-    "title": "Quick Capture",
-    "clientLabel": "CLIENT",
-    "typeLabel": "TYPE",
-    "notesLabel": "NOTES",
-    "searchClient": "Search client name...",
-    "notesPlaceholder": "What happened?",
+    "title": "快速記錄",
+    "clientLabel": "客戶",
+    "typeLabel": "類型",
+    "notesLabel": "備註",
+    "searchClient": "搜尋客戶姓名...",
+    "notesPlaceholder": "發生了甚麼事？",
     "activityTypes": {
-      "call": "Call",
-      "text": "Text",
-      "showing": "Showing",
-      "meeting": "Meeting",
-      "note": "Note"
-    }
+      "call": "通話",
+      "text": "短訊",
+      "showing": "睇樓",
+      "meeting": "會面",
+      "note": "備註"
+    },
+    "noteNotContact": "備註不算聯絡。如果你已同對方傾過，請選擇通話、短訊、睇樓或會面。"
   },
   "welcome": {
     "greeting": "{{greeting}}，{{name}}",

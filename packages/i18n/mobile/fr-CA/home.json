@@ -18,7 +18,7 @@
     "pace": "Rythme",
     "pipeline": "Pipeline",
     "expenses": "Dépenses",
-    "bench": "Réserve",
+    "bench": "Comparaison",
     "survival": "Survie"
   },
   "metrics": {
@@ -31,8 +31,12 @@
     "pipeline": "Pipeline",
     "clients": "Clients",
     "pending": "En attente",
-    "deals": "{{count}} transactions",
-    "needFollowUp": "{{count}} à relancer"
+    "deals_one": "{{count}} transaction",
+    "deals_many": "{{count}} de transactions",
+    "deals_other": "{{count}} transactions",
+    "needFollowUp_one": "{{count}} à relancer",
+    "needFollowUp_many": "{{count}} à relancer",
+    "needFollowUp_other": "{{count}} à relancer"
   },
   "actions": {
     "overdue": "en retard",
@@ -44,15 +48,19 @@
     "allCaughtUp": "Tout est à jour"
   },
   "sync": {
-    "offline": "Hors ligne — modifications enregistrées localement",
+    "offline": "Hors ligne : modifications enregistrées localement",
     "pendingSync_one": "{{count}} modification en attente de sync",
     "pendingSync_many": "{{count}} de modifications en attente de sync",
     "pendingSync_other": "{{count}} modifications en attente de sync",
     "updating": "Mise à jour…"
   },
   "streak": {
-    "loggedToday": "{{count}} enregistré(s) aujourd'hui",
-    "dayStreak": "Série de {{count}} jours"
+    "loggedToday_one": "{{count}} activité enregistrée aujourd'hui",
+    "loggedToday_many": "{{count}} d'activités enregistrées aujourd'hui",
+    "loggedToday_other": "{{count}} activités enregistrées aujourd'hui",
+    "dayStreak_one": "Série de {{count}} jour",
+    "dayStreak_many": "Série de {{count}} de jours",
+    "dayStreak_other": "Série de {{count}} jours"
   },
   "briefing": {
     "title": "FOCUS DU JOUR",
@@ -89,7 +97,10 @@
   "nextUp": {
     "title": "PROCHAINE TÂCHE",
     "overdue": "En retard",
-    "high": "ÉLEVÉE"
+    "high": "ÉLEVÉE",
+    "seeAll": "Liste de tâches ({{count}})",
+    "tickOff": "Appuyez pour la cocher",
+    "ticked": "Tâche cochée."
   },
   "pipelinePreview": {
     "title": "PIPELINE",

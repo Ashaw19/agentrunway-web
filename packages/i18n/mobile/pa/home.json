@@ -1,120 +1,128 @@
 {
   "greeting": {
-    "morning": "Good morning",
-    "afternoon": "Good afternoon",
-    "evening": "Good evening"
+    "morning": "ਸ਼ੁਭ ਸਵੇਰ",
+    "afternoon": "ਸ਼ੁਭ ਦੁਪਹਿਰ",
+    "evening": "ਸ਼ੁਭ ਸ਼ਾਮ"
   },
   "score": {
-    "runwayScore": "RUNWAY SCORE",
+    "runwayScore": "Runway ਸਕੋਰ",
     "outOf": "/100",
-    "strong": "Strong",
-    "onTrack": "On Track",
-    "building": "Building",
-    "atRisk": "At Risk",
-    "tapForDetails": "{{label}} · Tap for details",
-    "description": "Based on goal pace, pipeline coverage, expenses, and cash reserves"
+    "strong": "ਮਜ਼ਬੂਤ",
+    "onTrack": "ਸਹੀ ਰਾਹ ਉੱਤੇ",
+    "building": "ਬਣ ਰਿਹਾ ਹੈ",
+    "atRisk": "ਖ਼ਤਰੇ ਵਿੱਚ",
+    "tapForDetails": "{{label}} · ਵੇਰਵੇ ਲਈ ਟੈਪ ਕਰੋ",
+    "description": "ਟੀਚੇ ਦੀ ਰਫ਼ਤਾਰ, ਪਾਈਪਲਾਈਨ ਕਵਰੇਜ, ਖ਼ਰਚਿਆਂ ਅਤੇ ਨਕਦ ਭੰਡਾਰ ਦੇ ਆਧਾਰ ਉੱਤੇ"
   },
   "scoreBar": {
-    "pace": "Pace",
-    "pipeline": "Pipeline",
-    "expenses": "Expenses",
-    "bench": "Bench",
-    "survival": "Survival"
+    "pace": "ਰਫ਼ਤਾਰ",
+    "pipeline": "ਪਾਈਪਲਾਈਨ",
+    "expenses": "ਖ਼ਰਚੇ",
+    "bench": "ਤੁਲਨਾ",
+    "survival": "ਟਿਕਾਊਪਣ"
   },
   "metrics": {
-    "ytdGci": "YTD GCI",
-    "goalPace": "Goal Pace",
-    "activePipeline": "Active Pipeline",
-    "closedDeals": "Closed Deals",
-    "dealsClosed": "Deals Closed",
-    "pipelineValue": "Pipeline Value",
-    "pipeline": "Pipeline",
-    "clients": "Clients",
-    "pending": "Pending",
-    "deals": "{{count}} deals",
-    "needFollowUp": "{{count}} need follow-up"
+    "ytdGci": "ਇਸ ਸਾਲ ਦਾ ਕੁੱਲ ਕਮਿਸ਼ਨ",
+    "goalPace": "ਟੀਚੇ ਦੀ ਰਫ਼ਤਾਰ",
+    "activePipeline": "ਸਰਗਰਮ ਪਾਈਪਲਾਈਨ",
+    "closedDeals": "ਕਲੋਜ਼ ਹੋਈਆਂ ਡੀਲਾਂ",
+    "dealsClosed": "ਕਲੋਜ਼ ਹੋਈਆਂ ਡੀਲਾਂ",
+    "pipelineValue": "ਪਾਈਪਲਾਈਨ ਦੀ ਕੀਮਤ",
+    "pipeline": "ਪਾਈਪਲਾਈਨ",
+    "clients": "ਕਲਾਇੰਟ",
+    "pending": "ਬਾਕੀ",
+    "deals_one": "{{count}} ਡੀਲ",
+    "deals_other": "{{count}} ਡੀਲਾਂ",
+    "needFollowUp_one": "{{count}} ਨਾਲ ਫ਼ਾਲੋ-ਅੱਪ ਬਾਕੀ",
+    "needFollowUp_other": "{{count}} ਨਾਲ ਫ਼ਾਲੋ-ਅੱਪ ਬਾਕੀ"
   },
   "actions": {
-    "overdue": "overdue",
-    "ready": "ready",
-    "pending": "pending",
-    "followUps": "follow-ups",
-    "newLeads": "New Leads",
-    "pendingDeals": "Pending Deals",
-    "allCaughtUp": "All caught up"
+    "overdue": "ਮਿਆਦ ਲੰਘੀ",
+    "ready": "ਤਿਆਰ",
+    "pending": "ਬਾਕੀ",
+    "followUps": "ਫ਼ਾਲੋ-ਅੱਪ",
+    "newLeads": "ਨਵੀਆਂ ਲੀਡਾਂ",
+    "pendingDeals": "ਬਾਕੀ ਡੀਲਾਂ",
+    "allCaughtUp": "ਸਭ ਕੁਝ ਨਿਪਟ ਗਿਆ"
   },
   "sync": {
-    "offline": "Offline — changes saved locally",
+    "offline": "ਆਫ਼ਲਾਈਨ: ਤਬਦੀਲੀਆਂ ਇਸ ਡਿਵਾਈਸ ਉੱਤੇ ਸੰਭਾਲੀਆਂ ਗਈਆਂ",
     "pendingSync_one": "{{count}} ਤਬਦੀਲੀ ਸਿੰਕ ਹੋਣ ਦੀ ਉਡੀਕ ਵਿੱਚ",
     "pendingSync_other": "{{count}} ਤਬਦੀਲੀਆਂ ਸਿੰਕ ਹੋਣ ਦੀ ਉਡੀਕ ਵਿੱਚ",
-    "updating": "Updating…"
+    "updating": "ਅੱਪਡੇਟ ਹੋ ਰਿਹਾ ਹੈ…"
   },
   "streak": {
-    "loggedToday": "{{count}} logged today",
-    "dayStreak": "{{count}}-day streak"
+    "loggedToday_one": "ਅੱਜ {{count}} ਦਰਜ ਕੀਤਾ",
+    "loggedToday_other": "ਅੱਜ {{count}} ਦਰਜ ਕੀਤੇ",
+    "dayStreak_one": "ਲਗਾਤਾਰ {{count}} ਦਿਨ",
+    "dayStreak_other": "ਲਗਾਤਾਰ {{count}} ਦਿਨ"
   },
   "briefing": {
-    "title": "TODAY'S FOCUS",
-    "noBriefing": "No briefing items today",
+    "title": "ਅੱਜ ਦੀਆਂ ਮੁੱਖ ਗੱਲਾਂ",
+    "noBriefing": "ਅੱਜ ਬ੍ਰੀਫਿੰਗ ਵਿੱਚ ਕੁਝ ਨਹੀਂ",
     "itemCount_one": "{{count}} ਚੀਜ਼",
     "itemCount_other": "{{count}} ਚੀਜ਼ਾਂ",
     "types": {
-      "vip_overdue": "VIP overdue",
-      "uncontacted_lead": "Uncontacted lead",
-      "in_flight_stale": "Active deal silent",
-      "birthday_today": "Birthday today",
-      "birthday_soon": "Birthday soon",
-      "closing_anniversary": "Closing anniversary",
-      "mortgage_renewal_window": "Mortgage renewal window",
-      "mortgage_renewal_due": "Mortgage renewal due",
-      "past_client_check_in": "Past-client check-in",
-      "timeframe_approaching": "Timeframe approaching",
-      "property_value_milestone": "Property value milestone",
-      "no_contact_info": "Missing contact info",
-      "possible_duplicate": "Possible duplicate",
-      "listing_appointment_overdue": "Listing appointment overdue",
-      "listing_stale": "Listing stale",
-      "hot_pipeline": "Hot pipeline",
-      "task_due_today": "Task due today",
-      "overdue_followup": "Overdue follow-up",
-      "unknown": "Action needed"
+      "vip_overdue": "VIP ਨਾਲ ਸੰਪਰਕ ਦੀ ਮਿਆਦ ਲੰਘੀ",
+      "uncontacted_lead": "ਲੀਡ ਨਾਲ ਹਾਲੇ ਸੰਪਰਕ ਨਹੀਂ",
+      "in_flight_stale": "ਸਰਗਰਮ ਡੀਲ ਵਿੱਚ ਕੋਈ ਹਲਚਲ ਨਹੀਂ",
+      "birthday_today": "ਅੱਜ ਜਨਮਦਿਨ",
+      "birthday_soon": "ਜਨਮਦਿਨ ਨੇੜੇ",
+      "closing_anniversary": "ਕਲੋਜ਼ਿੰਗ ਦੀ ਵਰ੍ਹੇਗੰਢ",
+      "mortgage_renewal_window": "ਮੌਰਗੇਜ ਰੀਨਿਊਅਲ ਦਾ ਦੌਰ",
+      "mortgage_renewal_due": "ਮੌਰਗੇਜ ਰੀਨਿਊਅਲ ਨੇੜੇ",
+      "past_client_check_in": "ਪੁਰਾਣੇ ਕਲਾਇੰਟ ਦਾ ਹਾਲ-ਚਾਲ",
+      "timeframe_approaching": "ਸਮਾਂ-ਸੀਮਾ ਨੇੜੇ",
+      "property_value_milestone": "ਜਾਇਦਾਦ ਦੀ ਕੀਮਤ ਦਾ ਮੀਲ-ਪੱਥਰ",
+      "no_contact_info": "ਸੰਪਰਕ ਜਾਣਕਾਰੀ ਨਹੀਂ",
+      "possible_duplicate": "ਸ਼ਾਇਦ ਦੋਹਰਾ ਰਿਕਾਰਡ",
+      "listing_appointment_overdue": "ਲਿਸਟਿੰਗ ਅਪੌਇੰਟਮੈਂਟ ਦੀ ਮਿਆਦ ਲੰਘੀ",
+      "listing_stale": "ਲਿਸਟਿੰਗ ਵਿੱਚ ਕੋਈ ਹਲਚਲ ਨਹੀਂ",
+      "hot_pipeline": "ਗਰਮ ਪਾਈਪਲਾਈਨ ਡੀਲ",
+      "task_due_today": "ਅੱਜ ਦਾ ਟਾਸਕ",
+      "overdue_followup": "ਫ਼ਾਲੋ-ਅੱਪ ਦੀ ਮਿਆਦ ਲੰਘੀ",
+      "unknown": "ਕਾਰਵਾਈ ਬਾਕੀ"
     }
   },
   "goal": {
-    "annualGoal": "ANNUAL GOAL",
-    "ofGoal": "{{current}} of {{goal}}"
+    "annualGoal": "ਸਾਲਾਨਾ ਟੀਚਾ",
+    "ofGoal": "{{goal}} ਵਿੱਚੋਂ {{current}}"
   },
   "nextUp": {
     "title": "NEXT UP",
-    "overdue": "Overdue",
-    "high": "HIGH"
+    "overdue": "ਮਿਆਦ ਲੰਘੀ",
+    "high": "ਉੱਚ",
+    "seeAll": "ਚੈੱਕਲਿਸਟ ({{count}})",
+    "tickOff": "ਟਿੱਕ ਕਰਨ ਲਈ ਟੈਪ ਕਰੋ",
+    "ticked": "ਟਿੱਕ ਹੋ ਗਿਆ।"
   },
   "pipelinePreview": {
-    "title": "PIPELINE",
-    "seeAll": "See all",
-    "pipelineDeal": "Pipeline Deal"
+    "title": "ਪਾਈਪਲਾਈਨ",
+    "seeAll": "ਸਾਰੇ ਦੇਖੋ",
+    "pipelineDeal": "ਪਾਈਪਲਾਈਨ ਡੀਲ"
   },
   "quickAccess": {
-    "label": "QUICK ACCESS",
-    "briefing": "Briefing",
+    "label": "ਤੁਰੰਤ ਪਹੁੰਚ",
+    "briefing": "ਬ੍ਰੀਫਿੰਗ",
     "outreach": "Flight Control",
-    "forecast": "Forecast",
-    "receipt": "Receipt"
+    "forecast": "ਅਨੁਮਾਨ",
+    "receipt": "ਰਸੀਦ"
   },
   "quickCapture": {
-    "title": "Quick Capture",
-    "clientLabel": "CLIENT",
-    "typeLabel": "TYPE",
-    "notesLabel": "NOTES",
-    "searchClient": "Search client name...",
-    "notesPlaceholder": "What happened?",
+    "title": "ਤੁਰੰਤ ਦਰਜ ਕਰੋ",
+    "clientLabel": "ਕਲਾਇੰਟ",
+    "typeLabel": "ਕਿਸਮ",
+    "notesLabel": "ਨੋਟ",
+    "searchClient": "ਕਲਾਇੰਟ ਦਾ ਨਾਮ ਲੱਭੋ...",
+    "notesPlaceholder": "ਕੀ ਹੋਇਆ?",
     "activityTypes": {
-      "call": "Call",
-      "text": "Text",
-      "showing": "Showing",
-      "meeting": "Meeting",
-      "note": "Note"
-    }
+      "call": "ਕਾਲ",
+      "text": "ਟੈਕਸਟ",
+      "showing": "ਸ਼ੋਇੰਗ",
+      "meeting": "ਮੁਲਾਕਾਤ",
+      "note": "ਨੋਟ"
+    },
+    "noteNotContact": "ਨੋਟ ਸੰਪਰਕ ਵਿੱਚ ਨਹੀਂ ਗਿਣੇ ਜਾਂਦੇ। ਜੇ ਤੁਸੀਂ ਉਨ੍ਹਾਂ ਨਾਲ ਗੱਲ ਕੀਤੀ ਹੈ, ਤਾਂ ਕਾਲ, ਟੈਕਸਟ, ਸ਼ੋਇੰਗ ਜਾਂ ਮੁਲਾਕਾਤ ਚੁਣੋ।"
   },
   "welcome": {
     "greeting": "{{greeting}}, {{name}}",

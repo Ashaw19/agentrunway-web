@@ -31,8 +31,10 @@
     "pipeline": "Pipeline",
     "clients": "Clients",
     "pending": "Pending",
-    "deals": "{{count}} deals",
-    "needFollowUp": "{{count}} need follow-up"
+    "deals_one": "{{count}} deal",
+    "deals_other": "{{count}} deals",
+    "needFollowUp_one": "{{count}} needs follow-up",
+    "needFollowUp_other": "{{count}} need follow-up"
   },
   "actions": {
     "overdue": "overdue",
@@ -50,8 +52,10 @@
     "updating": "Updating…"
   },
   "streak": {
-    "loggedToday": "{{count}} logged today",
-    "dayStreak": "{{count}}-day streak"
+    "loggedToday_one": "{{count}} logged today",
+    "loggedToday_other": "{{count}} logged today",
+    "dayStreak_one": "{{count}}-day streak",
+    "dayStreak_other": "{{count}}-day streak"
   },
   "briefing": {
     "title": "TODAY'S FOCUS",
