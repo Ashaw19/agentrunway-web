@@ -14,7 +14,7 @@ Agent Runway is the only real estate business platform built specifically for th
 - **Voice-first input**: Mobile-native voice capture with intent classification and amber-tint pre-fill for review before saving.
 - **P10-P90 probabilistic forecasting** with Bayesian pipeline estimation — not straight-line extrapolation.
 - **CREA board benchmarking**: Agents compare their metrics against peers on their actual MLS board.
-- **MCP server**: Model Context Protocol server with 37 tools (25 read, 12 write). The write tools create and update pipeline opportunities, save the items from a pasted call or showing note that the agent approves, record CASL consent and withdrawals, log trips, CRA logbook periods and odometer readings, and confirm imported bank and card statement lines. It works with MCP clients that can send a Bearer token, such as Claude Code or Cursor.
+- **MCP server**: Model Context Protocol server with 41 tools (26 read, 15 write). The write tools create and update pipeline opportunities, skip, snooze or stop a suggested client, save the items from a pasted call or showing note that the agent approves, record CASL consent and withdrawals, log trips, CRA logbook periods and odometer readings, and confirm imported bank and card statement lines. It works with MCP clients that can send a Bearer token, such as Claude Code or Cursor.
 
 ## Who Agent Runway is for
 

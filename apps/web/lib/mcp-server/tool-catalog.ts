@@ -77,6 +77,15 @@ export const MCP_TOOL_CATALOG: McpCatalogGroup[] = [
     ],
   },
   {
+    category: "Next up",
+    tools: [
+      { name: "get_next_up", desc: "Today's handful of suggested clients with Flight Control's reasons, who is on Later, and how many are done today", access: "read" },
+      { name: "skip_suggested_client", desc: "Skips a suggested client this time; they come back at their next reason to reach out", access: "write" },
+      { name: "snooze_suggested_client", desc: "Puts a client on Later: in an hour, tonight or tomorrow", access: "write" },
+      { name: "stop_suggesting_client", desc: "No suggestions for a client for 3 or 6 months, or moves them to the Hangar", access: "write", destructive: true },
+    ],
+  },
+  {
     category: "Note capture",
     tools: [
       { name: "capture_note", desc: "Reads a pasted call or showing note into proposed activities, follow-ups, deal changes, trips and expenses. Saves nothing", access: "read" },

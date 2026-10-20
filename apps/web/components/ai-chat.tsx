@@ -122,6 +122,10 @@ const TOOL_STATUS_LABELS: Record<string, string> = {
   draftNewsletter: "Drafting newsletter…",
   draftSocialPost: "Drafting social post…",
   getWorkflowTemplates: "Checking Flight Plan templates…",
+  getNextUp: "Reading today's Next up…",
+  skipSuggestedClient: "Skipping the suggestion…",
+  snoozeSuggestedClient: "Putting them on Later…",
+  stopSuggestingClient: "Stopping suggestions…",
 };
 
 /**
@@ -563,6 +567,9 @@ function ApprovalCard({
     logExpense: "Log Expense",
     logMileage: "Log Trip",
     recordTransaction: "Record Closed Deal",
+    skipSuggestedClient: "Skip This Time",
+    snoozeSuggestedClient: "Later",
+    stopSuggestingClient: "Stop Suggesting",
   };
 
   return (

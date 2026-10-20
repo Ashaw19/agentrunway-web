@@ -58,8 +58,14 @@
  *                         deleteListingAppointment, deletePropertyShowing,
  *                         deleteContactActivity, deleteContactTask,
  *                         recordConsent, withdrawConsent, undoAIChange,
- *                         confirmImportLines, matchReceiptToLine
+ *                         confirmImportLines, matchReceiptToLine,
+ *                         skipSuggestedClient, snoozeSuggestedClient,
+ *                         stopSuggestingClient
  *   CASL consent (read) — listConsentLapsing
+ *   Next up             — getNextUp (read: today's handful, the phone
+ *                         dashboard's payload); skipSuggestedClient,
+ *                         snoozeSuggestedClient, stopSuggestingClient
+ *                         (approval: Skip, Later and Stop on a suggestion)
  *   Statement imports   — listImportReviewLines, draftLineCategories,
  *                         explainImportLine (read); matchReceiptToLine,
  *                         confirmImportLines (approval). In
@@ -147,6 +153,7 @@ import { loadVehicleLogbook } from "@/lib/vehicle-logbook/load";
 import { hasClosedDeal } from "@/lib/crm/contactable-records";
 import {
   writeClient,
+  writeClientToHangar,
   writeContactActivity,
   writeContactTask,
   writeDealCloseDate,
@@ -154,8 +161,21 @@ import {
   writeExpense,
   writeMileage,
   updateMileage as updateMileageWrite,
+  writeSuggestionHold,
+  writeSuggestionSkip,
   writeTransaction,
 } from "@agent-runway/core/lib/record-writers";
+import {
+  LATER_TONIGHT_HOUR,
+  LATER_TOMORROW_HOUR,
+  laterChoices,
+  laterUntil,
+  stopUntil,
+  type LaterChoice,
+} from "@agent-runway/core/lib/suggestion-dismissals";
+import { DEAL_DEADLINE_DAYS, HANDFUL_TARGET, NEW_LEAD_HOURS } from "@agent-runway/core/lib/next-up/rules";
+import type { HandfulItem, NextUpPayload } from "@agent-runway/core/lib/next-up/types";
+import { buildNextUpPayload } from "@/lib/crm/next-up-payload";
 import { CaptureParseError } from "@agent-runway/core/lib/capture/parse";
 import { MAX_TRANSCRIPT_CHARS, proposeCapture } from "@/lib/voice/capture";
 import { formatCaptureForChat } from "@/lib/voice/capture-chat";
@@ -248,6 +268,10 @@ export const NEEDS_APPROVAL_TOOLS = new Set([
   // CASL consent ledger (00183): only the agent records consent
   "recordConsent",
   "withdrawConsent",
+  // Next up (phone dashboard): Skip, Later and Stop on a suggested client
+  "skipSuggestedClient",
+  "snoozeSuggestedClient",
+  "stopSuggestingClient",
   // AI activity
   "undoAIChange",
   // Statement imports (Expenses → Imports)
@@ -411,6 +435,19 @@ export const APPROVAL_DESCRIPTIONS: Record<string, (args: Record<string, unknown
     `Record ${args.basis === "implied_inquiry" ? "an inquiry (implied consent, 6 months)" : "express consent"} for ${args.clientName ?? "client"} (${consentChannelsText(args.channels)}): ${consentMethodText(args.method)}, ${args.date}${args.wording ? `, "${String(args.wording).slice(0, 60)}"` : ""}`,
   withdrawConsent: (args) =>
     `Record that ${args.clientName ?? "client"} asked to stop (${consentChannelsText(args.channels)}): ${consentMethodText(args.method)}, ${args.date}. Agent Runway stops drafting to them there and skips drafts already waiting.`,
+  // Next up (phone dashboard): the name is read from the database (describeApproval).
+  skipSuggestedClient: (args) =>
+    `Skip ${suggestionClientName(args)} this time. They come back at their next reason to reach out.`,
+  snoozeSuggestedClient: (args) => {
+    const now = new Date();
+    const until = isLaterChoice(args.until) ? atlanticTimeInWords(laterUntil(args.until, now), now) : "later";
+    return `Hide ${suggestionClientName(args)} from suggestions until ${until}.`;
+  },
+  stopSuggestingClient: (args) => {
+    if (args.duration === "hangar") return `Move ${suggestionClientName(args)} to the Hangar.`;
+    const span = args.duration === "3_months" ? "3 months" : args.duration === "6_months" ? "6 months" : "a while";
+    return `No suggestions for ${suggestionClientName(args)} for ${span}.`;
+  },
   // AI activity
   // Never the model's words: the chat route replaces this with a card built
   // from the ledger (lib/ai/undo-approval.ts). This is only the fallback.
@@ -420,7 +457,13 @@ export const APPROVAL_DESCRIPTIONS: Record<string, (args: Record<string, unknown
 };
 
 /** Tools whose approval card names the client from the database, not the model's text. */
-const APPROVAL_NAMES_FROM_DB = new Set(["recordConsent", "withdrawConsent"]);
+const APPROVAL_NAMES_FROM_DB = new Set([
+  "recordConsent",
+  "withdrawConsent",
+  "skipSuggestedClient",
+  "snoozeSuggestedClient",
+  "stopSuggestingClient",
+]);
 
 /**
  * The approval card's text for a tool call. For the consent tools the client
@@ -456,6 +499,90 @@ function consentMethodText(v: unknown): string {
     ? CONSENT_METHOD_LABELS[v as keyof typeof CONSENT_METHOD_LABELS].toLowerCase()
     : String(v ?? "");
 }
+
+// ── Next up (phone dashboard, 2026-10-19) ───────────────────────────────────
+
+const LATER_CHOICES = ["in_an_hour", "tonight", "tomorrow"] as const satisfies readonly LaterChoice[];
+const STOP_CHOICES = ["3_months", "6_months", "hangar"] as const;
+
+function isLaterChoice(v: unknown): v is LaterChoice {
+  return typeof v === "string" && (LATER_CHOICES as readonly string[]).includes(v);
+}
+
+/** The client's name on an approval card: describeApproval puts the one on file in clientName. */
+function suggestionClientName(args: Record<string, unknown>): string {
+  return typeof args.clientName === "string" && args.clientName.trim() ? args.clientName.trim() : "this client";
+}
+
+/**
+ * "7:00 p.m. today", "8:00 a.m. tomorrow" or "9:00 a.m. on Oct. 21": an
+ * instant (a Later's end) on the Atlantic clock, the zone the hold was
+ * worked out in. Never used for a calendar-day date.
+ */
+function atlanticTimeInWords(at: Date, now: Date): string {
+  if (Number.isNaN(at.getTime())) return "later";
+  const time = at.toLocaleTimeString("en-CA", { timeZone: APP_TIME_ZONE, hour: "numeric", minute: "2-digit" });
+  const day = atlanticISODate(at);
+  const today = atlanticISODate(now);
+  if (day === today) return `${time} today`;
+  if (day === addDaysISO(today, 1)) return `${time} tomorrow`;
+  return `${time} on ${at.toLocaleDateString("en-CA", { timeZone: APP_TIME_ZONE, month: "short", day: "numeric" })}`;
+}
+
+/**
+ * How the phone's card offers to reach the client: its text status (CASL
+ * checked when the payload was built) and whether there is a number to call.
+ */
+function nextUpChannel(h: HandfulItem): string {
+  const t = h.text;
+  if (t.status === "ready") return "text: drafted and waiting in the iPhone app (call works too)";
+  if (t.status === "draftable") return "text or call";
+  if (t.status === "call_only") return h.phone ? `call only: ${t.reason}` : `no phone number on file, and no text: ${t.reason}`;
+  return h.phone ? "call only: the number on file can't take a text" : "no phone number on file";
+}
+
+/**
+ * getNextUp's answer: the payload the phone and the MCP server read, in the
+ * shape the chat relays (the MCP server's get_next_up returns the same one).
+ */
+function nextUpForChat(p: NextUpPayload, now: Date) {
+  return {
+    day:        p.day,
+    done_today: Math.min(p.done_today, p.target),
+    target:     p.target,
+    handful:    p.handful.map((h) => ({
+      client:  { id: h.client_id, name: h.client_name },
+      reason:  h.label,
+      why_now: h.why_now,
+      channel: nextUpChannel(h),
+    })),
+    on_later:   p.snoozed.map((s) => ({
+      client: { id: s.client_id, name: s.client_name },
+      until:  atlanticTimeInWords(new Date(s.until), now),
+    })),
+    urgent:     p.urgent,
+  };
+}
+
+/** The agent's client for a Skip, Later or Stop (RLS and user_id), or why not. */
+async function readClientForSuggestion(
+  supabase: SupabaseClient,
+  userId: string,
+  clientId: string,
+): Promise<{ ok: true; name: string; archived: boolean } | { ok: false; message: string }> {
+  const { data, error } = await supabase
+    .from("clients")
+    .select("id, name, archived_at")
+    .eq("id", clientId)
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (error) return { ok: false, message: "Couldn't read the client right now. Try again in a moment." };
+  if (!data) return { ok: false, message: "That client isn't in your CRM." };
+  const row = data as { name?: string | null; archived_at?: string | null };
+  return { ok: true, name: row.name?.trim() || "This client", archived: !!row.archived_at };
+}
+
+const hangarRefusal = (name: string) => `${name} is in the Hangar, so they aren't suggested.`;
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -4300,6 +4427,131 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
       },
     }),
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // NEXT UP (phone dashboard, 2026-10-19)
+    //
+    // Today's handful is Flight Control's pick, pinned per client
+    // (lib/crm/next-up-handful.ts): the same people the iPhone app's Next up,
+    // web Flight Control Scan and the MCP server show. getNextUp reads the
+    // payload the phone gets (buildNextUpPayload, persist off): no model call
+    // and no write. Skip, Later and Stop are stored once
+    // (flight_control_dismissals) and honoured on every surface and by the
+    // nightly drafts. They write through core record-writers on this client,
+    // so they land on the AI ledger (withWriteLedger) like any Flight Crew
+    // write. They are the agent's choice: the approval card is the gate.
+    // ─────────────────────────────────────────────────────────────────────────
+
+    // ── GET NEXT UP (Captain + Dispatcher, read) ─────────────────────────────
+    getNextUp: tool({
+      description: `Today's Next up, as the Agent Runway iPhone app's dashboard shows it: today's handful (up to ${HANDFUL_TARGET} clients Flight Control picks, the same people Flight Control Scan and the Claude Connector show), each with Flight Control's reason, why now, and how the phone offers to reach them (text, call only with the CASL reason, or no number); the clients on Later and when they come back; how many of today's ${HANDFUL_TARGET} are done; and the counts that always go on top (new leads under ${NEW_LEAD_HOURS} hours old with no contact yet, overdue Checklist items, deal deadlines within ${DEAL_DEADLINE_DAYS} days). Use when the agent asks who to call or text today, what's next, or who's on today's list. Relay each reason as given. Read only: nothing is drafted or saved. A client stays on the handful until the agent contacts, skips, stops or archives them; a client on Later keeps their place.`,
+      inputSchema: z.object({}),
+      execute: async () => {
+        try {
+          const now = new Date();
+          const payload = await buildNextUpPayload(userId, supabase, { persist: false, now });
+          return JSON.stringify(nextUpForChat(payload, now), null, 2);
+        } catch (err) {
+          console.error("[tool/getNextUp] error:", err);
+          return "Couldn't read today's Next up right now. Try again in a moment, or open the iPhone app's dashboard.";
+        }
+      },
+    }),
+
+    // ── SKIP SUGGESTED CLIENT (Dispatcher, approval) ──────────────────────────
+    skipSuggestedClient: tool({
+      description: "Skip one of today's suggested clients this time, after the agent asks to (the approval card is the gate; never call it unasked). It covers this one reason only, the occurrence today's handful shows (this birthday, this check-in); the client comes back at their next reason to reach out. Only for a client in today's handful (getNextUp). Saved once and honoured on the iPhone app, Flight Control Scan, the nightly drafts and here.",
+      inputSchema: z.object({
+        clientId: z.string().uuid().describe("The client's id from getNextUp"),
+      }),
+      needsApproval: true,
+      execute: async ({ clientId }) => {
+        try {
+          const found = await readClientForSuggestion(supabase, userId, clientId);
+          if (!found.ok) return found.message;
+          const payload = await buildNextUpPayload(userId, supabase, { persist: false, now: new Date() });
+          const pick = payload.handful.find((h) => h.client_id === clientId);
+          if (!pick) return `${found.name} isn't in today's suggestions.`;
+          const res = await writeSuggestionSkip(supabase, userId, {
+            client_id:        clientId,
+            opportunity_type: pick.opportunity_type,
+            trigger_date:     pick.trigger_date,
+          });
+          if (!res.ok) return `Not saved: ${res.message}`;
+          return `✓ Skipped ${found.name} this time. They come back at their next reason to reach out.`;
+        } catch (err) {
+          console.error("[tool/skipSuggestedClient] error:", err);
+          return "Couldn't skip the suggestion right now. Try again in a moment.";
+        }
+      },
+    }),
+
+    // ── SNOOZE SUGGESTED CLIENT (Dispatcher, approval) ────────────────────────
+    snoozeSuggestedClient: tool({
+      description: `Put a client on Later, after the agent asks to (the approval card is the gate; never call it unasked): no suggestions for them on the iPhone app, Flight Control Scan or the nightly drafts until then. until: in_an_hour, tonight (${LATER_TONIGHT_HOUR}:00 Atlantic; not offered from ${LATER_TONIGHT_HOUR}:00 on) or tomorrow (${String(LATER_TOMORROW_HOUR).padStart(2, "0")}:00 Atlantic). A client on Later keeps their place in today's handful. If their suggestions are already stopped, nothing changes and the reply says until when. Any client in the agent's CRM who isn't in the Hangar.`,
+      inputSchema: z.object({
+        clientId: z.string().uuid().describe("The client's id from getNextUp or searchClients"),
+        until: z.enum(LATER_CHOICES).describe("in_an_hour, tonight or tomorrow"),
+      }),
+      needsApproval: true,
+      execute: async ({ clientId, until }) => {
+        try {
+          const now = new Date();
+          if (!laterChoices(now).includes(until)) {
+            return `Tonight isn't ahead any more: it's past ${LATER_TONIGHT_HOUR}:00 Atlantic. Offer in_an_hour or tomorrow instead.`;
+          }
+          const found = await readClientForSuggestion(supabase, userId, clientId);
+          if (!found.ok) return found.message;
+          if (found.archived) return hangarRefusal(found.name);
+          const at = laterUntil(until, now);
+          const res = await writeSuggestionHold(
+            supabase, userId,
+            { clientId, clientName: found.name, kind: "later", until: at },
+            atlanticISODate(now), now,
+          );
+          // A running Stop: nothing was written. Relay it; never claim a Later.
+          if (res.stoppedUntil) return `Nothing changed: ${res.message}`;
+          if (!res.ok) return `Not saved: ${res.message}`;
+          return `✓ ${found.name} is on Later until ${atlanticTimeInWords(at, now)}: no suggestions for them until then.`;
+        } catch (err) {
+          console.error("[tool/snoozeSuggestedClient] error:", err);
+          return "Couldn't put the client on Later right now. Try again in a moment.";
+        }
+      },
+    }),
+
+    // ── STOP SUGGESTING CLIENT (Dispatcher, approval) ─────────────────────────
+    stopSuggestingClient: tool({
+      description: "Stop suggesting a client, after the agent asks to (the approval card is the gate; never call it unasked). duration 3_months or 6_months: no suggestions for them on the iPhone app, Flight Control Scan or the nightly drafts until then, except a consent-lapsing notice (the CASL ask has a deadline, so Stop never hides it). duration hangar: moves them to the Hangar (archived), which hides them everywhere; they can be restored from the Hangar in the CRM. Any client in the agent's CRM who isn't already in the Hangar.",
+      inputSchema: z.object({
+        clientId: z.string().uuid().describe("The client's id from getNextUp or searchClients"),
+        duration: z.enum(STOP_CHOICES).describe("3_months, 6_months or hangar"),
+      }),
+      needsApproval: true,
+      execute: async ({ clientId, duration }) => {
+        try {
+          const now = new Date();
+          const found = await readClientForSuggestion(supabase, userId, clientId);
+          if (!found.ok) return found.message;
+          if (found.archived) return hangarRefusal(found.name);
+          if (duration === "hangar") {
+            const res = await writeClientToHangar(supabase, userId, { clientId, clientName: found.name });
+            if (!res.ok) return `Not saved: ${res.message}`;
+            return `✓ ${res.message} They aren't suggested anywhere while they're there.`;
+          }
+          const res = await writeSuggestionHold(
+            supabase, userId,
+            { clientId, clientName: found.name, kind: "stop", until: stopUntil(duration, now) },
+            atlanticISODate(now), now,
+          );
+          if (!res.ok) return `Not saved: ${res.message}`;
+          return `✓ ${res.message} Stop doesn't hide a consent-lapsing notice.`;
+        } catch (err) {
+          console.error("[tool/stopSuggestingClient] error:", err);
+          return "Couldn't stop the suggestions right now. Try again in a moment.";
+        }
+      },
+    }),
+
     // ── DRAFT LISTING DESCRIPTION (Dispatcher) ────────────────────────────────
     draftListingDescription: tool({
       description: "Draft a listing description and paired social post for a client's property. Pass either client_record_id (preferred — pulls specs from the transaction record) or specs (manual entry). Returns the description and social post inline. Drafts only — the agent copies the text into MLS / social platforms.",
@@ -4650,6 +4902,9 @@ export function createPersonaAgentTools(
     // belong to Dispatcher.
     return {
       getQuickStats: all.getQuickStats,
+      // Today's Next up (read): how the day's handful stands. Skip, Later
+      // and Stop on a client are Dispatcher's.
+      getNextUp: all.getNextUp,
       draftNewsletter: all.draftNewsletter,
       draftSocialPost: all.draftSocialPost,
       // What Flight Crew changed (any persona), and undo (file header).
@@ -4745,6 +5000,12 @@ export function createPersonaAgentTools(
     recordConsent: all.recordConsent,
     withdrawConsent: all.withdrawConsent,
     listConsentLapsing: all.listConsentLapsing,
+    // Next up (phone dashboard): today's handful (read), and the agent's
+    // Skip, Later and Stop on a suggested client (approval cards).
+    getNextUp: all.getNextUp,
+    skipSuggestedClient: all.skipSuggestedClient,
+    snoozeSuggestedClient: all.snoozeSuggestedClient,
+    stopSuggestingClient: all.stopSuggestingClient,
     // Flight Status workflow library (Phase 2.3) — read-only template lookup.
     // Lets Dispatcher proactively suggest a templated draft when a client
     // has changed stage. Generation happens in the CRM client detail panel.
