@@ -12,7 +12,7 @@ import { useToastStore } from "./toast-store";
 import { useOfflineQueueStore } from "./offline-queue";
 import { safeDateMs } from "../lib/safe-date";
 import { activitiesOnDay, activityDays, activityStreak, localDayOf } from "../lib/activity-streak";
-import { useNextUpStore } from "./next-up-store";
+import { onNextUpClientChange, useNextUpStore } from "./next-up-store";
 import { isExpectedAuthBootstrapError } from "../lib/auth-context";
 import { addDaysISO, localISODate, nextYearlyDate } from "@agent-runway/core/lib/local-date";
 import {
@@ -623,6 +623,8 @@ interface DataStore {
   contactStreak: () => number;
   /** Get pipeline context for a client (for smart note suggestions) */
   clientPipelineContext: (clientName: string) => string | null;
+  /** Re-reads one client's row (Next up changed it: a contact moved last_contact_at, or the Hangar). */
+  refreshClient: (clientId: string) => Promise<void>;
   /** Quick-log an activity with minimal friction (no notes required) */
   quickLogActivity: (
     clientId: string,
@@ -1036,17 +1038,30 @@ export const useDataStore = create<DataStore>((set, get) => {
     if (!user) return;
     void markMemoryStale(supabase, user.id, clientId);
     set({ _clientActivitiesFetchedAt: { ...get()._clientActivitiesFetchedAt, [clientId]: 0 } });
+    await rereadClient(clientId, user.id);
+  };
+
+  /** One client's row, read again (the trigger moved last_contact_at, or it was archived). */
+  const rereadClient = async (clientId: string, userId: string) => {
     const { data } = await supabase
       .from("clients")
       .select("*")
       .eq("id", clientId)
-      .eq("user_id", user.id)
+      .eq("user_id", userId)
       .maybeSingle();
     if (data) {
       set({ clients: get().clients.map((c) => (c.id === clientId ? (data as Client) : c)) });
       saveCache(get());
     }
   };
+
+  // A Next up card logged a contact ("already talked", the after-call sheet)
+  // or moved a client to or from the Hangar: the streak and the client's row
+  // follow here at once, so a new lead's card leaves once they're reached.
+  onNextUpClientChange((clientId, change) => {
+    const run = change === "contacted" ? afterClientContact(clientId) : get().refreshClient(clientId);
+    void run.catch((err) => console.warn("refresh after Next up failed:", err));
+  });
 
   return {
     transactions: (cached.transactions as Transaction[]) ?? [],
@@ -2547,6 +2562,14 @@ export const useDataStore = create<DataStore>((set, get) => {
             : `$${Math.round(deal.estimated_price)}`;
       const addr = deal.address ? ` at ${deal.address}` : "";
       return `${stage} deal${addr} · ${price}`;
+    },
+
+    refreshClient: async (clientId) => {
+      const { data: sess } = await supabase.auth.getSession();
+      const userId = sess.session?.user?.id;
+      if (!userId) return;
+      set({ _clientActivitiesFetchedAt: { ...get()._clientActivitiesFetchedAt, [clientId]: 0 } });
+      await rereadClient(clientId, userId);
     },
 
     quickLogActivity: async (clientId, type) => {

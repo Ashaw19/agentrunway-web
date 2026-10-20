@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  Alert,
   AppState,
+  Linking,
   View,
   Text,
   ScrollView,
@@ -14,8 +16,9 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useRouter, useFocusEffect } from "expo-router";
 import { useAuth } from "@/lib/auth-context";
 import { useDataStore } from "@/stores/data-store";
-import type { Client } from "@/stores/data-store";
-import { useNextUpStore } from "@/stores/next-up-store";
+import type { Client, ContactTask } from "@/stores/data-store";
+import { useNextUpStore, type PendingCall } from "@/stores/next-up-store";
+import { useToastStore } from "@/stores/toast-store";
 import { useOfflineQueueStore } from "@/stores/offline-queue";
 import { Plus } from "lucide-react-native";
 import {
@@ -38,18 +41,33 @@ import {
   type NextUpCard as NextUpCardData,
   type SectionKey,
 } from "@agent-runway/core/lib/next-up/build";
-import { nextUpClock } from "@/lib/next-up-clock";
+import type { HandfulItem } from "@agent-runway/core/lib/next-up/types";
+import {
+  dismissChoicesFor,
+  type DismissChoice,
+  type LaterChoice,
+} from "@agent-runway/core/lib/suggestion-dismissals";
+import { laterChoicesAt, laterUntilAt, nextUpClock, stopUntilAt } from "@/lib/next-up-clock";
 import {
   ACTION_ROUTES,
   SECTION_ROUTES,
   checklistRowHasOverdue,
   nextUpInput,
   snoozeEndedBetween,
+  textPlan,
 } from "@/lib/next-up-view";
+import { handledToast } from "@/lib/next-up-copy";
+import { shouldAskAfterCall, telUrl } from "@/lib/post-call";
+import { sendQueuedText } from "@/lib/send-queued-text";
+import { queuedTextDeps } from "@/lib/queued-text-deps";
 import { WelcomeHeader } from "@/components/next-up/WelcomeHeader";
 import { NextUpStack } from "@/components/next-up/NextUpStack";
 import { AlsoWaitingList } from "@/components/next-up/AlsoWaitingList";
 import { AllClearCard } from "@/components/next-up/AllClearCard";
+import { LaterSheet } from "@/components/next-up/LaterSheet";
+import { DismissSheet, pickKey, type DismissPick } from "@/components/next-up/DismissSheet";
+import { PostCallSheet } from "@/components/next-up/PostCallSheet";
+import { CompleteTaskSheet } from "@/components/CompleteTaskSheet";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -323,9 +341,18 @@ function DashboardSkeleton() {
 // ── Main ─────────────────────────────────────────────────────────────────────
 //
 // Top to bottom: the welcome (mark, greeting, one line of context, the day's
-// progress and streak), the sync status, the Next up stack, "Also waiting",
-// the all-clear card when the stack is empty, and the "+" Quick Capture.
-// Everything renders from the cached stores at once and refreshes behind.
+// progress and streak), the sync status, the Next up stack (or, when it is
+// empty, the all-clear card in its place), "Also waiting", and the "+" Quick
+// Capture. Everything renders from the cached stores at once and refreshes
+// behind.
+//
+// The card buttons: Call dials and asks how it went when the app is back;
+// Text sends today's queued text, or drafts one first (CASL: only where the
+// server said a text can go, and the consent check runs again before
+// Messages opens); Later, Not now (Skip, Stop, the Hangar, already talked)
+// go through the shared writers (stores/next-up-store.ts); Mark one done
+// ticks off the oldest task; Record a note opens the voice note. After each
+// handled card the server is asked again.
 
 export default function DashboardScreen() {
   const router = useRouter();
@@ -349,6 +376,30 @@ export default function DashboardScreen() {
   // False only for the first frame, before the first refresh has begun.
   const [started, setStarted] = useState(false);
 
+  // The card buttons' sheets, and the card whose tap is being handled.
+  const [busyKey, setBusyKey] = useState<string | null>(null);
+  const [later, setLater] = useState<{ card: NextUpCardData; choices: LaterChoice[] } | null>(null);
+  const [laterBusy, setLaterBusy] = useState<LaterChoice | null>(null);
+  const [dismiss, setDismiss] = useState<{
+    card: NextUpCardData; item: HandfulItem | null; choices: DismissChoice[]; laterChoices: LaterChoice[];
+  } | null>(null);
+  const [dismissBusy, setDismissBusy] = useState<string | null>(null);
+  /** The voice note sheet: after a call, or the "Record a note" card. */
+  const [noteSheet, setNoteSheet] = useState<{ kind: "call"; call: PendingCall } | { kind: "day" } | null>(null);
+  const [loggingCall, setLoggingCall] = useState(false);
+  const [tickingTask, setTickingTask] = useState<ContactTask | null>(null);
+  // iOS shows one sheet at a time: the after-call question waits while another is open.
+  const sheetOpen = useRef(false);
+  sheetOpen.current = !!(later || dismiss || noteSheet || tickingTask || showCapture);
+
+  /** A call placed from Next up: ask how it went, within 2 hours of dialling. */
+  const askAboutCall = useCallback(() => {
+    const call = useNextUpStore.getState().pendingCall;
+    if (!call || sheetOpen.current) return;
+    if (shouldAskAfterCall(call, Date.now())) setNoteSheet({ kind: "call", call });
+    else useNextUpStore.getState().clearPendingCall();
+  }, []);
+
   useEffect(() => { fetchAll(); fetchOutreach(); fetchReceipts(); setStarted(true); }, []);
   useFocusEffect(useCallback(() => { fetchAll(); fetchOutreach(); fetchReceipts(); }, []));
 
@@ -363,6 +414,7 @@ export default function DashboardScreen() {
       if (appStateRef.current.match(/inactive|background/) && nextState === "active") {
         // Back in front: the band may have moved and a Later may have run out.
         setNow(new Date());
+        askAboutCall();
         const lf = useDataStore.getState().lastFetched;
         if (!lf || Date.now() - lf > 2 * 60 * 1000) {
           fetchAll();
@@ -373,7 +425,10 @@ export default function DashboardScreen() {
       appStateRef.current = nextState;
     });
     return () => sub.remove();
-  }, []);
+  }, [askAboutCall]);
+
+  // Opened again after a call (the app was closed meanwhile): ask now.
+  useEffect(() => { askAboutCall(); }, [askAboutCall]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -415,27 +470,200 @@ export default function DashboardScreen() {
     || pipeline.length > 0 || !!payload;
   const showSkeleton = !lastFetched && !hasCache && (isLoading || !started);
 
+  // ── Card buttons ───────────────────────────────────────────────────────────
+
+  const refetchNextUp = useCallback(() => { void useNextUpStore.getState().fetchNextUp({ force: true }); }, []);
+
+  /** Call: dial, and keep the call so the after-call sheet can ask how it went. */
+  const handleCall = useCallback((card: NextUpCardData) => {
+    const url = telUrl(card.phone);
+    if (!url || !card.clientId) return;
+    const store = useNextUpStore.getState();
+    store.setPendingCall({ clientId: card.clientId, clientName: card.clientName ?? "", at: Date.now() });
+    Linking.openURL(url).catch(() => store.clearPendingCall());
+  }, []);
+
+  /**
+   * Text (CASL): only where textPlan allows it. A ready text goes from the
+   * queue; otherwise one is drafted first (the drafter checks consent and
+   * may answer call only). sendQueuedText checks consent again with the
+   * server before Messages opens, and the agent presses Send there.
+   */
+  const handleText = useCallback(async (card: NextUpCardData) => {
+    const plan = textPlan(card);
+    const clientId = card.clientId;
+    if (!plan || !clientId) return;
+    const data = useDataStore.getState();
+    const name = card.clientName ?? "";
+    setBusyKey(card.key);
+    try {
+      let queueId: string | null = plan.kind === "send" ? plan.queueId : null;
+      let notQueuedReason: string | null = null;
+      if (plan.kind === "draft") {
+        const drafted = await data.draftTexts([clientId], plan.purpose, plan.note);
+        if ("error" in drafted) {
+          Alert.alert(t("textFlow.draftFailedTitle"), drafted.error);
+          return;
+        }
+        const result = drafted.results[0];
+        if (!result || result.status === "call_only" || result.status === "skipped") {
+          Alert.alert(t("textFlow.callInstead"), result?.reason || t("textFlow.noDraft", { name: name || t("nextUpToast.thisClient") }));
+          refetchNextUp();
+          return;
+        }
+        queueId = result.queueItemId ?? null;
+        notQueuedReason = result.reason ?? null; // "You already texted <name> today."
+      }
+      // The queue row: on the phone already, else read the queue once more.
+      const find = () => useDataStore.getState().outreachQueue.find((q) =>
+        q.channel === "sms" && q.status === "ready" && (queueId ? q.id === queueId : q.client_id === clientId));
+      let row = find();
+      if (!row) {
+        await useDataStore.getState().fetchOutreach();
+        row = find();
+      }
+      if (!row) {
+        Alert.alert(t("textFlow.notQueuedTitle"), notQueuedReason ?? t("textFlow.notQueued"));
+        refetchNextUp();
+        return;
+      }
+      const sent = await sendQueuedText(row, queuedTextDeps());
+      if (sent === "sent") {
+        try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch {}
+        // markTexted logged a Text activity: they're contacted.
+        useNextUpStore.getState().dropHandfulClient(clientId);
+        void useDataStore.getState().refreshClient(clientId);
+      }
+      if (sent === "sent" || sent === "refused") refetchNextUp();
+    } finally {
+      setBusyKey(null);
+    }
+  }, [t, refetchNextUp]);
+
+  /** Later: a handful client's is the server's hold; any other card is put off on this phone. */
+  const pickLater = useCallback(async (card: NextUpCardData, choice: LaterChoice) => {
+    const until = laterUntilAt(choice, new Date());
+    if (card.kind === "handful_client" && card.clientId) {
+      setLaterBusy(choice);
+      await useNextUpStore.getState().holdSuggestion(
+        { client_id: card.clientId, client_name: card.clientName ?? "" }, "later", until, choice);
+      setLaterBusy(null);
+    } else {
+      const store = useNextUpStore.getState();
+      store.snoozeCard(card.key, until.toISOString());
+      useToastStore.getState().show(
+        handledToast({ kind: "snoozed", choice }, card.clientName, t), "success", undefined,
+        { label: t("nextUpToast.undo"), onPress: () => useNextUpStore.getState().unsnoozeCard(card.key) },
+      );
+    }
+    setLater(null);
+  }, [t]);
+
+  /**
+   * Not now: core's choices for the card. A client back from Later has no
+   * occurrence to skip until the server answers again, so ask it first; if
+   * there is still none, Skip isn't offered.
+   */
+  const openDismiss = useCallback(async (card: NextUpCardData) => {
+    if (!card.clientId) return;
+    const pick = () => useNextUpStore.getState().payload?.handful.find((h) => h.client_id === card.clientId) ?? null;
+    let item = card.occurrence ? pick() : null;
+    if (!item) {
+      setBusyKey(card.key);
+      await useNextUpStore.getState().fetchNextUp({ force: true });
+      setBusyKey(null);
+      item = pick();
+    }
+    const choices: DismissChoice[] = item ? dismissChoicesFor(item.opportunity_type) : ["already_talked", "later", "stop"];
+    setDismiss({ card, item, choices, laterChoices: laterChoicesAt(new Date()) });
+  }, []);
+
+  const pickDismiss = useCallback(async (p: DismissPick) => {
+    if (!dismiss?.card.clientId) return;
+    const { card, item } = dismiss;
+    const client = { client_id: dismiss.card.clientId, client_name: card.clientName ?? "" };
+    const store = useNextUpStore.getState();
+    setDismissBusy(pickKey(p));
+    switch (p.kind) {
+      case "talked": await store.logTalkedTo(client.client_id, client.client_name, p.type); break;
+      case "later": await store.holdSuggestion(client, "later", laterUntilAt(p.choice, new Date()), p.choice); break;
+      case "skip": if (item) await store.skipSuggestion(item); break;
+      case "stop": await store.holdSuggestion(client, "stop", stopUntilAt(p.choice, new Date()), p.choice); break;
+      case "hangar": await store.moveToHangar(client.client_id, client.client_name); break;
+    }
+    setDismissBusy(null);
+    setDismiss(null);
+  }, [dismiss]);
+
+  /** Mark one done (the card) or the row's swipe: a client's task opens the tick-off sheet. */
+  const tickTask = useCallback(async (taskId: string | undefined) => {
+    const task = useDataStore.getState().tasks.find((x) => x.id === taskId);
+    if (!task) return;
+    if (task.client_id) {
+      setTickingTask(task);
+      return;
+    }
+    if (await useDataStore.getState().markTaskDone(task)) {
+      useToastStore.getState().show(t("nextUp.ticked"), "success");
+      refetchNextUp();
+    }
+  }, [t, refetchNextUp]);
+
   const handleAction = useCallback((action: NextUpAction, card: NextUpCardData) => {
     const href = ACTION_ROUTES[action];
     if (href) {
       router.push(href);
       return;
     }
-    if (action === "open_client") {
-      router.push(card.clientId ? { pathname: "/clients", params: { clientId: card.clientId } } : "/clients");
-      return;
+    switch (action) {
+      case "open_client":
+        router.push(card.clientId ? { pathname: "/clients", params: { clientId: card.clientId } } : "/clients");
+        return;
+      case "call": handleCall(card); return;
+      case "text": void handleText(card); return;
+      case "later": setLater({ card, choices: laterChoicesAt(new Date()) }); return;
+      case "dismiss": void openDismiss(card); return;
+      // The oldest overdue (or due today) task: the card's items are oldest first.
+      case "mark_one_done": void tickTask(card.itemIds[0]); return;
+      case "record_voice_note": setNoteSheet({ kind: "day" }); return;
     }
-    // Call, Text, Later, Not now, Mark one done and Record a note are not
-    // wired here yet: they come with the card actions and their sheets.
-  }, [router]);
+  }, [router, handleCall, handleText, openDismiss, tickTask]);
 
   const handleOpenSection = useCallback((section: SectionKey) => {
     try { Haptics.selectionAsync(); } catch {}
     router.push(SECTION_ROUTES[section]);
   }, [router]);
 
-  // Marking the Checklist row's one task done comes with the card actions.
-  const handleSwipeDone = useCallback((_taskId: string) => {}, []);
+  // The Checklist row's one task: the same as the card's Mark one done.
+  const handleSwipeDone = useCallback((taskId: string) => { void tickTask(taskId); }, [tickTask]);
+
+  // ── The voice note sheet (after a call, or "Record a note") ───────────────
+
+  const closeNoteSheet = useCallback(() => {
+    if (noteSheet?.kind === "call") useNextUpStore.getState().clearPendingCall();
+    setNoteSheet(null);
+  }, [noteSheet]);
+
+  const logCallOnly = useCallback(async () => {
+    if (noteSheet?.kind !== "call") return;
+    const { call } = noteSheet;
+    setLoggingCall(true);
+    await useNextUpStore.getState().logTalkedTo(call.clientId, call.clientName, "call");
+    setLoggingCall(false);
+    useNextUpStore.getState().clearPendingCall();
+    setNoteSheet(null);
+  }, [noteSheet]);
+
+  const noteNotNow = useCallback(() => {
+    if (noteSheet?.kind === "day") useNextUpStore.getState().markVoiceNoteDone(clock.today);
+    closeNoteSheet();
+  }, [noteSheet, clock.today, closeNoteSheet]);
+
+  const noteSaved = useCallback(() => {
+    if (noteSheet?.kind === "day") useNextUpStore.getState().markVoiceNoteDone(clock.today);
+    // The note may have logged the call: the server says who's still waiting.
+    refetchNextUp();
+  }, [noteSheet, clock.today, refetchNextUp]);
 
   const handleFabPress = () => {
     try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
@@ -486,11 +714,17 @@ export default function DashboardScreen() {
                   : ""}
         </Text>
 
-        {/* ── 3. Next up ── */}
-        {view.stack.length > 0 && (
+        {/* ── 3. Next up, or (with nothing on it) all clear and what's next, in its place ── */}
+        {view.stack.length > 0 ? (
           <FadeIn delay={60}>
             <View style={{ marginBottom: Space.xl }}>
-              <NextUpStack cards={view.stack} onAction={handleAction} />
+              <NextUpStack cards={view.stack} onAction={handleAction} busyKey={busyKey} />
+            </View>
+          </FadeIn>
+        ) : (
+          <FadeIn delay={60}>
+            <View style={{ marginBottom: Space.xl }}>
+              <AllClearCard allClear={view.allClear} hasRows={view.alsoWaiting.length > 0} today={clock.today} />
             </View>
           </FadeIn>
         )}
@@ -506,13 +740,6 @@ export default function DashboardScreen() {
                 checklistOverdue={checklistOverdue}
               />
             </View>
-          </FadeIn>
-        )}
-
-        {/* ── 5. All clear, and what's next ── */}
-        {view.stack.length === 0 && (
-          <FadeIn delay={60}>
-            <AllClearCard allClear={view.allClear} hasRows={view.alsoWaiting.length > 0} today={clock.today} />
           </FadeIn>
         )}
       </ScrollView>
@@ -544,6 +771,46 @@ export default function DashboardScreen() {
       </Pressable>
 
       <QuickCaptureSheet visible={showCapture} onClose={() => setShowCapture(false)} />
+
+      {/* ── The card buttons' sheets ── */}
+      <LaterSheet
+        visible={!!later}
+        choices={later?.choices ?? []}
+        busy={laterBusy}
+        onPick={(choice) => { if (later) void pickLater(later.card, choice); }}
+        onClose={() => setLater(null)}
+      />
+      <DismissSheet
+        visible={!!dismiss}
+        name={dismiss?.card.clientName ?? ""}
+        choices={dismiss?.choices ?? []}
+        laterChoices={dismiss?.laterChoices ?? []}
+        busy={dismissBusy}
+        onPick={(p) => void pickDismiss(p)}
+        onClose={() => setDismiss(null)}
+      />
+      <PostCallSheet
+        visible={!!noteSheet}
+        title={noteSheet?.kind === "call"
+          ? t("postCall.title", { name: noteSheet.call.clientName || t("nextUpToast.thisClient") })
+          : t("postCall.dayTitle")}
+        context={noteSheet?.kind === "call" ? { clientId: noteSheet.call.clientId, clientName: noteSheet.call.clientName } : undefined}
+        onRecorded={() => { if (noteSheet?.kind === "call") useNextUpStore.getState().clearPendingCall(); }}
+        onSaved={noteSaved}
+        onLogOnly={noteSheet?.kind === "call" ? () => void logCallOnly() : undefined}
+        logging={loggingCall}
+        onNotNow={noteNotNow}
+        onClose={closeNoteSheet}
+      />
+      <CompleteTaskSheet
+        task={tickingTask}
+        clientName={clients.find((cl) => cl.id === tickingTask?.client_id)?.name ?? ""}
+        onClose={() => {
+          // Ticked off (maybe with a contact logged): the server says who's still waiting.
+          if (tickingTask && !useDataStore.getState().tasks.some((x) => x.id === tickingTask.id)) refetchNextUp();
+          setTickingTask(null);
+        }}
+      />
     </SafeAreaView>
   );
 }

@@ -1,8 +1,10 @@
 /**
  * The phone's cached "Next up" (stores/next-up-store.ts), run for real.
  * Mocked: saved storage (lib/mmkv, an in-memory map), the signed-in session
- * (lib/supabase) and the network (fetch). The clock is faked so the
- * once-a-minute fetch gate is deterministic. Every row is synthetic.
+ * (lib/supabase), the network (fetch), the device locale (for the app's real
+ * i18n, lib/i18n.ts) and core's suggestion writers (record-writers), so what
+ * the store does with each outcome is what is tested. The clock is faked so
+ * the once-a-minute fetch gate is deterministic. Every row is synthetic.
  *
  * What this holds:
  *   - hydrate restores the day's payload, the phone-only snoozes, the
@@ -11,18 +13,44 @@
  *   - a failed fetch (no connection, a refusal, a body that is not a payload,
  *     a timeout) keeps the cached payload
  *   - the server is asked at most once a minute unless forced
+ *   - an answer to a request that left before a card was handled on the
+ *     phone doesn't bring the card back (R22)
+ *   - the write actions: Skip, Later, Stop, the Hangar and "already talked"
+ *     go through core's writers; on success the card leaves at once, the
+ *     server is asked again and the toast offers Undo; offline the card
+ *     stays and the toast says to try again; a Later a running Stop blocked
+ *     writes nothing and offers no Undo; Undo for Skip, Stop and the Hangar
+ *     puts the client back on today's list
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { NextUpPayload } from "@agent-runway/core/lib/next-up/types";
-// The vi.mock calls below are hoisted over this import, so it loads the mocks.
-import { useNextUpStore } from "../../stores/next-up-store";
+// The vi.mock calls below are hoisted over these imports, so they load the mocks.
+import "../i18n";
+import { onNextUpClientChange, useNextUpStore } from "../../stores/next-up-store";
+import { useToastStore } from "../../stores/toast-store";
+import { useOfflineQueueStore } from "../../stores/offline-queue";
 
-const { mem, net, fetchMock } = vi.hoisted(() => ({
+const SESSION = { data: { session: { access_token: "tok-1", user: { id: "u1" } } } };
+
+const { mem, net, fetchMock, writers } = vi.hoisted(() => ({
   mem: new Map<string, string | number>(),
-  net: { getSession: vi.fn(async (): Promise<unknown> => ({ data: { session: { access_token: "tok-1" } } })) },
+  net: { getSession: vi.fn(async (): Promise<unknown> => ({ data: { session: { access_token: "tok-1", user: { id: "u1" } } } })) },
   fetchMock: vi.fn(),
+  writers: {
+    writeSuggestionSkip: vi.fn(),
+    removeSuggestionDismissal: vi.fn(),
+    removeSuggestionSkipByKey: vi.fn(),
+    writeSuggestionHold: vi.fn(),
+    resumeSuggestions: vi.fn(),
+    writeClientToHangar: vi.fn(),
+    restoreClientFromHangar: vi.fn(),
+    reopenHandfulPin: vi.fn(),
+    writeContactActivity: vi.fn(),
+    applyCaptureWrite: vi.fn(),
+  },
 }));
 
+vi.mock("expo-localization", () => ({ getLocales: () => [{ languageTag: "en-CA" }] }));
 vi.mock("../mmkv", () => ({
   isStorageReady: () => true,
   initStorage: async () => {},
@@ -37,6 +65,7 @@ vi.mock("../mmkv", () => ({
 vi.mock("../supabase", () => ({
   supabase: { auth: { getSession: () => net.getSession() } },
 }));
+vi.mock("@agent-runway/core/lib/record-writers", () => writers);
 vi.stubGlobal("fetch", fetchMock);
 
 // ── Fixtures ─────────────────────────────────────────────────────────────────
@@ -84,12 +113,18 @@ beforeEach(() => {
   mem.clear();
   fetchMock.mockReset();
   net.getSession.mockReset();
-  net.getSession.mockImplementation(async () => ({ data: { session: { access_token: "tok-1" } } }));
+  net.getSession.mockImplementation(async () => SESSION);
+  for (const w of Object.values(writers)) w.mockReset();
   useNextUpStore.setState(EMPTY);
+  useToastStore.setState({ message: null, action: undefined });
+  useOfflineQueueStore.setState({ isOnline: true });
+  onNextUpClientChange(null);
   vi.spyOn(console, "warn").mockImplementation(() => {});
 });
 
-afterEach(() => {
+afterEach(async () => {
+  // A request a test left hanging times out here, so the next test starts with none in flight.
+  await vi.advanceTimersByTimeAsync(20_000);
   vi.useRealTimers();
   vi.restoreAllMocks();
 });
@@ -366,5 +401,337 @@ describe("dropHandfulClient", () => {
     useNextUpStore.setState({ payload: null });
     expect(() => state().dropHandfulClient("c1")).not.toThrow();
     expect(state().payload).toBeNull();
+  });
+});
+
+// ── R22: a late answer never brings a handled card back ──────────────────────
+
+describe("an answer that left before a card was handled", () => {
+  it("is ignored, so the dismissed client stays off; a request sent after is taken", async () => {
+    useNextUpStore.setState({ payload: payload({ done_today: 1 }) });
+    let late!: (v: unknown) => void;
+    fetchMock.mockReturnValueOnce(new Promise((resolve) => { late = resolve; }));
+
+    const stale = state().fetchNextUp();
+    await vi.advanceTimersByTimeAsync(0);
+    state().dropHandfulClient("c1");
+    // The server built this before the skip landed: it still lists c1.
+    late(ok(payload({ done_today: 1 })));
+    await stale;
+
+    expect(state().payload?.handful.map((h) => h.client_id)).toEqual(["c2"]);
+    expect(state().payload?.done_today).toBe(2);
+
+    fetchMock.mockResolvedValueOnce(ok(payload({ handful: [handfulItem("c2", "Pat Roy")], done_today: 2, generated_at: "2026-10-19T16:00:00.000Z" })));
+    await state().fetchNextUp({ force: true });
+    expect(state().payload?.generated_at).toBe("2026-10-19T16:00:00.000Z");
+  });
+
+  it("a forced pull that left before the card was handled is ignored too; the handled card's own refetch lands", async () => {
+    useNextUpStore.setState({ payload: payload() });
+    let late!: (v: unknown) => void;
+    fetchMock.mockReturnValueOnce(new Promise((resolve) => { late = resolve; }));
+    fetchMock.mockResolvedValueOnce(ok(payload({ handful: [handfulItem("c2", "Pat Roy")], done_today: 2 })));
+
+    const pull = state().fetchNextUp({ force: true });
+    await vi.advanceTimersByTimeAsync(0);
+    state().dropHandfulClient("c1");
+    const after = state().fetchNextUp({ force: true });
+    late(ok(payload()));
+    await Promise.all([pull, after]);
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(state().payload?.handful.map((h) => h.client_id)).toEqual(["c2"]);
+  });
+});
+
+// ── The write actions ────────────────────────────────────────────────────────
+
+const toast = () => useToastStore.getState();
+const settle = async () => {
+  await vi.advanceTimersByTimeAsync(0);
+  await vi.advanceTimersByTimeAsync(0);
+};
+/** The server's answer after a write: it no longer lists `gone`. */
+const answerWithout = (gone: string, over: Partial<NextUpPayload> = {}) =>
+  fetchMock.mockResolvedValue(ok(payload({ handful: payload().handful.filter((h) => h.client_id !== gone), ...over })));
+
+describe("skipSuggestion", () => {
+  it("skips the occurrence through core, drops the card, asks the server again and offers Undo", async () => {
+    useNextUpStore.setState({ payload: payload({ done_today: 1 }) });
+    // A fetch a moment ago: only a forced one goes now.
+    fetchMock.mockResolvedValueOnce(ok(payload({ done_today: 1 })));
+    await state().fetchNextUp();
+    let answer!: (v: unknown) => void;
+    fetchMock.mockReturnValueOnce(new Promise((resolve) => { answer = resolve; }));
+    writers.writeSuggestionSkip.mockResolvedValue({ ok: true, message: "Suggestion skipped.", id: "d1" });
+
+    await expect(state().skipSuggestion(payload().handful[0])).resolves.toBe(true);
+
+    expect(writers.writeSuggestionSkip).toHaveBeenCalledWith(expect.anything(), "u1", {
+      client_id: "c1", opportunity_type: "birthday", trigger_date: "2026-10-19",
+    });
+    expect(state().payload?.handful.map((h) => h.client_id)).toEqual(["c2"]);
+    expect(state().payload?.done_today).toBe(2);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(toast().message).toBe("Skipped Sam Lee this time. They come back at their next reason to reach out.");
+    expect(toast().action?.label).toBe("Undo");
+    answer(ok(payload({ handful: [handfulItem("c2", "Pat Roy")], done_today: 2 })));
+    await settle();
+  });
+
+  it("offline: the card stays, nothing is queued, and the toast says to try again", async () => {
+    useNextUpStore.setState({ payload: payload() });
+    writers.writeSuggestionSkip.mockResolvedValue({ ok: false, offline: true, message: "Couldn't skip the suggestion: Network request failed." });
+
+    await expect(state().skipSuggestion(payload().handful[0])).resolves.toBe(false);
+
+    expect(state().payload).toEqual(payload());
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(toast().message).toBe("No connection. Try again.");
+    expect(toast().action).toBeUndefined();
+  });
+
+  it("known to be offline: the write isn't even tried", async () => {
+    useNextUpStore.setState({ payload: payload() });
+    useOfflineQueueStore.setState({ isOnline: false });
+
+    await expect(state().skipSuggestion(payload().handful[0])).resolves.toBe(false);
+
+    expect(writers.writeSuggestionSkip).not.toHaveBeenCalled();
+    expect(toast().message).toBe("No connection. Try again.");
+  });
+
+  it("a refusal keeps the card and says so", async () => {
+    useNextUpStore.setState({ payload: payload() });
+    writers.writeSuggestionSkip.mockResolvedValue({ ok: false, message: "Couldn't skip the suggestion: permission was refused.", code: "42501" });
+
+    await expect(state().skipSuggestion(payload().handful[0])).resolves.toBe(false);
+
+    expect(state().payload).toEqual(payload());
+    expect(toast().message).toBe("Couldn't save that for Sam Lee. Try again.");
+    expect(toast().variant).toBe("error");
+  });
+
+  it("Undo removes the skip, reopens today's pin and brings the card back", async () => {
+    useNextUpStore.setState({ payload: payload({ done_today: 1 }) });
+    writers.writeSuggestionSkip.mockResolvedValue({ ok: true, message: "Suggestion skipped.", id: "d1" });
+    writers.removeSuggestionDismissal.mockResolvedValue({ ok: true, message: "Skip undone." });
+    writers.reopenHandfulPin.mockResolvedValue({ ok: true, message: "Back on today's list." });
+    answerWithout("c1", { done_today: 2 });
+
+    await state().skipSuggestion(payload().handful[0]);
+    await settle();
+    expect(state().payload?.handful.map((h) => h.client_id)).toEqual(["c2"]);
+
+    fetchMock.mockResolvedValue(ok(payload({ done_today: 1, generated_at: "2026-10-19T17:00:00.000Z" })));
+    await toast().action!.onPress();
+    await settle();
+
+    expect(writers.removeSuggestionDismissal).toHaveBeenCalledWith(expect.anything(), "u1", "d1");
+    expect(writers.reopenHandfulPin).toHaveBeenCalledWith(expect.anything(), "u1", "c1");
+    // The undo saved before the pin was reopened.
+    expect(writers.removeSuggestionDismissal.mock.invocationCallOrder[0]).toBeLessThan(writers.reopenHandfulPin.mock.invocationCallOrder[0]);
+    expect(state().payload?.handful.map((h) => h.client_id)).toEqual(["c1", "c2"]);
+    expect(state().payload?.done_today).toBe(1);
+  });
+
+  const reopenFails: [string, () => void][] = [
+    ["couldn't reopen the pin", () => writers.reopenHandfulPin.mockResolvedValue({ ok: false, message: "Couldn't check today's list: permission was refused." })],
+    ["threw while reopening it", () => writers.reopenHandfulPin.mockRejectedValue(new Error("boom"))],
+  ];
+  for (const [what, reopen] of reopenFails) {
+    it(`Undo that saved but ${what} says so and still counts as undone`, async () => {
+      useNextUpStore.setState({ payload: payload({ done_today: 1 }) });
+      writers.writeSuggestionSkip.mockResolvedValue({ ok: true, message: "Suggestion skipped.", id: "d1" });
+      writers.removeSuggestionDismissal.mockResolvedValue({ ok: true, message: "Skip undone." });
+      reopen();
+      answerWithout("c1", { done_today: 2 });
+
+      await state().skipSuggestion(payload().handful[0]);
+      await settle();
+      // The Undo's refetch doesn't land here, so the test sees what Undo put back.
+      fetchMock.mockReturnValue(new Promise(() => {}));
+      await toast().action!.onPress();
+
+      expect(toast().message).toBe("Undone. They may not show on today's list until tomorrow.");
+      expect(toast().variant).not.toBe("error");
+      expect(state().payload?.handful.map((h) => h.client_id)).toEqual(["c1", "c2"]);
+    });
+  }
+
+  it("Undo that didn't save says so and leaves the card off", async () => {
+    useNextUpStore.setState({ payload: payload() });
+    writers.writeSuggestionSkip.mockResolvedValue({ ok: true, message: "Suggestion skipped.", id: "d1" });
+    writers.removeSuggestionDismissal.mockResolvedValue({ ok: false, message: "Couldn't undo the skip: permission was refused." });
+    answerWithout("c1", { done_today: 1 });
+
+    await state().skipSuggestion(payload().handful[0]);
+    await settle();
+    await toast().action!.onPress();
+
+    expect(toast().message).toBe("Couldn't undo. Try again.");
+    expect(writers.reopenHandfulPin).not.toHaveBeenCalled();
+    expect(state().payload?.handful.map((h) => h.client_id)).toEqual(["c2"]);
+  });
+});
+
+describe("holdSuggestion", () => {
+  const until = () => new Date(Date.now() + 3_600_000);
+
+  it("Later holds the slot: the card moves to Later, isn't counted done, and Undo only takes the hold off", async () => {
+    useNextUpStore.setState({ payload: payload({ done_today: 1 }) });
+    writers.writeSuggestionHold.mockResolvedValue({ ok: true, message: "Sam Lee will come back later." });
+    writers.resumeSuggestions.mockResolvedValue({ ok: true, message: "Suggestions are back on for this client." });
+    let answer!: (v: unknown) => void;
+    fetchMock.mockReturnValueOnce(new Promise((resolve) => { answer = resolve; }));
+    const at = until();
+
+    await expect(state().holdSuggestion({ client_id: "c1", client_name: "Sam Lee" }, "later", at, "in_an_hour")).resolves.toBe(true);
+
+    const [, uid, args, today] = writers.writeSuggestionHold.mock.calls[0];
+    expect(uid).toBe("u1");
+    expect(args).toEqual({ clientId: "c1", clientName: "Sam Lee", kind: "later", until: at });
+    expect(today).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(state().payload?.handful.map((h) => h.client_id)).toEqual(["c2"]);
+    expect(state().payload?.snoozed).toEqual([{ client_id: "c1", client_name: "Sam Lee", until: at.toISOString(), phone: "5065550101" }]);
+    expect(state().payload?.done_today).toBe(1);
+    expect(toast().message).toBe("Sam Lee is back in an hour.");
+
+    // The server agrees; the Undo's own refetch doesn't land here.
+    answer(ok(state().payload));
+    await settle();
+    fetchMock.mockReturnValue(new Promise(() => {}));
+    await toast().action!.onPress();
+    expect(writers.resumeSuggestions).toHaveBeenCalledWith(expect.anything(), "u1", "c1");
+    expect(writers.reopenHandfulPin).not.toHaveBeenCalled();
+    expect(state().payload?.handful.map((h) => h.client_id)).toEqual(["c1", "c2"]);
+    expect(state().payload?.snoozed).toEqual([]);
+  });
+
+  it("a Later a running Stop blocked writes nothing: the card stays, the writer's words show, no Undo", async () => {
+    useNextUpStore.setState({ payload: payload() });
+    writers.writeSuggestionHold.mockResolvedValue({
+      ok: true, alreadySaved: true, stoppedUntil: "2027-01-19T04:00:00.000Z",
+      message: "Suggestions for Sam Lee are already stopped until January 19.",
+    });
+
+    await expect(state().holdSuggestion({ client_id: "c1", client_name: "Sam Lee" }, "later", until(), "in_an_hour")).resolves.toBe(false);
+
+    expect(state().payload).toEqual(payload());
+    expect(toast().message).toBe("Suggestions for Sam Lee are already stopped until January 19.");
+    expect(toast().action).toBeUndefined();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("Stop frees the slot (counted done); Undo resumes and reopens today's pin", async () => {
+    useNextUpStore.setState({ payload: payload({ done_today: 1 }) });
+    writers.writeSuggestionHold.mockResolvedValue({ ok: true, message: "Suggestions for Sam Lee are stopped until January 19." });
+    writers.resumeSuggestions.mockResolvedValue({ ok: true, message: "Suggestions are back on for this client." });
+    writers.reopenHandfulPin.mockResolvedValue({ ok: true, message: "Back on today's list." });
+    answerWithout("c1", { done_today: 2 });
+
+    await state().holdSuggestion({ client_id: "c1", client_name: "Sam Lee" }, "stop", new Date(Date.now() + 90 * 86_400_000), "3_months");
+
+    expect(state().payload?.handful.map((h) => h.client_id)).toEqual(["c2"]);
+    expect(state().payload?.done_today).toBe(2);
+    expect(toast().message).toBe("No suggestions for Sam Lee for 3 months.");
+
+    await settle();
+    fetchMock.mockReturnValue(new Promise(() => {}));
+    await toast().action!.onPress();
+    expect(writers.resumeSuggestions).toHaveBeenCalledWith(expect.anything(), "u1", "c1");
+    expect(writers.reopenHandfulPin).toHaveBeenCalledWith(expect.anything(), "u1", "c1");
+    expect(state().payload?.done_today).toBe(1);
+  });
+});
+
+describe("moveToHangar", () => {
+  it("archives through core, drops the card, and Undo brings them back and reopens the pin", async () => {
+    const changed = vi.fn();
+    onNextUpClientChange(changed);
+    useNextUpStore.setState({ payload: payload() });
+    writers.writeClientToHangar.mockResolvedValue({ ok: true, message: "Sam Lee moved to the Hangar.", id: "c1" });
+    writers.restoreClientFromHangar.mockResolvedValue({ ok: true, message: "Sam Lee is back from the Hangar." });
+    writers.reopenHandfulPin.mockResolvedValue({ ok: true, message: "Back on today's list." });
+    answerWithout("c1", { done_today: 2 });
+
+    await expect(state().moveToHangar("c1", "Sam Lee")).resolves.toBe(true);
+
+    expect(writers.writeClientToHangar).toHaveBeenCalledWith(expect.anything(), "u1", { clientId: "c1", clientName: "Sam Lee" });
+    expect(state().payload?.handful.map((h) => h.client_id)).toEqual(["c2"]);
+    expect(toast().message).toBe("Sam Lee moved to the Hangar.");
+    expect(changed).toHaveBeenCalledWith("c1", "changed");
+
+    await settle();
+    fetchMock.mockReturnValue(new Promise(() => {}));
+    await toast().action!.onPress();
+    expect(writers.restoreClientFromHangar).toHaveBeenCalledWith(expect.anything(), "u1", { clientId: "c1", clientName: "Sam Lee" });
+    expect(writers.reopenHandfulPin).toHaveBeenCalledWith(expect.anything(), "u1", "c1");
+    expect(state().payload?.handful.map((h) => h.client_id)).toEqual(["c1", "c2"]);
+  });
+
+  it("a refusal shows the writer's words and keeps the card", async () => {
+    useNextUpStore.setState({ payload: payload() });
+    writers.writeClientToHangar.mockResolvedValue({ ok: false, message: "Sam Lee is already in the Hangar." });
+
+    await expect(state().moveToHangar("c1", "Sam Lee")).resolves.toBe(false);
+
+    expect(state().payload).toEqual(payload());
+    expect(toast().message).toBe("Sam Lee is already in the Hangar.");
+  });
+});
+
+describe("logTalkedTo", () => {
+  it("logs the contact through core with no description, drops the card and tells the data store", async () => {
+    const changed = vi.fn();
+    onNextUpClientChange(changed);
+    useNextUpStore.setState({ payload: payload({ done_today: 1 }) });
+    writers.writeContactActivity.mockResolvedValue({ ok: true, message: "Logged call on Sam Lee for 2026-10-19.", id: "a1" });
+    fetchMock.mockReturnValue(new Promise(() => {}));
+
+    await expect(state().logTalkedTo("c1", "Sam Lee", "meeting")).resolves.toBe(true);
+
+    const [, uid, args, today] = writers.writeContactActivity.mock.calls[0];
+    expect(uid).toBe("u1");
+    expect(args).toEqual({ clientId: "c1", clientName: "Sam Lee", type: "meeting", description: "" });
+    expect(today).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(state().payload?.handful.map((h) => h.client_id)).toEqual(["c2"]);
+    expect(state().payload?.done_today).toBe(2);
+    expect(changed).toHaveBeenCalledWith("c1", "contacted");
+    await settle();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(toast().message).toBe("Logged your meeting with Sam Lee.");
+  });
+
+  it("offline: nothing changes and the toast says to try again", async () => {
+    useNextUpStore.setState({ payload: payload() });
+    writers.writeContactActivity.mockResolvedValue({ ok: false, offline: true, message: "Couldn't log the activity: Network request failed." });
+
+    await expect(state().logTalkedTo("c1", "Sam Lee", "call")).resolves.toBe(false);
+
+    expect(state().payload).toEqual(payload());
+    expect(toast().message).toBe("No connection. Try again.");
+  });
+});
+
+describe("resumeSuggestion and unsnoozeCard", () => {
+  it("resumeSuggestion takes the holds off and asks the server again", async () => {
+    writers.resumeSuggestions.mockResolvedValue({ ok: true, message: "Suggestions are back on for this client." });
+    fetchMock.mockResolvedValue(ok(payload()));
+
+    await expect(state().resumeSuggestion("c1")).resolves.toBe(true);
+
+    expect(writers.resumeSuggestions).toHaveBeenCalledWith(expect.anything(), "u1", "c1");
+    await settle();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("unsnoozeCard brings a phone-only card back", () => {
+    const ahead = new Date(Date.now() + 60_000).toISOString();
+    state().snoozeCard("briefing:2026-10-19", ahead);
+    state().unsnoozeCard("briefing:2026-10-19");
+    expect(state().localSnoozes).toEqual({});
+    expect(JSON.parse(mem.get("next_up_local_snoozes") as string)).toEqual({});
   });
 });

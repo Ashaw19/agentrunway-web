@@ -25,7 +25,7 @@ import {
   Dimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter, useFocusEffect } from "expo-router";
+import { useRouter, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import {
@@ -186,6 +186,18 @@ export default function ClientsScreen() {
   useEffect(() => {
     if (clients.length === 0) fetchClients();
   }, []);
+
+  // Opened for one client (the dashboard's "Open client"): show their profile
+  // once, as soon as they're loaded. The param is cleared after, so opening
+  // the same client again from the dashboard opens it again.
+  const { clientId: openClientId } = useLocalSearchParams<{ clientId?: string }>();
+  useEffect(() => {
+    if (!openClientId) return;
+    const found = clients.find((cl) => cl.id === openClientId);
+    if (!found) return;
+    setSelectedClient(found);
+    router.setParams({ clientId: undefined });
+  }, [openClientId, clients]);
 
   // Re-fetch on tab focus
   useFocusEffect(

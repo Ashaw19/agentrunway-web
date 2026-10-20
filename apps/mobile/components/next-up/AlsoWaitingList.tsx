@@ -3,18 +3,20 @@
  * with its count and a chevron. Tapping a row opens its section.
  *
  * A Checklist row holding exactly one task (swipeTaskId) can be marked done
- * in place: `onSwipeDone(taskId)`. Its accessibility action "Mark done"
- * calls it today; the swipe gesture itself comes with the card actions
- * (it needs a GestureHandlerRootView at the app's root, which the app
- * doesn't have yet).
+ * in place: swipe it left (react-native-gesture-handler's Swipeable, under
+ * the GestureHandlerRootView at the app's root), or use its accessibility
+ * action "Mark done". Both call `onSwipeDone(taskId)`, which does what the
+ * card's "Mark one done" does.
  *
  * The Checklist count is red only while an overdue task waits in it
  * (`checklistOverdue`); red is for overdue items only.
  */
 
+import type { ReactNode } from "react";
 import { Pressable, Text, View } from "react-native";
+import { Swipeable } from "react-native-gesture-handler";
 import { useTranslation } from "react-i18next";
-import { Briefcase, ChevronRight, Clock, Mail, Phone, Receipt, UserPlus } from "lucide-react-native";
+import { Briefcase, Check, ChevronRight, Clock, Mail, Phone, Receipt, UserPlus } from "lucide-react-native";
 import type { AlsoWaitingRow, SectionKey } from "@agent-runway/core/lib/next-up/build";
 import { Radius, Space, shadows, useColors, useTheme } from "@/lib/theme";
 import { rowCopy } from "@/lib/next-up-copy";
@@ -76,7 +78,32 @@ export function AlsoWaitingList({ rows, onOpen, onSwipeDone, checklistOverdue = 
           const { fg, bg } = colour(row.section);
           const SectionIcon = SECTION_ICONS[row.section];
           const swipeTaskId = row.swipeTaskId;
-          return (
+          const swipeable = (child: ReactNode) => !swipeTaskId ? child : (
+            <Swipeable
+              key={row.section}
+              friction={2}
+              rightThreshold={72}
+              overshootRight={false}
+              renderRightActions={() => (
+                <View
+                  style={{
+                    flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: Space.lg,
+                    backgroundColor: c.success,
+                  }}
+                >
+                  <Check size={16} color="#FFFFFF" strokeWidth={2.6} />
+                  <Text style={{ fontSize: 13, fontWeight: "800", color: "#FFFFFF" }}>{t("alsoWaiting.markDone")}</Text>
+                </View>
+              )}
+              onSwipeableOpen={(_direction, swipe) => {
+                swipe.close();
+                onSwipeDone(swipeTaskId);
+              }}
+            >
+              {child}
+            </Swipeable>
+          );
+          return swipeable(
             <Pressable
               key={row.section}
               onPress={() => onOpen(row.section)}
@@ -89,7 +116,8 @@ export function AlsoWaitingList({ rows, onOpen, onSwipeDone, checklistOverdue = 
               style={({ pressed }) => ({
                 flexDirection: "row", alignItems: "center", gap: 11, paddingVertical: 10, paddingHorizontal: 12,
                 borderTopWidth: i > 0 ? 1 : 0, borderTopColor: c.divider,
-                backgroundColor: pressed ? c.primaryDim : "transparent",
+                // A row that swipes covers its "Mark done" panel until it moves.
+                backgroundColor: pressed ? c.primaryDim : swipeTaskId ? c.card : "transparent",
               })}
             >
               <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: bg, alignItems: "center", justifyContent: "center" }}>

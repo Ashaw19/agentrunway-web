@@ -26,10 +26,10 @@ import {
   MessageSquare,
 } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
-import { textCheckOutcome } from "@agent-runway/core/lib/queued-text-check";
-import * as SMS from "expo-sms";
 import { useDataStore, type OutreachItem } from "@/stores/data-store";
 import { supabase } from "@/lib/supabase";
+import { sendQueuedText, textPhone } from "@/lib/send-queued-text";
+import { queuedTextDeps } from "@/lib/queued-text-deps";
 import {
   useColors,
   useTheme,
@@ -63,12 +63,6 @@ function opportunityLabel(type: string): string {
   return OPPORTUNITY_LABELS[type] ?? type.replace(/_/g, " ");
 }
 
-/** The number a queued text goes to: the one it was drafted for, else the client's. */
-function textPhone(item: OutreachItem): string | null {
-  const drafted = item.context?.phone;
-  return (typeof drafted === "string" && drafted.trim()) || item.clients?.phone?.trim() || null;
-}
-
 function fmtDate(d: string): string {
   const date = new Date(d + "T00:00:00");
   return date.toLocaleDateString("en-CA", {
@@ -89,7 +83,6 @@ export default function OutreachScreen() {
     fetchOutreach,
     updateOutreachDraft,
     skipOutreach,
-    markTexted,
   } = useDataStore();
 
   // Emails and texts (00179) share the queue; each tab shows one channel.
@@ -201,75 +194,18 @@ export default function OutreachScreen() {
 
   // ── Send a text: iOS Messages opens prefilled; the agent taps Send ────────
 
-  const handleSendText = useCallback(async (item: OutreachItem, bodyOverride?: string) => {
-    const phone = textPhone(item);
-    const name = item.clients?.name ?? "this client";
-    if (!phone) {
-      Alert.alert("No Phone Number", `${name} doesn't have a phone number on file. Add one in Clients first.`);
-      return;
-    }
-    const body = bodyOverride ?? (item.final_body || item.ai_body || "");
-    if (!(await SMS.isAvailableAsync())) {
-      Alert.alert("Texting Unavailable", "This device can't send text messages.");
-      return;
-    }
+  // CASL: the server's consent check runs before Messages opens, and the text
+  // is logged once Messages says it went (lib/send-queued-text.ts, shared
+  // with the dashboard's Text button).
+  const handleSendText = useCallback(async (item: OutreachItem) => {
     setSendingId(item.id);
     try {
-      // CASL: the text was drafted earlier. Ask the server whether it may
-      // still go out (unsubscribed, implied consent lapsed, archived) before
-      // Messages opens. No answer means no text (fails closed).
-      const session = (await supabase.auth.getSession()).data.session;
-      let status: number | null = null;
-      let answer: unknown = null;
-      if (session) {
-        try {
-          const res = await fetch(`${API_URL}/api/mobile/outreach/text-check`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
-            body: JSON.stringify({ outreach_id: item.id }),
-          });
-          status = res.status;
-          answer = await res.json().catch(() => null);
-        } catch {
-          status = null;
-        }
-      }
-      const check = textCheckOutcome(status, answer);
-      if (!check.send) {
-        if (check.removeFromQueue) {
-          useDataStore.setState({
-            outreachQueue: useDataStore.getState().outreachQueue.filter((q) => q.id !== item.id),
-          });
-        }
-        Alert.alert(check.title, check.message);
-        return;
-      }
-
-      const { result } = await SMS.sendSMSAsync([phone], body);
-      const record = async () => {
-        const ok = await markTexted(item.id, body);
-        if (ok) {
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        } else {
-          Alert.alert("Not Logged", `The text went out, but Agent Runway couldn't log it on ${name}'s history. Pull down to refresh and try again.`);
-        }
-      };
-      if (result === "sent") {
-        await record();
-      } else if (result === "unknown") {
-        Alert.alert("Did You Send It?", `Agent Runway couldn't tell whether the text to ${name} was sent.`, [
-          { text: "Not Sent", style: "cancel" },
-          { text: "Yes, Sent", onPress: () => void record() },
-        ]);
-      }
-      // "cancelled": the agent closed Messages without sending; the text stays queued.
-    } catch (err) {
-      console.error("Text send failed:", err);
-      Alert.alert("Couldn't Open Messages", "Please try again.");
+      const result = await sendQueuedText(item, queuedTextDeps());
+      if (result === "sent") void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } finally {
       setSendingId(null);
     }
-  }, [markTexted]);
+  }, []);
 
   // ── Skip ─────────────────────────────────────────────────────────────────
 
@@ -573,7 +509,7 @@ export default function OutreachScreen() {
                     );
                     setEditItem(null);
                     if (editItem.channel === "sms") {
-                      void handleSendText({ ...editItem, final_body: editBody }, editBody);
+                      void handleSendText({ ...editItem, final_body: editBody });
                     } else {
                       handleSend({
                         ...editItem,

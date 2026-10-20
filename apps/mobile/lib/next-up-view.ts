@@ -7,8 +7,8 @@
  * Plain functions over plain values, so lib/__tests__ can run them.
  */
 
-import type { NextUpInput, NextUpAction, NextUpView, SectionKey } from "@agent-runway/core/lib/next-up/build";
-import { isOverdueTask, type TimeBand } from "@agent-runway/core/lib/next-up/rules";
+import type { NextUpCard, NextUpInput, NextUpAction, NextUpView, SectionKey } from "@agent-runway/core/lib/next-up/build";
+import { isOverdueTask, textPurposeFor, type TimeBand } from "@agent-runway/core/lib/next-up/rules";
 import type { NextUpPayload } from "@agent-runway/core/lib/next-up/types";
 import type { NextUpClock } from "./next-up-clock";
 
@@ -108,4 +108,36 @@ export function checklistRowHasOverdue(
 ): boolean {
   const covered = new Set(view.stack.flatMap((c) => c.itemIds));
   return tasks.some((t) => !covered.has(t.id) && isOverdueTask(t, today));
+}
+
+// ── Text ─────────────────────────────────────────────────────────────────────
+
+/** What the Text button on a card does: send today's queued text, or draft one first. */
+export type TextPlan =
+  | { kind: "send"; queueId: string }
+  | { kind: "draft"; purpose: "check_in" | "consent_request"; note: string }
+  | null;
+
+/** The drafter's note for a new lead's first text. */
+export const NEW_LEAD_TEXT_NOTE = "New lead, first contact";
+
+/**
+ * CASL: a handful card texts only when the server said a text can go (its
+ * status, checked under consentStatus when the payload was built): `ready`
+ * sends the queued text, `draftable` drafts one with the card's purpose and
+ * Flight Control's label. A new lead drafts a first-contact check-in, and the
+ * drafter checks their consent before writing a word (call_only otherwise).
+ * Anything else (call only, no number, a client back from Later before the
+ * server has answered again) never texts. The text check before Messages
+ * opens (sendQueuedText) still runs on every send.
+ */
+export function textPlan(card: NextUpCard): TextPlan {
+  if (!card.phone?.trim()) return null;
+  if (card.kind === "new_lead") return { kind: "draft", purpose: "check_in", note: NEW_LEAD_TEXT_NOTE };
+  if (card.kind !== "handful_client") return null;
+  if (card.text?.status === "ready") return { kind: "send", queueId: card.text.queue_id };
+  if (card.text?.status === "draftable" && card.occurrence) {
+    return { kind: "draft", purpose: textPurposeFor(card.occurrence.opportunity_type), note: card.detail.label ?? "" };
+  }
+  return null;
 }
