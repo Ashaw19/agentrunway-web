@@ -174,9 +174,20 @@ export interface EventPlan {
   consent?:  { kind: ConsentKind; text: string; at: string; ip: string | null };
   /** Consents to mark withdrawn: one kind, or all of them. */
   withdraw?: ConsentKind | "all";
-  /** Nothing to do (an unsubscribe for someone not in the CRM). */
-  skip?:     "no_client" | "no_contact";
+  /** Nothing to do (an unsubscribe for someone not in the CRM, or a test sign-up). */
+  skip?:     "no_client" | "no_contact" | "test_address";
   occurredAt: string;
+}
+
+/**
+ * An address no person can own (RFC 2606 / RFC 6761): example.com/.net/.org
+ * and the .example, .test, .invalid and .localhost names. A sign-up from one
+ * is a test (2026-10-19: the site's tests ran with the live key and a
+ * buyer@example.com alert became a lead), so it never reaches the CRM.
+ */
+export function isTestAddress(email: string | undefined): boolean {
+  const domain = email?.split("@")[1]?.toLowerCase() ?? "";
+  return /(^|\.)example\.(com|net|org)$/.test(domain) || /(^|\.)(example|test|invalid|localhost)$/.test(domain);
 }
 
 /** Digits only, last 10: "(506) 650-1242" and "+1 506 650 1242" match. */
@@ -274,6 +285,7 @@ export function planWebsiteEvent(e: WebsiteEvent, match: MatchedClient | null, n
   }
 
   if (!email && !phoneKey(phone)) return { skip: "no_contact", occurredAt };
+  if (isTestAddress(email)) return { skip: "test_address", occurredAt };
 
   const tag = `Website: ${SOURCE_LABEL[e.source]}`;
   const consent = e.consent ? { kind: e.consent.kind, text: e.consent.text, at: e.consent.at, ip: e.consent.ip ?? null } : undefined;
