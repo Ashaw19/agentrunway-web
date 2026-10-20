@@ -1,6 +1,6 @@
 /**
  * Expense item keys and their labels on the phone: the receipt review screen
- * (More → Expenses) and the voice capture card. The keys are web's
+ * (Money → Expenses) and the voice capture card. The keys are web's
  * apps/web/lib/types/receipt.ts (receipt_expenses.category_key is an expense
  * ITEM key); apps/web/lib/__tests__/home-office-keys-parity.test.ts holds
  * the Home Office keys here to the canonical list.

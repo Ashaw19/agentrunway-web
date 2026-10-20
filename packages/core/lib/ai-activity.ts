@@ -2,7 +2,7 @@
  * AI activity: reading the AI run ledger (migration 00182).
  *
  * Pure helpers shared by every surface that shows what the AI did: the web
- * "AI activity" page, the phone's More → AI activity list, Flight Crew's
+ * "AI activity" page, the phone's AI activity list (Flight Crew → history button), Flight Crew's
  * getAIActivity tool and the connector's get_ai_activity. They group the
  * ledger's rows into one "action" per tool call, describe it in plain words,
  * and decide whether Undo is available (the undo itself is ai-undo.ts).

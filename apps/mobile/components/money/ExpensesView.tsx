@@ -10,6 +10,7 @@ import {
   Alert,
   Image,
   KeyboardAvoidingView,
+  Modal,
   Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -49,6 +50,7 @@ import {
   fmtCurrency,
   fmtCompact,
 } from "@/lib/theme";
+import { ADD_CLEARANCE } from "@/components/add/AddButton";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { EXPENSE_CATEGORY_LABELS } from "@/lib/expense-categories";
@@ -140,7 +142,18 @@ function categoryColor(key: string | null): string {
 
 // ── Component ──────────────────────────────────────────────────────────────────
 
-export default function ScanScreen() {
+/**
+ * Expenses, the first view of the Money tab (app/(app)/(tabs)/money.tsx).
+ * `autoScan` opens the receipt camera once on arrival (the "+" sheet's
+ * Receipt); the host clears it through `onAutoScanHandled`. It never
+ * replaces a receipt being reviewed or saved. `keyboardOffset`: the height
+ * of the Money header above, so the keyboard clears the form.
+ */
+export default function ExpensesView({
+  autoScan = false,
+  onAutoScanHandled,
+  keyboardOffset = 0,
+}: { autoScan?: boolean; onAutoScanHandled?: () => void; keyboardOffset?: number } = {}) {
   const { receipts, fetchReceipts, settings } = useDataStore();
   const [state, setState] = useState<ScreenState>("idle");
   const [refreshing, setRefreshing] = useState(false);
@@ -272,6 +285,13 @@ export default function ScanScreen() {
     }
     setState("camera");
   }, [permission, requestPermission]);
+
+  // The "+" sheet's Receipt: straight to the camera, once.
+  useEffect(() => {
+    if (!autoScan) return;
+    onAutoScanHandled?.();
+    if (state === "idle") void openCamera();
+  }, [autoScan, onAutoScanHandled, openCamera, state]);
 
   const capturePhoto = useCallback(async () => {
     if (!cameraRef.current) return;
@@ -437,9 +457,12 @@ export default function ScanScreen() {
   }, []);
 
   // ── Camera View ───────────────────────────────────────────────────────────
+  // Full screen over the tabs: the view sits under the Money header, the
+  // camera doesn't.
 
   if (state === "camera") {
     return (
+      <Modal visible animationType="slide" presentationStyle="fullScreen" onRequestClose={() => setState("idle")}>
       <View style={{ flex: 1, backgroundColor: "#000" }}>
         <CameraView
           ref={cameraRef}
@@ -534,6 +557,7 @@ export default function ScanScreen() {
           </SafeAreaView>
         </CameraView>
       </View>
+      </Modal>
     );
   }
 
@@ -543,13 +567,14 @@ export default function ScanScreen() {
     const isUploading = state === "uploading";
 
     return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: c.bg }}>
+      <SafeAreaView edges={["bottom"]} style={{ flex: 1, backgroundColor: c.bg }}>
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : "height"}
+          keyboardVerticalOffset={keyboardOffset}
           style={{ flex: 1 }}
         >
           <ScrollView
-            contentContainerStyle={{ padding: Space.xl, paddingBottom: 120, gap: Space.lg }}
+            contentContainerStyle={{ padding: Space.xl, paddingBottom: ADD_CLEARANCE, gap: Space.lg }}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
@@ -781,9 +806,9 @@ export default function ScanScreen() {
   // ── Idle View (main screen) ───────────────────────────────────────────────
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: c.bg }}>
+    <SafeAreaView edges={["bottom"]} style={{ flex: 1, backgroundColor: c.bg }}>
       <ScrollView
-        contentContainerStyle={{ paddingHorizontal: Space.xl, paddingBottom: 120 }}
+        contentContainerStyle={{ paddingHorizontal: Space.xl, paddingBottom: ADD_CLEARANCE }}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
@@ -793,12 +818,8 @@ export default function ScanScreen() {
           />
         }
       >
-        {/* Header */}
-        <View style={{ paddingTop: Space.lg, paddingBottom: Space.xxl }}>
-          <Text style={{ ...Type.hero, color: c.text }}>
-            Expenses
-          </Text>
-        </View>
+        {/* No title of its own: the Money tab's header and switcher name it. */}
+        <View style={{ height: Space.md }} />
 
         {/* ── Summary Metrics ── */}
         <View style={{ flexDirection: "row", gap: Space.md, marginBottom: Space.xl }}>

@@ -1,5 +1,5 @@
 /**
- * Fill in from Contacts — More → Fill in from Contacts.
+ * Fill in from Contacts — Clients → ⋯ menu → Fill in from Contacts.
  *
  * Reads the phone's address book on the device (expo-contacts, after the
  * agent allows it), matches it to the agent's clients with the shared rules

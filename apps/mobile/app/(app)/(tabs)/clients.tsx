@@ -23,9 +23,11 @@ import {
   Animated,
   ActivityIndicator,
   Dimensions,
+  ActionSheetIOS,
+  Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter, useFocusEffect, useLocalSearchParams } from "expo-router";
+import { useRouter, useFocusEffect, useLocalSearchParams, useNavigation } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import {
@@ -64,6 +66,8 @@ import {
   getInitials,
   fmtCurrency,
 } from "@/lib/theme";
+import { ADD_CLEARANCE, AddButton } from "@/components/add/AddButton";
+import { NAV } from "@/lib/app-nav";
 import { Card, Sheet, Badge, Avatar, Button, Input, EmptyState } from "@/components/ui";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useTranslation } from "react-i18next";
@@ -81,7 +85,6 @@ import { orderTopClientsFirst, topClients } from "@/lib/client-order";
 import type { CaptureProposal } from "@agent-runway/core/lib/capture/types";
 import { VoiceCaptureButton } from "@/components/voice/VoiceCaptureButton";
 import { VoiceCaptureCard } from "@/components/voice/VoiceCaptureCard";
-import { VoiceCaptureSheet } from "@/components/voice/VoiceCaptureSheet";
 import { ConsentCard } from "@/components/ConsentCard";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -151,6 +154,7 @@ export default function ClientsScreen() {
   const router = useRouter();
   const { t } = useTranslation("clients");
   const { t: tCommon } = useTranslation("common");
+  const { t: tProfile } = useTranslation("profile");
 
   const {
     clients, clientRecords, fetchClients, addClient, addActivity, updateClient, isLoading, draftTexts, settings,
@@ -181,7 +185,6 @@ export default function ClientsScreen() {
   const [drafting, setDrafting] = useState(false);
 
   // ── Voice note: record → review the proposed writes → confirm ──
-  const [capture, setCapture] = useState<CaptureProposal | null>(null);
 
   useEffect(() => {
     if (clients.length === 0) fetchClients();
@@ -190,14 +193,44 @@ export default function ClientsScreen() {
   // Opened for one client (the dashboard's "Open client"): show their profile
   // once, as soon as they're loaded. The param is cleared after, so opening
   // the same client again from the dashboard opens it again.
-  const { clientId: openClientId } = useLocalSearchParams<{ clientId?: string }>();
+  const { clientId: openClientId, add: openAdd } = useLocalSearchParams<{ clientId?: string; add?: string }>();
+  // This screen's own params: a link is cleared here even if another screen
+  // is in front by then (router.setParams acts on the screen in front).
+  const navigation = useNavigation();
+  const clearParams = (keys: Record<string, undefined>) => (navigation as unknown as { setParams: (p: object) => void }).setParams(keys);
+
+  // The "+" sheet's Client: open the add form once, then clear the param.
+  useEffect(() => {
+    if (openAdd !== "1") return;
+    setShowAdd(true);
+    clearParams({ add: undefined });
+  }, [openAdd]);
+
+  // The Contacts tools, which lived on More: a menu by the title.
+  const openContactsMenu = () => {
+    const options = [tProfile("tools.importContacts"), tProfile("tools.fillFromContacts"), tCommon("nav.cancel")];
+    const go = (i: number) => {
+      if (i === 0) router.push(NAV.contactsImport);
+      else if (i === 1) router.push(NAV.contactsFill);
+    };
+    if (Platform.OS === "ios") {
+      ActionSheetIOS.showActionSheetWithOptions({ options, cancelButtonIndex: 2 }, go);
+    } else {
+      Alert.alert(t("title"), undefined, [
+        { text: options[0], onPress: () => go(0) },
+        { text: options[1], onPress: () => go(1) },
+        { text: options[2], style: "cancel" },
+      ]);
+    }
+  };
   useEffect(() => {
     if (!openClientId) return;
     const found = clients.find((cl) => cl.id === openClientId);
-    if (!found) return;
-    setSelectedClient(found);
-    router.setParams({ clientId: undefined });
-  }, [openClientId, clients]);
+    if (found) setSelectedClient(found);
+    // Not loaded yet: wait. Loaded and not there: drop the link, so it can't
+    // open later out of the blue.
+    if (found || (!isLoading && clients.length > 0)) clearParams({ clientId: undefined });
+  }, [openClientId, clients, isLoading]);
 
   // Re-fetch on tab focus
   useFocusEffect(
@@ -446,12 +479,18 @@ export default function ClientsScreen() {
             ) : (
               <>
                 <Button label="Select" variant="ghost" onPress={() => setSelecting(true)} />
-                <Button
-                  label={tCommon("actions.add")}
-                  variant="primary"
-                  icon="add"
-                  onPress={() => setShowAdd(true)}
-                />
+                <Pressable
+                  onPress={openContactsMenu}
+                  accessibilityRole="button"
+                  accessibilityLabel={tProfile("tools.importContacts")}
+                  hitSlop={8}
+                  style={({ pressed }) => ({
+                    width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center",
+                    backgroundColor: pressed ? c.primaryDim : "transparent",
+                  })}
+                >
+                  <Ionicons name="ellipsis-horizontal-circle-outline" size={26} color={c.primary} />
+                </Pressable>
               </>
             )}
           </View>
@@ -639,7 +678,7 @@ export default function ClientsScreen() {
         contentContainerStyle={{
           paddingHorizontal: Space.xl,
           paddingTop: Space.md,
-          paddingBottom: 120,
+          paddingBottom: ADD_CLEARANCE,
           gap: Space.sm,
         }}
         showsVerticalScrollIndicator={false}
@@ -786,9 +825,8 @@ export default function ClientsScreen() {
         />
       )}
 
-      {/* ── Voice note (the profile sheet shows its own card in place) ── */}
-      {!selecting && !selectedClient && <VoiceCaptureButton onProposal={setCapture} />}
-      <VoiceCaptureSheet proposal={capture} onClose={() => setCapture(null)} />
+      {/* ── The "+": add anything, voice notes included (components/add) ── */}
+      {!selecting && !selectedClient && <AddButton />}
 
       {/* ── Add Client Sheet ── */}
       <AddClientSheet

@@ -19,6 +19,7 @@ import type {
 import { isOverdueTask, textPurposeFor, type TimeBand } from "@agent-runway/core/lib/next-up/rules";
 import type { NextUpPayload } from "@agent-runway/core/lib/next-up/types";
 import type { NextUpClock } from "./next-up-clock";
+import { NAV } from "./app-nav";
 
 /** The store slices the builder reads (data store and Next up store). */
 export interface NextUpSources {
@@ -80,10 +81,10 @@ export function nextUpInput(src: NextUpSources, clock: Pick<NextUpClock, "today"
 
 /** The rows that open a section. Messages and the handful are routed by rowTap. */
 export const SECTION_ROUTES: Readonly<Record<Exclude<SectionKey, "handful" | "messages">, string>> = {
-  checklist: "/profile/checklist",
-  new_leads: "/clients",
-  deals: "/deals",
-  receipts: "/profile/expenses",
+  checklist: NAV.checklist,
+  new_leads: NAV.clients,
+  deals: NAV.deals,
+  receipts: NAV.expenses,
 };
 
 /**
@@ -92,8 +93,8 @@ export const SECTION_ROUTES: Readonly<Record<Exclude<SectionKey, "handful" | "me
  * are (fix 9).
  */
 export const MESSAGES_ROUTES = {
-  texts: "/profile/outreach?tab=texts",
-  emails: "/profile/outreach?tab=emails",
+  texts: `${NAV.outreach}?tab=texts`,
+  emails: `${NAV.outreach}?tab=emails`,
 } as const;
 
 const messagesRoute = (textsOnly: boolean | undefined) => (textsOnly ? MESSAGES_ROUTES.texts : MESSAGES_ROUTES.emails);
@@ -109,11 +110,11 @@ export function rowTap(row: Pick<AlsoWaitingRow, "section" | "textsOnly">): RowT
 
 /** The card buttons that open a fixed screen. Open messages: actionRoute. Open client is routed with its id (see the dashboard). */
 export const ACTION_ROUTES: Readonly<Partial<Record<NextUpAction, string>>> = {
-  open_checklist: "/profile/checklist",
-  open_briefing: "/profile/briefing",
-  open_deals: "/deals",
-  open_receipts: "/profile/expenses",
-  open_mileage: "/profile/mileage",
+  open_checklist: NAV.checklist,
+  open_briefing: NAV.briefing,
+  open_deals: NAV.deals,
+  open_receipts: NAV.expenses,
+  open_mileage: NAV.mileage,
 };
 
 /** Where a card button opens, or undefined for a button that doesn't open a screen. */

@@ -191,7 +191,7 @@ describe("the receipt log's period headings (2026-10-19)", () => {
 
 describe("REGRESSION: both receipt lists are in receipt-date order, cut by filing period", () => {
   const content = read("apps/web/app/(app)/expenses/expenses-content.tsx");
-  const mobile = read("apps/mobile/app/(app)/profile/expenses.tsx");
+  const mobile = read("apps/mobile/components/money/ExpensesView.tsx");
 
   it("the web log renders receiptSections of the selected period, with the page cap", () => {
     expect(content).toMatch(/receiptSections\(filteredReceipts, filingFreq, showAllReceipts \? Infinity : RECEIPT_LIST_PAGE\)/);

@@ -19,7 +19,7 @@ import {
   type DimensionValue,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useFocusEffect } from "expo-router";
+import { useFocusEffect, useLocalSearchParams, useNavigation } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import Svg, {
   Defs,
@@ -36,9 +36,6 @@ import {
   type Transaction,
   type TransactionInput,
 } from "@/stores/data-store";
-import type { CaptureProposal } from "@agent-runway/core/lib/capture/types";
-import { VoiceCaptureButton } from "@/components/voice/VoiceCaptureButton";
-import { VoiceCaptureSheet } from "@/components/voice/VoiceCaptureSheet";
 import {
   useColors,
   useTheme,
@@ -52,6 +49,7 @@ import {
   fmtCurrency,
   fmtCompact,
 } from "@/lib/theme";
+import { ADD_CLEARANCE, AddButton } from "@/components/add/AddButton";
 import { Card } from "@/components/ui/Card";
 import { Sheet } from "@/components/ui/Sheet";
 import { Badge } from "@/components/ui/Badge";
@@ -150,8 +148,38 @@ export default function DealsScreen() {
   const [selectedDeal, setSelectedDeal] = useState<PipelineDeal | null>(null);
   const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
 
-  // Voice note: record → review the proposed writes → confirm
-  const [capture, setCapture] = useState<CaptureProposal | null>(null);
+  // Opened from elsewhere: `add=1` (the "+" sheet's Deal) opens the add form;
+  // `dealId` / `txId` (a search result) opens that deal. Each param is
+  // cleared once used, so the same link works again.
+  // Cleared on this screen's own params (router.setParams acts on the screen
+  // in front); a link to a deal that isn't there is dropped once loading is done.
+  const navigation = useNavigation();
+  const clearParams = (keys: Record<string, undefined>) => (navigation as unknown as { setParams: (p: object) => void }).setParams(keys);
+  const params = useLocalSearchParams<{ add?: string; dealId?: string; txId?: string }>();
+  const loaded = !isLoading && (pipeline.length > 0 || transactions.length > 0);
+  useEffect(() => {
+    if (params.add !== "1") return;
+    setShowAdd(true);
+    clearParams({ add: undefined });
+  }, [params.add]);
+  useEffect(() => {
+    if (!params.dealId) return;
+    const found = pipeline.find((d) => d.id === params.dealId);
+    if (found) {
+      setTab("pipeline");
+      setSelectedDeal(found);
+    }
+    if (found || loaded) clearParams({ dealId: undefined });
+  }, [params.dealId, pipeline, loaded]);
+  useEffect(() => {
+    if (!params.txId) return;
+    const found = transactions.find((tx) => tx.id === params.txId);
+    if (found) {
+      setTab(found.status === "pending" ? "pending" : "closed");
+      setSelectedTx(found);
+    }
+    if (found || loaded) clearParams({ txId: undefined });
+  }, [params.txId, transactions, loaded]);
 
   // Initial load
   useEffect(() => {
@@ -323,13 +351,7 @@ export default function DealsScreen() {
             alignItems: "center",
           }}
         >
-          <Text style={{ ...Type.hero, color: c.text }}>{t("title")}</Text>
-          <Button
-            label={tCommon("actions.add")}
-            icon="add"
-            variant="primary"
-            onPress={() => setShowAdd(true)}
-          />
+          <Text accessibilityRole="header" style={{ ...Type.h1, color: c.text }}>{t("title")}</Text>
         </View>
 
         {/* ── Search Bar ── */}
@@ -432,7 +454,7 @@ export default function DealsScreen() {
         contentContainerStyle={{
           padding: Space.xl,
           paddingTop: Space.md,
-          paddingBottom: 120,
+          paddingBottom: ADD_CLEARANCE,
           gap: Space.sm,
         }}
         showsVerticalScrollIndicator={false}
@@ -497,8 +519,8 @@ export default function DealsScreen() {
         onDelete={deleteTransaction}
       />
       {/* ── Voice note ── */}
-      {!selectedDeal && !selectedTx && !showAdd && <VoiceCaptureButton onProposal={setCapture} />}
-      <VoiceCaptureSheet proposal={capture} onClose={() => setCapture(null)} />
+      {/* ── The "+": add anything, voice notes included (components/add) ── */}
+      {!selectedDeal && !selectedTx && !showAdd && <AddButton />}
     </SafeAreaView>
   );
 }

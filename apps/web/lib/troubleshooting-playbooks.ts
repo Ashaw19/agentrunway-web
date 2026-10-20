@@ -998,7 +998,7 @@ If a user asks "why is Agent Runway reminding me about mortgage renewals?" — e
 
 ### Text Queue (iPhone app)
 - Texts are drafted on request only (Clients → Select → Text in the iPhone app, or Dispatcher's draftClientTexts in chat). The nightly scan never drafts texts.
-- They wait in the iPhone app: More → Flight Control → Texts. They are not shown on the web Flight Control page.
+- They wait in the iPhone app: Flight Control → Texts (Today → Messages ready, or Today → Go to → Flight Control). They are not shown on the web Flight Control page.
 - "It didn't send": an iPhone app can only open Messages prefilled. The agent must tap Send in Messages. Only then is the text marked sent and logged as a Text activity.
 - "No text drafted (call instead)": the client opted out, or their last deal closed 2+ years ago (CASL implied consent from a purchase lasts 2 years and covers texts like email).
 - "No phone number on file": add the client's mobile number in Clients.
@@ -2222,7 +2222,7 @@ What-if modeling that never changes the agent's records. It is on the Scenarios 
 ### How it works (since 2026-10-18)
 Expenses → Mileage (/expenses?tab=mileage) holds the trip log and CRA's vehicle logbook.
 
-**Each trip:** date, km (or the odometer at its start and end, and the km are worked out), from / to, purpose, description, vehicle (when there is more than one). Saved places and "Repeat last trip" fill the form faster, on the web and in the phone app (More → Mileage).
+**Each trip:** date, km (or the odometer at its start and end, and the km are worked out), from / to, purpose, description, vehicle (when there is more than one). Saved places and "Repeat last trip" fill the form faster, on the web and in the phone app (Money → Mileage).
 
 **CRA's rules ("Motor vehicle records", canada.ca):** ${VEHICLE_LOGBOOK_RULE} ${SIMPLIFIED_LOGBOOK_RULE}
 
@@ -2242,7 +2242,7 @@ Expenses → Mileage (/expenses?tab=mileage) holds the trip log and CRA's vehicl
 ### Where to Find It
 - **Expenses page** (/expenses?tab=mileage) → Mileage tab: trips, the CRA logbook card, odometer readings
 - **Reports** (/reports) → T2125: line 9281 and the PDF's mileage page
-- **Phone app** → More → Mileage: trips and odometer readings due
+- **Phone app** → Money → Mileage: trips and odometer readings due
 `,
 
   // ═══════════════════════════════════════════════════════════════════════════

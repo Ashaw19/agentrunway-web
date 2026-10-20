@@ -132,7 +132,9 @@
       "text": "Text",
       "showing": "Showing",
       "meeting": "Meeting"
-    }
+    },
+    "askFlightCrew": "Ask Flight Crew",
+    "askHint": "Questions about your business, clients or deals"
   },
   "legal": {
     "title": "Legal & Privacy",
@@ -329,5 +331,11 @@
     "receiptCount_other": "{{count}} receipts",
     "receiptCountPartial_one": "{{count}} of {{total}} receipts",
     "receiptCountPartial_other": "{{count}} of {{total}} receipts"
+  },
+  "you": {
+    "title": "You",
+    "open": "Open your settings",
+    "business": "Your business",
+    "app": "App"
   }
 }

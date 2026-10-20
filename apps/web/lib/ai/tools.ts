@@ -4280,7 +4280,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
 
     // ── DRAFT CLIENT TEXTS (Dispatcher) — text queue, 00179 ───────────────────
     draftClientTexts: tool({
-      description: "Draft a short text message (SMS) for each of 1 to 10 specific clients. Use searchClients first to resolve the client_ids. Each text lands in the Agent Runway iPhone app (More → Flight Control → Texts); the agent sends each one from their phone, where Messages opens with the number and text filled in and they tap Send. Nothing is sent automatically. purpose: check_in (a personal check-in), market_update (offers to send what homes in their area are selling for; never states numbers), custom (pass note with what the agent wants to say). consent_request (asks a past client whether they'd like to keep getting the odd text, only while their implied consent still holds). Same CASL rules as email, on the text channel: clients who unsubscribed from texts, and past clients whose last deal closed 2+ years ago with no express text consent on record, get 'call instead'.",
+      description: "Draft a short text message (SMS) for each of 1 to 10 specific clients. Use searchClients first to resolve the client_ids. Each text lands in the Agent Runway iPhone app (Flight Control → Texts: Today → Messages ready, or Today → Go to → Flight Control); the agent sends each one from their phone, where Messages opens with the number and text filled in and they tap Send. Nothing is sent automatically. purpose: check_in (a personal check-in), market_update (offers to send what homes in their area are selling for; never states numbers), custom (pass note with what the agent wants to say). consent_request (asks a past client whether they'd like to keep getting the odd text, only while their implied consent still holds). Same CASL rules as email, on the text channel: clients who unsubscribed from texts, and past clients whose last deal closed 2+ years ago with no express text consent on record, get 'call instead'.",
       inputSchema: z.object({
         client_ids: z.array(z.string().uuid()).min(1).max(MAX_TEXT_DRAFTS_PER_REQUEST).describe("Client UUIDs from searchClients"),
         purpose: z.enum(TEXT_PURPOSES).describe("check_in, market_update, custom or consent_request"),
@@ -4300,7 +4300,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
           const other = results.filter((r) => r.status === "skipped" || (r.status === "existing" && r.reason));
           const lines: string[] = [];
           if (drafted.length > 0) {
-            lines.push(`✓ ${drafted.length} text${drafted.length === 1 ? "" : "s"} ready for ${drafted.map((r) => r.clientName).join(", ")}. Send ${drafted.length === 1 ? "it" : "them"} from the Agent Runway iPhone app: More → Flight Control → Texts. Nothing goes out until you tap Send.`);
+            lines.push(`✓ ${drafted.length} text${drafted.length === 1 ? "" : "s"} ready for ${drafted.map((r) => r.clientName).join(", ")}. Send ${drafted.length === 1 ? "it" : "them"} from the Agent Runway iPhone app: Today → Messages ready (or Go to → Flight Control) → Texts. Nothing goes out until you tap Send.`);
           }
           if (callOnly.length > 0) {
             // CASL: relay as-is. Do not write the text in chat instead.

@@ -41,6 +41,7 @@ import { useMileageStore, RECENT_TRIPS_SHOWN, type RecentTrip } from "@/stores/m
 import { Button, EmptyState, Input, Sheet } from "@/components/ui";
 import { DateField } from "@/components/ui/DateField";
 import { useColors, useTheme, shadows, Space, Radius, Type } from "@/lib/theme";
+import { ADD_CLEARANCE } from "@/components/add/AddButton";
 import { MILEAGE_TRIP_PURPOSES } from "@agent-runway/core/lib/vehicle-logbook-writes";
 
 /** The same suggestions as the web Mileage tab (one list, in core). */
@@ -77,7 +78,8 @@ const sameText = (a: string, b: string) => a.trim().toLowerCase() === b.trim().t
 
 // ── Screen ─────────────────────────────────────────────────────────────────
 
-export default function MileageScreen() {
+/** Mileage, a view of the Money tab. `keyboardOffset`: the Money header's height. */
+export default function MileageView({ keyboardOffset = 0 }: { keyboardOffset?: number } = {}) {
   const c = useColors();
   const { mode } = useTheme();
   const sh = shadows(mode);
@@ -277,9 +279,9 @@ export default function MileageScreen() {
   const showReadings = !!use && (use.readingsDue.length > 0 || use.progress.length > 0);
 
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1, backgroundColor: c.bg }}>
+    <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} keyboardVerticalOffset={keyboardOffset} style={{ flex: 1, backgroundColor: c.bg }}>
       <ScrollView
-        contentContainerStyle={{ padding: Space.xl, paddingBottom: 120, gap: Space.xl }}
+        contentContainerStyle={{ padding: Space.xl, paddingBottom: ADD_CLEARANCE, gap: Space.xl }}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={c.primary} />}

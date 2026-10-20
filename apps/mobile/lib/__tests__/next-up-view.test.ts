@@ -89,11 +89,11 @@ describe("routes", () => {
       checklist: "/profile/checklist",
       new_leads: "/clients",
       deals: "/deals",
-      receipts: "/profile/expenses",
+      receipts: "/money?view=expenses",
     });
     const row = (section: Parameters<typeof rowTap>[0]["section"], over = {}) => ({ section, count: 2, swipeTaskId: null, ...over });
     expect(rowTap(row("checklist"))).toEqual({ kind: "open", href: "/profile/checklist" });
-    expect(rowTap(row("receipts"))).toEqual({ kind: "open", href: "/profile/expenses" });
+    expect(rowTap(row("receipts"))).toEqual({ kind: "open", href: "/money?view=expenses" });
     expect(rowTap(row("handful"))).toEqual({ kind: "show_handful" });
   });
 
@@ -110,8 +110,8 @@ describe("routes", () => {
       open_checklist: "/profile/checklist",
       open_briefing: "/profile/briefing",
       open_deals: "/deals",
-      open_receipts: "/profile/expenses",
-      open_mileage: "/profile/mileage",
+      open_receipts: "/money?view=expenses",
+      open_mileage: "/money?view=mileage",
     });
     const handledElsewhere: NextUpAction[] = ["call", "text", "later", "dismiss", "mark_one_done", "record_voice_note", "open_client"];
     for (const a of handledElsewhere) expect(ACTION_ROUTES[a]).toBeUndefined();

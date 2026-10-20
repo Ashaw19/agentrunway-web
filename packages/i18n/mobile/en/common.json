@@ -3,13 +3,16 @@
     "dashboard": "Dashboard",
     "deals": "Deals",
     "clients": "Clients",
-    "more": "More"
+    "more": "More",
+    "today": "Today",
+    "money": "Money"
   },
   "nav": {
     "back": "Back",
     "close": "Close",
     "cancel": "Cancel",
-    "done": "Done"
+    "done": "Done",
+    "goTo": "Go to"
   },
   "actions": {
     "save": "Save",
@@ -35,5 +38,18 @@
   "empty": {
     "noMatches": "No matches",
     "noMatchesFor": "No results match \"{{query}}\""
+  },
+  "add": {
+    "title": "Add",
+    "log": "Log a call or text",
+    "receipt": "Receipt",
+    "trip": "Trip",
+    "client": "Client",
+    "deal": "Deal"
+  },
+  "money": {
+    "expenses": "Expenses",
+    "mileage": "Mileage",
+    "forecast": "Forecast"
   }
 }
