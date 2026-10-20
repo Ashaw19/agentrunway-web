@@ -1,31 +1,30 @@
 /**
- * Every home screen string in all 10 phone languages
+ * Every home screen string in English and French Canadian
  * (packages/i18n/mobile/<locale>/home.json), every key en has, now and later.
  *
- * Until 2026-10-19 the eight files other than en and fr-CA were English
- * copies: the welcome line (greeting.*), the Runway Score and its bars
- * (score.*, scoreBar.*), the metric cards, Quick Capture. Nothing failed,
- * because a copy of the English is a valid string. What this holds, for
- * every locale the app ships:
+ * The app ships ten languages; this checks the two it needs (GUARDED_LOCALES,
+ * decided 2026-10-20). The other eight stay as they are, unchecked, and a
+ * string added later shows in English there. What this holds, for en and fr-CA:
  *   - every key en has is there, a non-empty string, and no key en doesn't
  *     have (a typo, a stale `_plural`). A missing key shows the English too.
  *   - a count key (en has `_one` / `_other`) carries the plural forms the
- *     language needs, as Intl.PluralRules names them: Arabic six, French and
- *     Spanish `one` / `many` / `other`, Chinese and Cantonese `other` only.
- *     i18next 24 asks the same rules, and each count key renders through the
- *     app's real i18n setup at a spread of counts, with no fallback to English
+ *     language needs, as Intl.PluralRules names them (French `one` / `many` /
+ *     `other`). i18next 24 asks the same rules, and each count key renders
+ *     through the app's real i18n setup at a spread of counts, with no
+ *     fallback to English
  *   - `{{placeholders}}` match en's. The one allowance: `{{count}}` may be
  *     left out of a zero / one / two form, for a language whose noun carries
- *     the number (Arabic says "two deals" with the noun alone)
- *   - no em dash or en dash; none of the words that read as advice, in the
- *     language (should, must, recommend and their equivalents)
- *   - not a copy of the English: a value may match en's (ignoring case) only
- *     when nothing is left of it, once its {{placeholders}}, the names below,
- *     numbers and punctuation are taken out, but words its language keeps in
- *     English (KEPT_IN_ENGLISH)
+ *     the number
+ *   - fr-CA: no em dash or en dash; none of the words that read as advice
+ *     (devriez, doit, recommandons and the like)
+ *   - fr-CA is not a copy of the English: a value may match en's (ignoring
+ *     case) only when nothing is left of it, once its {{placeholders}}, the
+ *     names below, numbers and punctuation are taken out, but words French
+ *     keeps in English (KEPT_IN_ENGLISH)
  *   - the names stay as the files treat them: where en's value names one,
- *     the locale's value names it too (fr-CA has French names for two)
- *   - no `_plural` key is left in any phone file
+ *     fr-CA's names it too (it has French names for two)
+ *   - no `_plural` key is left in any phone file, in all ten languages
+ *     (i18next 24 never reads one)
  *
  * Mocked: the device locale (expo-localization) and saved storage (lib/mmkv),
  * so lib/i18n.ts loads under Node.
@@ -36,6 +35,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it, vi } from "vitest";
 // The vi.mock calls below are hoisted over this import, so i18n loads the mocks.
 import i18n from "../i18n";
+import { GUARDED_LOCALES, SHIPPED_LOCALES } from "./guarded-locales";
 
 vi.mock("expo-localization", () => ({ getLocales: () => [{ languageTag: "en-CA" }] }));
 vi.mock("../mmkv", () => ({ storage: { getString: () => undefined, set: () => {} } }));
@@ -50,7 +50,7 @@ const LOCALES = readdirSync(I18N_MOBILE, { withFileTypes: true }).filter((d) => 
 
 /**
  * Names every file keeps as they are: the product names, and "Runway" in the
- * Runway Score's name (zh "Runway 评分", ar "درجة Runway", fr-CA "Score Runway").
+ * Runway Score's name (fr-CA "Score Runway").
  */
 const NAMES = ["Agent Runway", "Next up", "Flight Control", "Flight Crew", "Hangar", "Runway"] as const;
 
@@ -58,37 +58,18 @@ const NAMES = ["Agent Runway", "Next up", "Flight Control", "Flight Crew", "Hang
 const FRENCH_NAMES: Record<string, string> = { "Flight Control": "Contrôle de vol", "Next up": "Prochaine tâche" };
 
 /**
- * Words a language uses in English, the way agents there say them. A value
- * that matches en's passes only when every word left in it is on its list.
+ * Words French uses in English, the way agents in Quebec say them. A value
+ * that matches en's passes only when every word left in it is on this list.
  */
 const KEPT_IN_ENGLISH: Record<string, readonly string[]> = {
   // Quebec French writes these the same: Pipeline, Clients, Type, Notes, Briefing.
   "fr-CA": ["pipeline", "client", "clients", "type", "notes", "note", "briefing"],
-  // Filipino agents speak Taglish: these stay as loan words (a showing, a text, the checklist).
-  tl: [
-    "pipeline", "checklist", "briefing", "text", "showing", "meeting", "deal", "item",
-    "listing", "appointment", "score",
-  ],
 };
 
-/**
- * Words that read as advice, per language: should, must, recommend, advise.
- * (Spanish "debe", French "doit", Chinese "必须", Arabic "يجب", and so on.)
- */
-const ADVICE: Record<string, RegExp> = {
-  en: /\b(?:should|must|recommend\w*|advise\w*)\b/i,
-  "fr-CA": /\b(?:devriez|devrait|devez|doit|doivent|recommand\w*|conseill\w*)\b/i,
-  es: /\b(?:debes|debe|deben|deberías|debería|recomend\w*|aconsej\w*)\b/i,
-  zh: /应该|应当|必须|建议|推荐|劝/,
-  yue: /應該|應當|必須|建議|推薦|勸/,
-  pa: /ਚਾਹੀਦ|ਸਲਾਹ|ਸਿਫ਼ਾਰਸ਼|ਸਿਫਾਰਸ਼|ਲਾਜ਼ਮੀ|ਜ਼ਰੂਰੀ ਹੈ/,
-  tl: /\b(?:dapat|kailangan|rekomend\w*|inirerekomenda|payo)\b/i,
-  ar: /يجب|ينبغي|نوصي|أوصي|توصي|توصية|ننصح|نصيحة|يُنصح|يستحسن/,
-  hi: /चाहिए|चाहिये|सलाह|सिफ़ारिश|सिफारिश|अनिवार्य|ज़रूर करें|जरूर करें/,
-  ur: /چاہیے|چاہئے|مشورہ|سفارش|لازمی|ضرور کریں/,
-};
+/** French words that read as advice: should, must, recommend, advise. */
+const ADVICE_FR = /\b(?:devriez|devrait|devez|doit|doivent|recommand\w*|conseill\w*)\b/i;
 
-/** Counts that land in every plural form of every language here (Arabic zero to many, French and Spanish many). */
+/** Counts that land in every plural form of en and fr-CA (French many is a million and up). */
 const COUNTS = [0, 1, 2, 3, 4, 5, 6, 10, 11, 12, 21, 22, 100, 101, 102, 1_000_000];
 
 function flatten(tree: Tree, prefix = ""): Map<string, string> {
@@ -104,7 +85,7 @@ function readTree(locale: string, file: string): Tree {
   return JSON.parse(readFileSync(path.join(I18N_MOBILE, locale, file), "utf8")) as Tree;
 }
 
-const flat = new Map(LOCALES.map((l) => [l, flatten(readTree(l, "home.json"))]));
+const flat = new Map(GUARDED_LOCALES.map((l) => [l, flatten(readTree(l, "home.json"))]));
 const EN = flat.get("en") as Map<string, string>;
 
 /** The plural forms a language needs, as the runtime names them (i18next 24 asks the same Intl.PluralRules). */
@@ -164,18 +145,15 @@ function keptInEnglish(locale: string, value: string): boolean {
 
 const same = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
 
-describe("home.json, every locale", () => {
-  it("covers every locale the app ships", () => {
-    expect(LOCALES).toEqual(["ar", "en", "es", "fr-CA", "hi", "pa", "tl", "ur", "yue", "zh"]);
+describe("home.json, en and fr-CA", () => {
+  it("knows every locale the app ships, and checks en and fr-CA among them", () => {
+    expect(LOCALES).toEqual([...SHIPPED_LOCALES]);
+    for (const locale of GUARDED_LOCALES) expect(LOCALES).toContain(locale);
   });
 
-  it("plural forms follow the runtime: Arabic six, French and Spanish three, Chinese and Cantonese one", () => {
-    expect(categories("ar")).toEqual(["zero", "one", "two", "few", "many", "other"]);
+  it("plural forms follow the runtime: English two, French three", () => {
     expect(categories("en")).toEqual(["one", "other"]);
     expect(categories("fr-CA")).toEqual(["one", "many", "other"]);
-    expect(categories("es")).toEqual(["one", "many", "other"]);
-    expect(categories("zh")).toEqual(["other"]);
-    expect(categories("yue")).toEqual(["other"]);
   });
 
   it("en's count keys each have _one and _other", () => {
@@ -186,20 +164,18 @@ describe("home.json, every locale", () => {
   });
 
   it("the guard catches an English copy, and lets the kept words through", () => {
-    expect(keptInEnglish("es", "Good morning")).toBe(false);
-    expect(keptInEnglish("es", "RUNWAY SCORE")).toBe(false);
-    expect(keptInEnglish("es", "NEXT UP")).toBe(true);
-    expect(keptInEnglish("es", "{{greeting}}, {{name}}")).toBe(true);
-    expect(keptInEnglish("es", "/100")).toBe(true);
-    expect(keptInEnglish("tl", "Checklist ({{count}})")).toBe(true);
-    expect(keptInEnglish("tl", "Pipeline Deal")).toBe(true);
-    expect(keptInEnglish("tl", "Pipeline Value")).toBe(false);
-    expect(keptInEnglish("fr-CA", "PIPELINE")).toBe(true);
+    expect(keptInEnglish("fr-CA", "Good morning")).toBe(false);
+    expect(keptInEnglish("fr-CA", "RUNWAY SCORE")).toBe(false);
     expect(keptInEnglish("fr-CA", "See all")).toBe(false);
+    expect(keptInEnglish("fr-CA", "NEXT UP")).toBe(true);
+    expect(keptInEnglish("fr-CA", "{{greeting}}, {{name}}")).toBe(true);
+    expect(keptInEnglish("fr-CA", "/100")).toBe(true);
+    expect(keptInEnglish("fr-CA", "PIPELINE")).toBe(true);
+    expect(keptInEnglish("fr-CA", "Notes")).toBe(true);
   });
 });
 
-describe.each(LOCALES)("%s", (locale) => {
+describe.each(GUARDED_LOCALES)("%s", (locale) => {
   const mine = flat.get(locale) as Map<string, string>;
   const wanted = wantedKeys(locale);
 
@@ -226,12 +202,13 @@ describe.each(LOCALES)("%s", (locale) => {
   });
 
   if (locale === "en") return;
+  // From here, fr-CA.
 
   it("has no em dash, no en dash and no word that reads as advice", () => {
     const bad: string[] = [];
     for (const [key, value] of mine) {
       if (/[—–]/.test(value)) bad.push(`${key}: dash in "${value}"`);
-      if (ADVICE[locale].test(value)) bad.push(`${key}: advice in "${value}"`);
+      if (ADVICE_FR.test(value)) bad.push(`${key}: advice in "${value}"`);
     }
     expect(bad).toEqual([]);
   });
@@ -256,13 +233,13 @@ describe.each(LOCALES)("%s", (locale) => {
       for (const name of NAMES) {
         if (!enValue.toLowerCase().includes(name.toLowerCase())) continue;
         if (name === "Runway" && /agent runway/i.test(enValue)) continue;
-        const want = locale === "fr-CA" ? (FRENCH_NAMES[name] ?? name) : name;
+        const want = FRENCH_NAMES[name] ?? name;
         if (!value.toLowerCase().includes(want.toLowerCase())) bad.push(`${w.key}: "${value}" has no "${want}"`);
       }
     }
     expect(bad).toEqual([]);
     expect(mine.get("score.runwayScore"), locale).toMatch(/Runway/);
-    expect(mine.get("quickAccess.outreach"), locale).toBe(locale === "fr-CA" ? "Contrôle de vol" : "Flight Control");
+    expect(mine.get("quickAccess.outreach"), locale).toBe("Contrôle de vol");
   });
 
   it("renders every count key at a spread of counts, in its own language", () => {
