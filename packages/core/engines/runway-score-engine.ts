@@ -125,11 +125,15 @@ export interface BusinessHealthReport {
 // ── Grade Mapping ───────────────────────────────────────────────────────────
 
 /**
+ * The grade glyph for a score: the one table (`RUNWAY_SCORE_BANDS.grade`) for
+ * every surface that prints it without running `compute()`, such as the
+ * phone's score sheet (a snapshot saved before the grade was written has none).
+ *
  * @deprecated Prose surfaces should use `stateLabel()` instead. Retained for
  * visual-shorthand consumers (PDF hero badge, dashboard letter badge, email
- * badge glyph, mobile chip) only.
+ * badge glyph, mobile chip and score sheet) only.
  */
-function grade(score: number): string {
+export function gradeForScore(score: number): string {
   // Defensive: NaN/Infinity slips past every comparison and falls to "F",
   // which silently mislabels broken inputs as a graded score.
   if (!isFinite(score)) return "—";
@@ -311,7 +315,7 @@ export function compute(
 
   return {
     score: scoreValue,
-    grade: grade(scoreValue),
+    grade: gradeForScore(scoreValue),
     stateLabel: stateLabel(scoreValue),
     components,
     version: SCORE_VERSION,

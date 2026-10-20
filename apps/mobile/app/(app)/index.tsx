@@ -57,6 +57,8 @@ import {
   textPlan,
 } from "@/lib/next-up-view";
 import { handledToast } from "@/lib/next-up-copy";
+import { scoreView } from "@/lib/score-view";
+import { localISODate } from "@agent-runway/core/lib/local-date";
 import { shouldAskAfterCall, telUrl } from "@/lib/post-call";
 import { sendQueuedText } from "@/lib/send-queued-text";
 import { queuedTextDeps } from "@/lib/queued-text-deps";
@@ -67,6 +69,9 @@ import { AllClearCard } from "@/components/next-up/AllClearCard";
 import { LaterSheet } from "@/components/next-up/LaterSheet";
 import { DismissSheet, pickKey, type DismissPick } from "@/components/next-up/DismissSheet";
 import { PostCallSheet } from "@/components/next-up/PostCallSheet";
+import { ScoreBadge } from "@/components/next-up/ScoreBadge";
+import { ScoreSheet } from "@/components/next-up/ScoreSheet";
+import { ScoreBreakdownSheet } from "@/components/ScoreBreakdownSheet";
 import { CompleteTaskSheet } from "@/components/CompleteTaskSheet";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -80,6 +85,13 @@ function formatLastSyncedKey(ts: number): { key: string; count?: number } {
 
 /** How often the dashboard re-reads the clock: the band, what comes back from Later, "Updated". */
 const CLOCK_TICK_MS = 30_000;
+
+/**
+ * "Full breakdown" closes the score sheet, then opens the breakdown. iOS shows
+ * one modal at a time, so the second waits for the first to finish sliding
+ * away (LanguagePicker waits 300 ms for an alert; this is a little longer).
+ */
+const SHEET_HANDOFF_MS = 450;
 
 // ── Activity Type Pill Selector ─────────────────────────────────────────────
 
@@ -341,7 +353,8 @@ function DashboardSkeleton() {
 // ── Main ─────────────────────────────────────────────────────────────────────
 //
 // Top to bottom: the welcome (mark, greeting, one line of context, the day's
-// progress and streak), the sync status, the Next up stack (or, when it is
+// progress and streak, and the Runway Score badge in the corner, which opens
+// the score sheet), the sync status, the Next up stack (or, when it is
 // empty, the all-clear card in its place), "Also waiting", and the "+" Quick
 // Capture. Everything renders from the cached stores at once and refreshes
 // behind.
@@ -367,12 +380,17 @@ export default function DashboardScreen() {
     fetchAll, fetchOutreach, fetchReceipts, isLoading, lastFetched,
     settings, transactions, pipeline, tasks, clients, clientRecords, briefings,
     receipts, outreachQueue, schedule, tripsLoggedToday,
-    todayBriefing, contactStreak,
+    todayBriefing, contactStreak, scoreCompare,
   } = useDataStore();
   const { payload, localSnoozes, voiceNoteDoneOn, fetchNextUp } = useNextUpStore();
   const [refreshing, setRefreshing] = useState(false);
   const [now, setNow] = useState(() => new Date());
   const [showCapture, setShowCapture] = useState(false);
+  // The Runway Score badge's sheet, and the existing breakdown it links to.
+  const [scoreOpen, setScoreOpen] = useState(false);
+  const [breakdownOpen, setBreakdownOpen] = useState(false);
+  const handoffTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (handoffTimer.current) clearTimeout(handoffTimer.current); }, []);
   // False only for the first frame, before the first refresh has begun.
   const [started, setStarted] = useState(false);
 
@@ -390,7 +408,7 @@ export default function DashboardScreen() {
   const [tickingTask, setTickingTask] = useState<ContactTask | null>(null);
   // iOS shows one sheet at a time: the after-call question waits while another is open.
   const sheetOpen = useRef(false);
-  sheetOpen.current = !!(later || dismiss || noteSheet || tickingTask || showCapture);
+  sheetOpen.current = !!(later || dismiss || noteSheet || tickingTask || showCapture || scoreOpen || breakdownOpen);
 
   /** A call placed from Next up: ask how it went, within 2 hours of dialling. */
   const askAboutCall = useCallback(() => {
@@ -459,6 +477,14 @@ export default function DashboardScreen() {
   }, [now, payload, fetchNextUp]);
 
   const displayName = settings?.display_name ?? user?.email?.split("@")[0] ?? "Agent";
+  // The Runway Score badge: the score the web dashboard saved, against the
+  // history row a week before it was saved. The phone's own calendar day,
+  // the same one the save day and the compare row are counted in.
+  const phoneToday = localISODate(now);
+  const score = useMemo(
+    () => scoreView(settings?.runway_score_snapshot, scoreCompare, phoneToday),
+    [settings?.runway_score_snapshot, scoreCompare, phoneToday],
+  );
   const streak = contactStreak();
   const checklistOverdue = checklistRowHasOverdue(view, tasks, clock.today);
 
@@ -665,6 +691,21 @@ export default function DashboardScreen() {
     refetchNextUp();
   }, [noteSheet, clock.today, refetchNextUp]);
 
+  // ── The score sheet ────────────────────────────────────────────────────────
+
+  /** A tile or the goal on the sheet: close the sheet, so it isn't left over the screen. */
+  const openFromScoreSheet = useCallback((href: string) => {
+    setScoreOpen(false);
+    router.push(href);
+  }, [router]);
+
+  /** Full breakdown: the score sheet closes, then the existing breakdown opens. */
+  const openBreakdown = useCallback(() => {
+    setScoreOpen(false);
+    if (handoffTimer.current) clearTimeout(handoffTimer.current);
+    handoffTimer.current = setTimeout(() => setBreakdownOpen(true), SHEET_HANDOFF_MS);
+  }, []);
+
   const handleFabPress = () => {
     try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
     setShowCapture(true);
@@ -683,7 +724,7 @@ export default function DashboardScreen() {
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={c.primary} />}
       >
-        {/* ── 1. Welcome: mark, greeting, context, progress (top-right kept for the score badge) ── */}
+        {/* ── 1. Welcome: mark, greeting, context, progress, and the Runway Score badge top right ── */}
         <FadeIn delay={0}>
           <WelcomeHeader
             firstName={displayName.split(" ")[0]}
@@ -691,6 +732,7 @@ export default function DashboardScreen() {
             context={view.context}
             progress={view.progress}
             streak={streak}
+            badge={<ScoreBadge view={score} onPress={() => setScoreOpen(true)} />}
           />
         </FadeIn>
 
@@ -771,6 +813,21 @@ export default function DashboardScreen() {
       </Pressable>
 
       <QuickCaptureSheet visible={showCapture} onClose={() => setShowCapture(false)} />
+
+      {/* ── The score badge's sheets ── */}
+      <ScoreSheet
+        visible={scoreOpen}
+        onClose={() => setScoreOpen(false)}
+        view={score}
+        today={phoneToday}
+        onFullBreakdown={openBreakdown}
+        onOpen={openFromScoreSheet}
+      />
+      <ScoreBreakdownSheet
+        visible={breakdownOpen}
+        onClose={() => setBreakdownOpen(false)}
+        totalScore={score?.score ?? 0}
+      />
 
       {/* ── The card buttons' sheets ── */}
       <LaterSheet

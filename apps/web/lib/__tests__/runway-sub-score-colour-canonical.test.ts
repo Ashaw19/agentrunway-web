@@ -151,6 +151,7 @@ const SURFACES = [
   "apps/web/app/(app)/reports/reports-content.tsx",
   "apps/web/components/pdf/business-report-pdf.tsx",
   "apps/mobile/components/ScoreBreakdownSheet.tsx",
+  "apps/mobile/components/next-up/ScoreSheet.tsx",
 ] as const;
 
 /** `runwayScore.components.map(`, or on mobile `components.map(` over the snapshot's. */

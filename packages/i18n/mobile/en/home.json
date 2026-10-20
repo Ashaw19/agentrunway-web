@@ -272,5 +272,16 @@
     "notQueued": "This text isn't waiting to be sent any more.",
     "draftFailedTitle": "Couldn't draft the text",
     "noDraft": "No text was drafted for {{name}}."
+  },
+  "scoreSheet": {
+    "down": "down {{count}} since last week",
+    "up": "up {{count}} since last week",
+    "asOf": "as of {{day}}",
+    "lowest": "Lowest part: {{part}}, at {{score}} of 100.",
+    "fullBreakdown": "Full breakdown",
+    "noScore": "Open the web dashboard to generate your score breakdown."
+  },
+  "yourNumbers": {
+    "title": "Your numbers"
   }
 }
