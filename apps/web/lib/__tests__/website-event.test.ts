@@ -40,6 +40,41 @@ describe("event schema", () => {
   });
 });
 
+describe("formatted text from the site", () => {
+  // 2026-10-19: a saved search arrived as "<b>Rothesay</b> · heat pump" and
+  // the note read "Website: saved a listing alert (<b>Rothesay</b> · heat pump)."
+  it("keeps only the words: tags removed, entities decoded, spaces tidied", () => {
+    const e = lead({
+      source: "alerts",
+      detail: "<b>Rothesay</b> &amp; <em>Quispamsis</em>&nbsp;· heat pump",
+      address: "12 <i>Elm</i>  St",
+      message: "<p>Hi there,</p><p>call me&#39;s fine</p>",
+      contact: { name: "<b>Sam</b>  Porter", email: "sam@example.com" },
+    });
+    if (e.type !== "lead") throw new Error("lead expected");
+    expect(e.detail).toBe("Rothesay & Quispamsis · heat pump");
+    expect(e.address).toBe("12 Elm St");
+    expect(e.message).toBe("Hi there, call me's fine");
+    expect(e.contact.name).toBe("Sam Porter");
+    const plan = planWebsiteEvent(e, null, NOW);
+    expect(JSON.stringify(plan)).not.toMatch(/<\/?[a-z]/i);
+    expect(JSON.stringify(plan)).toContain("(Rothesay & Quispamsis · heat pump)");
+  });
+
+  it("leaves a plain less-than sign and other text alone", () => {
+    const e = lead({ source: "alerts", detail: "Rothesay, price < $500K, 3+ bed" });
+    if (e.type !== "lead") throw new Error("lead expected");
+    expect(e.detail).toBe("Rothesay, price < $500K, 3+ bed");
+  });
+
+  it("keeps the consent wording exactly as the site recorded it", () => {
+    const text = "Yes, email me <b>listing alerts</b>. I can unsubscribe any time.";
+    const e = lead({ source: "alerts", consent: { kind: "alerts", text, at: "2026-10-09T14:00:00Z" } });
+    if (e.type !== "lead") throw new Error("lead expected");
+    expect(e.consent?.text).toBe(text);
+  });
+});
+
 describe("a new person", () => {
   it("becomes a Boarding client tagged with the source, with a note and a Checklist item", () => {
     const p = planWebsiteEvent(lead(), null, NOW);

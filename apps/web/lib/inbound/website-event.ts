@@ -42,8 +42,28 @@ export type LeadSource = (typeof LEAD_SOURCES)[number];
 
 const iso = z.string().datetime({ offset: true });
 
+const ENTITIES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " ", "#39": "'" };
+
+/**
+ * Text from the site as plain words (2026-10-19): a saved search arrived as
+ * "<b>Rothesay</b> · heat pump" and the note showed the tags. Tags are
+ * removed, common entities decoded and spaces tidied. A lone "<" in plain
+ * text ("price < $500K") is not a tag and stays.
+ */
+export function plainText(s: string): string {
+  return s
+    .replace(/<\/?(p|div|br|li)\b[^>]*>/gi, " ")
+    .replace(/<\/?[a-z!][^>]*>/gi, "")
+    .replace(/&(#39|#x27|amp|lt|gt|quot|apos|nbsp);/gi, (_, n: string) => ENTITIES[n.toLowerCase() === "#x27" ? "#39" : n.toLowerCase()] ?? "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/** A free-text field from the site, as plain words. */
+const siteText = (max: number) => z.string().max(max).transform(plainText);
+
 const contactSchema = z.object({
-  name:  z.string().trim().max(120).optional(),
+  name:  z.string().trim().max(120).transform(plainText).optional(),
   email: z.string().trim().toLowerCase().email().max(254).optional(),
   phone: z.string().trim().max(40).optional(),
 });
@@ -55,15 +75,15 @@ const leadSchema = z.object({
   source:      z.enum(LEAD_SOURCES),
   contact:     contactSchema,
   /** Contact form topic: general | buying | selling. */
-  topic:       z.string().max(40).optional(),
-  message:     z.string().max(4000).optional(),
-  address:     z.string().max(300).optional(),
+  topic:       siteText(40).optional(),
+  message:     siteText(4000).optional(),
+  address:     siteText(300).optional(),
   /** One line from the site, e.g. the saved search ("Rothesay, up to $600K, 4+ bed"). */
-  detail:      z.string().max(500).optional(),
+  detail:      siteText(500).optional(),
   open_house:  z.object({
-    listing_address: z.string().max(300).optional(),
+    listing_address: siteText(300).optional(),
     has_agent:       z.boolean().nullable().optional(),
-    timeline:        z.string().max(80).nullable().optional(),
+    timeline:        siteText(80).nullable().optional(),
   }).optional(),
   consent: z.object({
     kind: z.enum(CONSENT_KINDS),
