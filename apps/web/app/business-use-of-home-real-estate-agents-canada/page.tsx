@@ -679,9 +679,10 @@ export default function BusinessUseOfHomeRealEstateAgentsCanadaPage() {
               <p>
                 The current-year CCA deduction on a 10% business-use share of
                 a home with, say, $300,000 of allocable building value is
-                modest — at the 4% Class 1 rate, the first-year CCA on the
-                business-use portion is around $600 (with the half-year rule
-                applying in the year first claimed)<CRACite id={8} />. The
+                modest — at the 4% Class 1 rate, a year&apos;s CCA on the
+                business-use portion is around $1,200 ($300,000 × 10% × 4%)
+                <CRACite id={8} />, with CRA&apos;s guide setting out how the
+                first year is worked out. The
                 potential downstream capital-gains exposure on sale, by
                 contrast, can be tens of thousands of dollars.
               </p>

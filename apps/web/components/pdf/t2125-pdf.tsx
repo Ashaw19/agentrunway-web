@@ -24,6 +24,7 @@ import {
   VEHICLE_FULL_DEDUCTION_RULE,
   VEHICLE_LOGBOOK_RETENTION_RULE,
   VEHICLE_LOGBOOK_RULE,
+  ccaFirstYearNote,
 } from "@agent-runway/core/tax-copy";
 import type { VehicleBusinessUseMethod } from "@agent-runway/core/engines/vehicle-logbook-engine";
 
@@ -499,7 +500,8 @@ export function T2125Pdf({ result, settings, taxYear, vehicleUse, mileageSummary
               <Text style={s.ccaCol2}>CCA Claimed</Text>
             </View>
             {result.ccaLines.map((line, i) => (
-              <View key={i} style={s.ccaRow}>
+              <View key={i} wrap={false}>
+              <View style={s.ccaRow}>
                 <Text style={[s.ccaCol1, { fontSize: 7.5 }]}>{line.asset.description}</Text>
                 <Text style={[s.ccaCol2, { fontSize: 7.5 }]}>
                   Cl.{line.asset.cca_class} / {fmtPct(line.asset.class_rate)}
@@ -507,6 +509,12 @@ export function T2125Pdf({ result, settings, taxYear, vehicleUse, mileageSummary
                 <Text style={[s.ccaCol2, { fontSize: 7.5 }]}>{fmt(line.ucc)}</Text>
                 <Text style={[s.ccaCol2, { fontSize: 7.5 }]}>{fmtPct(line.asset.business_use_pct)}</Text>
                 <Text style={[s.ccaCol2, { fontSize: 7.5, fontFamily: "Helvetica-Bold" }]}>{fmt(line.ccaClaimed)}</Text>
+              </View>
+              {line.firstYear && (
+                <Text style={{ fontSize: 6.5, color: "#92400E", paddingHorizontal: 4, paddingBottom: 3 }}>
+                  {ccaFirstYearNote(line.firstYear)}
+                </Text>
+              )}
               </View>
             ))}
           </>

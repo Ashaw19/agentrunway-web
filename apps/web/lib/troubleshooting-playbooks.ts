@@ -2007,7 +2007,7 @@ The Overhead page is your complete tax visibility dashboard:
    - Capital Cost Allowance for business assets
    - Organized by CCA class (Class 8, 10, 10.1, 12, 50, etc.)
    - Shows: original cost, UCC (undepreciated capital cost), CCA claimed
-   - Half-year rule: first-year CCA is 50% of the normal rate
+   - First year: per CRA's guide, the half-year rule (CCA on half of the year's net additions) does not apply to accelerated investment incentive property (acquired after November 20, 2018 and before 2025) or to reaccelerated investment incentive property (acquired after 2024; enacted March 26, 2026). Agent Runway works out the first year from the date acquired: 1.5 times the usual CCA for property acquired from 2025 and put to use before 2030, the full rate for accelerated property put to use 2024 to 2027, 100% for Class 50 acquired after April 15, 2024 and in use before 2027 (CRA's guide calls this a proposed change), and the half-year rule otherwise. Each asset's first-year rule shows under it on Reports → T2125. Changed 2026-10-21: every addition used to get the half-year rule
 
 7. **Savings Impact bar** (top of the Tax Deduction Estimates card)
    - "Already Capturing" = the year's expenses (year to date + still to come) × the marginal rate above: an estimate of the income tax those expenses reduce. $0 when projected net income for tax is $0

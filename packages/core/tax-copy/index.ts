@@ -20,6 +20,7 @@ export {
 } from "./deal-tax-portion";
 
 export { alreadyCapturingNote } from "./deduction-estimate";
+export { ccaFirstYearNote, CCA_FIRST_YEAR_RULE, CRA_CCA_SOURCES } from "./cca-first-year";
 
 export {
   STATEMENT_GST_HST_NOTE,
