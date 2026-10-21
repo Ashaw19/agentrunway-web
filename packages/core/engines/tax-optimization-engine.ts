@@ -17,7 +17,6 @@ import {
   gstHstLabel,
 } from "./canadian-tax-engine";
 import { calculateCorporateTax } from "./corporate-tax-engine";
-import { allowanceRateFigure } from "./vehicle-logbook-engine";
 import { VEHICLE_LOGBOOK_RULE } from "../tax-copy/cra-rules";
 import {
   isTrackedLine,
@@ -39,11 +38,9 @@ import {
 const RRSP_DOLLAR_LIMIT = 33_810;
 const RRSP_CONTRIBUTION_RATE = 0.18;
 
-// CRA's per-km allowance rates (employer → employee) come from
-// tax-copy/cra-rules.ts (CRA_ALLOWANCE_RATES, by year) through
-// allowanceRateFigure. They are NOT the T2125 deduction method: the T2125
-// uses the business part of actual vehicle costs. The vehicle card below
-// uses them for scale only, and says so.
+// CRA's per-km allowance rates (employer → employee) are NOT the T2125
+// deduction method: the T2125 uses the business part of actual vehicle
+// costs. The vehicle card below shows no per-km figure (2026-10-21).
 
 /** Estimated annual accounting cost for incorporated agents */
 const ESTIMATED_ACCOUNTING_COST = 4_000;
@@ -108,7 +105,7 @@ export interface TaxOptimizationInput {
   homeOfficeInsuranceMonthly: number;
   homeOfficeMaintenanceAnnual: number;
   homeOfficeCondoFeesMonthly: number;
-  /** The tax year the cards describe (the vehicle card's CRA rates and wording). */
+  /** The tax year the cards describe (the vehicle card's wording). */
   taxYear: number;
   // Vehicle
   vehicleType: "own" | "lease" | "none";
@@ -405,10 +402,13 @@ export function generateTaxOptimizations(
   // ("Estimated ~$X/yr in potential savings" on the dashboard, Forecast,
   // Overhead and the T2125 PDF): about $3,900 a year with no trips logged.
   // estimatedSavings is 0, so it adds nothing to any total.
+  // Changed 2026-10-21: no dollar figure at all. The card had kept km × CRA's
+  // per-km allowance rates as an employer benchmark "for scale": a figure
+  // that doesn't apply to a self-employed agent and reads like a deduction
+  // on a tax card. It states the km logged, the business-use share, and
+  // where the deduction is (the business part of actual vehicle costs).
   if (input.vehicleType !== "none" && input.netIncome > 0) {
     const logged = input.hasTrackedMileage && input.annualMileageKm > 0;
-    const allowance = allowanceRateFigure(logged ? input.annualMileageKm : 0, input.taxYear);
-    const { rates } = allowance;
 
     cards.push({
       id: "vehicleExpenseOptimizer",
@@ -417,7 +417,7 @@ export function generateTaxOptimizations(
       title: logged ? `Vehicle: Business Kilometres Logged in ${input.taxYear}` : `Vehicle: No Trips Logged in ${input.taxYear}`,
       evidence: [
         logged
-          ? `${Math.round(input.annualMileageKm).toLocaleString()} business km logged in ${input.taxYear}. At CRA's ${rates.year} per-km allowance rates that is ${fmtCurrency(Math.round(allowance.amount))}: an employer allowance benchmark, shown for scale, not a deduction`
+          ? `${Math.round(input.annualMileageKm).toLocaleString()} business km logged in ${input.taxYear}`
           : `No business trips logged in ${input.taxYear}`,
         `Vehicle business-use share applied to vehicle costs: ${fmtPct(input.vehicleBusinessUsePct)}`,
       ],
@@ -425,7 +425,7 @@ export function generateTaxOptimizations(
         ? "The T2125 vehicle deduction is the business part of actual vehicle costs (Expenses \u2192 Vehicle, and Reports \u2192 T2125 line 9281). An accountant can confirm how it applies."
         : `${VEHICLE_LOGBOOK_RULE}`,
       disclaimer:
-        "Information only. The per-km rates are CRA's reasonable allowance for an employer paying an employee. The T2125 vehicle deduction uses the business part of actual vehicle costs (and capital cost allowance for an owned vehicle). See Terms of Service.",
+        "Information only. The T2125 vehicle deduction uses the business part of actual vehicle costs (and capital cost allowance for an owned vehicle). See Terms of Service.",
       estimatedSavings: 0,
       estimatedSavingsLabel: "Information",
       informational: true,
