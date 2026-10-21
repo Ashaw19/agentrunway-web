@@ -449,11 +449,11 @@ export default function RealEstateAgentTaxPlanningCanadaPage() {
                 </li>
                 <li>
                   <strong>Vehicle expenses</strong> — the business-use portion of vehicle
-                  costs (fuel, insurance, maintenance, lease payments) is deductible. The
-                  CRA requires a logbook to support the business-use percentage claimed
-                  <CRACite id={10} />. The CRA describes the logbook as a record of each
-                  business trip&apos;s date, destination, purpose, and kilometres travelled
-                  <CRACite id={10} />.
+                  costs (fuel, insurance, maintenance, lease payments) is deductible. To
+                  support the amount, CRA asks for a record of the total kilometres driven
+                  and the kilometres driven to earn income<CRACite id={10} />. CRA describes
+                  a logbook of each business trip&apos;s date, destination, purpose and
+                  kilometres as the best evidence of business use.
                 </li>
                 <li>
                   <strong>Home office</strong> — where an agent regularly works from a
