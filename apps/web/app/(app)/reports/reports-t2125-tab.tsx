@@ -29,7 +29,7 @@ import {
   vehicleBusinessUseFor,
   type VehicleBusinessUse,
 } from "@agent-runway/core/engines/vehicle-logbook-engine";
-import { VEHICLE_BUSINESS_PART_RULE, VEHICLE_FULL_DEDUCTION_RULE } from "@agent-runway/core/tax-copy";
+import { CCA_FIRST_YEAR_RULE, VEHICLE_BUSINESS_PART_RULE, VEHICLE_FULL_DEDUCTION_RULE, ccaFirstYearNote } from "@agent-runway/core/tax-copy";
 import { TAX_YEAR } from "@agent-runway/core/engines/canadian-tax-engine";
 import { earlierYearT2125Notes } from "@/lib/t2125-tax-year";
 import type { YearMileageTotals } from "@/lib/vehicle-logbook/load";
@@ -705,6 +705,9 @@ export function ReportsT2125Tab({
                           {fmtPct(line.asset.business_use_pct)} business use ·
                           Acquired {line.asset.acquisition_date}
                         </p>
+                        {line.firstYear && (
+                          <p className="mt-0.5 text-xs text-amber-700">{ccaFirstYearNote(line.firstYear)}</p>
+                        )}
                       </div>
                       <button
                         onClick={() => deleteCcaAsset(line.asset.id)}
@@ -731,6 +734,8 @@ export function ReportsT2125Tab({
                 ))}
               </div>
             )}
+
+            <p className="text-xs leading-relaxed text-muted-foreground">{CCA_FIRST_YEAR_RULE}</p>
 
             {/* Add asset form */}
             {showCcaForm ? (
@@ -772,10 +777,35 @@ export function ReportsT2125Tab({
                       </SelectContent>
                     </Select>
                   </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs font-medium">Date acquired</Label>
+                    <Input
+                      type="date"
+                      value={newAsset.acquisition_date}
+                      onChange={(e) => {
+                        const date = e.target.value;
+                        setNewAsset((p) => ({
+                          ...p,
+                          acquisition_date: date,
+                          // Bought in the year shown: the cost is this year's addition.
+                          // Bought earlier: no addition; its opening UCC carries it.
+                          additions_this_year: date.startsWith(String(taxYear)) ? p.original_cost : 0,
+                          opening_ucc: date.startsWith(String(taxYear)) ? 0 : p.opening_ucc,
+                        }));
+                      }}
+                      className="h-8 text-sm"
+                    />
+                  </div>
                   <EditableAmount
                     label="Original purchase cost ($)"
                     value={newAsset.original_cost}
-                    onChange={(v) => setNewAsset((p) => ({ ...p, original_cost: v, additions_this_year: v, opening_ucc: 0 }))}
+                    onChange={(v) =>
+                      setNewAsset((p) => ({
+                        ...p,
+                        original_cost: v,
+                        additions_this_year: p.acquisition_date.startsWith(String(taxYear)) ? v : 0,
+                      }))
+                    }
                   />
                   <EditableAmount
                     label="Business use % (e.g. 0.80)"
@@ -783,12 +813,14 @@ export function ReportsT2125Tab({
                     onChange={(v) => setNewAsset((p) => ({ ...p, business_use_pct: Math.min(1, Math.max(0, v)) }))}
                     note="Enter as decimal: 0.80 = 80%"
                   />
-                  <EditableAmount
-                    label="Opening UCC (prior year closing UCC)"
-                    value={newAsset.opening_ucc}
-                    onChange={(v) => setNewAsset((p) => ({ ...p, opening_ucc: v }))}
-                    note="$0 if this is a new purchase this year"
-                  />
+                  {!newAsset.acquisition_date.startsWith(String(taxYear)) && (
+                    <EditableAmount
+                      label={`Opening UCC (closing UCC at the end of ${taxYear - 1})`}
+                      value={newAsset.opening_ucc}
+                      onChange={(v) => setNewAsset((p) => ({ ...p, opening_ucc: v }))}
+                      note="From last year's T2125 CCA chart"
+                    />
+                  )}
                 </div>
                 <div className="flex gap-2">
                   <Button size="sm" onClick={addCcaAsset} disabled={addingAsset} className="gap-1.5">

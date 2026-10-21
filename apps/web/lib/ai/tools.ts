@@ -114,6 +114,9 @@ import {
 import { type DraftTextResult, MAX_TEXT_DRAFTS_PER_REQUEST, draftTextForClient } from "@/lib/ai/draft-text";
 import { TEXT_PURPOSES } from "@/lib/outreach-prompts";
 import { APP_TIME_ZONE, addDaysISO, atlanticDayStart, atlanticISODate, atlanticNoon, atlanticYear, daysBetweenISO } from "@agent-runway/core/lib/local-date";
+import { ccaForYear, firstYearTreatment } from "@agent-runway/core/engines/cca-first-year";
+import { ccaFirstYearNote } from "@agent-runway/core/tax-copy";
+import { CCA_CLASSES } from "@agent-runway/core/types/database";
 import { recurringHasEnded } from "@agent-runway/core/engines/recurring-expense-engine";
 import {
   CASL_IMPLIED_CONSENT_MONTHS,
@@ -2329,7 +2332,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
 
     // ── ADD CCA ASSET ────────────────────────────────────────────────────────
     addCCAAsset: tool({
-      description: "Add a capital cost allowance (CCA) asset for tax depreciation. Use when the agent mentions buying business equipment (laptop, camera, vehicle, etc.). Common CCA classes: Class 8 (office equipment/furniture, 20%), Class 10 (vehicles, 30%), Class 10.1 (passenger vehicles >$37,000, 30%), Class 12 (software/tools <$500, 100%), Class 50 (computers, 55%). The half-year rule applies automatically in the acquisition year. Gated by the approval card.",
+      description: "Add a capital cost allowance (CCA) asset for tax depreciation. Use when the agent mentions buying business equipment (laptop, camera, vehicle, etc.). Common CCA classes: Class 8 (office equipment/furniture, 20%), Class 10 (vehicles, 30%), Class 10.1 (passenger vehicles costing more than the year's CRA ceiling, 30%), Class 12 (software/tools <$500, 100%), Class 50 (computers, 55%). The first-year rule (CRA's half-year rule, or the accelerated or, under proposed changes, reaccelerated investment incentive) follows from the acquisition date. Gated by the approval card.",
       inputSchema: z.object({
         description: z.string().describe("Asset description (e.g. 'MacBook Pro 16-inch', '2024 Honda CR-V')"),
         ccaClass: z.number().describe("CRA CCA class number (8, 10, 12, 50, etc.)"),
@@ -2343,7 +2346,15 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
       execute: async ({ description, ccaClass, classRate, cost, acquisitionDate, businessUsePct, notes }) => {
         const bizPct = (businessUsePct ?? 100) / 100;
         const rateDecimal = classRate / 100;
-        const firstYearCCA = cost * bizPct * rateDecimal * 0.5; // half-year rule
+        // CRA's first-year rules (core engines/cca-first-year.ts), the same
+        // as the T2125 engine. Changed 2026-10-21: this was × 0.5 for every
+        // asset, and every cost was recorded as this year's addition.
+        const classHalfYear = CCA_CLASSES.find((c) => c.class === ccaClass)?.halfYear ?? true;
+        const acquiredThisYear = acquisitionDate.slice(0, 4) === String(atlanticYear());
+        const firstYear = firstYearTreatment({ acquisitionDate, classHalfYear, ccaClass, classRate: rateDecimal });
+        const firstYearCCA = acquiredThisYear
+          ? ccaForYear({ ucc: cost, netAdditions: cost, factor: firstYear.factor, rate: rateDecimal, businessUsePct: bizPct }).claimed
+          : null;
 
         try {
           const { error } = await supabase
@@ -2356,14 +2367,20 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
               acquisition_date: acquisitionDate,
               original_cost: cost,
               business_use_pct: bizPct,
+              class_half_year: classHalfYear,
               opening_ucc: 0,
-              additions_this_year: cost,
+              // Bought this year: the cost is this year's addition. Bought
+              // earlier: no addition; the opening UCC goes in on Reports → T2125.
+              additions_this_year: acquiredThisYear ? cost : 0,
               notes: notes ?? null,
             });
 
           if (error) return `Failed to add CCA asset: ${error.message}`;
 
-          return `✓ CCA asset added — "${description}", Class ${ccaClass} (${classRate}%), $${cost.toLocaleString()}. First-year CCA deduction: ~$${firstYearCCA.toFixed(0)} (half-year rule applied). View your full depreciation schedule at **Overhead** (/overhead) or **Reports** (/reports) → T2125 tab.`;
+          const firstYearLine = firstYearCCA !== null
+            ? `Estimated first-year CCA: ~$${firstYearCCA.toFixed(0)}. ${ccaFirstYearNote(firstYear)}`
+            : `It was bought before this year, so it has no addition this year: enter its opening UCC (last year's closing UCC) on **Reports** (/reports) → T2125 tab.`;
+          return `✓ CCA asset added — "${description}", Class ${ccaClass} (${classRate}%), $${cost.toLocaleString()}. ${firstYearLine} The full schedule is on **Reports** (/reports) → T2125 tab.`;
         } catch {
           return "Failed to add CCA asset. Please try again.";
         }

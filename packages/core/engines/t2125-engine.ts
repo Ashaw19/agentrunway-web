@@ -13,7 +13,8 @@
  *     bills logged under the Home Office expense category are those costs;
  *     a cost type with no logged bills falls back to the estimate in settings.
  *   Meals & Entertainment: 50% deductible
- *   Half-year CCA rule applies to most asset classes
+ *   CCA: CRA's first-year rules (half-year rule, accelerated and, under
+ *     proposed changes, reaccelerated investment incentives): cca-first-year.ts
  *
  * IMPORTANT: All outputs are ESTIMATES for planning purposes only.
  * They do not constitute a filed T2125 or professional tax advice.
@@ -24,6 +25,7 @@ import { computeGCI } from "../types/database";
 import { gstHstRate, gstHstLabel, calculate as calculateTax } from "./canadian-tax-engine";
 import { closingYearGCI, dealsInTaxYear, incomeReportingMethod, type IncomeReportingMethod } from "./tax-year";
 import { commissionHstInput, commissionHstTotals } from "./commission-hst-engine";
+import { ccaForYear, firstYearTreatment, type FirstYearTreatment } from "./cca-first-year";
 
 // ── Expense key → T2125 line mapping ─────────────────────────────────────────
 // Maps each expense_item key to the correct T2125 line number and whether
@@ -317,9 +319,12 @@ export interface CcaLineItem {
   adjustedCost: number;      // original_cost × business_use_pct
   ucc: number;               // opening_ucc + additions − disposals
   ccaRate: number;
-  halfYearAdditions: number; // half-year rule on additions
-  ccaClaimed: number;        // estimated CCA claim for this year
-  closingUcc: number;        // ucc − ccaClaimed
+  netAdditions: number;      // the year's additions − disposals, when positive
+  /** The year's first-year rule, for an asset acquired in the tax year; null otherwise. */
+  firstYear: FirstYearTreatment | null;
+  fullCca: number;           // CCA on the whole asset (what reduces the UCC)
+  ccaClaimed: number;        // the business part: fullCca × business_use_pct
+  closingUcc: number;        // ucc − fullCca
 }
 
 export interface HomeOfficeResult {
@@ -540,36 +545,35 @@ export function computeT2125(input: T2125Input): T2125Result {
     const adjustedCost = asset.original_cost * asset.business_use_pct;
     // UCC after additions and disposals
     const ucc = asset.opening_ucc + asset.additions_this_year - asset.disposals_this_year;
-
-    // If UCC <= 0, no CCA can be claimed (potential recapture situation)
-    if (ucc <= 0) {
-      return {
-        asset,
-        adjustedCost,
-        ucc: Math.max(0, ucc),
-        ccaRate: asset.class_rate,
-        halfYearAdditions: 0,
-        ccaClaimed: 0,
-        closingUcc: Math.max(0, ucc),
-      };
-    }
-
-    // CRA half-year rule: applies to NET additions (additions - disposals) when positive
     const netAdditions = Math.max(0, asset.additions_this_year - asset.disposals_this_year);
-    const halfYearAdjustment = asset.class_half_year ? netAdditions * 0.5 : 0;
 
-    // CCA base = UCC minus half-year adjustment on net additions
-    const ccaBase = ucc - halfYearAdjustment;
-    const ccaClaimed = Math.max(0, ccaBase * asset.class_rate * asset.business_use_pct);
-    const closingUcc = Math.max(0, ucc - ccaClaimed);
+    // Changed 2026-10-21: the half-year rule was applied to every addition.
+    // CRA's first-year rules depend on when the asset was acquired
+    // (cca-first-year.ts); they apply in the year it was acquired only. An
+    // asset acquired in an earlier year gets the full rate on its UCC.
+    const acquiredYear = Number((asset.acquisition_date ?? "").slice(0, 4));
+    const inFirstYear = Number.isFinite(acquiredYear) && acquiredYear > 0 ? acquiredYear === taxYear : netAdditions > 0;
+    const firstYear = inFirstYear && netAdditions > 0
+      ? firstYearTreatment({ acquisitionDate: asset.acquisition_date, classHalfYear: asset.class_half_year, ccaClass: asset.cca_class, classRate: asset.class_rate })
+      : null;
+
+    const cca = ccaForYear({
+      ucc,
+      netAdditions: firstYear ? netAdditions : 0,
+      factor: firstYear?.factor ?? 1,
+      rate: asset.class_rate,
+      businessUsePct: asset.business_use_pct,
+    });
     return {
       asset,
       adjustedCost,
-      ucc,
+      ucc: Math.max(0, ucc),
       ccaRate: asset.class_rate,
-      halfYearAdditions: netAdditions,
-      ccaClaimed,
-      closingUcc,
+      netAdditions,
+      firstYear,
+      fullCca: cca.fullCca,
+      ccaClaimed: cca.claimed,
+      closingUcc: cca.closingUcc,
     };
   });
   const line9936_totalCca = ccaLines.reduce((s, l) => s + l.ccaClaimed, 0);

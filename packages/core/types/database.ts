@@ -481,7 +481,7 @@ export interface CcaAsset {
 export const CCA_CLASSES: { class: number; rate: number; halfYear: boolean; label: string }[] = [
   { class: 8,   rate: 0.20, halfYear: true,  label: "Class 8 — Office furniture & equipment (20%)" },
   { class: 10,  rate: 0.30, halfYear: true,  label: "Class 10 — Motor vehicles (30%)" },
-  { class: 10.1, rate: 0.30, halfYear: true, label: "Class 10.1 — Passenger vehicles > $37,000 (30%)" },
+  { class: 10.1, rate: 0.30, halfYear: true, label: "Class 10.1 — Passenger vehicles over the year's CRA cost ceiling (30%)" },
   { class: 12,  rate: 1.00, halfYear: true,  label: "Class 12 — Computer software & tools < $500 (100%)" },
   { class: 50,  rate: 0.55, halfYear: true,  label: "Class 50 — Computers & data handling (55%)" },
   { class: 14,  rate: 0,    halfYear: false, label: "Class 14 — Franchise or patent (straight-line)" },
