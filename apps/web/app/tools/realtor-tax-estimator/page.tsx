@@ -284,8 +284,9 @@ export default function RealtorTaxEstimatorPage() {
                 income.
               </p>
               <p className="mt-4">
-                Vehicle expenses are the most commonly audited — the CRA requires a detailed mileage log
-                distinguishing business kilometres from personal. Home office is deductible based on
+                For a vehicle, CRA asks for a record of the total kilometres driven and the kilometres
+                driven to earn income; it describes a logbook of business trips kept for the year as the
+                best evidence of business use. Home office is deductible based on
                 the business-use percentage of your home (square footage) applied to utilities, property
                 taxes, insurance, and mortgage interest (not principal). CCA (capital cost allowance)
                 lets you depreciate vehicles, computers, and office equipment over multiple years.

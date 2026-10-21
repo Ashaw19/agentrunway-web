@@ -5,30 +5,64 @@ import { MarketingNav } from "@/components/marketing-nav";
 import { MarketingFooter } from "@/components/marketing-footer";
 import { EmailCapture } from "@/components/email-capture";
 import { articleSchema } from "@/lib/schema";
-import { GST_RATE_GROUP, HST_RATE_GROUPS } from "@agent-runway/core/tax-copy";
+import {
+  CRA_MOTOR_VEHICLE_SOURCES,
+  GST_RATE_GROUP,
+  HST_RATE_GROUPS,
+  MULTIPLE_VEHICLES_RULE,
+  SIMPLIFIED_LOGBOOK_EXAMPLE,
+  SIMPLIFIED_LOGBOOK_FORMULA,
+  SIMPLIFIED_LOGBOOK_OUTSIDE_RANGE_RULE,
+  SIMPLIFIED_LOGBOOK_RANGE_RULE,
+  SIMPLIFIED_LOGBOOK_RULE,
+  VEHICLE_BUSINESS_PART_RULE,
+  VEHICLE_FULL_DEDUCTION_RULE,
+  VEHICLE_LOGBOOK_RETENTION_RULE,
+  VEHICLE_LOGBOOK_RULE,
+  latestAutomobileLimits,
+} from "@agent-runway/core/tax-copy";
+
+// Reviewed against CRA and Department of Finance pages on 2026-10-21 (the
+// follow-up from #365; see lib/__tests__/vehicle-article-cra.test.ts). The
+// limits print from AUTOMOBILE_LIMITS and CRA's logbook wording from the
+// shared rules: neither is typed here.
+
+const { current: LIMITS, previous: PREVIOUS } = latestAutomobileLimits();
+const YEAR = LIMITS.year;
+const money = (n: number) => `$${n.toLocaleString("en-CA")}`;
+
+/** "15/115" for 15% HST: the fraction RC4022 applies to CCA for a vehicle's ITC. */
+const taxFactor = (rate: number) => {
+  const pct = Math.round(rate * 100);
+  return `${pct}/${100 + pct}`;
+};
+
+const TITLE = `Vehicle Expenses for Canadian Real Estate Agents (${YEAR}): Logbook, CCA, Leasing and Interest Limits, GST/HST Input Tax Credits`;
+const DESCRIPTION =
+  `How motor vehicle expenses work for self-employed Canadian real estate agents: CRA's logbook and its simplified logbook ` +
+  `(a 12-month base year, then three-month samples), what goes on T2125 line 9281 and what goes on line 9936, ` +
+  `the ${YEAR} limits (Class 10.1 ceiling ${money(LIMITS.ccaCeiling)}, leasing ${money(LIMITS.leasePerMonth)} a month, ` +
+  `interest ${money(LIMITS.interestPerMonth)} a month) and the 90% rule for GST/HST input tax credits on a passenger vehicle.`;
 
 export const metadata: Metadata = {
-  title:
-    "Vehicle Expenses for Canadian Real Estate Agents (2025) — Logbook, CCA, Lease Caps, and HST/GST Input Tax Credits",
-  description:
-    "How motor vehicle expenses work for self-employed Canadian real estate agents in 2025 — the CRA logbook rule, the simplified three-month base period, the 2025 Class 10.1 ceiling, the $1,100 lease cap and $350 interest cap, and the 90% \"all or substantially all\" GST/HST input-tax-credit threshold. Worked examples on Line 9281 of T2125.",
+  title: TITLE,
+  description: DESCRIPTION,
   keywords: [
     "vehicle expenses real estate agent canada",
-    "realtor mileage deduction canada",
+    "realtor vehicle expenses canada",
     "cra vehicle logbook",
-    "class 10.1 ceiling 2025",
-    "passenger vehicle lease cap canada",
-    "gst hst itc 90% threshold",
+    "cra simplified logbook",
+    `class 10.1 ceiling ${YEAR}`,
+    "passenger vehicle lease limit canada",
+    "gst hst itc passenger vehicle 90%",
     "t2125 line 9281 vehicle",
     "self-employed realtor car expenses",
   ],
   openGraph: {
     type: "article",
     url: "https://agentrunway.ca/vehicle-expenses-real-estate-agents-canada",
-    title:
-      "Vehicle Expenses for Canadian Real Estate Agents (2025) — Logbook, CCA, Lease Caps, ITCs",
-    description:
-      "Self-employed real estate agents in Canada: how the 2025 vehicle deduction rules work — logbook, Class 10.1 ceiling, lease/interest caps, and the 90% GST/HST ITC threshold. CRA-cited.",
+    title: TITLE,
+    description: DESCRIPTION,
     images: [{ url: "/og-image-v2.png", width: 1200, height: 630 }],
   },
   alternates: {
@@ -40,78 +74,74 @@ export const metadata: Metadata = {
 // ─── JSON-LD ──────────────────────────────────────────────────────────────────
 
 const JSON_LD_ARTICLE = articleSchema({
-  headline:
-    "Vehicle Expenses for Canadian Real Estate Agents (2025) — Logbook, CCA, Lease Caps, and HST/GST Input Tax Credits",
-  description:
-    "How motor vehicle expenses work for self-employed Canadian real estate agents in 2025 — the CRA logbook rule, the simplified three-month base period, the 2025 Class 10.1 ceiling, the $1,100 lease cap and $350 interest cap, and the 90% \"all or substantially all\" GST/HST input-tax-credit threshold.",
+  headline: TITLE,
+  description: DESCRIPTION,
   url: "/vehicle-expenses-real-estate-agents-canada",
   datePublished: "2026-05-09",
-  dateModified: "2026-10-13",
+  dateModified: "2026-10-21",
 });
 
-// ─── CRA primary sources (audit registry) ─────────────────────────────────────
+// ─── Primary sources ──────────────────────────────────────────────────────────
 //
-// Every numeric or mechanical claim in this article is backed by one of the
-// URLs below. Inline citations are rendered via <CRACite id={n} />. URLs were
-// hand-verified live on 2026-05-09.
+// Every rule and figure below is backed by one of these pages, read on
+// 2026-10-21.
 
 const CRA_SOURCES = [
   {
     id: 1,
-    label: "CRA — Motor vehicle expenses (self-employed)",
+    label: "CRA: Motor vehicle expenses (self-employed)",
     url: "https://www.canada.ca/en/revenue-agency/services/tax/businesses/small-businesses-self-employed-income/business-income-tax-reporting/business-expenses/motor-vehicle-expenses.html",
   },
+  { id: 2, ...CRA_MOTOR_VEHICLE_SOURCES.records },
+  { id: 3, ...CRA_MOTOR_VEHICLE_SOURCES.businessPart },
   {
-    id: 2,
-    label: "CRA — Motor vehicle records (logbook requirements and simplified three-month base period)",
-    url: "https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/sole-proprietorships-partnerships/business-expenses/motor-vehicle-expenses/motor-vehicle-records.html",
-  },
-  {
-    id: 3,
-    label:
-      "CRA — T4002 Self-employed Business, Professional, Commission, Farming, and Fishing Income — Chapter 4 Capital Cost Allowance",
+    id: 4,
+    label: "CRA: Guide T4002, Chapter 4 – Capital cost allowance",
     url: "https://www.canada.ca/en/revenue-agency/services/forms-publications/publications/t4002/t4002-6.html",
   },
   {
-    id: 4,
-    label: "CRA — Capital cost allowance (CCA) classes (Class 10 and Class 10.1)",
-    url: "https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/sole-proprietorships-partnerships/report-business-income-expenses/claiming-capital-cost-allowance/classes.html",
-  },
-  {
     id: 5,
-    label:
-      "Department of Finance Canada — Government announces the 2025 automobile deduction limits and expense benefit rates for businesses",
-    url: "https://www.canada.ca/en/department-finance/news/2024/12/government-announces-the-2025-automobile-deduction-limits-and-expense-benefit-rates-for-businesses.html",
+    label: "CRA: Classes of depreciable property (Class 10, Class 10.1, Class 54)",
+    url: "https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/sole-proprietorships-partnerships/report-business-income-expenses/claiming-capital-cost-allowance/classes-depreciable-property.html",
   },
-  {
-    id: 6,
-    label:
-      "CRA — T2125 Statement of Business or Professional Activities (Line 9281 motor vehicle expenses)",
-    url: "https://www.canada.ca/en/revenue-agency/services/forms-publications/forms/t2125.html",
-  },
-  {
-    id: 7,
-    label:
-      "CRA — Input tax credits — ITC eligibility percentage (the \"all or substantially all\" rule for individuals and partnerships)",
-    url: "https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/gst-hst-businesses/calculate-prepare-report/input-tax-credit/calculate-eligibility-percentage.html",
-  },
+  { id: 6, ...LIMITS.source },
+  ...(PREVIOUS ? [{ id: 7, ...PREVIOUS.source }] : []),
   {
     id: 8,
-    label: "CRA — Input tax credits — methods to calculate the ITCs",
-    url: "https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/gst-hst-businesses/calculate-prepare-report/input-tax-credit/calculate-methods.html",
+    label: "CRA: Motor vehicle – Leasing costs",
+    url: "https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/sole-proprietorships-partnerships/business-expenses/motor-vehicle-expenses/deductible-expenses/motor-vehicle-leasing-costs.html",
   },
   {
     id: 9,
-    label:
-      "CRA — Input tax credits — percentage of use in commercial activities",
-    url: "https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/gst-hst-businesses/calculate-prepare-report/input-tax-credit/calculate-percentage-use-commercial-activities.html",
+    label: "CRA: Guide T4002, Chapter 3 – Business expenses (line 9281, line 8521)",
+    url: "https://www.canada.ca/en/revenue-agency/services/forms-publications/publications/t4002/t4002-5.html",
   },
   {
     id: 10,
-    label: "CRA — RC4022 General Information for GST/HST Registrants",
+    label: "CRA: Expenses section of Form T2125 (fines and penalties)",
+    url: "https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/sole-proprietorships-partnerships/report-business-income-expenses/completing-form-t2125/expenses-section-form-t2125.html",
+  },
+  {
+    id: 11,
+    label: "CRA: IT-521R Motor vehicle expenses claimed by self-employed individuals (archived)",
+    url: "https://www.canada.ca/en/revenue-agency/services/forms-publications/publications/it521r/archived-motor-vehicle-expenses-claimed-self-employed-individuals.html",
+  },
+  {
+    id: 12,
+    label: "CRA: What's new for small businesses and self-employed (accelerated and reaccelerated investment incentives)",
+    url: "https://www.canada.ca/en/revenue-agency/services/tax/businesses/small-businesses-self-employed-income/whats-new-small-businesses-self-employed.html",
+  },
+  {
+    id: 13,
+    label: "CRA: RC4022 General Information for GST/HST Registrants (passenger vehicles and aircraft)",
     url: "https://www.canada.ca/en/revenue-agency/services/forms-publications/publications/rc4022/general-information-gst-hst-registrants.html",
   },
-] as const;
+  {
+    id: 14,
+    label: "CRA: Input tax credits, percentage of use in commercial activities (vehicles)",
+    url: "https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/gst-hst-businesses/calculate-prepare-report/input-tax-credit/calculate-percentage-use-commercial-activities.html",
+  },
+];
 
 function CRACite({ id }: { id: number }) {
   const src = CRA_SOURCES.find((s) => s.id === id);
@@ -132,15 +162,15 @@ function CRACite({ id }: { id: number }) {
 // ─── TOC ──────────────────────────────────────────────────────────────────────
 
 const TOC = [
-  { href: "#the-formula", label: "The two-step formula CRA uses" },
-  { href: "#logbook", label: "The logbook rule and the simplified three-month base period" },
-  { href: "#eligible", label: "What CRA lists as eligible — and what it excludes" },
-  { href: "#caps-2025", label: "The 2025 caps — Class 10.1 ceiling, lease cap, interest cap" },
-  { href: "#class-10-vs-10-1", label: "Class 10 vs Class 10.1 — which one your vehicle falls in" },
-  { href: "#hst-itc", label: "GST/HST input tax credits — the 90% threshold for sole proprietors" },
-  { href: "#realtor-scenarios", label: "Realtor-specific scenarios" },
-  { href: "#provincial", label: "Provincial nuances — HST rate, GST-only provinces, Quebec" },
-  { href: "#tracking", label: "Tracking the deduction through the year" },
+  { href: "#the-formula", label: "How CRA works out the deduction" },
+  { href: "#logbook", label: "CRA's logbook, and the simplified logbook" },
+  { href: "#eligible", label: "What CRA lists as deductible, and what isn't business driving" },
+  { href: "#limits", label: `The ${YEAR} limits: capital cost, leasing and interest` },
+  { href: "#classes", label: "Class 10, Class 10.1 and Class 54" },
+  { href: "#hst-itc", label: "GST/HST input tax credits on a vehicle" },
+  { href: "#realtor-scenarios", label: "Realtor scenarios" },
+  { href: "#provincial", label: "GST/HST by province, and Quebec" },
+  { href: "#tracking", label: "Tracking it through the year" },
 ];
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
@@ -164,21 +194,20 @@ export default function VehicleExpensesRealEstateAgentsCanadaPage() {
               Guide for Canadian Real Estate Agents
             </div>
             <h1 className="text-4xl font-bold tracking-tight text-white sm:text-5xl">
-              Vehicle Expenses for Canadian Real Estate Agents (2025)
+              Vehicle Expenses for Canadian Real Estate Agents ({YEAR})
             </h1>
             <p className="mx-auto mt-5 max-w-2xl text-base leading-relaxed text-slate-400 sm:text-lg">
-              Showings, listing visits, brokerage stops, open-house drop-ins —
-              the working day of a Canadian real estate agent runs on the
-              vehicle. Vehicle expenses are also the single line on T2125
-              the CRA scrutinizes most consistently. This article walks the
-              published 2025 rules: the logbook expectation, the eligible
-              expense list, the Class 10.1 ceiling, the lease and interest
-              caps, and the 90% threshold that governs whether you can claim
-              full GST/HST input tax credits on the vehicle.
+              Showings, listing visits, brokerage stops and open houses: a
+              working day in real estate runs on the vehicle. This article
+              sets out CRA&apos;s published rules: the logbook and the
+              simplified logbook, what&apos;s deductible and on which T2125
+              line, the {YEAR} limits on capital cost, leasing and interest,
+              and the 90% rule for GST/HST input tax credits on a passenger
+              vehicle.
             </p>
             <p className="mt-3 text-xs text-slate-500">
-              12 min read · Updated for 2025 CRA rates and Department of Finance
-              automobile deduction limits
+              12 min read · Updated for the {YEAR} automobile limits
+              (Department of Finance Canada)
             </p>
           </div>
         </section>
@@ -190,12 +219,11 @@ export default function VehicleExpensesRealEstateAgentsCanadaPage() {
             {/* Top disclaimer */}
             <div className="mb-8 rounded-xl border border-amber-200 bg-amber-50 px-5 py-4">
               <p className="text-xs leading-relaxed text-amber-700">
-                <strong className="text-amber-800">General information only — not tax advice.</strong>{" "}
+                <strong className="text-amber-800">General information only, not tax advice.</strong>{" "}
                 This article describes published rules from the Canada Revenue
-                Agency and the Department of Finance Canada. CCA ceilings,
-                lease caps, and interest caps are reviewed annually and may
-                change. Individual circumstances vary. Always verify current
-                figures against{" "}
+                Agency and the Department of Finance Canada. The capital cost,
+                leasing and interest limits are set each year and change.
+                Individual circumstances vary. Check current figures against{" "}
                 <a
                   href="https://www.canada.ca/en/revenue-agency/services/tax/businesses/small-businesses-self-employed-income/business-income-tax-reporting/business-expenses/motor-vehicle-expenses.html"
                   target="_blank"
@@ -204,8 +232,7 @@ export default function VehicleExpensesRealEstateAgentsCanadaPage() {
                 >
                   CRA&apos;s motor vehicle expenses page
                 </a>{" "}
-                and consult a qualified accountant or tax professional before
-                making a filing decision.{" "}
+                and a qualified accountant or tax professional before filing.{" "}
                 <a href="/terms" className="underline underline-offset-2 hover:text-amber-900">
                   Terms of Service
                 </a>.
@@ -238,391 +265,317 @@ export default function VehicleExpensesRealEstateAgentsCanadaPage() {
             <article className="prose prose-slate max-w-none prose-headings:font-bold prose-headings:tracking-tight prose-h2:text-2xl prose-h2:text-slate-900 prose-h3:text-lg prose-h3:text-slate-800 prose-p:leading-relaxed prose-p:text-slate-600 prose-li:text-slate-600 prose-strong:text-slate-800">
 
               {/* ── Section 1 ── */}
-              <h2 id="the-formula">The two-step formula CRA uses</h2>
+              <h2 id="the-formula">How CRA works out the deduction</h2>
 
               <p>
-                For a self-employed agent, the deductible portion of vehicle
-                expenses is calculated in two steps. CRA states the structure
-                this way<CRACite id={1} />:
-              </p>
-
-              <ol>
-                <li>
-                  Determine the <strong>business-use percentage</strong> of the
-                  vehicle for the year — the kilometres driven for business
-                  divided by the total kilometres driven.
-                </li>
-                <li>
-                  Multiply that percentage by the <strong>total eligible
-                  vehicle expenses</strong> incurred during the year (fuel,
-                  insurance, maintenance, lease or interest, CCA, and so on).
-                </li>
-              </ol>
-
-              <p>
-                The result is the figure that flows to <strong>Line 9281
-                (motor vehicle expenses)</strong> on T2125<CRACite id={6} />.
-                Total expenses are tracked at 100%; the business-use ratio is
-                applied at year-end. The two inputs — kilometres and
-                expenses — are independent, and CRA expects supporting
-                records for each.
+                {VEHICLE_BUSINESS_PART_RULE}<CRACite id={3} />
               </p>
 
               <p>
-                For the broader picture of every line on T2125 that applies to
-                a Canadian real estate agent, see the{" "}
+                CRA&apos;s own example: 27,000 kilometres driven to earn
+                income out of 30,000 in total, with $7,000 of vehicle
+                expenses for the year. (27,000 ÷ 30,000) × $7,000 = $6,300
+                deductible<CRACite id={1} />.
+              </p>
+
+              <p>
+                That business part goes on <strong>line 9281</strong> of Form
+                T2125, which CRA titles &quot;Motor vehicle expenses (not
+                including CCA)&quot;<CRACite id={9} />. Capital cost allowance
+                on a vehicle you own is claimed separately, on{" "}
+                <strong>line 9936</strong><CRACite id={1} /><CRACite id={9} />.
+              </p>
+
+              <p>
+                {VEHICLE_FULL_DEDUCTION_RULE}<CRACite id={1} />
+              </p>
+
+              <p>
+                For every T2125 line that applies to a real estate agent, see
+                the{" "}
                 <Link
                   href="/real-estate-agent-business-expenses-canada"
                   className="font-semibold text-blue-600 underline underline-offset-2"
                 >
                   guide to real estate agent business expenses in Canada
-                </Link>{" "}
-                — vehicle is one line of nine, and this article is the
-                deep-dive on Line 9281 specifically.
+                </Link>
+                . This article covers the vehicle lines.
               </p>
 
               {/* ── Section 2 ── */}
-              <h2 id="logbook">
-                The logbook rule and the simplified three-month base period
-              </h2>
-
-              <p>
-                The kilometre split that drives the entire deduction has to
-                come from somewhere. CRA&apos;s published expectation is a
-                logbook<CRACite id={2} /> — a record of each business trip
-                showing date, destination, purpose, and distance.
-              </p>
+              <h2 id="logbook">CRA&apos;s logbook, and the simplified logbook</h2>
 
               <h3>The full-year logbook</h3>
 
               <p>
-                The default expectation is a <strong>full-year logbook</strong>
-                {" "}— every business kilometre, every trip, recorded as it
-                occurs<CRACite id={2} />. The full-year approach produces the
-                cleanest record and the lowest audit-defence risk. For a
-                working real estate agent, it accumulates dozens of entries a
-                week — showings, listing presentations, photo appointments,
-                inspections, brokerage stops.
+                {VEHICLE_LOGBOOK_RULE}<CRACite id={2} />
               </p>
 
-              <h3>The simplified three-month base period</h3>
+              <h3>The simplified logbook: a base year, then three-month samples</h3>
 
               <p>
-                CRA also publishes a simplified-logbook option<CRACite id={2} />.
-                The structure works in two phases:
-              </p>
-
-              <ul>
-                <li>
-                  <strong>Year 1 — base year:</strong> a complete-year logbook
-                  is maintained. The result is the agent&apos;s baseline annual
-                  business-use percentage<CRACite id={2} />.
-                </li>
-                <li>
-                  <strong>Subsequent years — three-month sample:</strong> the
-                  agent maintains a representative three-month sample logbook,
-                  and the calculated annual business-use percentage is the
-                  base-year percentage adjusted by the ratio of the sample
-                  period to the equivalent base-year period<CRACite id={2} />.
-                  The formula CRA publishes is: (sample-period business % ÷
-                  base-year same-period business %) × base-year annual % =
-                  calculated annual business use.
-                </li>
-              </ul>
-
-              <p>
-                CRA states a critical condition on the simplified method: if
-                the calculated annual business-use percentage in a later year
-                varies from the base year by more than 10 percentage points
-                (up or down), the base year is no longer treated as
-                representative<CRACite id={2} />. In that situation, CRA
-                states the sample-period logbook is reliable only for the
-                three-month period in which it was kept — and a fresh
-                full-year logbook may be needed to re-establish the baseline.
+                {SIMPLIFIED_LOGBOOK_RULE}<CRACite id={2} /> The base year is a
+                full 12 months of logbook; only the later years use a
+                three-month sample.
               </p>
 
               <p>
-                For an agent whose business mix is stable year-over-year — same
-                farm area, same client volume, same vehicle — the simplified
-                method may match annual usage closely. For an agent whose
-                business changes materially (new region, large team move, a
-                shift in lead sources), the 10-point variance test may
-                indicate a fresh full-year logbook would be more defensible.
+                CRA&apos;s formula: <strong>{SIMPLIFIED_LOGBOOK_FORMULA}</strong>
+                <CRACite id={2} />.
+              </p>
+
+              <p>
+                {SIMPLIFIED_LOGBOOK_EXAMPLE}<CRACite id={2} />{" "}
+                {SIMPLIFIED_LOGBOOK_RANGE_RULE}<CRACite id={2} />
+              </p>
+
+              <p>
+                {SIMPLIFIED_LOGBOOK_OUTSIDE_RANGE_RULE}<CRACite id={2} />
+              </p>
+
+              <p>
+                For an agent, whether a later year stays within that range
+                depends on how much the year&apos;s driving changes: a new
+                farm area, a move to another brokerage or team, a different
+                mix of buyer and listing work.
+              </p>
+
+              <p>
+                {VEHICLE_LOGBOOK_RETENTION_RULE}<CRACite id={2} />
+              </p>
+
+              <h3>More than one vehicle</h3>
+
+              <p>
+                {MULTIPLE_VEHICLES_RULE}<CRACite id={2} />
               </p>
 
               {/* ── Section 3 ── */}
-              <h2 id="eligible">
-                What CRA lists as eligible — and what it excludes
-              </h2>
+              <h2 id="eligible">What CRA lists as deductible, and what isn&apos;t business driving</h2>
 
               <p>
-                CRA&apos;s published list of motor vehicle expenses eligible for
-                deduction (subject to the business-use percentage) is the
-                following<CRACite id={1} />:
+                CRA lists these motor vehicle expenses, deductible for the
+                business part of the vehicle&apos;s use<CRACite id={1} />:
               </p>
 
               <ul>
-                <li><strong>Fuel</strong> (gasoline, propane, oil)</li>
-                <li><strong>Maintenance and repairs</strong></li>
+                <li>Licence and registration fees</li>
+                <li>Fuel and oil</li>
+                <li>Electricity for a zero-emission vehicle</li>
+                <li>Insurance</li>
                 <li>
-                  <strong>Insurance</strong> on the vehicle
+                  Interest on money borrowed to buy the vehicle (limited, see{" "}
+                  <a href="#limits">the {YEAR} limits</a>)
                 </li>
+                <li>Maintenance and repairs</li>
                 <li>
-                  <strong>Licence and registration fees</strong>
-                </li>
-                <li>
-                  <strong>Capital cost allowance (CCA)</strong> — depreciation
-                  on a vehicle the agent owns
-                </li>
-                <li>
-                  <strong>Eligible interest</strong> on money borrowed to buy
-                  the vehicle (subject to the per-day cap covered below)
-                </li>
-                <li>
-                  <strong>Eligible leasing costs</strong> on a leased vehicle
-                  (subject to the per-month cap covered below)
+                  Leasing costs (limited, see <a href="#limits">the {YEAR} limits</a>)
                 </li>
               </ul>
 
               <p>
-                Two additional categories sit outside this list but are
-                routinely deductible <em>in full</em> as separate business
-                expenses (not subject to the business-use percentage), provided
-                they are incurred for a business purpose:
+                Capital cost allowance on an owned vehicle isn&apos;t in this
+                list: it goes on line 9936<CRACite id={1} />. Business parking
+                and supplementary business insurance count in full, as above.
               </p>
+
+              <h3>Driving between home and the brokerage</h3>
+
+              <p>
+                CRA&apos;s current motor vehicle pages count the kilometres
+                driven to earn income as business use<CRACite id={1} />, and
+                don&apos;t address trips between home and a place of business
+                for the self-employed in general. CRA&apos;s archived
+                interpretation bulletin IT-521R, which CRA no longer updates,
+                says travel between home and the place of business is not
+                deductible unless the home is the base of business
+                operations, and that a home is normally not the base when
+                there is an office or other fixed place of business
+                elsewhere<CRACite id={11} />. How that applies to a given
+                agent (a desk at the brokerage, or a home office as the base)
+                is a question for an accountant.
+              </p>
+
+              <h3>Personal trips, and fines</h3>
 
               <ul>
                 <li>
-                  <strong>Parking fees</strong> incurred at business
-                  destinations (showings, client meetings, brokerage office
-                  for a deal-related stop) — CRA treats parking as a separate
-                  motor-vehicle-related expense rather than a portion of the
-                  vehicle-use claim<CRACite id={1} />.
+                  Personal driving, including the personal part of a trip that
+                  mixes errands and business, isn&apos;t driving to earn
+                  income<CRACite id={1} />.
                 </li>
                 <li>
-                  <strong>Supplementary business insurance</strong> — for
-                  example, a commercial endorsement on the personal auto
-                  policy obtained because the vehicle is used for business.
+                  CRA lists &quot;most fines and penalties imposed after March
+                  22, 2004, under the law of Canada, a province, or a foreign
+                  country&quot; among the amounts not to include in
+                  expenses<CRACite id={10} />. That covers traffic tickets.
                 </li>
               </ul>
-
-              <h3>What CRA excludes</h3>
-
-              <p>
-                CRA states the following are <strong>not</strong> deductible
-                as motor vehicle expenses:
-              </p>
-
-              <ul>
-                <li>
-                  <strong>Travel between home and a regular place of
-                  business.</strong> CRA treats home-to-office travel as
-                  personal commuting, even where the &quot;office&quot; is the
-                  brokerage<CRACite id={1} />. For most agents, the brokerage
-                  qualifies as a regular place of business; the kilometres
-                  driven from home to the brokerage and back are not
-                  deductible regardless of the business activity that occurred
-                  there.
-                </li>
-                <li>
-                  <strong>Personal trips and personal portions of mixed
-                  trips.</strong> A trip that combines a listing visit and a
-                  grocery run is not deductible end-to-end — only the portion
-                  that is genuinely business.
-                </li>
-                <li>
-                  <strong>Traffic violations, parking tickets, fines.</strong>{" "}
-                  Fines are not deductible business expenses regardless of
-                  context<CRACite id={1} />.
-                </li>
-              </ul>
-
-              <p>
-                The home-to-brokerage exclusion is the single most commonly
-                misunderstood rule on this list. An agent who treats the
-                brokerage commute as &quot;driving to a business meeting&quot; is
-                applying a US framing — Canadian rules are different, and CRA
-                reviewers may flag the pattern in audit.
-              </p>
 
               {/* ── Section 4 ── */}
-              <h2 id="caps-2025">
-                The 2025 caps — Class 10.1 ceiling, lease cap, interest cap
-              </h2>
+              <h2 id="limits">The {YEAR} limits: capital cost, leasing and interest</h2>
 
               <p>
-                CRA enforces three numerical limits on what a passenger
-                vehicle&apos;s costs can deduct. The Department of Finance
-                Canada publishes the figures annually; the 2025 figures apply
-                to vehicles, leases, and loans entered into <strong>on or
-                after January 1, 2025</strong><CRACite id={5} />:
+                The Department of Finance Canada sets these limits each year
+                for passenger vehicles<CRACite id={6} />. They apply on top of
+                the business-use part: the limit comes first, then the
+                business share.
               </p>
 
               <ul>
                 <li>
-                  <strong>Class 10.1 capital cost ceiling — $38,000
-                  (before tax)</strong> for vehicles (new or used) acquired on
-                  or after January 1, 2025<CRACite id={5} />. A vehicle that
-                  costs more than $38,000 before GST/HST has its capital cost
-                  capped at $38,000 for CCA purposes; the excess is not
-                  deductible. The 2024 figure was $37,000<CRACite id={5} />.
+                  <strong>Class 10.1 capital cost ceiling: {money(LIMITS.ccaCeiling)}</strong>{" "}
+                  before tax, for a passenger vehicle (new or used) bought in{" "}
+                  {YEAR}
+                  {PREVIOUS && PREVIOUS.ccaCeiling !== LIMITS.ccaCeiling
+                    ? `, up from ${money(PREVIOUS.ccaCeiling)} in ${PREVIOUS.year}`
+                    : ""}
+                  <CRACite id={6} />{PREVIOUS ? <CRACite id={7} /> : null}. A
+                  vehicle that costs more goes into Class 10.1 at the
+                  ceiling, and CCA is worked out on the ceiling, not the
+                  price<CRACite id={5} />.
                 </li>
                 <li>
-                  <strong>Deductible leasing cost — $1,100 per month
-                  (before tax)</strong> for new leases entered into on or
-                  after January 1, 2025<CRACite id={5} />. Lease payments
-                  above this amount per month are not deductible. The 2024
-                  figure was $1,050<CRACite id={5} />.
+                  <strong>Zero-emission passenger vehicle (Class 54) ceiling:{" "}
+                  {money(LIMITS.zeroEmissionCeiling)}</strong> before tax
+                  <CRACite id={6} /><CRACite id={5} />.
                 </li>
                 <li>
-                  <strong>Maximum allowable interest deduction — $350 per
-                  month</strong> on new automobile loans entered into on or
-                  after January 1, 2025<CRACite id={5} />. The $350 figure
-                  remains unchanged from prior years<CRACite id={5} />.
+                  <strong>Leasing: {money(LIMITS.leasePerMonth)} a month</strong>{" "}
+                  before tax, for leases entered into in {YEAR}
+                  <CRACite id={6} />. CRA&apos;s leasing chart works out two
+                  amounts, one from this monthly limit and one from the
+                  manufacturer&apos;s list price, and the eligible leasing
+                  cost is the lower of the two<CRACite id={8} />.
+                </li>
+                <li>
+                  <strong>Interest: {money(LIMITS.interestPerMonth)} a month</strong>{" "}
+                  on money borrowed to buy a passenger vehicle, for loans
+                  entered into in {YEAR}
+                  {PREVIOUS && PREVIOUS.interestPerMonth === LIMITS.interestPerMonth
+                    ? `, the same as in ${PREVIOUS.year}`
+                    : ""}
+                  <CRACite id={6} />. CRA works it out by the day: the
+                  deduction is the lower of the interest payable and the
+                  monthly limit ÷ 30 for each day interest was payable in the
+                  year<CRACite id={1} />.
                 </li>
               </ul>
 
               <p>
-                These three limits apply <em>in addition to</em> the
-                business-use percentage. A leased vehicle at $1,400 per month,
-                used 70% for business, deducts (cap of $1,100) × 70% =
-                <strong> $770 per month</strong>, not (actual $1,400) × 70%.
-                The cap binds first; the percentage applies second.
-              </p>
-
-              <p>
-                The CCA ceiling on Class 10.1 is the same kind of mechanic.
-                A vehicle purchased for $50,000 plus tax, used 70% for
-                business, depreciates against a capped $38,000 cost base, not
-                $50,000. The CCA rate for Class 10.1 is 30% declining-balance
-                <CRACite id={4} />, with the half-year rule applying in the
-                year of acquisition<CRACite id={3} />.
+                Class 10 and Class 10.1 are both 30% classes<CRACite id={5} />.
+                In the year property is bought, CRA&apos;s guide usually
+                limits CCA to half of the year&apos;s net additions (the
+                half-year rule), and says the rule does not apply to
+                accelerated investment incentive property, zero-emission
+                vehicles, Class 56 property or, under proposed changes,
+                reaccelerated investment incentive property
+                <CRACite id={4} />. Under the proposed changes, the
+                accelerated incentive covers qualifying property acquired
+                before January 1, 2025, and the reaccelerated incentive
+                covers qualifying property acquired on or after that date and
+                available for use before 2034<CRACite id={12} />. Which of
+                these applies to a particular vehicle is a question for an
+                accountant.
               </p>
 
               {/* ── Section 5 ── */}
-              <h2 id="class-10-vs-10-1">
-                Class 10 vs Class 10.1 — which one your vehicle falls in
-              </h2>
-
-              <p>
-                Owned vehicles depreciate via CCA, and the depreciation class
-                determines whether the $38,000 ceiling applies or not.
-                CRA&apos;s rules<CRACite id={4} />:
-              </p>
+              <h2 id="classes">Class 10, Class 10.1 and Class 54</h2>
 
               <ul>
                 <li>
-                  <strong>Class 10</strong> — passenger vehicles costing
-                  $38,000 or less (before tax) acquired in 2025, plus motor
-                  vehicles that are not passenger vehicles (cargo vans,
-                  pickup trucks meeting the loaded-bed test, taxis,
-                  ride-share vehicles meeting the use test, and similar). CCA
-                  rate: 30% declining-balance<CRACite id={4} />.
+                  <strong>Class 10 (30%):</strong> motor vehicles and some
+                  passenger vehicles, including a passenger vehicle that costs
+                  no more than the year&apos;s ceiling<CRACite id={5} />.
                 </li>
                 <li>
-                  <strong>Class 10.1</strong> — passenger vehicles whose cost
-                  exceeds the year&apos;s ceiling ($38,000 before tax for 2025
-                  acquisitions). Each Class 10.1 vehicle is its own separate
-                  class — meaning the recapture and terminal-loss rules apply
-                  on a per-vehicle basis<CRACite id={3} />. CCA rate: 30%
-                  declining-balance, applied to the capped cost
+                  <strong>Class 10.1 (30%):</strong> a passenger vehicle not
+                  included in Class 10, that is, one costing more than the
+                  ceiling. CRA: &quot;List each Class 10.1 vehicle
+                  separately.&quot;<CRACite id={5} /> Per CRA&apos;s guide,
+                  recapture of CCA and terminal loss do not apply to passenger
+                  vehicles in Class 10.1 (unless they were designated
+                  immediate expensing property)<CRACite id={4} />. In the
+                  year a Class 10.1 vehicle is sold, the guide allows 50% of
+                  the CCA (the half-year rule on sale) when the vehicle was
+                  owned at the end of the previous fiscal period
                   <CRACite id={4} />.
+                </li>
+                <li>
+                  <strong>Class 54 (30%):</strong> zero-emission vehicles
+                  acquired after March 18, 2019, that would otherwise be in
+                  Class 10 or 10.1, with the capital cost limit above. These
+                  vehicles may qualify for an enhanced first-year CCA that is
+                  being phased out<CRACite id={5} />.
                 </li>
               </ul>
 
               <p>
-                The practical line: for the typical 4- or 5-seat sedan, SUV,
-                or crossover used in real estate work, the vehicle is a
-                <em> passenger vehicle</em> in CRA terminology<CRACite id={4} />.
-                If it cost $38,000 or less before tax, it goes in Class 10.
-                If it cost more, it goes in Class 10.1 with the capped
-                base. A pickup truck used to move signs and staging
-                materials may meet CRA&apos;s test for a non-passenger motor
-                vehicle and stay in Class 10 regardless of cost — the test
-                is published in CRA&apos;s class definitions and is
-                circumstance-specific<CRACite id={4} />.
+                Most sedans, SUVs and crossovers used in real estate work are
+                passenger vehicles in CRA&apos;s terms. A pickup or van used
+                to carry signs and staging may not be. CRA&apos;s{" "}
+                <a
+                  href="https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/sole-proprietorships-partnerships/business-expenses/motor-vehicle-expenses/type-vehicle.html"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  type of vehicle page
+                </a>{" "}
+                sets out the tests.
               </p>
 
               {/* ── Section 6 ── */}
-              <h2 id="hst-itc">
-                GST/HST input tax credits — the 90% threshold for sole proprietors
-              </h2>
+              <h2 id="hst-itc">GST/HST input tax credits on a vehicle</h2>
 
               <p>
-                A real estate agent who is registered for GST/HST (typically
-                because their gross taxable revenue from the last four
-                consecutive calendar quarters exceeded $30,000<CRACite id={10} />)
-                may claim input tax credits (ITCs) on the GST/HST paid on
-                vehicle expenses. The size of the ITC depends on a published
-                threshold mechanic that is materially different for
-                individuals and partnerships than it is for corporations.
-              </p>
-
-              <h3>The &quot;all or substantially all&quot; rule</h3>
-
-              <p>
-                For an individual or a partnership — which describes most
-                self-employed Canadian real estate agents — CRA states that
-                the ITC eligibility on a passenger vehicle is determined by
-                whether the vehicle is acquired for use <strong>all or
-                substantially all (90% or more) in commercial activities
-                </strong><CRACite id={7} />:
+                An agent registered for GST/HST can claim input tax credits
+                (ITCs) for the GST/HST paid on vehicle costs. For an
+                individual or a partnership, which covers most self-employed
+                agents, RC4022 sets out how this works for a passenger
+                vehicle<CRACite id={13} />:
               </p>
 
               <ul>
                 <li>
-                  <strong>≥ 90% commercial use:</strong> the registrant may
-                  claim 100% of the GST/HST paid as an ITC, subject to the
-                  capital cost limitation discussed below<CRACite id={7} />
-                  <CRACite id={9} />.
+                  Individuals and partnerships usually claim ITCs for a
+                  passenger vehicle based on the capital cost allowance.
                 </li>
                 <li>
-                  <strong>Less than 90% commercial use:</strong> the
-                  passenger-vehicle ITC for individuals and partnerships
-                  is determined by a different mechanic — the ITC is based
-                  on the CCA claimed for the year, calculated using a
-                  prescribed tax fraction<CRACite id={7} /><CRACite id={9} />.
-                  This is the published treatment that distinguishes
-                  individuals and partnerships from corporations, which use a
-                  proportional ITC method.
+                  <strong>Used 90% or more in commercial activities:</strong> a
+                  full ITC.
+                </li>
+                <li>
+                  <strong>Used 10% or less:</strong> no ITC.
+                </li>
+                <li>
+                  <strong>In between:</strong> the ITC is worked out each year
+                  from the part of the year&apos;s CCA that relates to the
+                  commercial activities, multiplied by a tax factor:{" "}
+                  {GST_RATE_GROUP.percent} GST: {taxFactor(GST_RATE_GROUP.rate)};{" "}
+                  {HST_RATE_GROUPS.map((g) => `${g.percent} HST: ${taxFactor(g.rate)}`).join("; ")}.
+                </li>
+                <li>
+                  The part of a passenger vehicle&apos;s cost eligible for an
+                  ITC is limited to the capital cost limitation, the Class
+                  10.1 ceiling above ({money(LIMITS.ccaCeiling)} before tax
+                  for a vehicle bought in {YEAR}<CRACite id={6} />).
                 </li>
               </ul>
 
-              <p>
-                In plain terms: for a sole-proprietor agent, if the vehicle is
-                used overwhelmingly for business (90%+), the GST/HST paid is
-                generally fully recoverable through the ITC. If the vehicle
-                is used substantially but not overwhelmingly for business
-                (say 60–80%), the ITC mechanic switches and CRA&apos;s
-                published method ties the ITC to the year&apos;s CCA claim
-                rather than to the percentage of expenses<CRACite id={7} />.
-                The mechanic is technical, and an accountant familiar with
-                GST/HST registrant rules is the appropriate person to apply
-                it to a specific situation.
-              </p>
-
-              <h3>The capital cost limitation on ITCs</h3>
+              <h3>Running costs</h3>
 
               <p>
-                The Class 10.1 ceiling discussed in section 4 also constrains
-                the GST/HST ITC. CRA states that ITCs cannot be claimed on
-                the portion of a passenger vehicle&apos;s cost exceeding the
-                year&apos;s capital cost limitation<CRACite id={9} /> —
-                $38,000 (before tax) for 2025 acquisitions<CRACite id={5} />.
-                A vehicle purchased for $50,000 plus HST has its ITC computed
-                against $38,000 of cost base, not $50,000.
-              </p>
-
-              <h3>Operating expenses (fuel, maintenance, insurance, parking)</h3>
-
-              <p>
-                For ITCs on operating expenses (fuel, maintenance, repairs,
-                paid parking, and so on), the standard ITC calculation
-                methods apply<CRACite id={8} /> — the registrant determines
-                the percentage of use in commercial activities and claims
-                the ITC against that percentage. CRA also publishes
-                simplified ITC methods for small businesses meeting eligibility
-                criteria<CRACite id={8} />.
+                For running costs such as fuel, maintenance and repairs, and
+                licence and registration fees, CRA&apos;s vehicle guidance
+                limits the ITC to the GST/HST on the business part when the
+                vehicle is used for business and personal driving
+                <CRACite id={14} />. RC4022&apos;s general rule allows the
+                full GST/HST as an ITC on an operating expense used 90% or
+                more in commercial activities, and otherwise a fair and
+                reasonable split used consistently through the year
+                <CRACite id={13} />. These rules are technical, and an
+                accountant familiar with GST/HST can apply them to a
+                specific vehicle.
               </p>
 
               {/* ── Cheat sheet inline CTA ── */}
@@ -637,95 +590,68 @@ export default function VehicleExpensesRealEstateAgentsCanadaPage() {
               </div>
 
               {/* ── Section 7 ── */}
-              <h2 id="realtor-scenarios">Realtor-specific scenarios</h2>
+              <h2 id="realtor-scenarios">Realtor scenarios</h2>
 
               <p>
-                The published rules apply to every self-employed taxpayer in
-                Canada, but the day-to-day patterns of a working real estate
-                agent produce a few recurring scenarios where the rules
-                interact unusually. Each item below describes how CRA&apos;s
-                rules apply — not what an agent &quot;should&quot; do, which is
-                a conversation for the accountant.
+                CRA&apos;s rules apply to every self-employed person. These
+                are the ones a real estate agent meets most often. Each item
+                describes how the rules read, not what to claim: that is a
+                conversation with an accountant.
               </p>
 
-              <h3>Property showings and listing visits</h3>
+              <h3>Showings and listing visits</h3>
 
               <p>
-                Travel from a business location (the brokerage, a previous
-                client meeting, a previous showing) to a showing or listing
-                visit is travel between business activities and is treated as
-                business use<CRACite id={1} />. The destination address, time,
-                and client purpose belong in the logbook entry.
+                Driving to a showing, a listing appointment or an inspection
+                is driving to earn income<CRACite id={1} />. A logbook entry
+                for it records the date, destination, purpose and kilometres
+                <CRACite id={2} />.
               </p>
 
               <h3>Open houses</h3>
 
               <p>
-                Travel to an open house the agent is hosting is business use.
-                Travel to a competing open house the agent is touring as
-                research is also business use, provided the purpose is
-                documented (market research, comparable assessment).
-                Recreational drop-ins to open houses with no documented
-                business purpose do not meet the test.
+                Driving to an open house you host is driving to earn income.
+                A visit to another agent&apos;s open house for market
+                research is too when its purpose is recorded; a drop-in with
+                no business purpose isn&apos;t.
               </p>
 
-              <h3>The brokerage commute</h3>
+              <h3>The brokerage</h3>
 
               <p>
-                As covered in section 3, CRA treats home-to-brokerage and
-                brokerage-to-home travel as personal commuting<CRACite id={1} />.
-                The kilometres are not business kilometres, even on a day
-                where every other trip from the brokerage is business. An
-                agent whose home is also their principal place of business
-                may have a different fact pattern — the home-office
-                designation interacts with the commute rule in a way that
-                accountants resolve case-by-case based on the published home
-                business test.
+                See{" "}
+                <a href="#eligible">driving between home and the brokerage</a>{" "}
+                above: the archived bulletin treats a home that isn&apos;t the
+                base of business operations differently from one that is
+                <CRACite id={11} />.
               </p>
 
-              <h3>Combined business-and-personal trips</h3>
+              <h3>Trips that mix business and errands</h3>
 
               <p>
-                A trip that runs a listing visit, a grocery stop, and a kid
-                pickup is not 100% business. CRA&apos;s rule applies on a
-                per-trip kilometre basis<CRACite id={1} />: the
-                listing-visit kilometres are business, the grocery and
-                pickup kilometres are personal. The logbook entry would
-                reflect only the business segment of the trip.
+                Only the kilometres driven to earn income count
+                <CRACite id={1} />. A trip that takes in a listing visit, a
+                grocery stop and a school pickup has a business part and a
+                personal part, and the logbook records the business part.
               </p>
 
-              <h3>Multiple vehicles</h3>
+              <h3>Vehicle wraps and signs</h3>
 
               <p>
-                An agent with two vehicles in the household — one used
-                primarily for business, one used primarily for personal — may
-                track each separately. CRA&apos;s expectation is that
-                <em> each vehicle</em> has its own logbook and its own
-                business-use percentage<CRACite id={2} />. Aggregating
-                kilometres across vehicles is not a published method.
-              </p>
-
-              <h3>Vehicle wraps and signage</h3>
-
-              <p>
-                Vehicle wraps and signage advertising the agent&apos;s
-                business are advertising expenses (deductible at 100% on T2125
-                Line 8521<CRACite id={6} />) rather than vehicle expenses on
-                Line 9281. The wrap does not change the business-use
-                percentage of the vehicle itself — driving the wrapped
-                vehicle to a personal errand is still personal kilometres,
-                regardless of the visible advertising.
+                Advertising goes on line 8521 of T2125<CRACite id={9} />. A
+                wrap or sign advertising the business doesn&apos;t change the
+                vehicle&apos;s business-use share: a personal errand in a
+                wrapped vehicle is still personal driving.
               </p>
 
               {/* ── Section 8 ── */}
-              <h2 id="provincial">
-                Provincial nuances — HST rate, GST-only provinces, Quebec
-              </h2>
+              <h2 id="provincial">GST/HST by province, and Quebec</h2>
 
               <p>
-                The federal mechanics described above apply uniformly across
-                Canada. The GST/HST rate that determines the dollar amount of
-                the ITC, however, varies by province:
+                The federal rules above apply across Canada. The GST/HST rate,
+                which sets the dollar amount of an ITC, depends on the
+                province:
               </p>
 
               <ul>
@@ -736,16 +662,15 @@ export default function VehicleExpensesRealEstateAgentsCanadaPage() {
                 ))}
                 <li>
                   <strong>{GST_RATE_GROUP.percent} GST only:</strong>{" "}
-                  {GST_RATE_GROUP.names}. Provincial sales tax (where
-                  applicable, e.g. PST in BC, Saskatchewan, Manitoba) is not
-                  recoverable through GST ITCs.
+                  {GST_RATE_GROUP.names}. Provincial sales tax (where it
+                  applies, for example PST in British Columbia, Saskatchewan
+                  and Manitoba) isn&apos;t recovered through GST ITCs.
                 </li>
               </ul>
 
               <p>
-                For the broader picture of HST/GST registration mechanics —
-                including the $30,000 small-supplier threshold, ITC eligibility
-                generally, and filing-frequency rules — see the{" "}
+                For GST/HST registration, including the small supplier
+                threshold and filing frequency, see the{" "}
                 <Link
                   href="/real-estate-agent-hst-registration-canada"
                   className="font-semibold text-blue-600 underline underline-offset-2"
@@ -754,43 +679,41 @@ export default function VehicleExpensesRealEstateAgentsCanadaPage() {
                 </Link>.
               </p>
 
-              <h3>Quebec — QST and the Agent Runway geo-block</h3>
+              <h3>Quebec</h3>
 
               <p>
                 Quebec administers its own Quebec Sales Tax (QST) alongside
-                GST. Vehicle-expense rules in Quebec have additional QST
-                mechanics overlaid on the federal rules described above, and
-                Revenu Québec is the administering authority. Agent Runway is
-                currently geo-blocked from Quebec pending Law 25 compliance
-                work and French translation; this article does not cover
-                QST-specific mechanics. Quebec agents are referred to Revenu
-                Québec&apos;s published guidance and a Quebec-licensed
-                accountant.
+                GST, and Revenu Québec has its own vehicle rules on top of
+                the federal ones. Agent Runway isn&apos;t yet available in
+                Quebec, and this article doesn&apos;t cover QST. Revenu
+                Québec&apos;s published guidance and a Quebec accountant
+                cover it.
               </p>
 
               {/* ── Section 9 ── */}
-              <h2 id="tracking">Tracking the deduction through the year</h2>
+              <h2 id="tracking">Tracking it through the year</h2>
 
               <p>
-                An agent who reconstructs vehicle expenses at year-end faces
-                two problems: the receipts may be incomplete, and the
-                kilometre log may not exist at the level of detail CRA&apos;s
-                logbook rule indicates. Tracking the deduction through the
-                year — receipts captured as they occur, kilometres logged
-                against trips as they happen — produces a reconstructible
-                record that aligns with CRA&apos;s expectation.
+                Rebuilding a year of vehicle costs in April runs into two
+                gaps: missing receipts, and a kilometre record that was never
+                kept. Recording costs as they happen and trips as they are
+                driven keeps both.
               </p>
 
               <p>
-                Agent Runway&apos;s expense model maps to T2125 Line 9281 for
-                vehicle expenses, with separate sub-fields for fuel,
-                insurance, maintenance, lease/interest, and CCA. The
-                business-use percentage applied to the year&apos;s expenses is
-                surfaced as a configurable input on the dashboard&apos;s tax
-                readiness card; changing the percentage updates the estimated
-                deductible portion in real time. The estimate produced is
-                informational — the figure that ultimately appears on T2125
-                is the figure the agent and their accountant agree on at
+                In Agent Runway, vehicle costs are recorded under Expenses →
+                Vehicle in their own categories (lease or rental payments,
+                insurance, fuel, repairs and maintenance, business parking,
+                supplementary business insurance) and add up to T2125 line
+                9281. The business-use share comes from CRA&apos;s logbook
+                under Expenses → Mileage (trips, odometer readings, and a
+                full-year logbook or a base year with three-month samples),
+                or from the share you declare in Settings until the logbook
+                covers the year. It applies to every vehicle cost except
+                business parking and supplementary business insurance, which
+                count in full. Capital cost allowance is worked out
+                separately and goes on line 9936. These are estimates: what
+                goes on T2125 is what you and your accountant settle at
                 filing time.
               </p>
 
@@ -802,21 +725,20 @@ export default function VehicleExpensesRealEstateAgentsCanadaPage() {
                 >
                   Canadian Realtor Tax Estimator
                 </Link>{" "}
-                accepts vehicle expenses with a business-use percentage and
-                shows the impact on the estimated tax owing, alongside the
-                CPP, federal, and provincial figures. It uses the same engine
-                that drives the in-app dashboard.
+                takes your total business expenses for the year (the business
+                part of your vehicle costs is part of that total) and shows
+                the estimated income tax, CPP and GST/HST.
               </p>
 
               <p>
-                For the line-by-line context of how Line 9281 fits among the
-                other T2125 lines, see the{" "}
+                For how line 9281 fits with the other T2125 lines, see the{" "}
                 <Link
                   href="/t2125-guide-real-estate-agents-canada"
                   className="font-semibold text-blue-600 underline underline-offset-2"
                 >
                   T2125 guide for Canadian real estate agents
-                </Link>.
+                </Link>
+                .
               </p>
 
             </article>
@@ -833,9 +755,8 @@ export default function VehicleExpensesRealEstateAgentsCanadaPage() {
                 Sources
               </h2>
               <p className="mt-2 text-xs text-slate-500">
-                Every quantitative or mechanical claim in this article is
-                backed by one of the primary sources below. Hand-verified
-                live on 2026-05-09.
+                Every rule and figure in this article is backed by one of the
+                primary sources below, checked against them on 2026-10-21.
               </p>
               <ol className="mt-4 space-y-2 text-xs text-slate-500">
                 {CRA_SOURCES.map((s) => (
@@ -856,15 +777,13 @@ export default function VehicleExpensesRealEstateAgentsCanadaPage() {
 
             {/* Bottom disclaimer */}
             <p className="mt-12 text-center text-xs leading-relaxed text-slate-400">
-              This article is for general information and planning awareness
-              only — not financial, tax, or professional advice. Vehicle
-              deduction limits, lease caps, and interest caps are reviewed
-              annually by the Department of Finance Canada and may change.
-              GST/HST input tax credit rules for individuals and partnerships
-              are technical and circumstance-specific. Always verify current
-              figures with the CRA and consult a qualified accountant or tax
-              professional. Agent Runway assumes no liability for tax filing
-              outcomes.{" "}
+              This article is for general information only, not financial,
+              tax, or professional advice. The Department of Finance Canada
+              sets the vehicle limits each year and they change. GST/HST input
+              tax credit rules for individuals and partnerships are technical
+              and depend on the facts. Check current figures with CRA and a
+              qualified accountant or tax professional. Agent Runway assumes
+              no liability for tax filing outcomes.{" "}
               <a href="/terms" className="underline underline-offset-2 hover:text-slate-600">
                 Terms of Service
               </a>.
@@ -880,10 +799,11 @@ export default function VehicleExpensesRealEstateAgentsCanadaPage() {
               See your estimated vehicle deduction as your year unfolds.
             </h2>
             <p className="mx-auto mt-5 max-w-xl text-base leading-relaxed text-slate-400">
-              Agent Runway tracks vehicle expenses against T2125 Line 9281 and
-              applies your business-use percentage to estimate the deductible
-              portion alongside your federal, provincial, CPP, and HST
-              estimates. Built for Canadian real estate agents.
+              Agent Runway keeps your vehicle costs against T2125 line 9281,
+              works out the business-use share from CRA&apos;s logbook, and
+              shows the deductible part alongside your federal, provincial,
+              CPP and GST/HST estimates. Built for Canadian real estate
+              agents.
             </p>
             <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
               <Link

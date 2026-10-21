@@ -257,8 +257,6 @@ describe("one vehicle business-use share", () => {
       "apps/web/lib/troubleshooting-playbooks.ts",
       // Words people type, matched to route their question; not a label.
       "apps/web/lib/troubleshooting-classifier.ts",
-      // A search keyword in the article's metadata; the article is a separate review (follow-up).
-      "apps/web/app/vehicle-expenses-real-estate-agents-canada/page.tsx",
     ]);
     expect(SOURCES.filter((s) => !DESCRIBES_THE_CHANGE.has(s.rel)).flatMap(labelProblems)).toEqual([]);
   });

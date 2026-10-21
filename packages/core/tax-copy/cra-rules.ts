@@ -759,6 +759,66 @@ export function allowanceRatesSentence(year: number): string {
   return `$${r.first5000.toFixed(2)}/km for the first ${r.threshold.toLocaleString("en-CA")} km and $${r.beyond5000.toFixed(2)}/km after (CRA's ${r.year} rates for the provinces)`;
 }
 
+/**
+ * The passenger vehicle limits the Department of Finance publishes each
+ * year: the capital cost ceiling for Class 10.1, the ceiling for a
+ * zero-emission passenger vehicle (Class 54), the deductible leasing cost
+ * per month and the deductible interest per month. All before sales tax.
+ * Newest year first; a page prints `year` from the row it shows, never a
+ * typed year.
+ *
+ * Sources (read 2026-10-21):
+ *   2026: Finance news release, 2026-01-14: the Class 10.1 ceiling "will
+ *         increase from $38,000 to $39,000, before tax"; the zero-emission
+ *         ceiling of $61,000 "will remain the same for 2026"; leasing $1,100
+ *         a month and interest $350 a month, unchanged.
+ *   2025: Finance news release, December 2024 (CCA ceiling $38,000, leasing
+ *         $1,100, interest $350); RC4022 "What's new" repeats the $38,000 and
+ *         $1,100 for vehicles bought or leased on or after January 1, 2025.
+ */
+export interface AutomobileLimits {
+  year: number;
+  /** Class 10.1 capital cost ceiling, before tax. */
+  ccaCeiling: number;
+  /** Class 54 zero-emission passenger vehicle ceiling, before tax. */
+  zeroEmissionCeiling: number;
+  /** Deductible leasing costs per month, before tax. */
+  leasePerMonth: number;
+  /** Deductible interest per month on money borrowed to buy the vehicle. */
+  interestPerMonth: number;
+  source: { label: string; url: string };
+}
+
+export const AUTOMOBILE_LIMITS: readonly AutomobileLimits[] = [
+  {
+    year: 2026,
+    ccaCeiling: 39_000,
+    zeroEmissionCeiling: 61_000,
+    leasePerMonth: 1_100,
+    interestPerMonth: 350,
+    source: {
+      label: "Department of Finance Canada: the 2026 automobile deduction limits and expense benefit rates for businesses",
+      url: "https://www.canada.ca/en/department-finance/news/2026/01/government-announces-the-2026-automobile-deduction-limits-and-expense-benefit-rates-for-businesses.html",
+    },
+  },
+  {
+    year: 2025,
+    ccaCeiling: 38_000,
+    zeroEmissionCeiling: 61_000,
+    leasePerMonth: 1_100,
+    interestPerMonth: 350,
+    source: {
+      label: "Department of Finance Canada: the 2025 automobile deduction limits and expense benefit rates for businesses",
+      url: "https://www.canada.ca/en/department-finance/news/2024/12/government-announces-the-2025-automobile-deduction-limits-and-expense-benefit-rates-for-businesses.html",
+    },
+  },
+];
+
+/** The newest limits published, and the year before them (for "up from ..."). */
+export function latestAutomobileLimits(): { current: AutomobileLimits; previous: AutomobileLimits | null } {
+  return { current: AUTOMOBILE_LIMITS[0], previous: AUTOMOBILE_LIMITS[1] ?? null };
+}
+
 /** What a km × rate figure is, and what it is not. */
 export const ALLOWANCE_RATE_NOTE: TaxCopy = asTaxCopy(
   "CRA's per-kilometre rates are the reasonable allowance an employer can pay an employee for driving the employee's own vehicle. A km × rate figure is that benchmark. It is not the T2125 motor vehicle deduction, which is the business part of the vehicle's actual expenses (fuel, insurance, maintenance, lease or capital cost allowance).",
