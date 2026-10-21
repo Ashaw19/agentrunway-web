@@ -7,6 +7,13 @@
  * printed as "Estimated ~$X/yr in potential savings" on the dashboard,
  * Forecast, Overhead and the T2125 PDF: about $3,900 a year with no trips
  * logged (20,000 placeholder km × 80% at $0.73/$0.67 × a marginal rate).
+ *
+ * 2026-10-21: the card shows no dollar figure at all. It had kept
+ * "km × CRA's per-km allowance rates" as an employer benchmark "for scale",
+ * a figure that doesn't apply to a self-employed agent and reads like a
+ * deduction on a tax card. It states the km logged, the business-use share
+ * applied to vehicle costs, and where the deduction is (Expenses → Vehicle,
+ * T2125 line 9281).
  */
 import { describe, expect, it } from "vitest";
 import { generateTaxOptimizations, type TaxOptimizationInput } from "../tax-optimization-engine";
@@ -63,10 +70,10 @@ describe("the vehicle tax card", () => {
     expect(card!.evidence.join(" ")).not.toMatch(/of tax|tax reduction|potential deduction/i);
   });
 
-  it("uses the tax year's CRA rates and names the year", () => {
+  it("names the tax year and the km logged", () => {
     const y2025 = vehicleCard(generateTaxOptimizations({ ...INPUT, taxYear: 2025, hasTrackedMileage: true, annualMileageKm: 6_000 }, 20))!;
     expect(y2025.title).toBe("Vehicle: Business Kilometres Logged in 2025");
-    expect(y2025.evidence[0]).toMatch(/6,000 business km logged in 2025\. At CRA's 2025 per-km allowance rates that is \$4,260/);
+    expect(y2025.evidence[0]).toBe("6,000 business km logged in 2025");
   });
 
   it("is not an opportunity: left out of the savings count", () => {
@@ -81,8 +88,22 @@ describe("the vehicle tax card", () => {
     expect(withVehicle.totalEstimatedSavings).toBe(without.totalEstimatedSavings);
   });
 
-  it("never calls the per-km figure a deduction", () => {
+  it.each([
+    ["no trips logged", { hasTrackedMileage: false, annualMileageKm: 0 }],
+    ["trips logged", { hasTrackedMileage: true, annualMileageKm: 6_000 }],
+  ])("%s: no dollar figure and no per-km rate anywhere on the card", (_name, mileage) => {
+    const card = vehicleCard(generateTaxOptimizations({ ...INPUT, ...mileage }, 20))!;
+    const text = [card.title, ...card.evidence, card.action, card.disclaimer].join(" ");
+    expect(text).not.toMatch(/\$/);
+    // ("capital cost allowance", CRA's term for depreciation, is a real deduction and stays.)
+    expect(text).not.toMatch(/per-km|allowance rate|allowance benchmark|reasonable allowance/i);
+  });
+
+  it("says where the deduction is: the business part of actual vehicle costs", () => {
     const card = vehicleCard(generateTaxOptimizations({ ...INPUT, hasTrackedMileage: true, annualMileageKm: 6_000 }, 20))!;
-    expect(card.evidence[0]).toMatch(/employer allowance benchmark, shown for scale, not a deduction/);
+    expect(card.evidence[1]).toBe("Vehicle business-use share applied to vehicle costs: 80%");
+    expect(card.action).toMatch(/business part of actual vehicle costs/);
+    expect(card.action).toMatch(/T2125 line 9281/);
+    expect(card.disclaimer).toMatch(/^Information only\./);
   });
 });
