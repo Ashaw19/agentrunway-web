@@ -27,6 +27,7 @@ const DISALLOWED_PATHS = [
   "/ai-activity",
   "/clients",
   "/flight-control",
+  "/open-house-setup",
   "/forecast",
   "/expenses",
   "/mileage",
