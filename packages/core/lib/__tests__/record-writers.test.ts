@@ -42,7 +42,10 @@ describe("writeContactActivity (logContactActivity)", () => {
   it("logs on the user's own client, today stamped now", async () => {
     const { db, writes, tables } = fakeDb(seed());
     const out = await writeContactActivity(db, USER, { clientId: "c-1", clientName: "Sam Lee", type: "showing", description: "  Walked 12 Elm  " }, TODAY);
-    expect(out).toMatchObject({ ok: true, day: TODAY, priorStatus: "cruising" });
+    expect(out).toMatchObject({ ok: true, day: TODAY });
+    // No stage is reported: logging contact never changes it (00189).
+    expect(out).not.toHaveProperty("priorStatus");
+    expect(out).not.toHaveProperty("newStatus");
     const insert = writes.find((w) => w.table === "contact_activities")!;
     expect(insert.payload).toMatchObject({ user_id: USER, client_id: "c-1", type: "showing", description: "Walked 12 Elm" });
     expect(Date.now() - Date.parse(String(insert.payload.activity_date))).toBeLessThan(60_000);

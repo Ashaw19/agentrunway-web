@@ -17,7 +17,6 @@ import { isExpectedAuthBootstrapError } from "../lib/auth-context";
 import { addDaysISO, localISODate, nextYearlyDate } from "@agent-runway/core/lib/local-date";
 import {
   activePipelineDeals,
-  getClientStatusLabel,
   computeGCI,
   type ClientRecord,
   type ContactTask as CoreContactTask,
@@ -1030,7 +1029,7 @@ export const useDataStore = create<DataStore>((set, get) => {
    * After a contact or note is logged on a client: their memory profile
    * (what Flight Crew knows about them) is marked outdated, as web does, and
    * their row and activity list are re-read (the trigger moves
-   * last_contact_at and may promote their status).
+   * last_contact_at; their stage never changes, 00189).
    */
   const afterClientContact = async (clientId: string) => {
     noteActivity(new Date().toISOString());
@@ -1685,13 +1684,7 @@ export const useDataStore = create<DataStore>((set, get) => {
         return false;
       }
       removeTask(task.id);
-      const promoted = res.newStatus && res.newStatus !== res.priorStatus;
-      toast.show(
-        promoted
-          ? `Saved to their profile and ticked off. Moved to ${getClientStatusLabel(res.newStatus)} because you were in touch.`
-          : "Saved to their profile and ticked off.",
-        "success",
-      );
+      toast.show("Saved to their profile and ticked off.", "success");
       return true;
     }, false),
 
@@ -1922,12 +1915,6 @@ export const useDataStore = create<DataStore>((set, get) => {
       } = await supabase.auth.getUser();
       if (!user) return false;
 
-      // Capture prior status so we can detect Phase 3 auto-promotion (the
-      // DB trigger from migration 00105 may flip cruising/scheduled → boarding
-      // when a real, recent, non-note touchpoint is logged).
-      const priorClient = get().clients.find((c) => c.id === activity.client_id);
-      const priorStatus = priorClient?.status;
-
       // On the streak and the day's count at once; taken back if refused.
       const undoNote = noteActivity(activity.activity_date);
 
@@ -1956,36 +1943,8 @@ export const useDataStore = create<DataStore>((set, get) => {
       const prev = get()._clientActivitiesFetchedAt;
       set({ _clientActivitiesFetchedAt: { ...prev, [activity.client_id]: 0 } });
 
-      // Detect auto-promotion. We only re-fetch the row when the prior status
-      // is one the trigger could have promoted, to avoid an extra query in
-      // the common case where the client was already boarding/in_flight.
-      let promoted = false;
-      if (priorStatus === "cruising" || priorStatus === "scheduled") {
-        const { data: updated } = await supabase
-          .from("clients")
-          .select("status")
-          .eq("id", activity.client_id)
-          .single();
-        const newStatus = updated?.status as string | undefined;
-        if (newStatus && newStatus !== priorStatus) {
-          set({
-            clients: get().clients.map((c) =>
-              c.id === activity.client_id
-                ? { ...c, status: newStatus as typeof c.status }
-                : c
-            ),
-          });
-          saveCache(get());
-          promoted = true;
-        }
-      }
-
-      toast.show(
-        promoted
-          ? `${priorClient?.name ?? "Client"} auto-promoted to Boarding \u2713`
-          : "Activity logged \u2713",
-        "success",
-      );
+      // Logging contact never changes the client's stage (00189).
+      toast.show("Activity logged \u2713", "success");
       return true;
     }, false),
 
@@ -2590,10 +2549,6 @@ export const useDataStore = create<DataStore>((set, get) => {
             : "";
       const actType = type === "voicemail" ? "call" : type;
 
-      // Capture prior status for Phase 3 promotion detection.
-      const priorClient = get().clients.find((c) => c.id === clientId);
-      const priorStatus = priorClient?.status;
-
       // On the streak and the day's count at once; taken back if refused.
       const activityDate = new Date().toISOString();
       const undoNote = noteActivity(activityDate);
@@ -2634,34 +2589,8 @@ export const useDataStore = create<DataStore>((set, get) => {
         _clientActivitiesFetchedAt: { ...prev, [clientId]: 0 },
       });
 
-      // Detect auto-promotion (migration 00105 trigger).
-      let promoted = false;
-      if (priorStatus === "cruising" || priorStatus === "scheduled") {
-        const { data: updated } = await supabase
-          .from("clients")
-          .select("status")
-          .eq("id", clientId)
-          .single();
-        const newStatus = updated?.status as string | undefined;
-        if (newStatus && newStatus !== priorStatus) {
-          set({
-            clients: get().clients.map((c) =>
-              c.id === clientId
-                ? { ...c, status: newStatus as typeof c.status }
-                : c
-            ),
-          });
-          saveCache(get());
-          promoted = true;
-        }
-      }
-
-      toast.show(
-        promoted
-          ? `${priorClient?.name ?? "Client"} auto-promoted to Boarding \u2713`
-          : "Activity logged \u2713",
-        "success",
-      );
+      // Logging contact never changes the client's stage (00189).
+      toast.show("Activity logged \u2713", "success");
       return true;
     },
   };

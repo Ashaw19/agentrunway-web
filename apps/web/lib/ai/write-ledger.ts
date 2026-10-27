@@ -16,7 +16,7 @@
  *     caller exactly the response it asked for. If the altered request is
  *     refused (PostgREST rolled it back), the original is sent unchanged.
  *   - An insert whose trigger changes another row (TRIGGER_SIDE_EFFECTS: a
- *     logged call moves its client's last contact and status) records that
+ *     logged call moves its client's last contact) records that
  *     parent row's change too, in the same tool call, so undo puts both back.
  *   - Before a delete it asks fn_ai_row_references what points at each row.
  *     If anything does, the delete will null or cascade those links, which
@@ -624,7 +624,7 @@ async function captureInsert(
       after: afterByKey.get(String(k)) ?? null,
     }));
     // The parent rows the insert's trigger changed (a logged call moves its
-    // client's last contact, first contact and status). If they can't be
+    // client's last contact and first contact). If they can't be
     // read before AND after, the insert is on the record but not undoable:
     // undoing it alone would leave what the trigger did.
     let unreadable = sideEffects.unreadable;

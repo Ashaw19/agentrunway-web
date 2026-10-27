@@ -91,7 +91,7 @@ export async function reopenItem(supabase: SupabaseClient, taskId: string): Prom
 }
 
 export type ContactOutcomeResult =
-  | { status: "done"; completed_at: string; priorStatus: string | null; newStatus: string | null; activity?: ContactActivity }
+  | { status: "done"; completed_at: string; activity?: ContactActivity }
   | { status: "logged_not_done" }   // activity saved, item update failed
   | { status: "failed" };           // nothing saved
 
@@ -111,10 +111,7 @@ export async function completeWithContact(
   if (!logged.ok) return { status: "failed" };
   const done = await markItemDone(supabase, task.id, method);
   if (!done) return { status: "logged_not_done" };
-  return {
-    status: "done", completed_at: done.completed_at,
-    priorStatus: logged.priorStatus, newStatus: logged.newStatus, activity: logged.activity,
-  };
+  return { status: "done", completed_at: done.completed_at, activity: logged.activity };
 }
 
 /**

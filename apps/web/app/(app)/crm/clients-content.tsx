@@ -1713,20 +1713,6 @@ export function ClientsContent({
       } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Read the client's current status from the DB *before* the insert so
-      // we can detect Phase 3 auto-promotion (migration 00105's trigger may
-      // flip cruising/scheduled → boarding). Reading from the DB (not local
-      // state) keeps this useCallback dep-free and consistent with the AI
-      // tool + mobile API paths.
-      const { data: beforeRow } = await supabase
-        .from("clients")
-        .select("name, status")
-        .eq("id", clientId)
-        .eq("user_id", user.id)
-        .maybeSingle();
-      const priorStatus = beforeRow?.status as string | undefined;
-      const priorName = (beforeRow?.name as string | undefined) ?? "Client";
-
       // The form's value is the agent's wall clock with no offset. Sent as
       // is, the database reads it as UTC and files the activity 3-4 hours
       // early (lib/crm/local-datetime.ts).
@@ -1759,33 +1745,7 @@ export function ClientsContent({
           );
         }
         markMemoryStaleClient(clientId);
-
-        // Detect auto-promotion. Only re-fetch when prior status was one the
-        // trigger could have flipped — skips the round trip for the common
-        // boarding/in_flight cases.
-        if (priorStatus === "cruising" || priorStatus === "scheduled") {
-          const { data: updated } = await supabase
-            .from("clients")
-            .select("status")
-            .eq("id", clientId)
-            .eq("user_id", user.id)
-            .maybeSingle();
-          const newStatus = updated?.status as string | undefined;
-          if (newStatus && newStatus !== priorStatus) {
-            setLocalClients((prev) =>
-              prev.map((c) =>
-                c.id === clientId
-                  ? { ...c, status: newStatus as typeof c.status }
-                  : c
-              )
-            );
-            const newLabel = CLIENT_STATUS_LABELS[newStatus as ClientStatus] ?? "Boarding";
-            const priorLabel = CLIENT_STATUS_LABELS[priorStatus as ClientStatus] ?? "its previous stage";
-            toast.success(`${priorName} auto-promoted to ${newLabel}`, {
-              description: `A real touchpoint was logged, so this client moved out of ${priorLabel}.`,
-            });
-          }
-        }
+        // Logging contact never changes the client's stage (00189).
       } else if (error) {
         // Log the cause: from 2026-04-12 to 2026-10-06 every insert failed on a
         // trigger bug (00112 → fixed in 00166) and this toast was the only trace.
@@ -1864,11 +1824,11 @@ export function ClientsContent({
   }, [localTasks, completeTask]);
 
   // A checklist outcome logged an activity: show it, and keep last contact
-  // and stage in step with the DB triggers (a note is not contact, 00171).
+  // in step with the DB trigger (a note is not contact, 00171).
   const applyChecklistOutcome = useCallback((
     taskId: string,
     change: Partial<ContactTask>,
-    extra?: { activity?: ContactActivity; newStatus?: string | null },
+    extra?: { activity?: ContactActivity },
   ) => {
     if (change.completed_at) setLocalTasks((prev) => prev.filter((t) => t.id !== taskId));
     else setLocalTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, ...change } : t)));
@@ -1880,7 +1840,6 @@ export function ClientsContent({
       return {
         ...c,
         ...(a.type !== "note" ? { last_contact_at: a.activity_date } : {}),
-        ...(extra?.newStatus ? { status: extra.newStatus as typeof c.status } : {}),
       };
     }));
   }, []);
@@ -6198,7 +6157,7 @@ export function ClientsContent({
         task={tickingTask}
         clientName={tickingTask?.client_id ? clientById.get(tickingTask.client_id)?.name ?? "" : ""}
         onClose={() => setTickingTask(null)}
-        onCompleted={(task, change, activity, newStatus) => applyChecklistOutcome(task.id, change, { activity, newStatus })}
+        onCompleted={(task, change, activity) => applyChecklistOutcome(task.id, change, { activity })}
         onRescheduled={(task, dueDate, activity) => applyChecklistOutcome(task.id, { due_date: dueDate }, { activity })}
       />
 

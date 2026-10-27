@@ -882,19 +882,12 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
           // Core writer (record-writers): checks the client is the agent's,
           // dates a past day at noon UTC, and marks what Flight Crew remembers
           // about the client out of date. The contact_activities trigger
-          // moves last_contact_at and may promote Cruising/Scheduled → Boarding
-          // (migration 00105).
+          // moves last_contact_at; the client's stage never changes (00189).
           const out = await writeContactActivity(supabase, userId, { clientId, clientName, type, description, activityDate }, atlanticISODate());
           if (!out.ok) return `Failed to log activity: ${out.message}`;
-          const oldStatus = out.priorStatus;
-          const newStatus = out.newStatus;
-          const promoted = oldStatus && newStatus && oldStatus !== newStatus;
-          const base = type === "note"
+          return type === "note"
             ? `✓ Note saved on ${clientName}'s profile for ${out.day}. A note isn't contact, so their last contact date is unchanged.`
             : `✓ Logged ${type} with ${clientName} on ${out.day}. Last contact date updated.`;
-          return promoted
-            ? `${base} Auto-promoted from ${oldStatus} → ${newStatus}.`
-            : base;
         } catch {
           return "Failed to log activity. Please try again.";
         }

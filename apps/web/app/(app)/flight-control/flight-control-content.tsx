@@ -35,8 +35,8 @@ import {
   AlertTriangle, Brain, Zap, Phone, PhoneCall, MessageSquare, ShieldCheck,
 } from "lucide-react";
 import Link from "next/link";
-import type { OutreachQueueItem, OutreachOpportunityType, TopOpportunity, NewsletterQueue, ActivityType, ClientStatus } from "@/lib/types/database";
-import { ACTIVITY_TYPE_LABELS, ACTIVITY_TYPE_ICONS, CLIENT_STATUS_LABELS } from "@/lib/types/database";
+import type { OutreachQueueItem, OutreachOpportunityType, TopOpportunity, NewsletterQueue, ActivityType } from "@/lib/types/database";
+import { ACTIVITY_TYPE_LABELS, ACTIVITY_TYPE_ICONS } from "@/lib/types/database";
 import { logClientContact } from "@/lib/crm/log-contact";
 import {
   applyDismiss, dismissMenuFor, LATER_LABELS, MENU_HEADINGS, SKIP_LABEL, STOP_LABELS,
@@ -1019,13 +1019,10 @@ export function FlightControlContent({
     }
     setDismissedIds((prev) => new Set([...prev, `${opp.client_id}:${opp.opportunity_type}`]));
     markMemoryStaleClient(opp.client_id);
-    const promoted = res.newStatus && res.newStatus !== res.priorStatus;
     const held = !IGNORES_CONTACT_HOLD.has(opp.opportunity_type);
     toast.success(held
       ? `Logged. ${opp.client_name} is off your list for 14 days.`
-      : `Logged in ${opp.client_name}'s CRM history.`, promoted ? {
-      description: `Moved to ${CLIENT_STATUS_LABELS[res.newStatus as ClientStatus] ?? res.newStatus} because a real touchpoint was logged.`,
-    } : undefined);
+      : `Logged in ${opp.client_name}'s CRM history.`);
     void loadOpportunities({ refill: true });
     return true;
   }, [loadOpportunities]);

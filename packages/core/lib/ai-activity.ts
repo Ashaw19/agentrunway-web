@@ -76,10 +76,10 @@ export const LEDGER_TABLES: ReadonlySet<string> = new Set(["ai_runs", "ai_run_wr
  * records the change as an update in the same tool call, so undo puts both
  * back together (one transaction, fn_ai_undo_apply).
  *
- * contact_activities AFTER INSERT (00018/00105/00166, 00028/00171): sets
- * clients.last_contact_at and first_contacted_at and may move a Cruising or
- * Scheduled client to Boarding. No trigger fires on DELETE, so deleting the
- * activity alone would leave all three. Undo puts the client back only if no
+ * contact_activities AFTER INSERT (00018/00166/00171/00189, 00028/00171):
+ * sets clients.last_contact_at and first_contacted_at (since 00189 it never
+ * changes the client's stage). No trigger fires on DELETE, so deleting the
+ * activity alone would leave both. Undo puts the client back only if no
  * other (non-note) activity for them was created after the AI's: the trigger
  * only moves last_contact_at forward, so a later call dated earlier leaves
  * the client row looking untouched (ai-undo.ts, fn_ai_undo_apply no_later). apps/web/lib/__tests__/ai-ledger-guards.test.ts
@@ -102,7 +102,7 @@ export const TRIGGER_SIDE_EFFECTS: Readonly<Record<string, readonly TriggerSideE
       foreignKey: "client_id",
       ignore: { column: "type", value: "note" },
       reinsertNote:
-        "bringing it back counts as logging it again: the client's last contact can move, and a Cruising or Scheduled client can move to Boarding",
+        "bringing it back counts as logging it again: the client's last contact can move",
     },
   ],
 };

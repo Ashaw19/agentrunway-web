@@ -27,7 +27,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { markMemoryStaleClient } from "@/lib/ai/mark-memory-stale";
-import { CLIENT_STATUS_LABELS, type ClientStatus, type ContactActivity, type ContactTask } from "@/lib/types/database";
+import type { ContactActivity, ContactTask } from "@/lib/types/database";
 import {
   CHECKLIST_CONTACT_METHODS,
   METHOD_LABEL,
@@ -54,10 +54,9 @@ export interface CompleteItemDialogProps {
   onClose:       () => void;
   /** Item is done (any outcome that completes it). `activity` is set when one was logged. */
   onCompleted:   (
-    task:       ContactTask,
-    patch:      Pick<ContactTask, "completed_at" | "completed_via">,
-    activity?:  ContactActivity,
-    newStatus?: string | null,
+    task:      ContactTask,
+    patch:     Pick<ContactTask, "completed_at" | "completed_via">,
+    activity?: ContactActivity,
   ) => void;
   /** "Couldn't reach them" moved the item and logged a note. */
   onRescheduled: (task: ContactTask, dueDate: string, activity?: ContactActivity) => void;
@@ -101,11 +100,8 @@ export function CompleteItemDialog({
       onClose();
       return;
     }
-    onCompleted(task, { completed_at: res.completed_at, completed_via: method }, res.activity, res.newStatus);
-    const promoted = res.newStatus && res.newStatus !== res.priorStatus;
-    toast.success(`Saved to ${name}'s profile and ticked off.`, promoted ? {
-      description: `Moved to ${CLIENT_STATUS_LABELS[res.newStatus as ClientStatus] ?? res.newStatus} because you were in touch.`,
-    } : undefined);
+    onCompleted(task, { completed_at: res.completed_at, completed_via: method }, res.activity);
+    toast.success(`Saved to ${name}'s profile and ticked off.`);
     onClose();
   }
 
