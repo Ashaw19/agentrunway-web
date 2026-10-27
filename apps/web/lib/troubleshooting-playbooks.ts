@@ -932,7 +932,7 @@ Each contact has a decayed engagement score based on recent activity history.
 3. Check status filter — may be filtering to a specific status
 
 **"Client status didn't change"**
-→ All status changes are manual — the agent moves clients through stages. There is no auto-advancement (the old Landed→Cruising auto-transition has been removed). Exception: a Cruising or Scheduled client who receives a real touchpoint activity (call/text/email/meeting/showing) is automatically promoted to Boarding.
+→ All status changes are manual — the agent moves clients through stages. There is no auto-advancement (the old Landed→Cruising auto-transition has been removed). Logging a call, text, email, meeting or showing never changes a client's stage: a check-in with a past client keeps them Cruising (since 2026-10-27).
 
 **"My stale lead count seems wrong"**
 1. Dashboard uses 14-day threshold; CRM Insights uses 30-day
@@ -1099,7 +1099,7 @@ Flight Control also includes a newsletter builder for mass updates (market repor
 → Since 2026-10-07 a Note is an internal memo and doesn't count as contact: it doesn't change "last contacted" or "first contacted", so Flight Control, the going-quiet list and "days since contact" ignore it. Log a call, text, email, meeting or showing if you actually reached them. (The mobile quick-capture defaults to Note — pick the real type.)
 
 **"I already called/texted them — how do I get them off Flight Control?"**
-→ Click "Log contact" on their card, pick Call / Text / Email / Meeting, add an optional note, Save. It logs the activity in the CRM, removes the card, brings in the next person, and holds that client back from Scan for 14 days. If the client was Cruising or Scheduled, logging a real touchpoint moves them to Boarding.
+→ Click "Log contact" on their card, pick Call / Text / Email / Meeting, add an optional note, Save. It logs the activity in the CRM, removes the card, brings in the next person, and holds that client back from Scan for 14 days. The client's stage stays as it is.
 
 **"Log Activity says Failed to log activity"**
 → From 2026-04-12 to 2026-10-06 every activity save failed because of a database bug, fixed 2026-10-06. If it still fails, the browser console shows the cause, logged under "[crm] contact_activities insert failed".

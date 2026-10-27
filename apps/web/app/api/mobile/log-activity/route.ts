@@ -64,14 +64,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       );
     }
 
-    // ── 4. Verify client belongs to user + capture prior status ───────────
-    // We read status here so the response can tell the mobile client whether
-    // the DB trigger (migration 00105) auto-promoted the client — lets the
-    // mobile UI show a "auto-promoted to Boarding" toast and refresh its
-    // local state without a full re-fetch.
+    // ── 4. Verify client belongs to user ──────────────────────────────────
     const { data: client, error: clientErr } = await admin
       .from("clients")
-      .select("id, status")
+      .select("id")
       .eq("id", client_id)
       .eq("user_id", user.id)
       .single();
@@ -82,7 +78,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         { status: 404 },
       );
     }
-    const priorStatus = client.status as string;
 
     // ── 5. Insert activity ────────────────────────────────────────────────
     const { error: insertErr } = await admin
@@ -103,28 +98,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       );
     }
 
-    // ── 6. Detect auto-promotion (Phase 3 Wave A) ─────────────────────────
-    // Only re-read when prior status was one the trigger could have flipped.
-    let promoted = false;
-    let newStatus: string | null = null;
-    if (priorStatus === "cruising" || priorStatus === "scheduled") {
-      const { data: updated } = await admin
-        .from("clients")
-        .select("status")
-        .eq("id", client_id)
-        .single();
-      if (updated && updated.status !== priorStatus) {
-        newStatus = updated.status as string;
-        promoted = true;
-      }
-    }
-
-    return NextResponse.json({
-      logged: true,
-      promoted,
-      old_status: priorStatus,
-      new_status: newStatus ?? priorStatus,
-    });
+    // The trigger moves last_contact_at; the client's stage never changes (00189).
+    return NextResponse.json({ logged: true });
   } catch (err) {
     console.error("log-activity unexpected error:", err);
     return NextResponse.json(

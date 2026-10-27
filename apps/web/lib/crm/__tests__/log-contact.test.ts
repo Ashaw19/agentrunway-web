@@ -11,6 +11,9 @@ import { logClientContact } from "../log-contact";
  * last 14 days. Every activity insert failed from April to 2026-10-06 (00112)
  * and the CRM showed only "Failed to log activity", so this helper must
  * report failure, never claim success.
+ *
+ * Logging contact never changes the client's stage (00189, 2026-10-27): a
+ * check-in with a past client kept turning them into a Boarding lead.
  */
 
 type Row = Record<string, unknown>;
@@ -19,8 +22,6 @@ function fakeSupabase(opts: {
   userId?: string | null;
   client?: Row | null;
   insertError?: { message: string; code?: string } | null;
-  /** Emulates the 00105/00166 trigger flipping status on insert. */
-  statusAfterInsert?: string;
 }) {
   const inserts: Row[] = [];
   const client = opts.client ? { ...opts.client } : null;
@@ -41,7 +42,6 @@ function fakeSupabase(opts: {
           single: async () => {
             if (opts.insertError) return { data: null, error: opts.insertError };
             inserts.push(row);
-            if (client && opts.statusAfterInsert) client.status = opts.statusAfterInsert;
             return { data: { id: `a${inserts.length}`, ...row }, error: null };
           },
         }),
@@ -99,13 +99,11 @@ describe("logClientContact", () => {
     expect(inserts).toHaveLength(0);
   });
 
-  it("reports an auto-promotion from Cruising to Boarding", async () => {
-    const { supabase } = fakeSupabase({
-      client: { id: "c1", user_id: "u1", status: "cruising" },
-      statusAfterInsert: "boarding",
-    });
-    const res = await logClientContact(supabase, { clientId: "c1", type: "call", description: "x" });
-    expect(res).toMatchObject({ ok: true, priorStatus: "cruising", newStatus: "boarding" });
+  it("reports no stage change: logging contact with a Cruising client leaves them Cruising", async () => {
+    const { supabase } = fakeSupabase({ client: { id: "c1", user_id: "u1", status: "cruising" } });
+    const res = await logClientContact(supabase, { clientId: "c1", type: "text", description: "Checking in" });
+    expect(res.ok).toBe(true);
+    expect(Object.keys(res).sort()).toEqual(["activity", "ok"]);
   });
 
   it("defaults the activity date to now", async () => {

@@ -200,14 +200,12 @@ async function insertOnce(
 export interface ActivityOutcome extends WriteOutcome {
   /** The calendar day it was logged on. */
   day?: string;
-  priorStatus?: string | null;
-  newStatus?: string | null;
 }
 
 /**
  * logContactActivity. Any type but `note` counts as contact: the
- * contact_activities trigger moves clients.last_contact_at and may move
- * Cruising or Scheduled to Boarding (00105). A note is a memo, not contact.
+ * contact_activities trigger moves clients.last_contact_at; the client's
+ * stage never changes (00189). A note is a memo, not contact.
  * What Flight Crew remembers about the client is marked out of date.
  *
  * `today` is the caller's calendar day (atlanticISODate() on a server,
@@ -225,15 +223,14 @@ export async function writeContactActivity(
   if (args.activityDate !== undefined && !isIsoDay(args.activityDate)) return fail("The activity date isn't a real date.");
   const id = options.id ?? newRecordId();
   try {
-    const { data: before, error: readError } = await db
+    const { data: owned, error: readError } = await db
       .from("clients")
-      .select("status")
+      .select("id")
       .eq("id", args.clientId)
       .eq("user_id", userId)
       .maybeSingle();
     if (readError) return refused("find the client", readError);
-    if (!before) return fail(`${args.clientName || "That client"} wasn't found in your clients.`);
-    const priorStatus = (before.status as string | null) ?? null;
+    if (!owned) return fail(`${args.clientName || "That client"} wasn't found in your clients.`);
 
     const { error, alreadySaved } = await insertOnce(db, "contact_activities", activityRow({
       id,
@@ -247,19 +244,9 @@ export async function writeContactActivity(
 
     void markMemoryStale(db, userId, args.clientId);
 
-    let newStatus = priorStatus;
-    if (priorStatus === "cruising" || priorStatus === "scheduled") {
-      const { data: after } = await db
-        .from("clients")
-        .select("status")
-        .eq("id", args.clientId)
-        .eq("user_id", userId)
-        .maybeSingle();
-      newStatus = (after?.status as string | null) ?? priorStatus;
-    }
     const day = args.activityDate ?? today;
     const what = args.type === "note" ? "Note saved" : `Logged ${args.type}`;
-    return { ok: true, message: `${what} on ${args.clientName || "the client"} for ${day}.`, id, alreadySaved, day, priorStatus, newStatus };
+    return { ok: true, message: `${what} on ${args.clientName || "the client"} for ${day}.`, id, alreadySaved, day };
   } catch (err) {
     return thrown("log the activity", err);
   }

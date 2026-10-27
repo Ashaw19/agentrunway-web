@@ -276,8 +276,8 @@ export function PipelineContent({ seed }: { seed: PipelineSeedData }) {
   // firing lives client-side in crm/clients-content.tsx updateClientField().
   // Pipeline status changes are reclassification actions ("park this buyer"),
   // not lifecycle events, so skipping the automation is the correct behaviour.
-  // Long-term fix: move Flight Plan firing into a DB trigger so every status
-  // write path behaves identically (see migration 00105 auto-promote pattern).
+  // Long-term fix: move Flight Plan firing into a DB trigger on
+  // clients.status so every status write path behaves identically.
   const handleBuyerStatusChange = useCallback(
     async (clientId: string, newStatus: ClientStatus) => {
       setSavingStatusId(clientId);
