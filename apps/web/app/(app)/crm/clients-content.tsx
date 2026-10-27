@@ -108,7 +108,8 @@ import { ShowingsSection } from "./showings-section";
 import { fmtCurrency, fmtCompact } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 import { toNameSearch } from "@/lib/crm/client-identity";
-import { clusterDuplicateClients } from "@/lib/crm/duplicate-detection";
+import { clusterDuplicateClients, findPossibleDuplicatePairs, pairKey } from "@/lib/crm/duplicate-detection";
+import { dismissGroup, groupDismissed, loadDismissedPairs, pairsOf } from "@/lib/crm/duplicate-dismissals";
 import { deleteClients, fetchAllClients, type DeleteClientsResult } from "@/lib/crm/delete-clients";
 import {
   achievementBadgeIds,
@@ -1375,16 +1376,54 @@ export function ClientsContent({
   // Duplicate-client clusters — active (non-archived) clients only; an
   // already-archived client (incl. one already merged away) shouldn't be
   // suggested as a merge candidate. See lib/crm/duplicate-detection.ts.
-  const duplicateClusters = useMemo(
+  // Near-matches (an email-only card and the same person's phone card,
+  // nicknames) come from findPossibleDuplicatePairs; pairs the agent marked
+  // "Not the same person" are remembered (00190) and left out of both.
+  const [dismissedPairs, setDismissedPairs] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    if (!userId) return;
+    let cancelled = false;
+    void loadDismissedPairs(supabase, userId).then((pairs) => {
+      if (!cancelled) setDismissedPairs(pairs);
+    });
+    return () => { cancelled = true; };
+  }, [supabase, userId]);
+  const activeForDuplicates = useMemo(
     () =>
-      clusterDuplicateClients(
-        localClients
-          .filter((c) => !c.archived_at)
-          .map((c) => ({ id: c.id, name: c.name, email: c.email, phone: c.phone, created_at: c.created_at })),
-      ),
+      localClients
+        .filter((c) => !c.archived_at)
+        .map((c) => ({
+          id: c.id, name: c.name, email: c.email, phone: c.phone, created_at: c.created_at,
+          first_name: c.first_name, last_name: c.last_name,
+        })),
     [localClients],
   );
+  const allDuplicateClusters = useMemo(() => clusterDuplicateClients(activeForDuplicates), [activeForDuplicates]);
+  const duplicateClusters = useMemo(
+    () => allDuplicateClusters.filter((c) => !groupDismissed(c.clientIds, dismissedPairs)),
+    [allDuplicateClusters, dismissedPairs],
+  );
+  const possibleDuplicatePairs = useMemo(
+    () => findPossibleDuplicatePairs(activeForDuplicates, allDuplicateClusters, dismissedPairs),
+    [activeForDuplicates, allDuplicateClusters, dismissedPairs],
+  );
+  const duplicateReviewCount = duplicateClusters.length + possibleDuplicatePairs.length;
   const [duplicatesOpen, setDuplicatesOpen] = useState(false);
+
+  async function handleDismissDuplicates(clientIds: string[]): Promise<boolean> {
+    if (!userId) return false;
+    const saved = await dismissGroup(supabase, userId, clientIds);
+    if (!saved) {
+      toast.error("Couldn't save that. Try again.");
+      return false;
+    }
+    setDismissedPairs((prev) => {
+      const next = new Set(prev);
+      for (const [a, b] of pairsOf(clientIds)) next.add(pairKey(a, b));
+      return next;
+    });
+    return true;
+  }
 
   async function handleMergeClients(primaryId: string, duplicateIds: string[]): Promise<string | null> {
     const { data, error } = await supabase.rpc("fn_merge_clients", {
@@ -3570,7 +3609,7 @@ export function ClientsContent({
             <Upload className="h-3.5 w-3.5" />
             Import CSV
           </Button>
-          {duplicateClusters.length > 0 && (
+          {duplicateReviewCount > 0 && (
             <Button
               variant="outline"
               size="sm"
@@ -3578,7 +3617,7 @@ export function ClientsContent({
               className="gap-1.5 bg-white border-amber-300 text-amber-700 hover:text-amber-900 hover:border-amber-400"
             >
               <Layers className="h-3.5 w-3.5" />
-              {duplicateClusters.length} Possible Duplicate{duplicateClusters.length === 1 ? "" : "s"}
+              {duplicateReviewCount} Possible Duplicate{duplicateReviewCount === 1 ? "" : "s"}
             </Button>
           )}
         </div>
@@ -7513,6 +7552,8 @@ export function ClientsContent({
         open={duplicatesOpen}
         onOpenChange={setDuplicatesOpen}
         clusters={duplicateClusters}
+        possiblePairs={possibleDuplicatePairs}
+        onDismiss={handleDismissDuplicates}
         clients={localClients.map((c) => ({
           id: c.id,
           name: c.name,
