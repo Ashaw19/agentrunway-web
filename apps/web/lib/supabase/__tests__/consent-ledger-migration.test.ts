@@ -74,9 +74,9 @@ describe("00183 keeps the ledger as evidence", () => {
 });
 
 describe("the newest client merge and delete carry the text opt-out", () => {
-  it("fn_merge_clients is 00183's and keeps the LATEST opt-out per channel", () => {
+  it("the newest fn_merge_clients (00183, or a later one that keeps all of it) keeps the LATEST opt-out per channel", () => {
     const { file, body } = latestDefinition("fn_merge_clients");
-    expect(file).toBe("00183_casl_consent_ledger.sql");
+    expect(file >= "00183_casl_consent_ledger.sql").toBe(true);
     expect(body).toMatch(/ORDER BY c\.email_opt_out_at DESC/);
     expect(body).toMatch(/ORDER BY c\.sms_opt_out_at DESC/);
     expect(body).toMatch(/email_opt_out_at\s+= v_email_at/);
