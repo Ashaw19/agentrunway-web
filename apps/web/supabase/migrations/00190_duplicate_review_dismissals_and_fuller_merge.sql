@@ -21,9 +21,10 @@
 --    email/phone fill. The record kept also gets, where it has none:
 --    a second email and a second phone (a duplicate's address or number
 --    that differs from its own), phone type with a filled phone, birthday,
---    first/last name, lead source, preferred contact, the address as one
---    block (never parts of two addresses), the earliest first contact and
---    the latest last contact. A duplicate's notes are added below the kept
+--    first/last name, lead source, the address as one block (never parts
+--    of two addresses), the earliest first contact and the latest last
+--    contact. The NOT NULL columns (phone types) keep the kept record's own
+--    value when there is nothing to copy. A duplicate's notes are added below the kept
 --    record's own. Tags and the name are left as they are (the review
 --    suggests keeping the record with a real name).
 -- ============================================================================
@@ -241,7 +242,7 @@ BEGIN
         ORDER BY k, created_at, id
         LIMIT 1
       ) END,
-      secondary_phone_type = CASE WHEN p.secondary_phone IS NOT NULL THEN p.secondary_phone_type ELSE (
+      secondary_phone_type = CASE WHEN p.secondary_phone IS NOT NULL THEN p.secondary_phone_type ELSE COALESCE((
         SELECT t FROM (
           SELECT c2.phone AS ph, c2.phone_type AS t, c2.created_at, c2.id, 0 AS k FROM clients c2 WHERE c2.id = ANY(p_duplicate_ids)
           UNION ALL
@@ -252,7 +253,7 @@ BEGIN
               <> right(regexp_replace(coalesce(p.phone, ''), '\D', '', 'g'), 10)
         ORDER BY k, created_at, id
         LIMIT 1
-      ) END,
+      ), p.secondary_phone_type) END,
       phone_type = CASE WHEN v_primary.phone IS NULL AND p.phone IS NOT NULL THEN COALESCE((
         SELECT c2.phone_type FROM clients c2
         WHERE c2.id = ANY(p_duplicate_ids) AND c2.phone = p.phone
@@ -268,20 +269,15 @@ BEGIN
         SELECT c2.first_name FROM clients c2
         WHERE c2.id = ANY(p_duplicate_ids) AND btrim(coalesce(c2.first_name, '')) <> ''
         ORDER BY c2.created_at, c2.id LIMIT 1
-      )),
+      ), p.first_name),
       last_name = COALESCE(NULLIF(btrim(p.last_name), ''), (
         SELECT c2.last_name FROM clients c2
         WHERE c2.id = ANY(p_duplicate_ids) AND btrim(coalesce(c2.last_name, '')) <> ''
         ORDER BY c2.created_at, c2.id LIMIT 1
-      )),
+      ), p.last_name),
       lead_source = COALESCE(p.lead_source, (
         SELECT c2.lead_source FROM clients c2
         WHERE c2.id = ANY(p_duplicate_ids) AND c2.lead_source IS NOT NULL
-        ORDER BY c2.created_at, c2.id LIMIT 1
-      )),
-      preferred_contact = COALESCE(p.preferred_contact, (
-        SELECT c2.preferred_contact FROM clients c2
-        WHERE c2.id = ANY(p_duplicate_ids) AND c2.preferred_contact IS NOT NULL
         ORDER BY c2.created_at, c2.id LIMIT 1
       )),
       -- The address moves as one block, and only onto a record with none.
