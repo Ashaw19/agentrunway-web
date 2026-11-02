@@ -178,3 +178,37 @@ describe("classifyTopicMulti — an expense that is going to end reaches the Rec
     expect(topTwo("what is my GCI goal next year")).not.toContain("recurring-expenses");
   });
 });
+
+// Possible Duplicates (web CRM, 2026-10-27) and CRA's vehicle logbook
+// (Expenses → Mileage, 2026-10-18). Bare "duplicate" and "merge" are not
+// keywords: a duplicate transaction after an import is the import topic.
+describe("classifyTopic — Possible Duplicates questions reach the CRM playbook", () => {
+  const crmCases = [
+    "why does it say these two clients might be the same person",
+    "how do I merge two clients",
+    "possible duplicates shows two cards for the same person",
+    "I have a duplicate client, which record should I keep",
+  ];
+  for (const message of crmCases) {
+    it(`routes to crm: "${message}"`, () => {
+      expect(classifyTopic(message)).toBe("crm");
+    });
+  }
+
+  it("a duplicate transaction after an import stays with the import topic", () => {
+    expect(classifyTopic("duplicate transactions after my csv import")).toBe("import");
+  });
+});
+
+describe("classifyTopic — vehicle logbook questions reach the Mileage playbook", () => {
+  const mileageCases = [
+    "how does the vehicle logbook work",
+    "where do I start a logbook base year",
+    "how is my business-use percentage worked out",
+  ];
+  for (const message of mileageCases) {
+    it(`routes to mileage: "${message}"`, () => {
+      expect(classifyTopic(message)).toBe("mileage");
+    });
+  }
+});
