@@ -122,6 +122,7 @@ import {
   gstHstCommissionTiming,
 } from "@agent-runway/core/engines/commission-hst-engine";
 import { buildGST34Worksheet } from "@agent-runway/core/engines/gst34-worksheet";
+import { runGST34PrefilingCheck, type PrefilingCheck } from "@agent-runway/core/engines/gst34-prefiling-check";
 import { recurringHSTDetailForPeriod, recurringHSTEntriesForPeriod } from "@agent-runway/core/engines/recurring-expense-engine";
 import { recurringEndDateError, recurringEndStatus } from "@/lib/expenses/recurring-end-date";
 import { recurringListFooter } from "@/lib/expenses/recurring-list-footer";
@@ -1378,6 +1379,24 @@ export function ExpensesContent({
     }
   }
 
+  // ── GST/HST pre-filing check ─────────────────────────────────────────────
+  // What looks wrong behind this period's return, from the same receipts and
+  // deals the return was built from (gst34-prefiling-check). Questions for
+  // the agent before filing, not findings; it changes no figure.
+  const prefilingCheck: PrefilingCheck | null = useMemo(() => {
+    if (!gst34Result || !activePeriod || !settings) return null;
+    const timing = gstHstCommissionTiming(settings);
+    return runGST34PrefilingCheck({
+      receipts: receiptsInPeriod(receipts, activePeriod),
+      commissions: commissionsInGstHstPeriod([...gstHstCarryIn, ...transactions], activePeriod.startDate, activePeriod.endDate, timing),
+      periodStart: activePeriod.startDate,
+      periodEnd: activePeriod.endDate,
+      taxRate: gst34Result.taxRate,
+      today: localISODate(),
+      commissionTiming: timing,
+    });
+  }, [gst34Result, activePeriod, settings, receipts, gstHstCarryIn, transactions]);
+
   // ── GST/HST return worksheet (PDF) ────────────────────────────────────────
   // The lines come from `gst34Result` (every receipt of the year, filtered to
   // the period). The expense-by-expense list is built from the receipt list,
@@ -1403,6 +1422,7 @@ export function ExpensesContent({
           frequency={filingFreq}
           result={gst34Result}
           worksheet={worksheet}
+          check={prefilingCheck}
           agentName={settings?.display_name || settings?.business_name || "Agent"}
           businessNumber={settings?.business_number || null}
           vehiclePct={vehiclePct}
@@ -1737,6 +1757,41 @@ export function ExpensesContent({
                 );
               })}
             </div>
+
+            {prefilingCheck && (
+              <div className={cn(
+                "rounded-lg border px-4 py-3 text-sm",
+                prefilingCheck.items.length > 0 ? "border-amber-200 bg-amber-50/60" : "border-emerald-200 bg-emerald-50/60",
+              )}>
+                <div className="flex items-start gap-2">
+                  {prefilingCheck.items.length > 0
+                    ? <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                    : <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />}
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium">
+                      {prefilingCheck.items.length > 0
+                        ? `Before you file: ${prefilingCheck.items.length} ${prefilingCheck.items.length === 1 ? "entry" : "entries"} to look at`
+                        : "Before you file: nothing stood out"}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {prefilingCheck.reviewed.receipts} receipt{prefilingCheck.reviewed.receipts !== 1 ? "s" : ""} and {prefilingCheck.reviewed.commissions} commission{prefilingCheck.reviewed.commissions !== 1 ? "s" : ""} behind this return were checked for dates, duplicates, {tax} that does not fit the rate, missing vendors and missing statement figures. Nothing here changes a figure.
+                    </p>
+                    {prefilingCheck.items.length > 0 && (
+                      <ul className="mt-2 space-y-1.5">
+                        {prefilingCheck.items.map((item, i) => (
+                          <li key={`${item.kind}-${i}`} className="text-xs">
+                            <span className="font-medium">{item.description}</span>
+                            {item.date && <span className="text-muted-foreground"> · {item.date}</span>}
+                            {item.amount > 0 && <span className="text-muted-foreground"> · {fmtCents(item.amount)}</span>}
+                            <span className="block text-muted-foreground">{item.note}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
               <button

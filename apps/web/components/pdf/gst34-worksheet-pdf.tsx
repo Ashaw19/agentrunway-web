@@ -24,6 +24,7 @@ import {
 } from "@react-pdf/renderer";
 import type { GST34Result, GST34FilingLine } from "@agent-runway/core/engines/gst34-engine";
 import type { GST34Worksheet, GST34WorksheetRow } from "@agent-runway/core/engines/gst34-worksheet";
+import type { PrefilingCheck } from "@agent-runway/core/engines/gst34-prefiling-check";
 import type { FilingPeriod } from "@/lib/types/database";
 import { receiptCategoryFullLabel } from "@/lib/types/receipt";
 
@@ -85,6 +86,8 @@ const S = StyleSheet.create({
 
 export interface Gst34WorksheetPdfProps {
   period: FilingPeriod;
+  /** The pre-filing check for the same period (gst34-prefiling-check), if it ran. */
+  check?: PrefilingCheck | null;
   /** "monthly" | "quarterly" | "annual" */
   frequency: string;
   result: GST34Result;
@@ -103,6 +106,7 @@ export function Gst34WorksheetPdf({
   frequency,
   result,
   worksheet,
+  check,
   agentName,
   businessNumber,
   vehiclePct,
@@ -247,6 +251,28 @@ export function Gst34WorksheetPdf({
           </Text>
         </View>
         </View>
+
+        {check && (
+          <View wrap={false}>
+            <Text style={S.sectionTitle}>Entries to look at</Text>
+            {check.items.length === 0 ? (
+              <Text style={S.bullet}>
+                • Nothing stood out. The {check.reviewed.receipts} receipt{check.reviewed.receipts !== 1 ? "s" : ""} and {check.reviewed.commissions} commission{check.reviewed.commissions !== 1 ? "s" : ""} behind this return were checked for dates, duplicates, {tax} that does not fit the rate, missing vendors and missing statement figures.
+              </Text>
+            ) : (
+              <View>
+                <Text style={S.bullet}>
+                  Questions for you, not findings; none of them changes a figure on the return.
+                </Text>
+                {check.items.map((item, i) => (
+                  <Text key={`${item.kind}-${i}`} style={S.bullet}>
+                    • {item.description}{item.date ? `, ${item.date}` : ""}{item.amount > 0 ? `, ${fmt(item.amount)}` : ""}: {item.note}
+                  </Text>
+                ))}
+              </View>
+            )}
+          </View>
+        )}
         {worksheet.differenceFromLine106 !== 0 && (
           <View style={S.warnBox}>
             <Text style={[S.td, { color: "#92400e" }]}>
