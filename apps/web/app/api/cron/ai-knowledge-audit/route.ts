@@ -12,6 +12,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { writeHeartbeat } from "@/lib/cron/heartbeat";
 import { createClient } from "@supabase/supabase-js";
 
 export const maxDuration = 30;
@@ -144,5 +145,6 @@ export async function GET(req: NextRequest) {
     console.error("[ai-knowledge-audit] Failed to store audit:", err);
   }
 
+  await writeHeartbeat("cron:ai-knowledge-audit", "ok");
   return NextResponse.json({ status: "ok", audit });
 }

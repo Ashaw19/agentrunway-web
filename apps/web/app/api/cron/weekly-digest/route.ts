@@ -10,6 +10,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { writeHeartbeat } from "@/lib/cron/heartbeat";
 import { resend, FROM_ADDRESS } from "@/lib/resend";
 import { weeklyDigestEmail, type WeeklyDigestData } from "@/lib/emails/weekly-digest";
 import {
@@ -143,6 +144,7 @@ export async function GET(req: NextRequest) {
   const proUsers = [...(tierUsers ?? []), ...betaUsers];
 
   if (!proUsers.length) {
+    await writeHeartbeat("cron:weekly-digest", "ok", "no subscribers", admin);
     return NextResponse.json({
       sent: 0,
       error: "No professional subscribers found",
@@ -445,6 +447,7 @@ Focus on the most actionable observation — what should they prioritize or watc
     }
   }
 
+  await writeHeartbeat("cron:weekly-digest", "ok", `${sent} sent, ${errors} errors`, admin);
   return NextResponse.json({
     sent,
     errors,

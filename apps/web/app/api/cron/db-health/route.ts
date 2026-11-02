@@ -12,6 +12,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { writeHeartbeat } from "@/lib/cron/heartbeat";
 import { countAIFailures } from "@agent-runway/core/lib/ai-activity-load";
 import { AI_LEDGER_RETENTION_MONTHS, AI_WRITE_IMAGE_RETENTION_DAYS } from "@agent-runway/core/lib/ai-activity";
 
@@ -252,5 +253,6 @@ export async function GET(req: NextRequest) {
     console.error(`[db-health] Overall status: ${status}`, JSON.stringify(result));
   }
 
+  await writeHeartbeat("cron:db-health", status === "unhealthy" ? "error" : "ok", status, admin);
   return NextResponse.json(result, { status: status === "unhealthy" ? 503 : 200 });
 }

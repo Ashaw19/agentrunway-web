@@ -28,6 +28,7 @@ import {
 } from "@/lib/types/database";
 import { seasonalFractionElapsed } from "@/lib/engines/projection-engine";
 import { addDaysISO, atlanticISODate } from "@agent-runway/core/lib/local-date";
+import { commissionReceivables, receivablesSummaryLine, PAID_DATE_TRACKING_SINCE } from "@agent-runway/core/engines/commission-receivables";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type AnySupabaseClient = SupabaseClient<any, any, any>;
@@ -132,10 +133,11 @@ export async function gatherBriefingMetrics(
       .eq("user_id", uid)
       .in("stage", ACTIVE_PIPELINE_STAGES as unknown as string[]),
 
-    // YTD closed transactions — columns feed canonical computeGCI.
+    // YTD closed transactions — columns feed canonical computeGCI. The
+    // address, closing and paid dates also feed the receivables line.
     supabase
       .from("transactions")
-      .select("sale_price, commission_pct, team_split_pct, gci_override")
+      .select("id, address, client_name, date, status, commission_paid_date, sale_price, commission_pct, team_split_pct, gci_override")
       .eq("user_id", uid)
       .eq("status", "closed")
       .gte("date", dates.yearStart),
@@ -201,6 +203,19 @@ export async function gatherBriefingMetrics(
     0,
   );
 
+  // Closed deals with no paid date past the normal close-to-paid gap
+  // (commission-receivables): one line for the briefing, or none.
+  const receivables = commissionReceivables({
+    deals: (transactionsResult.data ?? []).map((t) => ({
+      ...(t as Record<string, unknown>),
+      gci: computeGCI(t as Parameters<typeof computeGCI>[0]),
+    }) as Parameters<typeof commissionReceivables>[0]["deals"] extends readonly (infer D)[] | null | undefined ? D : never),
+    today: dates.todayStr,
+    trackingSince: PAID_DATE_TRACKING_SINCE,
+  });
+  const receivableLine = receivablesSummaryLine(receivables);
+  const receivableLines = receivableLine ? [receivableLine] : [];
+
   const ytdGci = (transactionsResult.data ?? []).reduce(
     (sum, t) => sum + computeGCI(t as Parameters<typeof computeGCI>[0]),
     0,
@@ -236,7 +251,7 @@ export async function gatherBriefingMetrics(
         date: (d.expected_close_date as string | null) ?? "",
       }),
     ),
-    recentAnomalies: anomalies,
+    recentAnomalies: [...anomalies, ...receivableLines],
     hotContacts: (hotContactsResult.data ?? []).map(
       (c: Record<string, unknown>) => ({
         name: (c.name as string | null) ?? "Unknown",

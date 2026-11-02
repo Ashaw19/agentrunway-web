@@ -62,6 +62,10 @@ const SCHEMA: Record<string, readonly string[]> = {
     "user_id",
   ],
   transactions: [
+    "id",
+    "address",
+    "client_name",
+    "commission_paid_date", // 00178
     "sale_price",
     "commission_pct",
     "team_split_pct",
