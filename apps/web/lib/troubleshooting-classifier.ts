@@ -350,6 +350,15 @@ const TOPIC_RULES: TopicRule[] = [
       "closing gift",
       "first class badge",
       "frequent flyer",
+      // Possible Duplicates (web CRM, since 2026-10-27): near-matches, merge.
+      // Bare "duplicate" and "merge" are NOT added: a duplicate transaction
+      // after an import is the import topic.
+      "possible duplicates",
+      "duplicate client",
+      "duplicate clients",
+      "same person",
+      "merge clients",
+      "merge two clients",
     ],
   },
   {
@@ -724,6 +733,11 @@ const TOPIC_RULES: TopicRule[] = [
       "how much mileage",
       "mileage ytd",
       "trip log",
+      // CRA's vehicle logbook (Expenses → Mileage, since 2026-10-18).
+      "logbook",
+      "vehicle logbook",
+      "business-use percentage",
+      "business use percentage",
     ],
   },
   {
