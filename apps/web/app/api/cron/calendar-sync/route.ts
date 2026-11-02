@@ -15,6 +15,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { writeHeartbeat } from "@/lib/cron/heartbeat";
 import { syncUserCalendar } from "@/lib/actions/calendar-actions";
 import { syncUserOutlookCalendar } from "@/lib/actions/outlook-calendar-actions";
 
@@ -58,6 +59,7 @@ export async function GET(req: NextRequest) {
   const allMs = msConns ?? [];
 
   if (allGoogle.length === 0 && allMs.length === 0) {
+    await writeHeartbeat("cron:calendar-sync", "ok", "no connected calendars", admin);
     return NextResponse.json({ ok: true, google_users: 0, outlook_users: 0, synced: 0, errors: 0 });
   }
 
@@ -97,6 +99,7 @@ export async function GET(req: NextRequest) {
     `[calendar-sync] Done. Google: ${allGoogle.length}, Outlook: ${allMs.length}, Synced: ${totalSynced}, Errors: ${totalErrors}`
   );
 
+  await writeHeartbeat("cron:calendar-sync", "ok", `${totalSynced} synced, ${totalErrors} errors`, admin);
   return NextResponse.json({
     ok: true,
     google_users:  allGoogle.length,

@@ -25,6 +25,7 @@ import { fetchAllRows } from "@/lib/supabase/fetch-all";
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient }          from "@/lib/supabase/admin";
 import { detectAndDraftForUser }      from "@/app/api/ai/detect-opportunities/route";
+import { writeHeartbeat }             from "@/lib/cron/heartbeat";
 
 // Allow up to 120 seconds — iterates over all active users with AI detection
 export const maxDuration = 120;
@@ -52,6 +53,7 @@ export async function GET(req: NextRequest) {
 
   if (error) {
     console.error("[cron/outreach-detector] Failed to fetch user list:", error);
+    await writeHeartbeat("cron:outreach-detector", "error", `user list: ${error.message}`, supabaseAdmin);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 
@@ -73,5 +75,6 @@ export async function GET(req: NextRequest) {
   }
 
   console.log(`[cron/outreach-detector] Done — ${usersProcessed} users, ${totalDetected} opportunities detected`);
+  await writeHeartbeat("cron:outreach-detector", "ok", `${usersProcessed} users, ${totalDetected} detected`, supabaseAdmin);
   return NextResponse.json({ usersProcessed, totalDetected });
 }

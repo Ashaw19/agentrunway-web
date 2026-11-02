@@ -1762,7 +1762,7 @@ function suggestAngle(
     case "timeframe_approaching":
       return "Their stated timeline is arriving — are they still on track";
     case "scheduled_date_approaching":
-      return "Their Scheduled stage target date is approaching — confirm they're still planning to act";
+      return "One question: are they still planning to make a move around the date they gave, or have plans changed";
     case "property_value_milestone":
       return "Property anniversary + offer equity snapshot";
     case "buyer_inventory_match":
@@ -1995,7 +1995,7 @@ function buildWhyNow(
     case "timeframe_approaching":
       return `Their stated timeline of "${ctx.timeframe_label ?? "move date"}" is ~${ctx.days_remaining ?? "?"}d away.`;
     case "scheduled_date_approaching":
-      return `Their Scheduled stage target date${ctx.scheduled_phrase ? ` (${ctx.scheduled_phrase})` : ""} is ~${ctx.days_until ?? "?"}d away — confirm intent before the date passes.`;
+      return `The date they gave${ctx.scheduled_phrase ? ` (${ctx.scheduled_phrase})` : ""} is ~${ctx.days_until ?? "?"}d away. Their answer decides the stage: still planning moves them to Boarding, plans changed keeps them Scheduled with a new date or Cruising.`;
     case "property_value_milestone":
       return `${ctx.milestone_year ?? 1}-year property anniversary — natural moment to discuss equity.`;
     case "pain_point_inactive":
@@ -2628,12 +2628,21 @@ export async function getTopOpportunities(
   // Scheduled-date approaching — surfaces clients in the Scheduled stage when
   // their stated future-intent date is within ~30 days. Without this, the
   // `scheduled_for` column is data-write-only with no engine consumer.
+  //
+  // Closed-deal cross-check (2026-11-02): a client who closed a deal since
+  // they were parked already acted; asking "still planning to move?" would
+  // be the duplicate-lead failure Finn's research found (a past buyer got an
+  // automated "still looking?" call). Their stage is the agent's to move.
+  const closedSinceParked = (clientId: string, parkedOn: string): boolean =>
+    records.some((rec) => rec.client_id === clientId && !!rec.close_date && rec.close_date >= parkedOn);
   for (const client of clients) {
     if (client.status !== "scheduled") continue;
     const c = client as Record<string, unknown>;
     const scheduledFor = (c.scheduled_for as string | null) ?? null;
     if (!scheduledFor) continue;
     if (recentlyContactedIds.has(client.id)) continue;
+    const parkedOn = ((c.updated_at as string | null) ?? "").slice(0, 10) || scheduledFor;
+    if (closedSinceParked(client.id, parkedOn)) continue;
     const d = daysUntil(new Date(scheduledFor + "T12:00:00"));
     if (d >= -3 && d <= 30) {
       inserts.push({

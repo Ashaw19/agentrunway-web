@@ -41,6 +41,8 @@ import { cn } from "@/lib/utils";
 import { fmtCurrency } from "@/lib/formatters";
 import { KpiStrip, CockpitStat, SEMANTIC } from "@/components/cockpit-ui";
 import { computeGCI, getAgentPct, type Transaction, type PipelineDeal, type HistoryItem, type ListingAppointment, type UserSettings } from "@/lib/types/database";
+import { commissionReceivables, PAID_DATE_TRACKING_SINCE, RECEIVABLE_GRACE_DAYS } from "@agent-runway/core/engines/commission-receivables";
+import { localISODate } from "@agent-runway/core/lib/local-date";
 import { TransactionsPipelineTab } from "./transactions-pipeline-tab";
 import { TransactionsHistoryTab } from "./transactions-history-tab";
 import { useVoiceDraft } from "@/lib/voice/voice-draft-context";
@@ -378,6 +380,11 @@ export function TransactionsContent({ initialTransactions, initialPipelineDeals,
 
   // YTD business mix
   const ytdClosed = transactions.filter((t) => t.status === "closed" && t.date.startsWith(currentYear));
+  const receivables = useMemo(() => commissionReceivables({
+    deals: transactions.map((t) => ({ ...t, gci: computeGCI(t) })),
+    today: localISODate(),
+    trackingSince: PAID_DATE_TRACKING_SINCE,
+  }), [transactions]);
   const buyerCount  = ytdClosed.filter((t) => t.side === "buyer").length;
   const sellerCount = ytdClosed.filter((t) => t.side === "seller").length;
   const bothCount   = ytdClosed.filter((t) => t.side === "both").length;
@@ -408,6 +415,34 @@ export function TransactionsContent({ initialTransactions, initialPipelineDeals,
           </Button>
         )}
       </div>
+
+      {/* Commissions closed with no paid date, past the normal gap (commission-receivables). */}
+      {tab === "deals" && receivables.items.length > 0 && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50/60 px-4 py-3 text-sm">
+          <div className="flex items-start gap-2">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+            <div className="min-w-0 flex-1">
+              <p className="font-medium">
+                {receivables.items.length === 1
+                  ? "1 closed deal has no paid date recorded"
+                  : `${receivables.items.length} closed deals have no paid date recorded`}
+                <span className="font-normal text-muted-foreground"> · {fmtCurrency(receivables.totalGci)} in commission</span>
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Each closed more than {RECEIVABLE_GRACE_DAYS} days ago. A paid date places the commission on the GST/HST return and in the tax year it was received; without one it sits on the closing date. Edit the deal to add the date, or check whether the cheque has come.
+              </p>
+              <ul className="mt-2 space-y-1 text-xs">
+                {receivables.items.map((r) => (
+                  <li key={r.id}>
+                    <span className="font-medium">{r.address}</span>
+                    <span className="text-muted-foreground"> · closed {r.closedOn} ({r.daysSinceClose} days ago) · {fmtCurrency(r.gci)}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Tab bar */}
       <div className="flex rounded-lg border border-border p-0.5 text-sm w-fit">

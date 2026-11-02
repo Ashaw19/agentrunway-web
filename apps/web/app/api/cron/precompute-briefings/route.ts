@@ -15,6 +15,7 @@ import { fetchAllRows } from "@/lib/supabase/fetch-all";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { generateMorningBriefing } from "@/lib/ai/precompute";
+import { writeHeartbeat } from "@/lib/cron/heartbeat";
 import {
   BRIEFING_USER_COLUMNS,
   briefingDateRanges,
@@ -151,6 +152,7 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  await writeHeartbeat("cron:precompute-briefings", errors > 0 && processed === 0 ? "error" : "ok", `${processed} of ${users.length} briefings, ${errors} errors`);
   return NextResponse.json({ status: "ok", processed, errors, total: users.length });
 }
 
