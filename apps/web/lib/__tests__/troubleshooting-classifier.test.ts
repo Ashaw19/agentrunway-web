@@ -212,3 +212,20 @@ describe("classifyTopic — vehicle logbook questions reach the Mileage playbook
     });
   }
 });
+
+describe("classifyTopic: the GST/HST return's \"Before you file\" list reaches the Tax playbook", () => {
+  const prefilingCases = [
+    "what does before you file mean on the hst return",
+    "why does before you file say my receipt doesn't fit the rate",
+    "before you file lists a deal with no paid date, why",
+  ];
+  for (const message of prefilingCases) {
+    it(`routes to tax: "${message}"`, () => {
+      expect(classifyTopic(message)).toBe("tax");
+    });
+  }
+
+  it("a question about uploading a file stays with the import topic", () => {
+    expect(classifyTopic("my csv file won't upload to history")).toBe("import");
+  });
+});

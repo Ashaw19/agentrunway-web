@@ -15,8 +15,11 @@
 
 import { EXPENSE_RATIO_COPY, expenseRatioBandsList } from "@agent-runway/core/engines/expense-ratio-bands";
 import { TAX_YEAR } from "@agent-runway/core/engines/canadian-tax-engine";
+import { PAID_DATE_TRACKING_SINCE, RECEIVABLE_GRACE_DAYS } from "@agent-runway/core/engines/commission-receivables";
+import { ITC_DOCUMENT_SUPPLIER_THRESHOLD } from "@agent-runway/core/engines/gst34-prefiling-check";
 import {
   ALLOWANCE_RATE_NOTE,
+  GST_HST_COMMISSION_TIMING_SETTING,
   INCOME_REPORTING_METHOD_RULES,
   INCOME_REPORTING_METHOD_SETTING,
   SIMPLIFIED_LOGBOOK_RULE,
@@ -239,6 +242,7 @@ Common questions:
 - "Why did my tax estimate drop after I added a paid date?" A Commission paid date in next year moves that commission out of this year's tax figures (cash method only).
 - "Why is the paid date ignored?" The agent is on the accrual method; the date is recorded and used only under the cash method.
 - "Why didn't the Runway Score or my YTD GCI change?" Production figures and GST/HST stay on the closing date under either method, by design.
+- "Which deals have no paid date?" Transactions → Deals shows a notice listing closed deals from ${PAID_DATE_TRACKING_SINCE} on with no Commission paid date once ${RECEIVABLE_GRACE_DAYS} days have passed since closing (commission-receivables.ts), and the morning briefing carries the same line. The GST/HST return's "Before you file" list names the ones sitting on that return by closing date when commissions are placed by the date paid.
 - Changing method: ${INCOME_REPORTING_METHOD_RULES.accrualToCash} ${INCOME_REPORTING_METHOD_RULES.cashToAccrual} Never say which method to use.
 
 **Step 1: CPP/QPP** (self-employed pay both halves)
@@ -1137,6 +1141,9 @@ Flight Control also includes a newsletter builder for mass updates (market repor
 
 **"I clicked Draft Message and it said Flight Control can't draft this one"**
 → Some cards (condition dates, scheduled-date reminders) have no automated email template, and a card can change between scanning and clicking. Reach out directly and log it in the CRM.
+
+**"What is the Scheduled-date card asking?" / "Why is there no card for a Scheduled client whose date has come?"** (wording changed 2026-11-02)
+→ A client parked in Scheduled with a date (and the phrase they gave, if any) gets a card from 3 days after that date to 30 days before it. The card is one question: are they still planning to make a move around the date they gave, or have plans changed. Their answer decides the stage, and the agent moves it: still planning, Boarding; plans changed, Scheduled again with a new date, or Cruising. No card appears for a client contacted in the last 14 days, or for one who closed a deal since they were parked (they already acted, and asking "still planning to move?" would treat a past client as a lead). Their stage is the agent's to move; the card changes nothing.
 `,
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -1226,6 +1233,9 @@ Annual summaries by year. Import via CSV/PDF for prior years. Shows:
 
 **"Fallen deal is still showing in my totals"**
 → Fallen deals should be excluded from all active calculations. If still showing, check the status field. It should be "fallen" exactly.
+
+**"The Deals tab says closed deals have no paid date recorded" / "Which commissions haven't been paid?"** (since 2026-11-02, commission-receivables.ts)
+→ An amber notice above the Deals list: "N closed deals have no paid date recorded · $X in commission", then each deal with its address, closing date, days since closing and commission, longest outstanding first. A deal is listed when its status is closed, it has no Commission paid date, it closed on or after ${PAID_DATE_TRACKING_SINCE} (paid dates were not recorded before then, so older deals are records, not receivables) and ${RECEIVABLE_GRACE_DAYS} or more days have passed since closing. A deal closed more recently than that is not listed. The morning briefing carries the same line. Why it matters in the app: the paid date places the commission on the GST/HST return (when commissions are placed by the date paid) and in the tax year it was received (cash method); without one, the deal sits on its closing date. It is a question, not a claim that money is owed: the cheque may have come and the date not been written down. Edit the deal to add the date (or tell Flight Crew the paid date, updateTransaction commissionPaidDate) and the notice drops it. Nothing in the notice changes a figure.
 
 **Edge Cases:**
 - Both-sides deal: Commission% should be total percentage (5% for both, not 2.5% per side)
@@ -2051,6 +2061,16 @@ Vehicle share follows the business-use % in Expenses: 10% or less = none claimab
 **The lines Agent Runway has nothing for** (104, 107, 111, 205, 405) show $0 behind "Show N more lines left at $0". Each says when it applies. Line 405 covers GST/HST someone has to work out and report themselves, for example on services bought from outside Canada that are used less than 90% in the business. Agent Runway does not calculate it. Whether it applies is a question for their accountant.
 
 **The PDF worksheet** also reports: receipts in the period with no GST/HST recorded (nothing is claimed on them); how many claimed receipts have no receipt image stored; and a warning if the expense list does not add up to line 106.
+
+**"Before you file" (on the card and in the worksheet; since 2026-11-02, gst34-prefiling-check.ts)** lists the entries behind the period's return that a person checking the records would stop on. The card reads "Before you file: N entries to look at" or "Before you file: nothing stood out", with how many receipts and commissions were checked. Each item names the receipt (vendor and date) or the deal (address) and says what to look at. The kinds:
+- A receipt whose recorded GST/HST is a different share of its total than the province's rate gives, outside a tolerance for rounding, tips and untaxed items on the same bill. A bill can carry a tip; a typed figure can be off.
+- A receipt dated after today (a scanned date can be read wrong).
+- A receipt dated outside the period but counted in it.
+- Two or more receipts on the same day from the same vendor for the same amount (two visits, or one receipt entered twice).
+- A purchase of $${ITC_DOCUMENT_SUPPLIER_THRESHOLD} or more with GST/HST claimed and no vendor recorded (CRA's documentary requirements for an ITC at that amount name the supplier).
+- A commission on the return with no GST/HST recorded from the brokerage statement, so its share of line 103 is an estimate at the rate.
+- When "${GST_HST_COMMISSION_TIMING_SETTING.label}" is set to the date paid: a deal with no paid date entered, which sits on this return by its closing date. A paid date in a different period moves it there.
+It changes no figure on the return and claims nothing; every item is a question for the agent, who decides what to correct. An item is not a finding against them. "Nothing stood out" means none of these rules fired, not that the return is right.
 
 **"What do I type into CRA?" / "How do I file my HST?"**
 1. Expenses → Filing period → the quarter.

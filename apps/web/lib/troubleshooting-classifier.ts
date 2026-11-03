@@ -216,6 +216,7 @@ const TOPIC_RULES: TopicRule[] = [
       "home office",
       "gst registration",
       "small supplier",
+      "before you file",
       "quarterly instalment",
       "cra rates",
       "corporate tax",
