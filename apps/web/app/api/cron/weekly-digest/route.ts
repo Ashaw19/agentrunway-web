@@ -71,14 +71,16 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const admin = createAdminClient();
+
   if (!resend) {
+    await writeHeartbeat("cron:weekly-digest", "error", "Resend not configured", admin);
     return NextResponse.json(
       { error: "Resend not configured" },
       { status: 503 }
     );
   }
 
-  const admin = createAdminClient();
   const now = new Date();
   // Atlantic calendar for this year / this month (local-date.ts). The cron
   // fires Monday 12:00 UTC, when UTC and Atlantic share a day, but a manual
@@ -103,6 +105,7 @@ export async function GET(req: NextRequest) {
     .in("subscription_status", ["active", "trialing"]);
 
   if (usersErr) {
+    await writeHeartbeat("cron:weekly-digest", "error", `user list: ${usersErr.message}`, admin);
     return NextResponse.json({
       sent: 0,
       error: usersErr.message,
