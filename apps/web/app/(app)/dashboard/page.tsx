@@ -278,6 +278,17 @@ export default async function DashboardPage({
       .filter((id) => activeClientIds.has(id)),
   );
   const staleLeadCount = Math.max(0, activeClientCount - recentlyContactedIds.size);
+  // The Today zone's empty-briefing line rests on all of these. fetchAllRows hands
+  // back the rows read so far on an error, so check .error, not .data.
+  const briefingReadFailed = [
+    tasksResult,
+    activeClientsResult,
+    recentActivitiesResult,
+    briefingClientsResult,
+    briefingActivitiesResult,
+    briefingRecordsResult,
+    listingResult,
+  ].some((result) => result.error != null);
 
   // ── Team welcome detection ─────────────────────────────────────────────
   // Show welcome banner if user joined an org in the last 7 days and has no transactions yet
@@ -339,6 +350,8 @@ export default async function DashboardPage({
       dataAsOf={new Date().toISOString()}
       scoreHistory={scoreHistory}
       incomeGoals={(incomeGoalsResult.data ?? []) as IncomeGoalRow[]}
+      figuresYear={dashYear}
+      briefingReadFailed={briefingReadFailed}
     />
   );
 }

@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { captainReadQuestion, captainReadSentence } from "../captain-read";
+import { buildHealthReport } from "@agent-runway/core/engines/health-report";
+import { captainReadQuestion, captainReadSentence, goalPaceOpportunityLine } from "../captain-read";
 import { paceStatement, type PaceState } from "../today-zone";
 
-const NOT_BEHIND: (PaceState | null)[] = ["on-pace", "ahead", "goal-reached", null];
+const NOT_BEHIND: PaceState[] = ["on-pace", "ahead", "goal-reached"];
 
 describe("captainReadSentence: Goal Pace as the lowest bar", () => {
   it("calls it a drag when the page says behind", () => {
@@ -44,12 +45,40 @@ describe("captainReadSentence: Goal Pace as the lowest bar", () => {
   });
 });
 
+describe("captainReadSentence: Goal Pace with no goal set", () => {
+  it("names the only lever, never a closing or a prospect", () => {
+    for (const empty of [false, true]) {
+      const line = captainReadSentence("Goal Pace", empty, null);
+      expect(line).toContain("Goal Pace is your lowest score bar");
+      expect(line).toContain("set an annual goal");
+      expect(line).not.toMatch(/closing|deal|prospect|drag/i);
+    }
+  });
+
+  it("is true of the engine: without a goal the bar doesn't move whatever closes", () => {
+    const pace = (ytdGCI: number, goalGCI: number) => buildHealthReport(ytdGCI, goalGCI, 0.8, 0, 10_000).paceScore;
+    expect(pace(240_000, 0)).toBe(pace(80_000, 0));
+    expect(pace(240_000, 200_000)).not.toBe(pace(80_000, 200_000));
+  });
+});
+
+describe("goalPaceOpportunityLine: the Reports page's line", () => {
+  it("says behind only when behind", () => {
+    expect(goalPaceOpportunityLine("behind")).toMatch(/behind/);
+    for (const status of ["ahead", "no-goal"] as const) expect(goalPaceOpportunityLine(status)).not.toMatch(/behind/);
+  });
+  it("names setting a goal as the only lever without one", () => {
+    expect(goalPaceOpportunityLine("no-goal")).toContain("set an annual goal");
+    expect(goalPaceOpportunityLine("no-goal")).not.toMatch(/closing|deal/i);
+  });
+});
+
 describe("captainReadSentence: the other bars don't depend on pace", () => {
   it("words them the same in every state", () => {
     for (const label of ["Pipeline", "Expenses", "Benchmark", "Survival"]) {
       const behind = captainReadSentence(label, false, "behind");
       expect(behind).toMatch(/biggest drag/);
-      for (const state of NOT_BEHIND) expect(captainReadSentence(label, false, state)).toBe(behind);
+      for (const state of [...NOT_BEHIND, null]) expect(captainReadSentence(label, false, state)).toBe(behind);
     }
   });
 });
@@ -69,6 +98,16 @@ describe("captainReadQuestion", () => {
       const q = captainReadQuestion({ ...input, paceState: state });
       expect(q).not.toMatch(/drag/);
       expect(q).toContain("Goal Pace is my lowest Runway Score bar at 53 out of 100.");
+    }
+  });
+
+  it("says no goal is set and asks about the goal, not a lever that can't move the bar", () => {
+    for (const pipelineEmpty of [false, true]) {
+      const q = captainReadQuestion({ ...input, weakestScore: 50, pipelineEmpty, paceState: null });
+      expect(q).toContain("Goal Pace is my lowest Runway Score bar at 50 out of 100.");
+      expect(q).toContain("I have no annual goal set");
+      expect(q).toContain("how do I set it?");
+      expect(q).not.toMatch(/drag|fastest lever/);
     }
   });
 

@@ -42,6 +42,7 @@ import {
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { fmtCurrency, fmtPct } from "@/lib/formatters";
+import { goalPaceOpportunityLine } from "@/lib/dashboard/captain-read";
 import { ExplainButton } from "@/components/explain-button";
 import { GuideLink } from "@/components/guide-link";
 import {
@@ -882,7 +883,7 @@ export function ReportsContent({
                   Biggest opportunity: {weakest.label} ({Math.round(weakest.score)}/100)
                 </p>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  {weakest.label === "Goal Pace" && "You're behind on your annual GCI target. Closing one more deal could shift this significantly."}
+                  {weakest.label === "Goal Pace" && goalPaceOpportunityLine(paceStatus)}
                   {weakest.label === "Pipeline" && "Your pipeline is thin. Adding prospects or listing appointments would strengthen your forecast."}
                   {weakest.label === "Expenses" && (expenseBand
                     ? `Your expense ratio is ${formatExpenseRatio(expenseRatioFraction)}, ${expenseRatioVsTarget(expenseRatioFraction)}. ${EXPENSE_RATIO_COPY.scoreSentence}`

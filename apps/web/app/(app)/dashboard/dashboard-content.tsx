@@ -209,7 +209,8 @@ import { AiProfilePrompt } from "./ai-profile-prompt";
 import {
   dailyBriefingPipelineChip,
   greetingTag,
-  noUrgentClientActionsLine,
+  quietBriefingLine,
+  taskDueCounts,
   paceStatement,
   todayZoneLayout,
   type PaceState,
@@ -217,10 +218,7 @@ import {
 import { captainReadQuestion, captainReadSentence } from "@/lib/dashboard/captain-read";
 import {
   browserMilestoneStorage,
-  decideGoalMilestone,
-  goalMilestoneKey,
-  readGoalMilestone,
-  writeGoalMilestone,
+  checkGoalMilestone,
   type GoalMilestoneLevel,
 } from "@/lib/dashboard/goal-milestones";
 import { ClosingDayPrompt } from "./closing-day-prompt";
@@ -314,6 +312,10 @@ interface Props {
   dataAsOf?: string;
   /** income_goals rows (00169/00170): one goal per calendar year. */
   incomeGoals?: IncomeGoalRow[];
+  /** The Atlantic year the server loaded `transactions` and `settings` for. Not the clock: a tab can outlive the year. */
+  figuresYear: number;
+  /** A read the Daily Briefing rests on failed, so an empty briefing proves nothing. */
+  briefingReadFailed?: boolean;
 }
 
 function getTimeGreeting(): { greeting: string; emoji: string } {
@@ -416,6 +418,8 @@ export function DashboardContent({
   expensesNextYear,
   dataAsOf,
   incomeGoals: initialIncomeGoals = [],
+  figuresYear,
+  briefingReadFailed = false,
 }: Props) {
   const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
@@ -527,7 +531,7 @@ export function DashboardContent({
     }
   }
   const { fire: fireConfetti } = useConfetti();
-  const celebratedMilestoneRef = useRef<GoalMilestoneLevel | null>(null);
+  const sessionMilestonesRef = useRef(new Map<string, GoalMilestoneLevel>());
   const historyWrittenRef = useRef(false);
   const now = new Date();
   const currentYear = now.getFullYear();
@@ -1201,18 +1205,20 @@ export function DashboardContent({
   // Fires when the agent crosses 50%, 75% or 100% of the year's goal, once per
   // milestone per year (goal-milestones.ts). The record lives in localStorage;
   // the ref carries the session when storage is blocked, so a closing recorded
-  // now still celebrates and a reload never repeats it.
+  // now still celebrates and a reload never repeats it. The year is the one the
+  // figures were loaded for, so a tab left open over New Year can't write last
+  // year's level into the new year's record.
   const milestoneUserId = settings?.user_id ?? null;
   useEffect(() => {
     if (!milestoneUserId) return;
-    const storage = browserMilestoneStorage();
-    const key = goalMilestoneKey(milestoneUserId, goalCurrentYear);
-    const known = readGoalMilestone(storage, key) ?? celebratedMilestoneRef.current;
-    const { celebrate, store } = decideGoalMilestone(known, ytdGCI, goalGCI);
-    if (store !== null) {
-      celebratedMilestoneRef.current = store;
-      writeGoalMilestone(storage, key, store);
-    }
+    const celebrate = checkGoalMilestone({
+      storage: browserMilestoneStorage(),
+      session: sessionMilestonesRef.current,
+      userId: milestoneUserId,
+      figuresYear,
+      ytdGCI,
+      goalGCI,
+    });
     if (celebrate === 100) {
       fireConfetti("goal");
       toast.success("🎉 Number hit. Take five, then set a bigger one.", {
@@ -1232,7 +1238,7 @@ export function DashboardContent({
       });
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ytdGCI, goalGCI, milestoneUserId, goalCurrentYear]);
+  }, [ytdGCI, goalGCI, milestoneUserId, figuresYear]);
 
   // ── Monthly chart data ────────────────────────────────────────────────
   const monthlyChartData: MonthlyDataPoint[] = buildMonthlyChartData(
@@ -1973,10 +1979,11 @@ export function DashboardContent({
     </Card>
   ) : null;
 
+  // The Checklist card and the briefing line above it read the same day.
+  const checklistDayISO = localISODate();
   cardRenders["tasks"] = (() => {
     if (localTasks.length === 0 && staleLeadCount === 0) return null;
-    const _now = new Date();
-    const todayStr = `${_now.getFullYear()}-${String(_now.getMonth() + 1).padStart(2, "0")}-${String(_now.getDate()).padStart(2, "0")}`;
+    const todayStr = checklistDayISO;
     const overdue  = localTasks.filter((t) => t.due_date < todayStr);
     const dueToday = localTasks.filter((t) => t.due_date === todayStr);
     const upcoming = localTasks.filter((t) => t.due_date > todayStr).slice(0, 3);
@@ -2581,6 +2588,10 @@ export function DashboardContent({
     );
   }
 
+  const quietLine = quietBriefingLine({
+    readFailed: briefingReadFailed,
+    ...taskDueCounts(localTasks, checklistDayISO),
+  });
   const todayLayout = todayZoneLayout({
     briefingHasContent,
     tasksHasContent: cardRenders["tasks"] != null,
@@ -2788,14 +2799,18 @@ export function DashboardContent({
           Pinned above the score, so a saved card order can't push it down. Each
           part is left out when it has nothing to say (todayZoneLayout), so an
           empty day is one line, never a blank box. */}
-      {(todayAlerts || todayLayout.showNoUrgentLine || todayLayout.cards.length > 0) && (
+      {(todayAlerts || todayLayout.showBriefingLine || todayLayout.cards.length > 0) && (
         <section aria-label="Today" className="space-y-3">
           {todayAlerts}
-          {todayLayout.showNoUrgentLine && (
+          {todayLayout.showBriefingLine && (
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg border border-slate-200 bg-white px-4 py-2.5">
               <p className="flex items-center gap-2 text-xs text-slate-600">
-                <CheckCircle className="h-3.5 w-3.5 shrink-0 text-green-500" />
-                {noUrgentClientActionsLine()}
+                {quietLine.tone === "clear" ? (
+                  <CheckCircle className="h-3.5 w-3.5 shrink-0 text-green-500" />
+                ) : (
+                  <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-500" />
+                )}
+                {quietLine.text}
               </p>
               {pipelineChipNode}
             </div>
@@ -3936,7 +3951,9 @@ function generateBusinessHealthNarrative({
   const expenseBand = expenseRatioBand(expenseRatio);
   const whyMap: Record<string, string> = {
     "Goal Pace":
-      gciGap > 0
+      goalGCI <= 0
+        ? `No annual goal is set, so Goal Pace (score: ${healthReport.paceScore}/100) can't move yet.`
+        : gciGap > 0
         ? `Goal pace (score: ${healthReport.paceScore}/100) is the primary drag. With ${ytdDealCount} closed deal${ytdDealCount !== 1 ? "s" : ""} at an average of ${fmtCurrency(avgDealSize)}, current trajectory puts year-end ${fmtCurrency(Math.abs(projectedGCI - goalGCI))} ${projectedGCI >= goalGCI ? "above" : "below"} target.`
         : `Goal pace is strong (${healthReport.paceScore}/100) — you've maintained above-expected velocity throughout the year.`,
     Pipeline:
@@ -3959,6 +3976,9 @@ function generateBusinessHealthNarrative({
   let nextMove: string;
   if (survival.riskLevel === "critical") {
     nextMove = runwayNextMove(survival);
+  } else if (weakest.label === "Goal Pace" && goalGCI <= 0) {
+    // Without a goal the bar sits still whatever closes, so a closing is no lever.
+    nextMove = "Set an annual goal in Settings. Goal Pace only moves once one is set.";
   } else if (weakest.label === "Goal Pace" && dealsNeeded && dealsNeeded > 0 && pipelineCount === 0) {
     // No pipeline to convert — point at the real first move, not a deal that
     // does not exist (mirrors the Captain read's empty-pipeline branch).

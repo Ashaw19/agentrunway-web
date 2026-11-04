@@ -8,6 +8,19 @@
  */
 import type { PaceState } from "./today-zone";
 
+const NO_GOAL_LEVER = "It only moves once you set an annual goal in Settings.";
+
+/**
+ * The Reports page's line under "Biggest opportunity: Goal Pace". Takes the
+ * page's own paceStatus. That page draws no pace statement to agree with, but it
+ * can't call an agent behind who is ahead or has no goal.
+ */
+export function goalPaceOpportunityLine(paceStatus: "ahead" | "behind" | "no-goal"): string {
+  if (paceStatus === "no-goal") return NO_GOAL_LEVER;
+  if (paceStatus === "behind") return "You're behind on your annual GCI target. Closing one more deal could shift this significantly.";
+  return "This is your lowest bar, and you're at or ahead of expected pace. Another closing still lifts it.";
+}
+
 /**
  * Weakest component framed as the current drag plus the fastest lever.
  *
@@ -22,6 +35,10 @@ import type { PaceState } from "./today-zone";
  * -50%..+50% to 0..100, so slightly ahead scores about 53. It's a drag only when
  * the page's pace statement (paceStatement) says behind; otherwise the line names
  * the bar and makes no claim about pace, so it can't contradict that statement.
+ *
+ * `paceState` is null when no goal is set. The bar then sits still whatever is
+ * closed (buildHealthReport skips it without a goal), so setting a goal
+ * is the only lever and a closing or a prospect would be a false one.
  */
 export function captainReadSentence(
   label: string | null,
@@ -30,6 +47,7 @@ export function captainReadSentence(
 ): string {
   switch (label) {
     case "Goal Pace":
+      if (paceState === null) return `Goal Pace is your lowest score bar right now. ${NO_GOAL_LEVER}`;
       if (paceState !== "behind") {
         if (pipelineEmpty) return "Goal Pace is your lowest score bar right now. Your pipeline is empty, so adding a prospect is the next move.";
         return paceState === "goal-reached"
@@ -77,9 +95,13 @@ export function captainReadQuestion({ weakestLabel, weakestScore, pipelineEmpty,
   if (weakestLabel && weakestScore !== null) {
     const pipelineNote = pipelineEmpty ? " My pipeline is empty right now." : "";
     const ask = "What is the single fastest lever I can pull this month to move my score, and what would the impact be?";
-    if (weakestLabel === "Goal Pace" && paceState !== "behind") {
-      const paceNote = paceState ? NOT_BEHIND_NOTE[paceState] ?? "" : "";
-      return `Goal Pace is my lowest Runway Score bar at ${weakestScore} out of 100.${paceNote}${pipelineNote} ${ask}`;
+    if (weakestLabel === "Goal Pace") {
+      if (paceState === null) {
+        return `Goal Pace is my lowest Runway Score bar at ${weakestScore} out of 100. I have no annual goal set for this year, and the bar can't move until I set one. What goal would fit my numbers, and how do I set it?`;
+      }
+      if (paceState !== "behind") {
+        return `Goal Pace is my lowest Runway Score bar at ${weakestScore} out of 100.${NOT_BEHIND_NOTE[paceState] ?? ""}${pipelineNote} ${ask}`;
+      }
     }
     return `My Runway Score's biggest drag is ${weakestLabel} at ${weakestScore} out of 100.${pipelineNote} ${ask}`;
   }

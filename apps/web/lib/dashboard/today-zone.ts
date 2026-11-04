@@ -47,9 +47,46 @@ export function dailyBriefingPipelineChip(
   return { label: depth === "light" ? `Light (${dealCount})` : dealCount, depth };
 }
 
-/** Shown when the Daily Briefing has nothing to say. Not "all clear": the agent may be behind on the year. */
-export function noUrgentClientActionsLine(): string {
-  return "Daily Briefing: no urgent client actions today.";
+export interface TaskDueCounts {
+  overdue: number;
+  dueToday: number;
+}
+
+/** Open checklist items past due and due today. Pass the day the Checklist card uses. */
+export function taskDueCounts(tasks: readonly { due_date: string }[], todayISO: string): TaskDueCounts {
+  return {
+    overdue: tasks.filter((t) => t.due_date < todayISO).length,
+    dueToday: tasks.filter((t) => t.due_date === todayISO).length,
+  };
+}
+
+export interface QuietBriefingInput extends TaskDueCounts {
+  /** A read the briefing rests on failed, so an empty briefing proves nothing. */
+  readFailed: boolean;
+}
+
+export interface QuietBriefingLine {
+  text: string;
+  tone: "clear" | "caution";
+}
+
+/**
+ * The line shown when the Daily Briefing has no items. It says no urgent client
+ * actions only when that is known: computeIntelligenceBriefing never reads
+ * contact_tasks, so an empty briefing can sit above overdue checklist items, and
+ * a failed read also leaves it empty. Not "all clear" either way: the agent may
+ * be behind on the year.
+ */
+export function quietBriefingLine({ readFailed, overdue, dueToday }: QuietBriefingInput): QuietBriefingLine {
+  if (readFailed) return { text: "Daily Briefing didn't load. Reload the page to try again.", tone: "caution" };
+  const onChecklist = [
+    overdue > 0 ? `${overdue} overdue` : null,
+    dueToday > 0 ? `${dueToday} due today` : null,
+  ].filter(Boolean);
+  if (onChecklist.length > 0) {
+    return { text: `Daily Briefing: nothing new today. On your Checklist: ${onChecklist.join(", ")}.`, tone: "caution" };
+  }
+  return { text: "Daily Briefing: no urgent client actions today.", tone: "clear" };
 }
 
 export interface PaceStatementInput {
@@ -109,8 +146,8 @@ export interface TodayZoneInput {
 export interface TodayZoneLayout {
   /** The cards to draw, in order. Two sit side by side on a wide screen; one takes the width. */
   cards: TodayCardId[];
-  /** Draw noUrgentClientActionsLine() above the cards. */
-  showNoUrgentLine: boolean;
+  /** Draw quietBriefingLine() above the cards. */
+  showBriefingLine: boolean;
 }
 
 /**
@@ -119,9 +156,9 @@ export interface TodayZoneLayout {
  * so either can be hidden or shown.
  */
 export function todayZoneLayout(input: TodayZoneInput): TodayZoneLayout {
-  if (input.customizeMode) return { cards: ["client_briefing", "tasks"], showNoUrgentLine: false };
+  if (input.customizeMode) return { cards: ["client_briefing", "tasks"], showBriefingLine: false };
   const cards: TodayCardId[] = [];
   if (!input.briefingHidden && input.briefingHasContent) cards.push("client_briefing");
   if (!input.tasksHidden && input.tasksHasContent) cards.push("tasks");
-  return { cards, showNoUrgentLine: !input.briefingHidden && !input.briefingHasContent };
+  return { cards, showBriefingLine: !input.briefingHidden && !input.briefingHasContent };
 }

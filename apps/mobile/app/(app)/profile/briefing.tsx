@@ -15,6 +15,7 @@ import {
   type DimensionValue,
 } from "react-native";
 import { useRouter } from "expo-router";
+import { localISODate } from "@agent-runway/core/lib/local-date";
 import { useDataStore } from "@/stores/data-store";
 import type { BriefingItem } from "@/stores/data-store";
 import { BriefingRow } from "@/components/BriefingRow";
@@ -374,6 +375,12 @@ export default function BriefingScreen() {
     [clients, pipeline, tasks, briefings, todayBriefing]
   );
   const groups = useMemo(() => groupBySeverity(briefing), [briefing]);
+  // The briefing lists tasks due today but not overdue ones, so an empty
+  // briefing can't say "no urgent client actions" while any are overdue.
+  const overdueTaskCount = useMemo(() => {
+    const today = localISODate();
+    return tasks.filter((task) => task.due_date && task.due_date < today).length;
+  }, [tasks]);
   const counts = useMemo(() => smartListCounts(), [clients, pipeline]);
   const score = runwayScore();
   const gci = ytdGci();
@@ -676,7 +683,11 @@ export default function BriefingScreen() {
             paddingVertical: Space.xxl * 2,
           }}
         >
-          <CheckCircle2 size={48} color={c.success} />
+          {overdueTaskCount > 0 ? (
+            <AlertTriangle size={48} color={c.warning} />
+          ) : (
+            <CheckCircle2 size={48} color={c.success} />
+          )}
           <Text
             style={{
               ...Type.h3,
@@ -684,7 +695,7 @@ export default function BriefingScreen() {
               marginTop: Space.lg,
             }}
           >
-            {t("briefing.allClear")}
+            {overdueTaskCount > 0 ? t("briefing.nothingNew") : t("briefing.allClear")}
           </Text>
           <Text
             style={{
@@ -695,7 +706,9 @@ export default function BriefingScreen() {
               paddingHorizontal: Space.xxl,
             }}
           >
-            {t("briefing.noUrgentItems")}
+            {overdueTaskCount > 0
+              ? t("briefing.checklistOverdue", { count: overdueTaskCount })
+              : t("briefing.noUrgentItems")}
           </Text>
         </View>
       )}

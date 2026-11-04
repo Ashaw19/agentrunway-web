@@ -88,3 +88,32 @@ export function writeGoalMilestone(storage: MilestoneStorage | null, key: string
     /* blocked storage: the session's own memory still stops a repeat */
   }
 }
+
+export interface CheckGoalMilestoneInput {
+  storage: MilestoneStorage | null;
+  /** This mount's own record, by key, for when storage is blocked. */
+  session: Map<string, GoalMilestoneLevel>;
+  userId: string;
+  /**
+   * The year `ytdGCI` and `goalGCI` belong to: the year the server loaded them
+   * for, never the clock. A tab left open over New Year re-renders with a new
+   * clock year and last year's figures, and writing those under the new year's
+   * key would use up that year's 50% and 75% celebrations.
+   */
+  figuresYear: number;
+  ytdGCI: number;
+  goalGCI: number;
+}
+
+/** Read the record, decide, write the record. Returns the milestone to celebrate now, or null. */
+export function checkGoalMilestone(input: CheckGoalMilestoneInput): GoalMilestone | null {
+  const { storage, session, userId, figuresYear, ytdGCI, goalGCI } = input;
+  const key = goalMilestoneKey(userId, figuresYear);
+  const known = readGoalMilestone(storage, key) ?? session.get(key) ?? null;
+  const { celebrate, store } = decideGoalMilestone(known, ytdGCI, goalGCI);
+  if (store !== null) {
+    session.set(key, store);
+    writeGoalMilestone(storage, key, store);
+  }
+  return celebrate;
+}

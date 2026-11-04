@@ -77,10 +77,17 @@ describe("pace is said once", () => {
 describe("confetti", () => {
   it("is decided by the pure helper and never by a per-mount ref", () => {
     expect(code).not.toContain("confettiFiredRef");
-    expect(code).toContain("decideGoalMilestone(");
-    const effect = code.slice(code.indexOf("decideGoalMilestone("));
-    expect(code.indexOf("fireConfetti(")).toBe(code.indexOf("decideGoalMilestone(") + effect.indexOf("fireConfetti("));
+    expect(code).toContain("checkGoalMilestone(");
+    const effect = code.slice(code.indexOf("checkGoalMilestone("));
+    expect(code.indexOf("fireConfetti(")).toBe(code.indexOf("checkGoalMilestone(") + effect.indexOf("fireConfetti("));
     for (const level of [100, 75, 50]) expect(effect).toContain(`celebrate === ${level}`);
+  });
+
+  it("takes the record's year from the same render as the figures, never the clock", () => {
+    const check = code.slice(code.indexOf("checkGoalMilestone("), code.indexOf("fireConfetti("));
+    expect(check).toContain("figuresYear,");
+    expect(code).not.toMatch(/goalMilestoneKey\(|ytdGCI, goalGCI, milestoneUserId, goalCurrentYear/);
+    expect(read("app/(app)/dashboard/page.tsx")).toContain("figuresYear={dashYear}");
   });
 });
 
@@ -93,6 +100,46 @@ describe("the Pipeline chip and the empty line", () => {
   it("never reads as all clear", () => {
     expect(code).not.toContain("All clear");
     expect(read("lib/ai/tools.ts")).not.toContain("All clear");
+  });
+
+  it("words the empty briefing from what the page knows: the Checklist and whether the reads worked", () => {
+    expect(code).toContain("readFailed: briefingReadFailed");
+    expect(code).toContain("taskDueCounts(localTasks, checklistDayISO)");
+    expect(code).toContain("{quietLine.text}");
+    const page = read("app/(app)/dashboard/page.tsx");
+    const reads = page.slice(page.indexOf("const briefingReadFailed = ["), page.indexOf(".some((result) => result.error != null)"));
+    for (const result of [
+      "tasksResult",
+      "activeClientsResult",
+      "recentActivitiesResult",
+      "briefingClientsResult",
+      "briefingActivitiesResult",
+      "briefingRecordsResult",
+      "listingResult",
+    ]) {
+      expect(reads, result).toContain(result);
+    }
+    expect(page).toContain("briefingReadFailed={briefingReadFailed}");
+  });
+
+  it("the phone briefing doesn't say no urgent client actions above overdue tasks, in en and fr-CA", () => {
+    const screen = readFileSync(path.join(REPO, "apps/mobile/app/(app)/profile/briefing.tsx"), "utf8");
+    expect(screen).toContain('overdueTaskCount > 0 ? t("briefing.nothingNew") : t("briefing.allClear")');
+    expect(screen).toContain('t("briefing.checklistOverdue", { count: overdueTaskCount })');
+    const en = JSON.parse(readFileSync(path.join(REPO, "packages/i18n/mobile/en/profile.json"), "utf8"));
+    const fr = JSON.parse(readFileSync(path.join(REPO, "packages/i18n/mobile/fr-CA/profile.json"), "utf8"));
+    for (const strings of [en, fr]) {
+      expect(strings.briefing.nothingNew).toBeTruthy();
+      expect(strings.briefing.checklistOverdue_one).toContain("{{count}}");
+      expect(strings.briefing.checklistOverdue_other).toContain("{{count}}");
+    }
+  });
+
+  it("the Captain's agenda tool doesn't read a failed read as nothing to do", () => {
+    const tools = read("lib/ai/tools.ts");
+    const tool = tools.slice(tools.indexOf("getUpcomingAgenda: tool("), tools.indexOf("getAIActivity: tool("));
+    expect(tool.indexOf("tasksRes.error || outreachRes.error || staleRes.error")).toBeGreaterThan(-1);
+    expect(tool.indexOf("tasksRes.error || outreachRes.error || staleRes.error")).toBeLessThan(tool.indexOf('return "No overdue tasks'));
   });
 
   it("the phone briefing says what is empty, in en and fr-CA", () => {
@@ -160,6 +207,14 @@ describe("the Captain's read in the hero", () => {
     expect(code).toContain("paceAlert?.state ?? null");
     expect(code).toContain("captainReadSentence(narrative.weakestLabel, narrative.pipelineEmpty, narrative.paceState)");
   });
+
+  it("the Morning Brief and Reports don't offer a closing as the lever with no goal set", () => {
+    expect(code).toContain("No annual goal is set, so Goal Pace");
+    expect(code).toContain('weakest.label === "Goal Pace" && goalGCI <= 0');
+    const reports = read("app/(app)/reports/reports-content.tsx");
+    expect(reports).toContain("goalPaceOpportunityLine(paceStatus)");
+    expect(reports).not.toContain("You're behind on your annual GCI target");
+  });
 });
 
 describe("the Captain knows the layout", () => {
@@ -174,6 +229,8 @@ describe("the Captain knows the layout", () => {
     expect(line).toMatch(/Quick tip/);
     expect(line).toMatch(/50%, 75% or 100%/);
     expect(line).toMatch(/calls Goal Pace a drag only when the pace alert says behind/);
+    expect(line).toMatch(/only moves once a goal is set/);
+    expect(line).toMatch(/nothing on the Checklist is overdue or due today/);
     expect(line).toMatch(/listings and no deals/);
   });
 });

@@ -2,8 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   dailyBriefingPipelineChip,
   greetingTag,
-  noUrgentClientActionsLine,
   paceStatement,
+  quietBriefingLine,
+  taskDueCounts,
   todayZoneLayout,
 } from "../today-zone";
 import { pipelineDepthStatus } from "@agent-runway/core/types/database";
@@ -77,10 +78,43 @@ describe("pipelineDepthStatus: the one rule behind the chip and the opportunity 
   });
 });
 
-describe("noUrgentClientActionsLine", () => {
-  it("says what is empty and does not read as all clear", () => {
-    expect(noUrgentClientActionsLine()).toMatch(/no urgent client actions/i);
-    expect(noUrgentClientActionsLine()).not.toMatch(/all clear/i);
+describe("quietBriefingLine: what an empty Daily Briefing can truthfully say", () => {
+  const quiet = { readFailed: false, overdue: 0, dueToday: 0 };
+
+  it("says no urgent client actions only when that is known", () => {
+    expect(quietBriefingLine(quiet)).toEqual({ text: "Daily Briefing: no urgent client actions today.", tone: "clear" });
+  });
+
+  it("doesn't say it above overdue or due-today checklist items, and counts them", () => {
+    const overdue = quietBriefingLine({ ...quiet, overdue: 3 });
+    expect(overdue.text).not.toMatch(/no urgent/i);
+    expect(overdue.text).toBe("Daily Briefing: nothing new today. On your Checklist: 3 overdue.");
+    expect(overdue.tone).toBe("caution");
+    expect(quietBriefingLine({ ...quiet, dueToday: 1 }).text).toBe("Daily Briefing: nothing new today. On your Checklist: 1 due today.");
+    expect(quietBriefingLine({ ...quiet, overdue: 2, dueToday: 1 }).text).toContain("2 overdue, 1 due today.");
+  });
+
+  it("doesn't say it after a failed read, whatever the Checklist holds", () => {
+    for (const overdue of [0, 3]) {
+      const line = quietBriefingLine({ ...quiet, readFailed: true, overdue });
+      expect(line.text).not.toMatch(/no urgent|nothing new/i);
+      expect(line.text).toMatch(/didn't load/);
+      expect(line.tone).toBe("caution");
+    }
+  });
+
+  it("never reads as all clear", () => {
+    for (const input of [quiet, { ...quiet, overdue: 1 }, { ...quiet, readFailed: true }]) {
+      expect(quietBriefingLine(input).text).not.toMatch(/all clear/i);
+    }
+  });
+});
+
+describe("taskDueCounts", () => {
+  it("splits past due from due today and ignores later days", () => {
+    const tasks = ["2026-11-01", "2026-11-03", "2026-11-04", "2026-11-05"].map((due_date) => ({ due_date }));
+    expect(taskDueCounts(tasks, "2026-11-04")).toEqual({ overdue: 2, dueToday: 1 });
+    expect(taskDueCounts([], "2026-11-04")).toEqual({ overdue: 0, dueToday: 0 });
   });
 });
 
@@ -144,37 +178,37 @@ describe("todayZoneLayout", () => {
   };
 
   it("draws both cards when both have content", () => {
-    expect(todayZoneLayout(base)).toEqual({ cards: ["client_briefing", "tasks"], showNoUrgentLine: false });
+    expect(todayZoneLayout(base)).toEqual({ cards: ["client_briefing", "tasks"], showBriefingLine: false });
   });
 
   it("collapses to one line, not a blank box, when there is nothing", () => {
     expect(todayZoneLayout({ ...base, briefingHasContent: false, tasksHasContent: false })).toEqual({
       cards: [],
-      showNoUrgentLine: true,
+      showBriefingLine: true,
     });
   });
 
   it("gives the Checklist the zone when the briefing is empty, with the line above it", () => {
-    expect(todayZoneLayout({ ...base, briefingHasContent: false })).toEqual({ cards: ["tasks"], showNoUrgentLine: true });
+    expect(todayZoneLayout({ ...base, briefingHasContent: false })).toEqual({ cards: ["tasks"], showBriefingLine: true });
   });
 
   it("gives the briefing the zone when the Checklist is empty", () => {
-    expect(todayZoneLayout({ ...base, tasksHasContent: false })).toEqual({ cards: ["client_briefing"], showNoUrgentLine: false });
+    expect(todayZoneLayout({ ...base, tasksHasContent: false })).toEqual({ cards: ["client_briefing"], showBriefingLine: false });
   });
 
   it("honours a hidden card and says nothing for a hidden briefing", () => {
-    expect(todayZoneLayout({ ...base, briefingHidden: true })).toEqual({ cards: ["tasks"], showNoUrgentLine: false });
-    expect(todayZoneLayout({ ...base, tasksHidden: true })).toEqual({ cards: ["client_briefing"], showNoUrgentLine: false });
+    expect(todayZoneLayout({ ...base, briefingHidden: true })).toEqual({ cards: ["tasks"], showBriefingLine: false });
+    expect(todayZoneLayout({ ...base, tasksHidden: true })).toEqual({ cards: ["client_briefing"], showBriefingLine: false });
     expect(todayZoneLayout({ ...base, briefingHidden: true, tasksHidden: true, briefingHasContent: false })).toEqual({
       cards: [],
-      showNoUrgentLine: false,
+      showBriefingLine: false,
     });
   });
 
   it("keeps both cards in Customize so they can be hidden or shown", () => {
     expect(
       todayZoneLayout({ ...base, customizeMode: true, briefingHidden: true, tasksHasContent: false }),
-    ).toEqual({ cards: ["client_briefing", "tasks"], showNoUrgentLine: false });
+    ).toEqual({ cards: ["client_briefing", "tasks"], showBriefingLine: false });
   });
 });
 

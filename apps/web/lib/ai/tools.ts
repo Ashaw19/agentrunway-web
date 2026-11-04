@@ -1971,6 +1971,8 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
           }
 
           if (tasks.length === 0 && outreach.length === 0 && stale.length === 0) {
+            // An empty list from a failed read proves nothing.
+            if (tasksRes.error || outreachRes.error || staleRes.error) return "Failed to load agenda. Please try again.";
             return "No overdue tasks, pending outreach or stale clients today. This covers client follow-ups only, not how the year is tracking against the goal.";
           }
 

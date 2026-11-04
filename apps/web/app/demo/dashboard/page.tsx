@@ -10,6 +10,7 @@
  */
 
 import Link from "next/link";
+import { incomeGoalCurrentYear } from "@/lib/income-goals";
 import { ArrowRight, FlaskConical } from "lucide-react";
 import { SidebarNav } from "@/components/sidebar-nav";
 import { MobileNav } from "@/components/mobile-nav";
@@ -570,6 +571,7 @@ export default function DemoDashboardPage() {
         <main className="flex-1 overflow-y-auto bg-muted/30 p-4 sm:p-6 lg:p-8">
           <div className="mx-auto max-w-screen-xl">
             <DashboardContent
+              figuresYear={incomeGoalCurrentYear()}
               transactions={DEMO_TRANSACTIONS}
               carryOverTx={[]}
               taxYearCarryIn={[]}

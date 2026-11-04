@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  checkGoalMilestone,
   decideGoalMilestone,
   goalMilestoneKey,
   goalMilestoneLevel,
@@ -105,5 +106,42 @@ describe("the stored milestone", () => {
     expect(() => writeGoalMilestone(THROWING, key, 50)).not.toThrow();
     expect(readGoalMilestone(null, key)).toBeNull();
     expect(() => writeGoalMilestone(null, key, 50)).not.toThrow();
+  });
+});
+
+describe("checkGoalMilestone", () => {
+  const run = (storage: ReturnType<typeof fakeStorage> | null, session: Map<string, 0 | 50 | 75 | 100>, figuresYear: number, ytdGCI: number) =>
+    checkGoalMilestone({ storage, session, userId: "user-1", figuresYear, ytdGCI, goalGCI: GOAL });
+
+  it("records silently the first time, then celebrates a crossing once", () => {
+    const storage = fakeStorage();
+    const session = new Map();
+    expect(run(storage, session, 2026, 90_000)).toBeNull();
+    expect(storage.getItem(goalMilestoneKey("user-1", 2026))).toBe("0");
+    expect(run(storage, session, 2026, 110_000)).toBe(50);
+    expect(run(storage, session, 2026, 110_000)).toBeNull();
+    expect(run(storage, new Map(), 2026, 110_000)).toBeNull();
+  });
+
+  it("files figures under the year they were loaded for, so New Year's Eve's level can't use up the next year's", () => {
+    // A tab open at 75% on Dec 31 re-renders after midnight: the figures are
+    // still 2026's, so figuresYear is too and 2027 stays untouched.
+    const storage = fakeStorage({ [goalMilestoneKey("user-1", 2026)]: "75" });
+    const session = new Map();
+    expect(run(storage, session, 2026, 160_000)).toBeNull();
+    expect(storage.getItem(goalMilestoneKey("user-1", 2027))).toBeNull();
+    // The first load of 2027 starts where 2027 stands, and its crossings count.
+    expect(run(storage, session, 2027, 5_000)).toBeNull();
+    expect(run(storage, session, 2027, 110_000)).toBe(50);
+    expect(run(storage, session, 2027, 155_000)).toBe(75);
+  });
+
+  it("doesn't carry one year's session record into another when storage is blocked", () => {
+    const session = new Map();
+    expect(run(null, session, 2026, 90_000)).toBeNull();
+    expect(run(null, session, 2026, 160_000)).toBe(75);
+    expect(run(null, session, 2026, 160_000)).toBeNull();
+    expect(run(null, session, 2027, 5_000)).toBeNull();
+    expect(run(null, session, 2027, 110_000)).toBe(50);
   });
 });
