@@ -6,17 +6,20 @@
  * Copy obeys feedback_avoid_ai_tells_in_content: no em dashes, no rule-of-three
  * triads, no marketing adjectives.
  */
+import { fmtCurrency } from "@/lib/formatters";
 import type { PaceState } from "./today-zone";
 
 const NO_GOAL_LEVER = "It only moves once you set an annual goal in Settings.";
+/** A year set to $0 is a deliberate no-goal or write-off year: state it, never push a goal. */
+const GOAL_SET_TO_ZERO = "This year's goal is set to $0, so this bar stays where it is.";
 
 /**
  * The Reports page's line under "Biggest opportunity: Goal Pace". Takes the
  * page's own paceStatus. That page draws no pace statement to agree with, but it
  * can't call an agent behind who is ahead or has no goal.
  */
-export function goalPaceOpportunityLine(paceStatus: "ahead" | "behind" | "no-goal"): string {
-  if (paceStatus === "no-goal") return NO_GOAL_LEVER;
+export function goalPaceOpportunityLine(paceStatus: "ahead" | "behind" | "no-goal", goalIsZero = false): string {
+  if (paceStatus === "no-goal") return goalIsZero ? GOAL_SET_TO_ZERO : NO_GOAL_LEVER;
   if (paceStatus === "behind") return "You're behind on your annual GCI target. Closing one more deal could shift this significantly.";
   return "This is your lowest bar, and you're at or ahead of expected pace. Another closing still lifts it.";
 }
@@ -38,16 +41,18 @@ export function goalPaceOpportunityLine(paceStatus: "ahead" | "behind" | "no-goa
  *
  * `paceState` is null when no goal is set. The bar then sits still whatever is
  * closed (buildHealthReport skips it without a goal), so setting a goal
- * is the only lever and a closing or a prospect would be a false one.
+ * is the only lever and a closing or a prospect would be a false one. A year
+ * deliberately set to $0 gets the same fact with no nudge (goalIsZero).
  */
 export function captainReadSentence(
   label: string | null,
   pipelineEmpty: boolean,
   paceState: PaceState | null,
+  goalIsZero = false,
 ): string {
   switch (label) {
     case "Goal Pace":
-      if (paceState === null) return `Goal Pace is your lowest score bar right now. ${NO_GOAL_LEVER}`;
+      if (paceState === null) return `Goal Pace is your lowest score bar right now. ${goalIsZero ? GOAL_SET_TO_ZERO : NO_GOAL_LEVER}`;
       if (paceState !== "behind") {
         if (pipelineEmpty) return "Goal Pace is your lowest score bar right now. Your pipeline is empty, so adding a prospect is the next move.";
         return paceState === "goal-reached"
@@ -77,6 +82,8 @@ export interface CaptainReadQuestionInput {
   weakestScore: number | null;
   pipelineEmpty: boolean;
   paceState: PaceState | null;
+  /** This year has a row saying $0 (goalSetToZero). */
+  goalIsZero?: boolean;
 }
 
 const NOT_BEHIND_NOTE: Partial<Record<PaceState, string>> = {
@@ -91,11 +98,14 @@ const NOT_BEHIND_NOTE: Partial<Record<PaceState, string>> = {
  * the page shows (an empty pipeline, a pace that isn't behind) so the Captain's
  * opening answer can't assume otherwise.
  */
-export function captainReadQuestion({ weakestLabel, weakestScore, pipelineEmpty, paceState }: CaptainReadQuestionInput): string {
+export function captainReadQuestion({ weakestLabel, weakestScore, pipelineEmpty, paceState, goalIsZero = false }: CaptainReadQuestionInput): string {
   if (weakestLabel && weakestScore !== null) {
     const pipelineNote = pipelineEmpty ? " My pipeline is empty right now." : "";
     const ask = "What is the single fastest lever I can pull this month to move my score, and what would the impact be?";
     if (weakestLabel === "Goal Pace") {
+      if (paceState === null && goalIsZero) {
+        return `Goal Pace is my lowest Runway Score bar at ${weakestScore} out of 100. I set this year's goal to $0 on purpose, so that bar stays where it is.${pipelineNote} Leaving the goal as it is, what is the single fastest lever I can pull this month to move my score, and what would the impact be?`;
+      }
       if (paceState === null) {
         return `Goal Pace is my lowest Runway Score bar at ${weakestScore} out of 100. I have no annual goal set for this year, and the bar can't move until I set one. What goal would fit my numbers, and how do I set it?`;
       }
@@ -106,4 +116,39 @@ export function captainReadQuestion({ weakestLabel, weakestScore, pipelineEmpty,
     return `My Runway Score's biggest drag is ${weakestLabel} at ${weakestScore} out of 100.${pipelineNote} ${ask}`;
   }
   return "What is the single fastest lever I can pull this month to move my Runway Score?";
+}
+
+export interface GoalPaceWhyInput {
+  paceState: PaceState | null;
+  goalIsZero: boolean;
+  paceScore: number;
+  closedDeals: number;
+  avgDealSize: number;
+  projectedGCI: number;
+  goalGCI: number;
+}
+
+/**
+ * The Weekly Business Brief's "Why" when Goal Pace is the lowest bar. The same
+ * rule as captainReadSentence: a drag only when the page's pace statement says
+ * behind. The projection counts pipeline as well as closed deals, so it can sit
+ * above the goal at any pace, and it is stated as a projection, not a trajectory.
+ */
+export function goalPaceWhy({ paceState, goalIsZero, paceScore, closedDeals, avgDealSize, projectedGCI, goalGCI }: GoalPaceWhyInput): string {
+  const score = `(score: ${paceScore}/100)`;
+  if (paceState === null) {
+    return goalIsZero
+      ? `This year's goal is set to $0, so Goal Pace ${score} stays where it is.`
+      : `No annual goal is set, so Goal Pace ${score} can't move yet.`;
+  }
+  if (paceState === "goal-reached") {
+    return `Goal Pace ${score} is your lowest score bar, with your annual goal already reached. Each deal you close past it still lifts the bar.`;
+  }
+  const projection = `projected year-end GCI is ${fmtCurrency(Math.abs(projectedGCI - goalGCI))} ${projectedGCI >= goalGCI ? "above" : "below"} your ${fmtCurrency(goalGCI)} goal.`;
+  const facts = closedDeals > 0
+    ? `With ${closedDeals} closed deal${closedDeals === 1 ? "" : "s"} at an average of ${fmtCurrency(avgDealSize)}, ${projection}`
+    : `${projection[0].toUpperCase()}${projection.slice(1)}`;
+  return paceState === "behind"
+    ? `Goal pace ${score} is the primary drag. ${facts}`
+    : `Goal Pace ${score} is your lowest score bar. ${facts}`;
 }

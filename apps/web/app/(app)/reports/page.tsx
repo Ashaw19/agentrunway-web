@@ -7,6 +7,7 @@ import { ytdExpenseTotals } from "@agent-runway/core/engines/t2125-expenses-engi
 import { deductionTrackingFlags } from "@agent-runway/core/engines/tax-optimization-engine";
 import { expenseCategoryRows } from "@/lib/expenses/category-lines";
 import { computeIsPro } from "@/lib/compute-is-pro";
+import { goalSetToZero, incomeGoalCurrentYear, type IncomeGoalRow } from "@/lib/income-goals";
 import { atlanticNoon } from "@agent-runway/core/lib/local-date";
 import { loadVehicleLogbook, loadYearMileageTotals } from "@/lib/vehicle-logbook/load";
 
@@ -44,7 +45,7 @@ export default async function ReportsPage({
     .maybeSingle();
 
   // ── Live Supabase queries ───────────────────────────────────────────
-  const [txResult, pipelineResult, expCatResult, expItemResult, historyResult, receiptTotalsResult, ccaAssetsResult, mileageResult, referralsResult, recurringExpResult, listingApptResult] =
+  const [txResult, pipelineResult, expCatResult, expItemResult, historyResult, receiptTotalsResult, ccaAssetsResult, mileageResult, referralsResult, recurringExpResult, listingApptResult, incomeGoalsResult] =
     await Promise.all([
       supabase
         .from("transactions")
@@ -110,6 +111,11 @@ export default async function ReportsPage({
         .eq("user_id", user.id)
         .not("status", "in", "(sold,expired,withdrawn,lost)")
         .limit(10000),
+      // A year set to $0 is a deliberate no-goal year (income-goals.ts).
+      supabase
+        .from("income_goals")
+        .select("year, goal_gci")
+        .eq("user_id", user.id),
     ]);
 
   const categories = (expCatResult.data ?? []).map((cat) => ({
@@ -199,6 +205,7 @@ export default async function ReportsPage({
       transactions={txResult.data ?? []}
       pipelineDeals={pipelineResult.data ?? []}
       listingAppointments={(listingApptResult.data ?? []) as ListingAppointment[]}
+      goalIsZero={goalSetToZero((incomeGoalsResult.data ?? []) as IncomeGoalRow[], incomeGoalCurrentYear())}
       isPro={isPro}
       historyItems={historyResult.data ?? []}
       expensesYTD={expenseTotals.expensesYTD}

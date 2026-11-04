@@ -290,7 +290,7 @@ export async function POST(req: NextRequest) {
         supabase.from("receipt_expenses").select("id", { count: "exact", head: true }).eq("user_id", user.id).gte("expense_date", ytdStart),            // 8
         supabase.from("receipt_expenses").select("total_amount, tax_amount, category_key, expense_date").eq("user_id", user.id).gte("expense_date", ytdStart), // 9
         // ── Phase 2 context injection queries ──
-        supabase.from("contact_tasks").select("id, title, due_date, priority, client_id").eq("user_id", user.id).is("completed_at", null).order("due_date", { ascending: true }).limit(10), // 10: open tasks
+        fetchAllRows((from, to) => supabase.from("contact_tasks").select("id, title, due_date, priority, client_id").eq("user_id", user.id).is("completed_at", null).order("due_date", { ascending: true }).order("id").range(from, to)), // 10: open tasks, every row: the context states the count
         supabase.from("outreach_queue").select("id, status", { count: "exact", head: false }).eq("user_id", user.id).in("status", ["draft", "ready"]),  // 11: pending outreach
         loadYearMileageTotals(supabase, user.id, currentYear).then((t) => ({ data: t })),                                                  // 12: YTD business km and trips (every trip, paged)
         supabase.from("referrals").select("direction, status, actual_fee_paid, estimated_value").eq("user_id", user.id).gte("referral_date", ytdStart), // 13: YTD referrals
@@ -1438,7 +1438,7 @@ EXECUTION RULES:
 - After any action: mention relevant follow-up steps and page links.
 - Use [SUGGEST: action] tags (max 3, under 30 chars) for useful next steps.
 
-PAGES: Dashboard(/dashboard: Today first, meaning alerts, Daily Briefing with its Start here action, and Checklist; then Runway Score, KPIs, Morning Brief), Transactions(/transactions), Pipeline(/pipeline), Expenses(/expenses), Altimeter(/altimeter), Overhead(/overhead), Forecast(/forecast), Reports(/reports), CRM(/crm), Flight Control(/flight-control), Referrals(/referrals), Social(/social), Settings(/settings), Guide(/guide).
+PAGES: Dashboard(/dashboard: Today first, meaning alerts, Daily Briefing with its Start here action that opens the client, and Checklist; then Runway Score, KPIs, Morning Brief), Transactions(/transactions), Pipeline(/pipeline), Expenses(/expenses), Altimeter(/altimeter), Overhead(/overhead), Forecast(/forecast), Reports(/reports), CRM(/crm), Flight Control(/flight-control), Referrals(/referrals), Social(/social), Settings(/settings), Guide(/guide).
 
 Be the expert — explain metrics, suggest features, direct to pages. Think about their business alongside them.`;
 

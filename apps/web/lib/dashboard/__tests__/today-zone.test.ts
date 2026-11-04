@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  briefingItemLink,
   dailyBriefingPipelineChip,
   greetingTag,
+  outreachLabel,
   paceStatement,
+  pipelineCountLabel,
   quietBriefingLine,
   taskDueCounts,
   todayZoneLayout,
@@ -259,5 +262,36 @@ describe("resolveDashboardLayout: saved layouts keep working", () => {
     const { order, hidden } = resolveDashboardLayout(bad);
     expect(order).toEqual(DEFAULT_ORDER);
     expect([...hidden]).toEqual(DEFAULT_HIDDEN);
+  });
+});
+
+describe("pipelineCountLabel: the Morning Brief and the KPI card", () => {
+  it("is null only with no deals and no listings, the rule the chip's Empty uses", () => {
+    expect(pipelineCountLabel(0, 0)).toBeNull();
+    expect(dailyBriefingPipelineChip([], 0).depth).toBe("empty");
+    expect(pipelineCountLabel(0, 2)).toBe("0 deals + 2 listings");
+    expect(dailyBriefingPipelineChip([], 2).depth).toBe("light");
+  });
+
+  it("counts singular and plural", () => {
+    expect(pipelineCountLabel(1, 0)).toBe("1 deal");
+    expect(pipelineCountLabel(3, 1)).toBe("3 deals + 1 listing");
+  });
+});
+
+describe("outreachLabel", () => {
+  it("agrees with its count", () => {
+    expect(outreachLabel(1)).toBe("1 client needs outreach");
+    expect(outreachLabel(4)).toBe("4 clients need outreach");
+  });
+});
+
+describe("briefingItemLink", () => {
+  it("opens the client when there is one", () => {
+    expect(briefingItemLink("abc-123")).toEqual({ href: "/crm?client=abc-123", label: "Open client" });
+  });
+
+  it("never builds an empty deep link: a listing with no client goes to the CRM", () => {
+    for (const none of ["", null, undefined]) expect(briefingItemLink(none)).toEqual({ href: "/crm", label: "Open CRM" });
   });
 });

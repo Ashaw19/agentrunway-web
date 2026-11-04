@@ -12,6 +12,7 @@ import path from "node:path";
 vi.mock("@/app/(app)/settings/actions", () => ({ dismissAiProfilePrompt: vi.fn() }));
 
 import { AiProfilePrompt } from "@/app/(app)/dashboard/ai-profile-prompt";
+import { buildHealthReport, GOAL_PACE_SCORE_SPAN_PCT } from "@agent-runway/core/engines/health-report";
 
 const WEB = path.resolve(__dirname, "../..");
 const REPO = path.resolve(WEB, "../..");
@@ -44,7 +45,9 @@ describe("the page's order", () => {
       expect(source).toContain("xl:grid-cols-[3fr_2fr]");
       expect(source).not.toContain("lg:grid-cols-[3fr_2fr]");
     }
-    expect(code).toContain('truncate" title={task.title}');
+    // Even there the 2fr column is 379px at 1280, so a title wraps rather than cuts.
+    expect(code).toContain('line-clamp-2 break-words" title={task.title}');
+    expect(code).not.toContain('truncate" title={task.title}');
   });
 
   it("does not keep a Today card in the sortable list", () => {
@@ -68,9 +71,130 @@ describe("pace is said once", () => {
     }
   });
 
+  it("the Weekly Business Brief states no pace of its own, in dollars or as time elapsed", () => {
+    for (const gone of ["pace required", "expected at this point", "% elapsed", "pctElapsed", "paceGapAmount", "on track"]) {
+      expect(code, gone).not.toContain(gone);
+    }
+  });
+
+  it("the Morning Brief doesn't print the seasonal fraction as the calendar", () => {
+    // 59% earned, 87% through the year is the amber box's 68% in other words, and
+    // on November 4 the calendar says 84%.
+    for (const gone of ["pctOfYear", "% through the year"]) expect(code, gone).not.toContain(gone);
+    expect(code).toContain("{pctOfGoal}% earned.");
+  });
+
+  it("calls Goal Pace a drag in the brief only through the helper that checks the state", () => {
+    expect(code).not.toContain("primary drag");
+    expect(code).toContain("goalPaceWhy({");
+  });
+
   it("takes its one statement from the helper, fed by the engine's figure", () => {
     expect(code).toMatch(/paceStatement\(\{[^}]*pacePercent[^}]*\}\)/);
     expect(code).toContain("paceVsGoalPercent(goalGCI, ytdGCI, fraction)");
+  });
+});
+
+describe("what the Goal Pace bar means", () => {
+  it("the score dialog states the engine's mapping, with no full credit at expected pace", () => {
+    expect(code).not.toContain("Full credit");
+    expect(code).toContain("It reads 50 at exactly expected pace, 100 at ${GOAL_PACE_SCORE_SPAN_PCT}% ahead and 0 at ${GOAL_PACE_SCORE_SPAN_PCT}% behind");
+    const pace = (ytdGCI: number) => buildHealthReport(ytdGCI, 100_000, 1, 0, 0).paceScore;
+    expect(pace(100_000)).toBe(50);
+    expect(pace(100_000 * (1 + GOAL_PACE_SCORE_SPAN_PCT / 100))).toBe(100);
+    expect(pace(100_000 * (1 - GOAL_PACE_SCORE_SPAN_PCT / 100))).toBe(0);
+  });
+});
+
+describe("one figure, one wording", () => {
+  it("the Morning Brief and the KPI card word the pipeline from one helper, on one weighted figure", () => {
+    const brief = code.slice(code.indexOf('cardRenders["morning_brief"]'), code.indexOf("const todayAlerts"));
+    expect(brief).toContain("pipelineCountLabel(pipelineCount, listingCount)");
+    expect(brief).toContain("pipelineWeightedGCI + listingWeightedGCI");
+    expect(brief).not.toMatch(/\{pipelineCount > 0 \? \(/);
+    expect(code).toContain("${pipelineCountLabel(pipelineCount, listingCount)} · probability-weighted");
+  });
+
+  it("the Weekly Business Brief calls a pipeline empty only with no deals and no listings", () => {
+    expect(code).toContain("pipelineEmpty,");
+    expect(code).not.toContain("Your pipeline is empty, so adding prospects");
+    expect(code).toMatch(/Pipeline:\s+pipelineEmpty\s+\? `Pipeline is empty/);
+  });
+
+  it("the Morning Brief's runway is the hero's, including the 24+ cap", () => {
+    expect(code).toContain("{formatSurvivalDisplay(survival)} of operating runway");
+    expect(code).not.toContain("months.toFixed(1)");
+  });
+
+  it("the Projected Year-End chip says what it measures", () => {
+    expect(code).toContain("Last 2 months&apos; GCI: {trend}");
+    expect(code).not.toMatch(/^\s*\{trend\}\s*$/m);
+  });
+
+  it("the outreach count has one wording and shows once", () => {
+    expect(code).not.toMatch(/need outreach/);
+    expect(code.match(/outreachLabel\(staleLeadCount\)/g)).toHaveLength(3);
+    expect(code).toContain('staleLeadCount > 0 && hiddenCards.has("client_briefing")');
+  });
+});
+
+describe("the Daily Briefing can be acted on", () => {
+  const briefing = code.slice(code.indexOf('cardRenders["client_briefing"]'), code.indexOf('cardRenders["where_you_stand"]'));
+
+  it("Start here and the items below it open the client", () => {
+    expect(briefing).toContain("href={briefingItemLink(startHereItem.clientId).href}");
+    expect(briefing).toContain("href={briefingItemLink(item.clientId).href}");
+  });
+
+  it("the link to the CRM is drawn whatever else the card holds", () => {
+    // The Needs attention block is conditional: the link has to sit after it closes.
+    const block = briefing.indexOf("{((startHereItem ? briefingItems.slice(1)");
+    expect(block).toBeGreaterThan(-1);
+    const blockEnd = briefing.indexOf("\n        )}\n", block);
+    expect(blockEnd).toBeGreaterThan(block);
+    expect(briefing.indexOf("View full briefing in CRM")).toBeGreaterThan(blockEnd);
+  });
+
+  it("keeps a condition's deadline on a narrow screen", () => {
+    const row = briefing.slice(briefing.indexOf("upcomingConditions.map"), briefing.indexOf("Needs attention"));
+    expect(row).toContain('"shrink-0 font-semibold"');
+    expect(row).toContain('"min-w-0 truncate"');
+    expect(row.indexOf('"min-w-0 truncate"')).toBeLessThan(row.indexOf("{c.address}"));
+    expect(row.indexOf('"shrink-0 font-semibold"')).toBeGreaterThan(row.indexOf("{c.client_name}"));
+  });
+});
+
+describe("Checklist counts rest on every open item", () => {
+  const unbounded = (source: string, marker: string) => {
+    const at = source.indexOf(marker);
+    expect(at, marker).toBeGreaterThan(-1);
+    const query = source.slice(source.lastIndexOf("fetchAllRows", at), source.indexOf(".range(from, to)", at));
+    expect(query).toContain('.is("completed_at", null)');
+    expect(query).toContain('.order("id")');
+    expect(query).not.toContain(".limit(");
+  };
+
+  it("on the dashboard, the Captain's context and the Captain's agenda", () => {
+    unbounded(read("app/(app)/dashboard/page.tsx"), '.select("*, clients(name)")');
+    unbounded(read("app/api/chat/route.ts"), '.from("contact_tasks").select("id, title, due_date, priority, client_id")');
+    unbounded(read("lib/ai/tools.ts"), '.from("contact_tasks").select("title, due_date, priority, client_id")');
+  });
+
+  it("the card's +N more counts what it didn't show", () => {
+    expect(code).toContain("+{localTasks.length - shown.length} more.");
+  });
+});
+
+describe("a year deliberately set to $0", () => {
+  it("is told apart from an unset year everywhere the page would nudge", () => {
+    expect(code).toContain("goalGCI <= 0 && goalSetToZero(incomeGoals, goalCurrentYear)");
+    expect(code).toContain("goalGCI <= 0 && !goalIsZero");
+    expect(code).toContain('goalIsZero ? "This year\'s goal is set to $0" : "Set a goal in Settings"');
+    expect(code).toContain('weakest.label === "Goal Pace" && goalIsZero');
+    expect(code).toContain("narrative.paceState, narrative.goalIsZero)");
+    const reportsPage = read("app/(app)/reports/page.tsx");
+    expect(reportsPage).toContain('.from("income_goals")');
+    expect(reportsPage).toContain("goalIsZero={goalSetToZero(");
   });
 });
 
@@ -205,14 +329,14 @@ describe("the Captain's read in the hero", () => {
   it("takes its state from the page's one pace statement", () => {
     expect(code.indexOf("const paceAlert = paceStatement(")).toBeLessThan(code.indexOf("const scoreNarrative = buildScoreNarrative("));
     expect(code).toContain("paceAlert?.state ?? null");
-    expect(code).toContain("captainReadSentence(narrative.weakestLabel, narrative.pipelineEmpty, narrative.paceState)");
+    expect(code).toContain("captainReadSentence(narrative.weakestLabel, narrative.pipelineEmpty, narrative.paceState, narrative.goalIsZero)");
   });
 
   it("the Morning Brief and Reports don't offer a closing as the lever with no goal set", () => {
-    expect(code).toContain("No annual goal is set, so Goal Pace");
+    expect(read("lib/dashboard/captain-read.ts")).toContain("No annual goal is set, so Goal Pace");
     expect(code).toContain('weakest.label === "Goal Pace" && goalGCI <= 0');
     const reports = read("app/(app)/reports/reports-content.tsx");
-    expect(reports).toContain("goalPaceOpportunityLine(paceStatus)");
+    expect(reports).toContain("goalPaceOpportunityLine(paceStatus, goalIsZero)");
     expect(reports).not.toContain("You're behind on your annual GCI target");
   });
 });
@@ -232,5 +356,9 @@ describe("the Captain knows the layout", () => {
     expect(line).toMatch(/only moves once a goal is set/);
     expect(line).toMatch(/nothing on the Checklist is overdue or due today/);
     expect(line).toMatch(/listings and no deals/);
+    expect(line).toMatch(/opens that client/);
+    expect(line).toMatch(/deliberately set to \$0/);
+    expect(line).toMatch(/reads 50 at exactly expected pace/);
+    expect(line).toMatch(/Last 2 months' GCI/);
   });
 });

@@ -47,6 +47,38 @@ export function dailyBriefingPipelineChip(
   return { label: depth === "light" ? `Light (${dealCount})` : dealCount, depth };
 }
 
+/**
+ * The pipeline's size in words: the Pipeline Weighted card's caption and the
+ * Morning Brief's row, so the two can't count it differently. Null when there
+ * are no deals and no listings, the page's one meaning of an empty pipeline.
+ */
+export function pipelineCountLabel(dealCount: number, listingCount: number): string | null {
+  if (dealCount === 0 && listingCount === 0) return null;
+  const deals = `${dealCount} deal${dealCount === 1 ? "" : "s"}`;
+  return listingCount > 0 ? `${deals} + ${listingCount} listing${listingCount === 1 ? "" : "s"}` : deals;
+}
+
+/** Clients in Boarding or In-Flight with no contact logged in the last 14 days. */
+export function outreachLabel(count: number): string {
+  return count === 1 ? "1 client needs outreach" : `${count} clients need outreach`;
+}
+
+export interface BriefingItemLink {
+  href: string;
+  label: string;
+}
+
+/**
+ * Where a Daily Briefing item opens. A listing appointment with no client on it
+ * carries an empty clientId, and /crm?client= would open nothing, so it goes to
+ * the CRM itself.
+ */
+export function briefingItemLink(clientId: string | null | undefined): BriefingItemLink {
+  return clientId
+    ? { href: `/crm?client=${encodeURIComponent(clientId)}`, label: "Open client" }
+    : { href: "/crm", label: "Open CRM" };
+}
+
 export interface TaskDueCounts {
   overdue: number;
   dueToday: number;

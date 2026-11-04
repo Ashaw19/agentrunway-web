@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildHealthReport } from "@agent-runway/core/engines/health-report";
-import { captainReadQuestion, captainReadSentence, goalPaceOpportunityLine } from "../captain-read";
+import { captainReadQuestion, captainReadSentence, goalPaceOpportunityLine, goalPaceWhy, type GoalPaceWhyInput } from "../captain-read";
+import { goalSetToZero } from "@/lib/income-goals";
 import { paceStatement, type PaceState } from "../today-zone";
 
 const NOT_BEHIND: PaceState[] = ["on-pace", "ahead", "goal-reached"];
@@ -120,5 +121,67 @@ describe("captainReadQuestion", () => {
     expect(captainReadQuestion({ weakestLabel: null, weakestScore: null, pipelineEmpty: false, paceState: null })).toBe(
       "What is the single fastest lever I can pull this month to move my Runway Score?",
     );
+  });
+});
+
+describe("a year deliberately set to $0", () => {
+  it("is a row saying 0, not a year with no row", () => {
+    expect(goalSetToZero([{ year: 2026, goal_gci: 0 }], 2026)).toBe(true);
+    expect(goalSetToZero([{ year: 2026, goal_gci: "0" }], 2026)).toBe(true);
+    expect(goalSetToZero([], 2026)).toBe(false);
+    expect(goalSetToZero([{ year: 2027, goal_gci: 0 }], 2026)).toBe(false);
+    expect(goalSetToZero([{ year: 2026, goal_gci: 150_000 }], 2026)).toBe(false);
+  });
+
+  it("states the fact and pushes no goal, in the line, the question and on Reports", () => {
+    const line = captainReadSentence("Goal Pace", false, null, true);
+    expect(line).toContain("set to $0");
+    expect(line).not.toMatch(/set an annual goal|in Settings/i);
+    const question = captainReadQuestion({ weakestLabel: "Goal Pace", weakestScore: 50, pipelineEmpty: false, paceState: null, goalIsZero: true });
+    expect(question).toContain("on purpose");
+    expect(question).not.toMatch(/what goal|how do i set/i);
+    expect(goalPaceOpportunityLine("no-goal", true)).toContain("set to $0");
+    expect(goalPaceOpportunityLine("no-goal", true)).not.toMatch(/set an annual goal/i);
+  });
+
+  it("leaves an unset year's nudge alone", () => {
+    expect(captainReadSentence("Goal Pace", false, null)).toContain("set an annual goal");
+    expect(captainReadQuestion({ weakestLabel: "Goal Pace", weakestScore: 50, pipelineEmpty: false, paceState: null })).toContain("What goal would fit");
+  });
+});
+
+describe("goalPaceWhy: the Weekly Business Brief's reason", () => {
+  const base: GoalPaceWhyInput = {
+    paceState: "behind", goalIsZero: false, paceScore: 30, closedDeals: 5, avgDealSize: 16_400,
+    projectedGCI: 90_000, goalGCI: 100_000,
+  };
+
+  it("calls it a drag only when the page says behind", () => {
+    expect(goalPaceWhy(base)).toMatch(/primary drag/);
+    for (const paceState of NOT_BEHIND) expect(goalPaceWhy({ ...base, paceState })).not.toMatch(/drag/);
+  });
+
+  it("is true of the figures that showed the contradiction: slightly ahead, projection above goal", () => {
+    const line = goalPaceWhy({ ...base, paceState: "ahead", paceScore: 53, projectedGCI: 112_500 });
+    expect(line).toContain("lowest score bar");
+    expect(line).toContain("$12,500 above");
+    expect(line).not.toMatch(/drag|trajectory/);
+  });
+
+  it("speaks to a reached goal without a projection", () => {
+    const line = goalPaceWhy({ ...base, paceState: "goal-reached", paceScore: 80 });
+    expect(line).toContain("already reached");
+    expect(line).not.toMatch(/projected/);
+  });
+
+  it("doesn't invent an average for an agent with no closed deals", () => {
+    const line = goalPaceWhy({ ...base, closedDeals: 0, avgDealSize: 0 });
+    expect(line).not.toMatch(/closed deal|average/);
+    expect(line).toContain("Projected year-end GCI");
+  });
+
+  it("tells a $0 year from an unset one", () => {
+    expect(goalPaceWhy({ ...base, paceState: null, goalGCI: 0, goalIsZero: true })).toContain("set to $0");
+    expect(goalPaceWhy({ ...base, paceState: null, goalGCI: 0 })).toContain("No annual goal is set");
   });
 });

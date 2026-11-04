@@ -46,6 +46,12 @@ export function pipelineSubScore(goalGCI: number, ytdGCI: number, pipelineWeight
 }
 
 /**
+ * Goal Pace maps this many percent behind expected pace to 0 and this many ahead
+ * to 100, so exactly on pace reads 50. The score dialog states it from here.
+ */
+export const GOAL_PACE_SCORE_SPAN_PCT = 50;
+
+/**
  * Maps agent performance metrics into the three sub-scores consumed
  * by `computeRunwayScore()`.
  *
@@ -66,7 +72,7 @@ export function buildHealthReport(
       expectedAtThisPoint > 0
         ? ((ytdGCI - expectedAtThisPoint) / expectedAtThisPoint) * 100
         : 0;
-    const raw = (paceVsGoal + 50) / 100;
+    const raw = (paceVsGoal + GOAL_PACE_SCORE_SPAN_PCT) / (GOAL_PACE_SCORE_SPAN_PCT * 2);
     paceScore = Math.round(Math.min(1, Math.max(0, raw)) * 100);
   }
 

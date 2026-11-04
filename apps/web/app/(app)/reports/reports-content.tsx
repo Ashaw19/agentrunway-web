@@ -138,6 +138,8 @@ interface Props {
   transactions: Transaction[];
   pipelineDeals: PipelineDeal[];
   listingAppointments?: ListingAppointment[];
+  /** This year has a row saying $0: a deliberate no-goal year, never nudged. */
+  goalIsZero?: boolean;
   isPro?: boolean;
   historyItems?: HistoryItem[];
   /** Year-to-date expenses: ytdExpenseTotals(...).expensesYTD, the Expenses page's total. */
@@ -263,6 +265,7 @@ export function ReportsContent({
   transactions,
   pipelineDeals,
   listingAppointments = [],
+  goalIsZero = false,
   isPro: isPro = false,
   historyItems = [],
   expensesYTD = 0,
@@ -883,7 +886,7 @@ export function ReportsContent({
                   Biggest opportunity: {weakest.label} ({Math.round(weakest.score)}/100)
                 </p>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  {weakest.label === "Goal Pace" && goalPaceOpportunityLine(paceStatus)}
+                  {weakest.label === "Goal Pace" && goalPaceOpportunityLine(paceStatus, goalIsZero)}
                   {weakest.label === "Pipeline" && "Your pipeline is thin. Adding prospects or listing appointments would strengthen your forecast."}
                   {weakest.label === "Expenses" && (expenseBand
                     ? `Your expense ratio is ${formatExpenseRatio(expenseRatioFraction)}, ${expenseRatioVsTarget(expenseRatioFraction)}. ${EXPENSE_RATIO_COPY.scoreSentence}`
