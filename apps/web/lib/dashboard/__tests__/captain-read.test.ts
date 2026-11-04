@@ -19,7 +19,7 @@ describe("captainReadSentence: Goal Pace as the lowest bar", () => {
       for (const empty of [false, true]) {
         const line = captainReadSentence("Goal Pace", empty, state);
         expect(line).not.toMatch(/drag|behind|ahead|on pace/i);
-        expect(line).toContain("Goal Pace is your lowest score bar");
+        expect(line).toContain("Goal Pace is your lowest bar");
       }
     }
   });
@@ -50,7 +50,7 @@ describe("captainReadSentence: Goal Pace with no goal set", () => {
   it("names the only lever, never a closing or a prospect", () => {
     for (const empty of [false, true]) {
       const line = captainReadSentence("Goal Pace", empty, null);
-      expect(line).toContain("Goal Pace is your lowest score bar");
+      expect(line).toContain("Goal Pace is your lowest bar");
       expect(line).toContain("set an annual goal");
       expect(line).not.toMatch(/closing|deal|prospect|drag/i);
     }
@@ -159,13 +159,13 @@ describe("goalPaceWhy: the Weekly Business Brief's reason", () => {
   };
 
   it("says closed GCI is behind only when the page says behind", () => {
-    expect(goalPaceWhy(base)).toMatch(/your closed GCI is behind/);
+    expect(goalPaceWhy(base)).toMatch(/counts closed GCI only/);
     for (const paceState of NOT_BEHIND) expect(goalPaceWhy({ ...base, paceState })).not.toMatch(/behind/);
   });
 
   it("is true of the figures that showed the contradiction: slightly ahead, projection above goal", () => {
     const line = goalPaceWhy({ ...base, paceState: "ahead", paceScore: 53, projectedGCI: 112_500 });
-    expect(line).toContain("lowest score bar");
+    expect(line).toContain("lowest bar");
     expect(line).toContain("$12,500 above");
     expect(line).not.toMatch(/drag|trajectory/);
   });
@@ -179,7 +179,7 @@ describe("goalPaceWhy: the Weekly Business Brief's reason", () => {
   it("doesn't invent an average for an agent with no closed deals", () => {
     const line = goalPaceWhy({ ...base, closedDeals: 0, avgDealSize: 0 });
     expect(line).not.toMatch(/closed deal|average/);
-    expect(line).toContain("Projected year-end GCI");
+    expect(line).toContain("Your projected year-end GCI");
   });
 
   it("tells a $0 year from an unset one", () => {

@@ -52,12 +52,12 @@ export function captainReadSentence(
 ): string {
   switch (label) {
     case "Goal Pace":
-      if (paceState === null) return `Goal Pace is your lowest score bar right now. ${goalIsZero ? GOAL_SET_TO_ZERO : NO_GOAL_LEVER}`;
+      if (paceState === null) return `Goal Pace is your lowest bar right now. ${goalIsZero ? GOAL_SET_TO_ZERO : NO_GOAL_LEVER}`;
       if (paceState !== "behind") {
-        if (pipelineEmpty) return "Goal Pace is your lowest score bar right now. Your pipeline is empty, so adding a prospect is the next move.";
+        if (pipelineEmpty) return "Goal Pace is your lowest bar right now. Your pipeline is empty, so adding a prospect is the next move.";
         return paceState === "goal-reached"
-          ? "Goal Pace is your lowest score bar right now. Each deal you close past your goal still lifts it."
-          : "Goal Pace is your lowest score bar right now. Closing one pipeline deal lifts it.";
+          ? "Goal Pace is your lowest bar right now. Each deal you close past your goal still lifts it."
+          : "Goal Pace is your lowest bar right now. Closing one pipeline deal lifts it.";
       }
       return pipelineEmpty
         ? "Goal pace is your biggest drag right now. Your pipeline is empty, so adding a prospect is the first move."
@@ -142,13 +142,13 @@ export function goalPaceWhy({ paceState, goalIsZero, paceScore, closedDeals, avg
       : `No annual goal is set, so Goal Pace ${score} can't move yet.`;
   }
   if (paceState === "goal-reached") {
-    return `Goal Pace ${score} is your lowest score bar, with your annual goal already reached. Each deal you close past it still lifts the bar.`;
+    return `Goal Pace ${score} is your lowest bar, with your annual goal already reached. Each deal you close past it still lifts the bar.`;
   }
-  const projection = `projected year-end GCI, which counts your pipeline, is ${fmtCurrency(Math.abs(projectedGCI - goalGCI))} ${projectedGCI >= goalGCI ? "above" : "below"} your ${fmtCurrency(goalGCI)} goal.`;
+  const projection = `Your projected year-end GCI, which includes your pipeline, is ${fmtCurrency(projectedGCI)}, ${fmtCurrency(Math.abs(projectedGCI - goalGCI))} ${projectedGCI >= goalGCI ? "above" : "below"} your ${fmtCurrency(goalGCI)} goal.`;
   const facts = closedDeals > 0
-    ? `With ${closedDeals} closed deal${closedDeals === 1 ? "" : "s"} at an average of ${fmtCurrency(avgDealSize)}, ${projection}`
-    : `${projection[0].toUpperCase()}${projection.slice(1)}`;
+    ? `You've closed ${closedDeals} deal${closedDeals === 1 ? "" : "s"} averaging ${fmtCurrency(avgDealSize)}. ${projection}`
+    : projection;
   return paceState === "behind"
-    ? `Goal Pace ${score} is your lowest score bar because your closed GCI is behind what your annual goal expects by today. ${facts}`
-    : `Goal Pace ${score} is your lowest score bar. ${facts}`;
+    ? `Goal Pace ${score} is your lowest bar because it counts closed GCI only, and yours is behind what you'd need by today to be on pace for your goal. ${facts}`
+    : `Goal Pace ${score} is your lowest bar. ${facts}`;
 }

@@ -117,7 +117,7 @@ describe("paceStatement: the page's one statement of pace", () => {
     const s = paceStatement({ ...base, pacePercent: -34.2 })!;
     expect(s.state).toBe("behind");
     expect(s.title).toBe("Behind pace on your annual goal");
-    expect(s.body).toBe("Your GCI is 66% of what your annual goal expects by today. $100,000 to go, about 4 more deals at your average deal size.");
+    expect(s.body).toBe("Your GCI is 66% of what you'd need by today to be on pace for your goal. $100,000 to go, about 4 more deals at your average deal size.");
   });
 
   it("states behind pace at any distance, not only past 30%", () => {
@@ -128,19 +128,19 @@ describe("paceStatement: the page's one statement of pace", () => {
     const s = paceStatement({ ...base, pacePercent: 12 })!;
     expect(s.state).toBe("ahead");
     expect(s.title).toBe("Ahead of pace on your annual goal");
-    expect(s.body).toBe("Your GCI is 112% of what your annual goal expects by today. $100,000 to go, about 4 more deals at your average deal size.");
+    expect(s.body).toBe("Your GCI is 112% of what you'd need by today to be on pace for your goal. $100,000 to go, about 4 more deals at your average deal size.");
   });
 
   it("states on pace when the figure rounds to 100%", () => {
     const s = paceStatement({ ...base, pacePercent: 0.3 })!;
     expect(s.state).toBe("on-pace");
     expect(s.title).toBe("On pace for your annual goal");
-    expect(s.body).toContain("Your GCI is 100% of what your annual goal expects by today.");
+    expect(s.body).toContain("Your GCI is 100% of what you'd need by today to be on pace for your goal.");
   });
 
   it("drops the deal count when there is no average deal size yet", () => {
     const s = paceStatement({ goalGCI: 200_000, ytdGCI: 0, ytdDealCount: 0, pacePercent: -100 })!;
-    expect(s.body).toBe("Your GCI is 0% of what your annual goal expects by today. $200,000 to go.");
+    expect(s.body).toBe("Your GCI is 0% of what you'd need by today to be on pace for your goal. $200,000 to go.");
   });
 
   it("says one deal in the singular", () => {

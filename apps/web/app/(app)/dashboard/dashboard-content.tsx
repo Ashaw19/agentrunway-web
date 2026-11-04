@@ -438,7 +438,15 @@ export function DashboardContent({
   const [tipDismissedAt, setTipDismissedAt] = useState<string | null>(null);
   const [incomeGoals, setIncomeGoals] = useState<IncomeGoalRow[]>(initialIncomeGoals);
   // The focus refresh below brings new rows, say a goal changed on the phone.
-  useEffect(() => setIncomeGoals(initialIncomeGoals), [initialIncomeGoals]);
+  // Keyed on the rows' content: a caller that passes none gets a new empty array on
+  // every render, and depending on that array itself would loop forever.
+  const incomeGoalsKey = JSON.stringify(initialIncomeGoals);
+  const syncedGoalsKey = useRef(incomeGoalsKey);
+  useEffect(() => {
+    if (syncedGoalsKey.current === incomeGoalsKey) return;
+    syncedGoalsKey.current = incomeGoalsKey;
+    setIncomeGoals(JSON.parse(incomeGoalsKey) as IncomeGoalRow[]);
+  }, [incomeGoalsKey]);
 
   async function saveNextYearGoal(amount: number): Promise<boolean> {
     if (!settings?.user_id) return false;
@@ -3966,7 +3974,7 @@ function generateBusinessHealthNarrative({
   if (survival.riskLevel === "critical") {
     nextMove = runwayNextMove(survival);
   } else if (weakest.label === "Goal Pace" && goalIsZero) {
-    nextMove = "To lift your Runway Score this year, work on the other bars: Pipeline, Expenses, Benchmark and Survival.";
+    nextMove = "To lift your Runway Score this year, work on Pipeline, Expenses, Benchmark and Survival.";
   } else if (weakest.label === "Goal Pace" && goalGCI <= 0) {
     // Without a goal the bar sits still whatever closes, so a closing is no lever.
     nextMove = "Set an annual goal in Settings. Goal Pace only moves once one is set.";
@@ -3996,7 +4004,7 @@ function generateBusinessHealthNarrative({
   } else if (paceStatus === "ahead" && goalGCI > 0) {
     nextMove = "Keep your deals moving. If your pipeline supports more, your annual goal can go up in Settings.";
   } else {
-    nextMove = "Focus on building pipeline this month to protect your forecast for the rest of the year.";
+    nextMove = "Add deals to your pipeline this month to raise your projected year-end GCI.";
   }
 
   return { status, summary, whatChanged, why, nextMove };

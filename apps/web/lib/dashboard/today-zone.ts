@@ -154,7 +154,7 @@ export function paceStatement({ goalGCI, ytdGCI, ytdDealCount, pacePercent }: Pa
     ? `${fmtCurrency(gap)} to go, about ${dealsNeeded} more deal${dealsNeeded === 1 ? "" : "s"} at your average deal size.`
     : `${fmtCurrency(gap)} to go.`;
   const shownPercent = (100 + pacePercent).toFixed(0);
-  const body = `Your GCI is ${shownPercent}% of what your annual goal expects by today. ${toGo}`;
+  const body = `Your GCI is ${shownPercent}% of what you'd need by today to be on pace for your goal. ${toGo}`;
   if (shownPercent === "100") return { state: "on-pace", title: "On pace for your annual goal", body };
   return pacePercent > 0
     ? { state: "ahead", title: "Ahead of pace on your annual goal", body }

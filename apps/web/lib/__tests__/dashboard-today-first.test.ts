@@ -71,6 +71,13 @@ describe("pace is said once", () => {
     }
   });
 
+  // 2026-11-04: the prop defaults to a new [] on every render, so an effect keyed on
+  // the array itself looped until React gave up and the demo page crashed.
+  it("income goals re-sync on the rows' content, never the array's identity", () => {
+    expect(code).not.toMatch(/\[initialIncomeGoals\]\s*\)/);
+    expect(code).toContain("JSON.stringify(initialIncomeGoals)");
+  });
+
   it("the Weekly Business Brief states no pace of its own, in dollars or as time elapsed", () => {
     for (const gone of ["pace required", "expected at this point", "% elapsed", "pctElapsed", "paceGapAmount", "on track"]) {
       expect(code, gone).not.toContain(gone);
