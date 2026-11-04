@@ -24,6 +24,7 @@ import { createClient }       from "@/lib/supabase/server";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 import { requirePro } from "@/lib/require-pro";
 import type { OutreachQueueItem, AgentState } from "@agent-runway/core/types/database";
+import { activePipelineDeals, pipelineDepthStatus } from "@agent-runway/core/types/database";
 import { POST_CLOSE_OPPORTUNITY_CONFIGS as POST_CLOSE_CONFIGS } from "@agent-runway/core/engines/nurture-engine";
 import type { SupabaseClient }    from "@supabase/supabase-js";
 import type { ClientMemoryFacts } from "@/lib/ai/client-memory-engine";
@@ -2049,7 +2050,6 @@ function buildFinancialImpact(
     avgGci: number;
     totalDeals: number;
     repeatRate: number;
-    activeClients: number;
   },
   state: AgentState,
 ): string {
@@ -2057,8 +2057,8 @@ function buildFinancialImpact(
   const isHighValue = gci > 15000;
   const _isMidValue = gci > 5000 && gci <= 15000;
   const isRepeat = clientDealCount >= 2;
-  const pipelineLight = portfolioStats.activeClients < 3;
-  const pipelineDry = portfolioStats.activeClients === 0;
+  const pipelineLight = state.pipeline_status !== "healthy";
+  const pipelineDry = state.pipeline_status === "empty";
   const hasStrongRepeatHistory = portfolioStats.repeatRate > 25;
   const _hasModerateRepeatHistory = portfolioStats.repeatRate > 10;
   const monthsIdle = ctx.months_idle ? parseInt(String(ctx.months_idle), 10) : 0;
@@ -2316,7 +2316,7 @@ function buildFinancialImpact(
   // ── New client welcome ────────────────────────────────────────────────────
   if (opportunityType === "new_client_welcome") {
     if (pipelineLight && state.pace_status === "behind") {
-      return "You need more active clients and you're behind pace. This new contact is a fresh opportunity — a strong first impression could accelerate them from prospect to active deal.";
+      return "Your pipeline is light and you're behind pace. This new contact is a fresh opportunity, and a strong first impression could move them from prospect to active deal.";
     }
     if (pipelineLight) {
       return "This is a new relationship — and with your pipeline light, converting new contacts into active clients matters more right now than usual. A strong first impression accelerates that.";
@@ -2359,17 +2359,11 @@ function buildFinancialImpact(
  * No new DB queries — uses data already fetched by getTopOpportunities.
  */
 function computeAgentState(
-  activeClients: number,
+  pipeline_status: AgentState["pipeline_status"],
   dealsThisYear: number,
   totalDeals: number,
   yearsActive: number,
 ): AgentState {
-  // ── Pipeline status ─────────────────────────────────────────────────────
-  const pipeline_status: AgentState["pipeline_status"] =
-    activeClients === 0 ? "empty" :
-    activeClients <= 2  ? "light" :
-                          "healthy";
-
   // ── Pace status ─────────────────────────────────────────────────────────
   // Compare deals closed this calendar year vs historical yearly average,
   // prorated for how far through the year we are.
@@ -2387,8 +2381,8 @@ function computeAgentState(
     }
   } else {
     // Fallback: infer from pipeline depth when history is thin
-    if (activeClients === 0) pace_status = "behind";
-    else if (activeClients >= 3) pace_status = "on_track";
+    if (pipeline_status === "empty") pace_status = "behind";
+    else if (pipeline_status === "healthy") pace_status = "on_track";
   }
 
   // ── Urgency level ───────────────────────────────────────────────────────
@@ -2435,7 +2429,7 @@ export async function getTopOpportunities(
   const limit = Math.max(0, MAX_TOP_OPPORTUNITIES - reserved);
   const excluded = new Set(opts.excludeClientIds ?? []);
   // ── Fetch data (same as detectAndDraftForUser) ─────────────────────────────
-  const [clientsRes, recordsRes, memoryRes, sentRes, coPartiesRes, dismissedRes, firstContactRes, ledger, consentSentRes, senderRes] = await Promise.all([
+  const [clientsRes, recordsRes, memoryRes, sentRes, coPartiesRes, dismissedRes, firstContactRes, ledger, consentSentRes, senderRes, pipelineRes, listingsRes] = await Promise.all([
     // Per-user lists below are read in pages: one request stops at 1,000 rows.
     fetchAllRows((from, to) =>
       supabase
@@ -2500,6 +2494,19 @@ export async function getTopOpportunities(
       .select("display_name, email_signature, brokerage_name, phone, mailing_address")
       .eq("user_id", userId)
       .maybeSingle(),
+    // Pipeline depth (below): the rows the dashboard's page.tsx reads for its
+    // Pipeline card, narrowed to the columns a count needs.
+    supabase
+      .from("pipeline_deals")
+      .select("stage")
+      .eq("user_id", userId)
+      .limit(10000),
+    supabase
+      .from("listing_appointments")
+      .select("id")
+      .eq("user_id", userId)
+      .in("status", ["scheduled", "active"])
+      .limit(10000),
   ]);
 
   // A failed clients fetch would otherwise read as "no clients" and render
@@ -2810,11 +2817,21 @@ export async function getTopOpportunities(
     ? Math.round((repeatClients / clientDealDates.size) * 100)
     : 0;
 
-  // Pipeline depth — include scheduled (4-stage canonical: boarding/scheduled/in_flight)
-  const activeClients = clients.filter((c) =>
-    c.status === "boarding" || c.status === "scheduled" || c.status === "in_flight",
-  ).length;
-  const pipelineLight = activeClients < 3;
+  // Pipeline depth: active pipeline deals and listings, the sets the dashboard's
+  // Pipeline card counts. Client status is not depth: until 2026-11-04 this
+  // counted Boarding, Scheduled and In-Flight clients and told agents with open
+  // deals "you have no active deals". A failed read says nothing about the
+  // pipeline, so it can never read as empty.
+  if (pipelineRes.error) console.error("[top-opportunities] pipeline read failed:", pipelineRes.error.message);
+  if (listingsRes.error) console.error("[top-opportunities] listings read failed:", listingsRes.error.message);
+  const activeDeals = pipelineRes.error
+    ? Number.POSITIVE_INFINITY
+    : activePipelineDeals(pipelineRes.data ?? []).length;
+  const activeListings = listingsRes.error
+    ? Number.POSITIVE_INFINITY
+    : (listingsRes.data ?? []).length;
+  const pipelineDepth = pipelineDepthStatus(activeDeals, activeListings);
+  const pipelineLight = pipelineDepth !== "healthy";
 
   // ── Compute agent state ────────────────────────────────────────────────────
   const currentYear = atlanticYear();
@@ -2827,7 +2844,7 @@ export async function getTopOpportunities(
   const earliestYear = closeDates.length > 0 ? Math.min(...closeDates) : currentYear;
   const yearsActive = Math.max(1, currentYear - earliestYear + 1);
 
-  const agentState = computeAgentState(activeClients, dealsThisYear, totalDeals, yearsActive);
+  const agentState = computeAgentState(pipelineDepth, dealsThisYear, totalDeals, yearsActive);
 
   // ── Build structured response ───────────────────────────────────────────────
   const results = topCandidates.map((ins) => {
@@ -2878,7 +2895,7 @@ export async function getTopOpportunities(
         facts,
         client?.status ?? null,
         (clientDealDates.get(typed.client_id) ?? []).length,
-        { avgGci, totalDeals, repeatRate, activeClients },
+        { avgGci, totalDeals, repeatRate },
         agentState,
       ),
       is_primary:     false,
@@ -2944,7 +2961,7 @@ export async function getTopOpportunities(
       primary.score,
       _clientMap.get(primary.client_id)?.status ?? null,
       (clientDealDates.get(primary.client_id) ?? []).length,
-      { activeClients, pipelineLight },
+      { pipelineLight },
       agentState,
     );
     primary.risk_if_ignored = primaryCallCopy?.risk ?? buildRiskIfIgnored(
@@ -2952,7 +2969,7 @@ export async function getTopOpportunities(
       primary.context,
       primary.trigger_date,
       (clientDealDates.get(primary.client_id) ?? []).length,
-      { activeClients, pipelineLight },
+      { pipelineLight },
       agentState,
     );
 
@@ -2974,13 +2991,13 @@ function buildPrimaryReason(
   score: number,
   clientStatus: string | null,
   clientDealCount: number,
-  pipeline: { activeClients: number; pipelineLight: boolean },
+  pipeline: { pipelineLight: boolean },
   state: AgentState,
 ): string {
   const gci = ctx.gci ? Number(ctx.gci) : 0;
   const gciLabel = gci > 0 ? `$${(gci / 1000).toFixed(0)}k` : null;
   const isRepeat = clientDealCount >= 2;
-  const pipelineDry = pipeline.activeClients === 0;
+  const pipelineDry = state.pipeline_status === "empty";
 
   // ── Pipeline-driven urgency ───────────────────────────────────────────────
   if (pipelineDry) {
@@ -3086,12 +3103,12 @@ function buildRiskIfIgnored(
   ctx: Record<string, unknown>,
   triggerDate: string,
   clientDealCount: number,
-  pipeline: { activeClients: number; pipelineLight: boolean },
+  pipeline: { pipelineLight: boolean },
   state: AgentState,
 ): string {
   const gci = ctx.gci ? Number(ctx.gci) : 0;
   const gciLabel = gci > 0 ? `$${(gci / 1000).toFixed(0)}k` : null;
-  const pipelineDry = pipeline.activeClients === 0;
+  const pipelineDry = state.pipeline_status === "empty";
   const isRepeat = clientDealCount >= 2;
 
   // Timing awareness

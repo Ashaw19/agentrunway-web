@@ -42,6 +42,7 @@ import {
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { fmtCurrency, fmtPct } from "@/lib/formatters";
+import { goalPaceOpportunityLine } from "@/lib/dashboard/captain-read";
 import { ExplainButton } from "@/components/explain-button";
 import { GuideLink } from "@/components/guide-link";
 import {
@@ -137,6 +138,8 @@ interface Props {
   transactions: Transaction[];
   pipelineDeals: PipelineDeal[];
   listingAppointments?: ListingAppointment[];
+  /** This year has a row saying $0: a deliberate no-goal year, never nudged. */
+  goalIsZero?: boolean;
   isPro?: boolean;
   historyItems?: HistoryItem[];
   /** Year-to-date expenses: ytdExpenseTotals(...).expensesYTD, the Expenses page's total. */
@@ -262,6 +265,7 @@ export function ReportsContent({
   transactions,
   pipelineDeals,
   listingAppointments = [],
+  goalIsZero = false,
   isPro: isPro = false,
   historyItems = [],
   expensesYTD = 0,
@@ -879,10 +883,10 @@ export function ReportsContent({
               <Lightbulb className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
               <div>
                 <p className="text-sm font-semibold text-slate-800">
-                  Biggest opportunity: {weakest.label} ({Math.round(weakest.score)}/100)
+                  {goalIsZero && weakest.label === "Goal Pace" ? "Lowest score bar" : "Biggest opportunity"}: {weakest.label} ({Math.round(weakest.score)}/100)
                 </p>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  {weakest.label === "Goal Pace" && "You're behind on your annual GCI target. Closing one more deal could shift this significantly."}
+                  {weakest.label === "Goal Pace" && goalPaceOpportunityLine(paceStatus, goalIsZero)}
                   {weakest.label === "Pipeline" && "Your pipeline is thin. Adding prospects or listing appointments would strengthen your forecast."}
                   {weakest.label === "Expenses" && (expenseBand
                     ? `Your expense ratio is ${formatExpenseRatio(expenseRatioFraction)}, ${expenseRatioVsTarget(expenseRatioFraction)}. ${EXPENSE_RATIO_COPY.scoreSentence}`
@@ -1650,7 +1654,9 @@ export function ReportsContent({
             <Zap className="h-8 w-8 text-slate-300 mx-auto mb-2" />
             <p className="text-sm font-medium text-slate-500">No recommendations right now</p>
             <p className="text-xs text-muted-foreground mt-1">
-              Add more transaction data and set an annual goal to unlock personalised insight cards.
+              {goalIsZero
+                ? "Add more transaction data to unlock personalised insight cards."
+                : "Add more transaction data and set an annual goal to unlock personalised insight cards."}
             </p>
           </div>
         )}

@@ -89,13 +89,18 @@ export default async function DashboardPage({
         .eq("user_id", user.id)
         .gte("expense_date", `${dashYear}-01-01`)
         .limit(10000),
-      supabase
-        .from("contact_tasks")
-        .select("*, clients(name)")
-        .eq("user_id", user.id)
-        .is("completed_at", null)
-        .order("due_date", { ascending: true })
-        .limit(10),
+      // Every open item, in pages: the Today line and the Checklist card state
+      // counts from this list. It stopped at 10 until 2026-11-04, so 14 overdue
+      // read as 10 and the items due today fell off the end.
+      fetchAllRows((from, to) =>
+        supabase
+          .from("contact_tasks")
+          .select("*, clients(name)")
+          .eq("user_id", user.id)
+          .is("completed_at", null)
+          .order("due_date", { ascending: true })
+          .order("id")
+          .range(from, to)),
       // This year's business km, for the tax cards: every trip in the year,
       // read in pages. Until 2026-10-18 this summed every trip ever logged.
       loadYearBusinessKm(supabase, user.id, dashYear).then((km) => ({ data: km })),
@@ -278,6 +283,17 @@ export default async function DashboardPage({
       .filter((id) => activeClientIds.has(id)),
   );
   const staleLeadCount = Math.max(0, activeClientCount - recentlyContactedIds.size);
+  // The Today zone's empty-briefing line rests on all of these. fetchAllRows hands
+  // back the rows read so far on an error, so check .error, not .data.
+  const briefingReadFailed = [
+    tasksResult,
+    activeClientsResult,
+    recentActivitiesResult,
+    briefingClientsResult,
+    briefingActivitiesResult,
+    briefingRecordsResult,
+    listingResult,
+  ].some((result) => result.error != null);
 
   // ── Team welcome detection ─────────────────────────────────────────────
   // Show welcome banner if user joined an org in the last 7 days and has no transactions yet
@@ -323,7 +339,6 @@ export default async function DashboardPage({
       mileageKmTotal={mileageKmTotal}
       vehicleBusinessUsePct={expenseCtx.vehicleBusinessUsePct}
       ccaAssetCount={ccaAssetCount}
-      activeClientCount={activeClientCount}
       staleLeadCount={staleLeadCount}
       hasSeenTour={settingsRow?.has_seen_tour ?? true}
       briefingItems={topBriefingItems}
@@ -340,6 +355,8 @@ export default async function DashboardPage({
       dataAsOf={new Date().toISOString()}
       scoreHistory={scoreHistory}
       incomeGoals={(incomeGoalsResult.data ?? []) as IncomeGoalRow[]}
+      figuresYear={dashYear}
+      briefingReadFailed={briefingReadFailed}
     />
   );
 }

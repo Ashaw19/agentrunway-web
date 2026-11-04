@@ -37,6 +37,14 @@ export function hasGoalRow(rows: readonly IncomeGoalRow[], year: number): boolea
 }
 
 /**
+ * The year has a row saying $0: a deliberate no-goal or write-off year. A year
+ * with no row is one nobody has set. Only the second gets a nudge to set a goal.
+ */
+export function goalSetToZero(rows: readonly IncomeGoalRow[], year: number): boolean {
+  return hasGoalRow(rows, year) && goalForYear(rows, year) <= 0;
+}
+
+/**
  * Dashboard nudge from October 1 (Atlantic) until next year has a goal row.
  * With no carry-forward, a year nobody set starts at "no goal" on Jan 1.
  * A deliberate $0 for next year counts as answered.

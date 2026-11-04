@@ -768,7 +768,7 @@ export interface OutreachQueueItem {
 
 /** Top Opportunities — structured insight card for the Business Brain. */
 export interface AgentState {
-  pipeline_status: "empty" | "light" | "healthy";
+  pipeline_status: PipelineDepth;
   pace_status:     "behind" | "on_track" | "ahead";
   urgency_level:   "critical" | "high" | "moderate" | "low";
 }
@@ -1682,6 +1682,25 @@ export function isActivePipelineDeal<T extends { stage: string }>(deal: T): bool
  */
 export function activePipelineDeals<T extends { stage: string }>(deals: readonly T[]): T[] {
   return deals.filter(isActivePipelineDeal);
+}
+
+export type PipelineDepth = "empty" | "light" | "healthy";
+
+/**
+ * How deep the pipeline is, from the count of active pipeline deals
+ * (activePipelineDeals), never from clients. A client in Boarding or In-Flight
+ * status may have no deal, and a deal may have no such client: the dashboard's
+ * Pipeline chip and the opportunity reads said "Empty" and "no active deals"
+ * above open deals until 2026-11-04 by counting clients here.
+ *
+ * Active listings (listing_appointments at scheduled or active) don't add to
+ * the deal thresholds, but with no deals they make the pipeline light, not
+ * empty: "empty" means no deals and no listings, as the dashboard's hero and
+ * Pipeline Weighted card say it.
+ */
+export function pipelineDepthStatus(activeDealCount: number, activeListingCount = 0): PipelineDepth {
+  if (activeDealCount <= 0) return activeListingCount > 0 ? "light" : "empty";
+  return activeDealCount <= 2 ? "light" : "healthy";
 }
 
 /**

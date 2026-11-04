@@ -1870,7 +1870,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
           if (tasks.length > 0) {
             parts.push(`\nOpen Tasks (${tasks.length}):`);
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            tasks.forEach((t: any) => parts.push(`  "${t.title}" — due ${t.due_date}${t.priority === "high" ? " ⚡" : ""}`));
+            tasks.forEach((t: any) => parts.push(`  "${t.title}", due ${t.due_date}${t.priority === "high" ? " ⚡" : ""}`));
           }
 
           // Pipeline deals
@@ -1922,7 +1922,9 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
           const weekAhead = addDaysISO(todayStr, 7);
 
           const [tasksRes, outreachRes, staleRes] = await Promise.all([
-            supabase.from("contact_tasks").select("title, due_date, priority, client_id").eq("user_id", userId).is("completed_at", null).order("due_date", { ascending: true }).limit(10),
+            // Every open item: the headings state counts. The lists below stop at AGENDA_TASKS_LISTED.
+            fetchAllRows<{ title: string; due_date: string; priority: string; client_id: string | null }>((from, to) =>
+              supabase.from("contact_tasks").select("title, due_date, priority, client_id").eq("user_id", userId).is("completed_at", null).order("due_date", { ascending: true }).order("id").range(from, to)),
             supabase.from("outreach_queue").select("client_id, opportunity_type, status, ai_subject, trigger_date").eq("user_id", userId).in("status", ["draft", "ready"]).order("trigger_date", { ascending: true }).limit(10),
             supabase.from("clients").select("name, status, last_contact_at").eq("user_id", userId).is("archived_at", null).in("status", ["boarding", "scheduled", "in_flight"]).lt("last_contact_at", new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString()).limit(10),
           ]);
@@ -1930,24 +1932,31 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
           const parts: string[] = ["── Your Agenda ──"];
 
           // Tasks
-          const tasks = (tasksRes.data ?? []) as { title: string; due_date: string; priority: string }[];
+          const tasks = tasksRes.data;
           const overdue = tasks.filter(t => t.due_date < todayStr);
           const thisWeek = tasks.filter(t => t.due_date >= todayStr && t.due_date <= weekAhead);
           const later = tasks.filter(t => t.due_date > weekAhead);
+          const AGENDA_TASKS_LISTED = 10;
+          const moreOnChecklist = (shown: readonly unknown[]) => {
+            if (shown.length > AGENDA_TASKS_LISTED) parts.push(`  and ${shown.length - AGENDA_TASKS_LISTED} more on the Checklist (/checklist)`);
+          };
 
           if (overdue.length > 0) {
             parts.push(`\n⚠ OVERDUE TASKS (${overdue.length}):`);
-            overdue.forEach(t => parts.push(`  "${t.title}" — was due ${t.due_date}${t.priority === "high" ? " ⚡" : ""}`));
+            overdue.slice(0, AGENDA_TASKS_LISTED).forEach(t => parts.push(`  "${t.title}", was due ${t.due_date}${t.priority === "high" ? " ⚡" : ""}`));
+            moreOnChecklist(overdue);
           }
           if (thisWeek.length > 0) {
             parts.push(`\nThis Week (${thisWeek.length} tasks):`);
-            thisWeek.forEach(t => parts.push(`  "${t.title}" — due ${t.due_date}${t.priority === "high" ? " ⚡" : ""}`));
+            thisWeek.slice(0, AGENDA_TASKS_LISTED).forEach(t => parts.push(`  "${t.title}", due ${t.due_date}${t.priority === "high" ? " ⚡" : ""}`));
+            moreOnChecklist(thisWeek);
           }
           if (later.length > 0) {
             parts.push(`\nUpcoming (${later.length} tasks):`);
-            later.forEach(t => parts.push(`  "${t.title}" — due ${t.due_date}`));
+            later.slice(0, AGENDA_TASKS_LISTED).forEach(t => parts.push(`  "${t.title}", due ${t.due_date}`));
+            moreOnChecklist(later);
           }
-          if (tasks.length === 0) parts.push("\n✓ No open tasks.");
+          if (tasks.length === 0) parts.push(tasksRes.error ? "\nThe Checklist didn't load." : "\n✓ No open tasks.");
 
           // Outreach
           const outreach = (outreachRes.data ?? []) as { opportunity_type: string; status: string; ai_subject: string | null; trigger_date: string }[];
@@ -1971,7 +1980,9 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
           }
 
           if (tasks.length === 0 && outreach.length === 0 && stale.length === 0) {
-            return "All clear — no overdue tasks, pending outreach, or stale clients. You're in good shape!";
+            // An empty list from a failed read proves nothing.
+            if (tasksRes.error || outreachRes.error || staleRes.error) return "Failed to load agenda. Please try again.";
+            return "No overdue tasks, pending outreach or stale clients today. This covers client follow-ups only, not how the year is tracking against the goal.";
           }
 
           return parts.join("\n");

@@ -20,13 +20,14 @@ import {
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
-import { SortableCard } from "./sortable-card";
+import { PinnedCard, SortableCard } from "./sortable-card";
 import {
   type CardId,
   CARD_REGISTRY,
   SECTIONS,
   DEFAULT_ORDER,
   DEFAULT_HIDDEN,
+  resolveDashboardLayout,
   type DashboardLayout,
 } from "./card-registry";
 import { CountUp } from "@/components/count-up";
@@ -167,6 +168,7 @@ import {
   type IncomeGoalRow,
   incomeGoalCurrentYear,
   goalForYear,
+  goalSetToZero,
   hasGoalRow,
   saveIncomeGoal,
   shouldPromptNextYearGoal,
@@ -181,7 +183,7 @@ import {
   formatExpenseRatio,
   isExpenseRatioAboveTarget,
 } from "@agent-runway/core/engines/expense-ratio-bands";
-import { buildHealthReport } from "@/lib/engines/health-report";
+import { buildHealthReport, GOAL_PACE_SCORE_SPAN_PCT } from "@/lib/engines/health-report";
 import {
   experienceTier,
   computeBaselines,
@@ -205,6 +207,23 @@ const MonthlyChart = dynamic(() => import("@/components/monthly-chart").then(m =
 const WelcomeTour = dynamic(() => import("@/components/welcome-tour").then(m => m.WelcomeTour), { ssr: false });
 import { GuideLink } from "@/components/guide-link";
 import { AiProfilePrompt } from "./ai-profile-prompt";
+import {
+  briefingItemLink,
+  dailyBriefingPipelineChip,
+  outreachLabel,
+  pipelineCountLabel,
+  quietBriefingLine,
+  taskDueCounts,
+  paceStatement,
+  todayZoneLayout,
+  type PaceState,
+} from "@/lib/dashboard/today-zone";
+import { captainReadQuestion, captainReadSentence, goalPaceWhy } from "@/lib/dashboard/captain-read";
+import {
+  browserMilestoneStorage,
+  checkGoalMilestone,
+  type GoalMilestoneLevel,
+} from "@/lib/dashboard/goal-milestones";
 import { ClosingDayPrompt } from "./closing-day-prompt";
 import type { CommunicationProfile, BusinessIdentity } from "@/lib/types/database";
 import { atlanticYear, localISODate } from "@agent-runway/core/lib/local-date";
@@ -269,7 +288,6 @@ interface Props {
    */
   vehicleBusinessUsePct: number;
   ccaAssetCount?: number;
-  activeClientCount?: number;
   staleLeadCount?: number;
   hasSeenTour?: boolean;
   briefingItems?: BriefingItem[];
@@ -297,6 +315,10 @@ interface Props {
   dataAsOf?: string;
   /** income_goals rows (00169/00170): one goal per calendar year. */
   incomeGoals?: IncomeGoalRow[];
+  /** The Atlantic year the server loaded `transactions` and `settings` for. Not the clock: a tab can outlive the year. */
+  figuresYear: number;
+  /** A read the Daily Briefing rests on failed, so an empty briefing proves nothing. */
+  briefingReadFailed?: boolean;
 }
 
 function getTimeGreeting(): { greeting: string; emoji: string } {
@@ -304,13 +326,6 @@ function getTimeGreeting(): { greeting: string; emoji: string } {
   if (hour < 12) return { greeting: "Good morning", emoji: "☀️" };
   if (hour < 17) return { greeting: "Good afternoon", emoji: "⚡" };
   return { greeting: "Good evening", emoji: "🌙" };
-}
-
-function getMotivationalTag(paceStatus: string, ytdDealCount: number): string {
-  if (ytdDealCount === 0) return "Zero on the board. The market has no idea what's coming. 🚀";
-  if (paceStatus === "ahead") return "Ahead of pace. Your accountant is cautiously optimistic.";
-  if (paceStatus === "behind") return "Behind pace. The market doesn't know that yet.";
-  return "Right on track. Quietly dangerous.";
 }
 
 function getStreakLabel(transactions: Transaction[]): string | null {
@@ -390,7 +405,6 @@ export function DashboardContent({
   mileageKmTotal = 0,
   vehicleBusinessUsePct,
   ccaAssetCount = 0,
-  activeClientCount: activeClients = 0,
   staleLeadCount = 0,
   hasSeenTour = true,
   briefingItems = [],
@@ -407,6 +421,8 @@ export function DashboardContent({
   expensesNextYear,
   dataAsOf,
   incomeGoals: initialIncomeGoals = [],
+  figuresYear,
+  briefingReadFailed = false,
 }: Props) {
   const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
@@ -416,7 +432,21 @@ export function DashboardContent({
   // next-year-plan.tsx from core/engines/year-plan-engine.
   const goalCurrentYear = incomeGoalCurrentYear();
   const [viewYear, setViewYear] = useState<DashboardYearView>("current");
+  // The Quick tip's dismissal this session. Held here because the tip sits inside
+  // the current-year view and unmounts on the year switch, and the saved value
+  // in the prop doesn't change until the page next reloads.
+  const [tipDismissedAt, setTipDismissedAt] = useState<string | null>(null);
   const [incomeGoals, setIncomeGoals] = useState<IncomeGoalRow[]>(initialIncomeGoals);
+  // The focus refresh below brings new rows, say a goal changed on the phone.
+  // Keyed on the rows' content: a caller that passes none gets a new empty array on
+  // every render, and depending on that array itself would loop forever.
+  const incomeGoalsKey = JSON.stringify(initialIncomeGoals);
+  const syncedGoalsKey = useRef(incomeGoalsKey);
+  useEffect(() => {
+    if (syncedGoalsKey.current === incomeGoalsKey) return;
+    syncedGoalsKey.current = incomeGoalsKey;
+    setIncomeGoals(JSON.parse(incomeGoalsKey) as IncomeGoalRow[]);
+  }, [incomeGoalsKey]);
 
   async function saveNextYearGoal(amount: number): Promise<boolean> {
     if (!settings?.user_id) return false;
@@ -514,7 +544,7 @@ export function DashboardContent({
     }
   }
   const { fire: fireConfetti } = useConfetti();
-  const confettiFiredRef = useRef(false);
+  const sessionMilestonesRef = useRef(new Map<string, GoalMilestoneLevel>());
   const historyWrittenRef = useRef(false);
   const now = new Date();
   const currentYear = now.getFullYear();
@@ -529,23 +559,10 @@ export function DashboardContent({
   const [narrativeOpen, setNarrativeOpen] = useState(false);
 
   // ── Custom card layout ────────────────────────────────────────────────
-  const [cardOrder, setCardOrder] = useState<CardId[]>(() => {
-    if (dashboardLayout?.order && dashboardLayout.order.length > 0) {
-      // Merge: include any new cards not in saved order at the end
-      const saved = dashboardLayout.order.filter((id): id is CardId =>
-        DEFAULT_ORDER.includes(id as CardId)
-      );
-      const missing = DEFAULT_ORDER.filter((id) => !saved.includes(id));
-      return [...saved, ...missing];
-    }
-    return DEFAULT_ORDER;
-  });
-  const [hiddenCards, setHiddenCards] = useState<Set<CardId>>(() => {
-    if (dashboardLayout?.hidden) {
-      return new Set(dashboardLayout.hidden as CardId[]);
-    }
-    return new Set(DEFAULT_HIDDEN);
-  });
+  // The sortable cards below the score. The Today zone's two cards are pinned
+  // above it and never in this order; their hidden state is in the same set.
+  const [cardOrder, setCardOrder] = useState<CardId[]>(() => resolveDashboardLayout(dashboardLayout).order);
+  const [hiddenCards, setHiddenCards] = useState<Set<CardId>>(() => resolveDashboardLayout(dashboardLayout).hidden);
   const [customizeMode, setCustomizeMode] = useState(false);
 
   // Portal target for top-bar action buttons
@@ -703,7 +720,6 @@ export function DashboardContent({
   const paceStatus =
     goalGCI <= 0 ? "no-goal" : pacePercent >= 0 ? "ahead" : "behind";
   // Dollar amount ahead/behind pace (positive = ahead, negative = behind)
-  const paceGapAmount = goalGCI > 0 && fraction > 0 ? ytdGCI - goalGCI * fraction : 0;
 
   // ── Probability bands ─────────────────────────────────────────────────
   const bands = probabilityBands(transactions, projectedGCI, fraction);
@@ -1100,23 +1116,26 @@ export function DashboardContent({
   // state uses (Pipeline Weighted card: pipelineCount === 0 && listingCount === 0).
   // The Captain's read must not advise closing a deal that does not exist.
   const pipelineEmpty = pipelineCount === 0 && listingCount === 0;
-  const scoreNarrative = buildScoreNarrative(
-    runwayScore, survival, paceStatus, pacePercent, healthReport, pipelineEmpty,
-    ytdGCI > 0 ? expensesYTD / ytdGCI : 0,
-  );
+  // The page's one statement of pace, in every state (Alert 2 below). The
+  // Captain's read takes its state from here so the two can't disagree.
+  const paceAlert = paceStatement({ goalGCI, ytdGCI, ytdDealCount, pacePercent });
+  // A year deliberately set to $0: the page states it and doesn't push a goal.
+  const goalIsZero = goalGCI <= 0 && goalSetToZero(incomeGoals, goalCurrentYear);
+  const scoreNarrative = buildScoreNarrative(runwayScore, pipelineEmpty, paceAlert?.state ?? null, goalIsZero);
   const narrative = settings
     ? generateBusinessHealthNarrative({
         ytdGCI,
         goalGCI,
-        fraction,
+        goalIsZero,
         projectedGCI,
         pipelineWeightedGCI,
         pipelineCount,
+        pipelineEmpty,
         survival,
         ytdDealCount,
         avgDealSize,
         paceStatus,
-        paceGapAmount,
+        paceState: paceAlert?.state ?? null,
         pacePercent,
         runwayScore,
         healthReport,
@@ -1129,10 +1148,9 @@ export function DashboardContent({
   const { greeting, emoji } = getTimeGreeting();
   const firstName = userName?.split(" ")[0] ?? null;
   const streakLabel = getStreakLabel(transactions);
-  const motivationalTag = getMotivationalTag(paceStatus, ytdDealCount);
 
   // ── Smart alerts — only render when conditions are met ────────────────
-  const smartAlerts: Array<{ type: "warning" | "danger" | "info"; icon: string; title: string; body: string }> = [];
+  const smartAlerts: Array<{ type: "warning" | "danger" | "info" | "success"; icon: string; title: string; body: string }> = [];
 
   // Alert 1: a cash runway the survival engine flags (Critical or Warning),
   // in the engine's words. Red for Critical, amber for Warning: the colours
@@ -1148,15 +1166,14 @@ export function DashboardContent({
     });
   }
 
-  // Alert 2: Significantly behind pace
-  if (pacePercent < -30 && goalGCI > 0) {
-    const gap = goalGCI - ytdGCI;
-    const dealsNeededForAlert = ytdDealCount > 0 && ytdGCI > 0 ? Math.ceil(gap / (ytdGCI / ytdDealCount)) : null;
+  // Alert 2: the page's one statement of pace, in every state. Nothing else on
+  // the page words it (the Goal Pace bar is a score component, not a statement).
+  if (paceAlert) {
     smartAlerts.push({
-      type: "warning",
-      icon: "⚠️",
-      title: "Behind pace on your annual goal",
-      body: `You're at ${(100 + pacePercent).toFixed(0)}% of expected pace. ${fmtCurrency(gap)} to go${dealsNeededForAlert !== null ? `, about ${dealsNeededForAlert} more deals at your average size` : ""}.`,
+      type: paceAlert.state === "behind" ? "warning" : paceAlert.state === "on-pace" ? "info" : "success",
+      icon: paceAlert.state === "behind" ? "⚠️" : "🎯",
+      title: paceAlert.title,
+      body: paceAlert.body,
     });
   }
 
@@ -1195,33 +1212,43 @@ export function DashboardContent({
   );
 
   // ── Confetti on goal milestone ────────────────────────────────────────
-  // Fires once per session when the agent crosses 50%, 75%, or 100% of goal
+  // Fires when the agent crosses 50%, 75% or 100% of the year's goal, once per
+  // milestone per year (goal-milestones.ts). The record lives in localStorage;
+  // the ref carries the session when storage is blocked, so a closing recorded
+  // now still celebrates and a reload never repeats it. The year is the one the
+  // figures were loaded for, so a tab left open over New Year can't write last
+  // year's level into the new year's record.
+  const milestoneUserId = settings?.user_id ?? null;
   useEffect(() => {
-    if (confettiFiredRef.current || goalGCI <= 0) return;
-    const pct = ytdGCI / goalGCI;
-    if (pct >= 1.0) {
-      confettiFiredRef.current = true;
+    if (!milestoneUserId) return;
+    const celebrate = checkGoalMilestone({
+      storage: browserMilestoneStorage(),
+      session: sessionMilestonesRef.current,
+      userId: milestoneUserId,
+      figuresYear,
+      ytdGCI,
+      goalGCI,
+    });
+    if (celebrate === 100) {
       fireConfetti("goal");
-      toast.success("🎉 Number hit. Take five — then set a bigger one.", {
+      toast.success("🎉 You reached your annual GCI goal.", {
         duration: 6000,
-        description: `${fmtCurrency(ytdGCI)} closed — incredible work.`,
+        description: `${fmtCurrency(ytdGCI)} in GCI closed this year.`,
       });
-    } else if (pct >= 0.75) {
-      confettiFiredRef.current = true;
+    } else if (celebrate === 75) {
       fireConfetti("milestone");
-      toast("🏆 Three-quarters done. One good push and it's yours.", {
+      toast("🏆 You're 75% of the way to your annual GCI goal.", {
         duration: 5000,
-        description: `${fmtCurrency(goalGCI - ytdGCI)} left to your target.`,
+        description: `${fmtCurrency(goalGCI - ytdGCI)} left to your goal.`,
       });
-    } else if (pct >= 0.5) {
-      confettiFiredRef.current = true;
+    } else if (celebrate === 50) {
       fireConfetti("milestone");
-      toast("⚡ Halfway. This is where reps become pros.", {
+      toast("⚡ You're halfway to your annual GCI goal.", {
         duration: 4000,
       });
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ytdGCI, goalGCI]);
+  }, [ytdGCI, goalGCI, milestoneUserId, figuresYear]);
 
   // ── Monthly chart data ────────────────────────────────────────────────
   const monthlyChartData: MonthlyDataPoint[] = buildMonthlyChartData(
@@ -1309,10 +1336,20 @@ export function DashboardContent({
   const cardRenders: Partial<Record<CardId, React.ReactNode>> = {};
 
   // ── Daily Briefing — comprehensive morning intelligence card ──────────
-  const dailyBriefingPipelineLabel =
-    activeClients === 0 ? "Empty" : activeClients <= 2 ? "Light" : `${activeClients} active`;
-  const dailyBriefingPaceLabel =
-    paceStatus === "ahead" ? "Ahead" : paceStatus === "behind" ? "Behind" : goalGCI > 0 ? "On track" : "";
+  const pipelineChip = dailyBriefingPipelineChip(livePipelineDeals, listingCount);
+  const pipelineChipNode = (
+    <span className={cn(
+      "inline-flex items-center gap-1 rounded-full text-[10px] font-semibold px-2 py-0.5 border",
+      pipelineChip.depth === "empty"
+        ? "bg-red-50 text-red-700 border-red-200"
+        : pipelineChip.depth === "light"
+          ? "bg-amber-50 text-amber-700 border-amber-200"
+          : "bg-green-50 text-green-700 border-green-200"
+    )}>
+      <Layers className="h-2.5 w-2.5" />
+      Pipeline: {pipelineChip.label}
+    </span>
+  );
 
   const _urgentBriefingItems = briefingItems.filter(i => i.severity === "urgent");
   const _attentionBriefingItems = briefingItems.filter(i => i.severity === "attention" || i.severity === "upcoming");
@@ -1324,7 +1361,7 @@ export function DashboardContent({
   cardRenders["morning_brief"] = (() => {
     const staleItems = briefingItems.filter(i => i.type === "in_flight_stale");
     const pctOfGoal = goalGCI > 0 ? Math.round((ytdGCI / goalGCI) * 100) : null;
-    const pctOfYear = Math.round(fraction * 100);
+    const pipelineLabel = pipelineCountLabel(pipelineCount, listingCount);
     return (
       <Card className="rounded-xl border-slate-200 bg-white shadow-sm overflow-hidden">
         {/* Captain accent header */}
@@ -1347,18 +1384,7 @@ export function DashboardContent({
                   <span className={cn("font-semibold", paceStatus === "ahead" ? "text-emerald-600" : paceStatus === "behind" ? "text-amber-700" : "text-slate-800")}>
                     {fmtCurrency(ytdGCI)}
                   </span>
-                  {" of "}{fmtCurrency(goalGCI)} goal. {pctOfGoal}% earned, {pctOfYear}% through the year.
-                  {paceStatus !== "no-goal" && paceGapAmount !== 0 && (
-                    // The hero already owns the pace headline. Below it, the
-                    // behind case reads as a neutral path ("$X to goal pace"),
-                    // not a second red/amber deficit restatement; only the
-                    // ahead case carries a positive emerald signal.
-                    <span className={cn("ml-1 font-medium", paceStatus === "ahead" ? "text-emerald-600" : "text-slate-500")}>
-                      ({paceStatus === "ahead"
-                        ? `${fmtCurrency(Math.abs(paceGapAmount))} ahead of pace`
-                        : `${fmtCurrency(Math.abs(paceGapAmount))} to goal pace`})
-                    </span>
-                  )}
+                  {" of "}{fmtCurrency(goalGCI)} goal. {pctOfGoal}% earned.
                 </>
               ) : (
                 <span className="font-semibold text-slate-800">{fmtCurrency(ytdGCI)} GCI this year</span>
@@ -1370,10 +1396,10 @@ export function DashboardContent({
           <div className="flex gap-2.5 items-start">
             <span className="text-[10px] font-bold uppercase tracking-wide text-slate-400 shrink-0 w-16 pt-0.5">Pipeline</span>
             <p className="text-xs text-slate-700 leading-snug">
-              {pipelineCount > 0 ? (
+              {pipelineLabel ? (
                 <>
-                  <span className="font-semibold text-slate-800">{pipelineCount} deal{pipelineCount !== 1 ? "s" : ""}</span>
-                  {": "}{fmtCurrency(pipelineWeightedGCI)} weighted GCI in motion
+                  <span className="font-semibold text-slate-800">{pipelineLabel}</span>
+                  {": "}{fmtCurrency(pipelineWeightedGCI + listingWeightedGCI)} weighted GCI in motion
                 </>
               ) : (
                 <span className="text-slate-500">No active pipeline. Add deals in CRM.</span>
@@ -1400,7 +1426,7 @@ export function DashboardContent({
             <div className="flex gap-2.5 items-start">
               <span className="text-[10px] font-bold uppercase tracking-wide text-slate-400 shrink-0 w-16 pt-0.5">Runway</span>
               <p className={cn("text-xs leading-snug", briefingRunwayText[riskColorBand(survival.riskLevel)])}>
-                {survival.months < 1 ? "Less than 1 month" : `${survival.months.toFixed(1)} months`} of operating runway
+                {formatSurvivalDisplay(survival)} of operating runway
               </p>
             </div>
           )}
@@ -1409,28 +1435,41 @@ export function DashboardContent({
     );
   })();
 
-  cardRenders["client_briefing"] = (smartAlerts.length > 0 || briefingItems.length > 0 || upcomingConditions.length > 0) ? (
+  // Cash runway, pace and expense statements. They lead the Today zone on their
+  // own, so hiding the Daily Briefing card doesn't hide them.
+  const todayAlerts = smartAlerts.length > 0 ? (
     <div className="space-y-2">
-      {/* Smart alerts (cash runway, pace, expenses) */}
       {smartAlerts.map((alert, i) => (
         <div
           key={i}
-          className={`flex items-start gap-3 rounded-lg border px-4 py-3 text-sm ${
-            alert.type === "danger"
-              ? "border-red-300 bg-white text-slate-800"
-              : "border-amber-300 bg-white text-slate-800"
-          }`}
+          className={cn(
+            "flex items-start gap-3 rounded-lg border bg-white px-4 py-3 text-sm text-slate-800",
+            alert.type === "danger" ? "border-red-300"
+              : alert.type === "success" ? "border-emerald-300"
+              : alert.type === "info" ? "border-slate-300"
+              : "border-amber-300",
+          )}
         >
-          <AlertTriangle className={`h-4 w-4 shrink-0 mt-0.5 ${alert.type === "danger" ? "text-red-500" : "text-amber-500"}`} />
+          {alert.type === "success" ? (
+            <TrendingUp className="h-4 w-4 shrink-0 mt-0.5 text-emerald-500" />
+          ) : alert.type === "info" ? (
+            <Target className="h-4 w-4 shrink-0 mt-0.5 text-slate-500" />
+          ) : (
+            <AlertTriangle className={cn("h-4 w-4 shrink-0 mt-0.5", alert.type === "danger" ? "text-red-500" : "text-amber-500")} />
+          )}
           <div>
             <p className="font-medium">{alert.title}</p>
             <p className="text-xs mt-0.5 opacity-80">{alert.body}</p>
           </div>
         </div>
       ))}
+    </div>
+  ) : null;
 
-      {/* Daily Briefing card */}
-      <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+  const briefingHasContent = briefingItems.length > 0 || upcomingConditions.length > 0 || staleLeadCount > 0;
+
+  cardRenders["client_briefing"] = briefingHasContent ? (
+    <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
         {/* Header */}
         <div className="px-4 pt-3 pb-2 border-b border-slate-100">
           <div className="flex items-center justify-between">
@@ -1442,48 +1481,28 @@ export function DashboardContent({
           </div>
           {/* Status strip */}
           <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-            <span className={cn(
-              "inline-flex items-center gap-1 rounded-full text-[10px] font-semibold px-2 py-0.5 border",
-              activeClients === 0
-                ? "bg-red-50 text-red-700 border-red-200"
-                : activeClients <= 2
-                  ? "bg-amber-50 text-amber-700 border-amber-200"
-                  : "bg-green-50 text-green-700 border-green-200"
-            )}>
-              <Layers className="h-2.5 w-2.5" />
-              Pipeline: {dailyBriefingPipelineLabel}
-            </span>
-            {dailyBriefingPaceLabel && (
-              // The hero already owns the pace headline. Behind pace reads as a
-              // watch state (amber) here, not a second red restatement; red is
-              // reserved for genuine risk (e.g. cash runway alerts).
-              <span className={cn(
-                "inline-flex items-center gap-1 rounded-full text-[10px] font-semibold px-2 py-0.5 border",
-                paceStatus === "ahead"
-                  ? "bg-green-50 text-green-700 border-green-200"
-                  : paceStatus === "behind"
-                    ? "bg-amber-50 text-amber-700 border-amber-200"
-                    : "bg-slate-50 text-slate-600 border-slate-200"
-              )}>
-                {paceStatus === "ahead" ? <TrendingUp className="h-2.5 w-2.5" /> : paceStatus === "behind" ? <TrendingDown className="h-2.5 w-2.5" /> : <Target className="h-2.5 w-2.5" />}
-                Pace: {dailyBriefingPaceLabel}
-              </span>
-            )}
+            {pipelineChipNode}
           </div>
         </div>
 
-        {/* Start Here — primary action */}
+        {/* Start Here: the one action to take first */}
         {startHereItem && (
-          <div className="px-4 py-2.5 bg-slate-50/60 border-b border-slate-100">
-            <div className="flex items-start gap-2">
-              <Crosshair className="h-3.5 w-3.5 text-slate-600 shrink-0 mt-0.5" />
-              <div className="min-w-0">
-                <p className="text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-0.5">Start here</p>
-                <p className="text-xs font-medium text-slate-800 leading-snug">{startHereItem.title}</p>
-                <p className="text-[11px] text-slate-500 leading-snug">{startHereItem.detail}</p>
+          <Link
+            href={briefingItemLink(startHereItem.clientId).href}
+            className="group block border-b border-blue-100 border-l-4 border-l-blue-600 bg-blue-50/70 px-4 py-3 transition-colors hover:bg-blue-50"
+          >
+            <div className="flex items-start gap-2.5">
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-600/10">
+                <Crosshair className="h-3.5 w-3.5 text-blue-600" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-[10px] font-bold text-blue-700 uppercase tracking-wider mb-0.5">Start here</p>
+                <p className="text-xs font-semibold text-slate-900 leading-snug">{startHereItem.title}</p>
+                <p className="text-[11px] text-slate-600 leading-snug">{startHereItem.detail}</p>
+                <p className="mt-1 text-[11px] font-medium text-blue-700 group-hover:underline">{briefingItemLink(startHereItem.clientId).label} →</p>
               </div>
             </div>
-          </div>
+          </Link>
         )}
 
         {/* Condition dates this week */}
@@ -1500,11 +1519,14 @@ export function DashboardContent({
                     "h-1.5 w-1.5 rounded-full shrink-0",
                     c.days_until <= 1 ? "bg-red-500" : c.days_until <= 3 ? "bg-amber-500" : "bg-blue-400"
                   )} />
-                  <p className="text-[11px] text-slate-700 truncate">
-                    <span className="font-medium">{c.address}</span>
-                    <span className="text-slate-400">, {c.client_name}, </span>
+                  {/* Only the address and client give way to a narrow screen: the deadline always shows. */}
+                  <p className="flex min-w-0 flex-1 items-baseline gap-1.5 text-[11px] text-slate-700">
+                    <span className="min-w-0 truncate" title={`${c.address}, ${c.client_name}`}>
+                      <span className="font-medium">{c.address}</span>
+                      <span className="text-slate-400">, {c.client_name}</span>
+                    </span>
                     <span className={cn(
-                      "font-semibold",
+                      "shrink-0 font-semibold",
                       c.days_until <= 1 ? "text-red-600" : c.days_until <= 3 ? "text-amber-600" : "text-slate-600"
                     )}>
                       {c.days_until === 0 ? "today" : c.days_until === 1 ? "tomorrow" : `in ${c.days_until}d`}
@@ -1518,7 +1540,7 @@ export function DashboardContent({
 
         {/* Needs attention — remaining urgent + attention items */}
         {((startHereItem ? briefingItems.slice(1) : briefingItems).length > 0 || staleLeadCount > 0) && (
-          <div className="px-4 py-2">
+          <div className="px-4 py-2 border-b border-slate-100">
             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 flex items-center gap-1">
               <Clock className="h-3 w-3" />
               Needs attention
@@ -1530,37 +1552,28 @@ export function DashboardContent({
                     "mt-1 h-1.5 w-1.5 rounded-full shrink-0",
                     item.severity === "urgent" ? "bg-red-500" : item.severity === "attention" ? "bg-amber-500" : "bg-blue-400",
                   )} />
-                  <div className="min-w-0">
-                    <p className="text-[11px] font-medium text-slate-700 leading-snug">{item.title}</p>
+                  <Link href={briefingItemLink(item.clientId).href} className="group min-w-0">
+                    <p className="text-[11px] font-medium text-slate-700 leading-snug group-hover:underline">{item.title}</p>
                     <p className="text-[10px] text-slate-400 leading-snug">{item.detail}</p>
-                  </div>
+                  </Link>
                 </div>
               ))}
               {staleLeadCount > 0 && (
                 <div className="flex items-center gap-2 pt-0.5">
                   <Building2 className="h-3 w-3 text-amber-500 shrink-0" />
-                  <p className="text-[11px] text-amber-700 font-medium">{staleLeadCount} clients need outreach</p>
+                  <p className="text-[11px] text-amber-700 font-medium">{outreachLabel(staleLeadCount)}</p>
                 </div>
               )}
-            </div>
-            <div className="mt-2 pt-1.5 border-t border-slate-100">
-              <Link href="/crm" className="text-[11px] text-slate-500 hover:text-slate-800 font-medium">
-                View full briefing in CRM →
-              </Link>
             </div>
           </div>
         )}
 
-        {/* Empty state — no items at all */}
-        {briefingItems.length === 0 && upcomingConditions.length === 0 && staleLeadCount === 0 && (
-          <div className="px-4 py-3">
-            <div className="flex items-center gap-2">
-              <CheckCircle className="h-3.5 w-3.5 text-green-500" />
-              <p className="text-xs text-slate-500">All clear. No urgent actions today.</p>
-            </div>
-          </div>
-        )}
-      </div>
+        {/* Always drawn, so a card with nothing else to tap still leads somewhere. */}
+        <div className="px-4 py-2">
+          <Link href="/crm" className="text-[11px] text-slate-500 hover:text-slate-800 font-medium">
+            View full briefing in CRM →
+          </Link>
+        </div>
     </div>
   ) : null;
 
@@ -1643,31 +1656,16 @@ export function DashboardContent({
               <p className="text-[11px] text-slate-500 leading-tight">
                 {fmtPct(ytdGCI / goalGCI)} of {fmtCompact(goalGCI)} goal
               </p>
-              {/* Pace delta. "Ahead" keeps its positive emerald framing (genuine
-                  momentum). "Behind" is NEUTRALIZED to gray "path" framing — the
-                  hero narrative is the single pace surface, so the KPI card states
-                  the distance-to-goal as a path, not a red restatement of "behind"
-                  (item 5: negativity dedupe). */}
-              {fraction > 0 && paceStatus !== "no-goal" && (
-                <p className={cn(
-                  "text-[11px] font-semibold leading-tight",
-                  paceStatus === "ahead" ? "text-emerald-600" : "text-slate-500",
-                )}>
-                  {paceStatus === "ahead"
-                    ? `↑ ${fmtCurrency(paceGapAmount)} ahead of pace`
-                    : `${fmtCurrency(Math.abs(paceGapAmount))} to goal pace`}
-                </p>
-              )}
             </>
           ) : (
-            <p className="text-[11px] text-slate-400 leading-tight">Set a goal in Settings</p>
+            <p className="text-[11px] text-slate-400 leading-tight">{goalIsZero ? "This year's goal is set to $0" : "Set a goal in Settings"}</p>
           )}
           {/* vs-last-year. Up keeps emerald; down neutralized to gray "path" framing. */}
           {vsLastYearGCI !== null && ytdGCI > 0 && (
             <p className={cn("text-[11px] font-medium leading-tight", vsLastYearGCI >= 0 ? "text-emerald-600" : "text-slate-500")}>
               {vsLastYearGCI >= 0
                 ? `↑ ${fmtCurrency(vsLastYearGCI)} vs last year`
-                : `${fmtCurrency(Math.abs(vsLastYearGCI))} behind last year's pace`}
+                : `${fmtCurrency(Math.abs(vsLastYearGCI))} behind last year at this point`}
             </p>
           )}
           {gciSparkData.length >= 2 && ytdGCI > 0 && (
@@ -1751,7 +1749,7 @@ export function DashboardContent({
                 $<CountUp end={pipelineWeightedGCI + listingWeightedGCI} duration={1000} />
               </div>
               <p className="text-[11px] text-slate-500 leading-tight">
-                {`${pipelineCount} deal${pipelineCount !== 1 ? "s" : ""}${listingCount > 0 ? ` + ${listingCount} listing${listingCount !== 1 ? "s" : ""}` : ""} · probability-weighted`}
+                {`${pipelineCountLabel(pipelineCount, listingCount)} · probability-weighted`}
               </p>
             </>
           )}
@@ -1776,45 +1774,29 @@ export function DashboardContent({
           <div className="text-lg font-bold tracking-tight">
             $<CountUp end={projectedGCI} duration={1100} />
           </div>
-          <div className="flex items-center gap-1.5">
-            {/* Pace badge. "Ahead" keeps the positive default treatment. "Behind"
-                is NEUTRALIZED — no red destructive variant, no "% behind"
-                restatement (the hero narrative is the single pace surface). It
-                states the path: how many deals at average size close the gap.
-                Reserve true red strictly for a cash runway in the survival
-                engine's Critical band (item 5: negativity dedupe). */}
-            <Badge
-              className="text-[10px] px-1.5 py-0"
-              variant={paceStatus === "ahead" ? "default" : "secondary"}
-            >
-              {paceStatus === "ahead"
-                ? `+${Math.round(pacePercent)}% ahead`
-                : paceStatus === "behind"
-                  ? (goalGCI > 0 && avgDealSize > 0 && ytdGCI < goalGCI
-                      ? `${Math.ceil((goalGCI - ytdGCI) / avgDealSize)} deal${Math.ceil((goalGCI - ytdGCI) / avgDealSize) !== 1 ? "s" : ""} to goal`
-                      : "On the path")
-                  : "Set a goal"}
-            </Badge>
+          <div className="flex flex-wrap items-center gap-1.5">
+            {goalGCI <= 0 && !goalIsZero && (
+              <Badge className="text-[10px] px-1.5 py-0" variant="secondary">Set a goal</Badge>
+            )}
+            {/* trendDirection compares closed GCI, not the projection above: say so. */}
             {trend !== "flat" && (
-              <Badge variant="secondary" className="gap-0.5 text-[10px] px-1.5 py-0">
+              <Badge
+                variant="secondary"
+                className="gap-0.5 text-[10px] px-1.5 py-0"
+                title="Average GCI closed in the last two calendar months, this month included, compared with earlier months this year. It doesn't measure the projection."
+              >
                 {trend === "up" ? (
                   <TrendingUp className="h-2.5 w-2.5" />
                 ) : (
                   <TrendingDown className="h-2.5 w-2.5" />
                 )}
-                {trend}
+                Last 2 months&apos; GCI: {trend}
               </Badge>
             )}
           </div>
-          {goalGCI > 0 && avgDealSize > 0 && ytdGCI < goalGCI && (
-            <p className="text-[11px] text-muted-foreground leading-tight">
-              ~{Math.ceil((goalGCI - ytdGCI) / avgDealSize)} more deal
-              {Math.ceil((goalGCI - ytdGCI) / avgDealSize) !== 1 ? "s" : ""} at avg size to hit goal
-            </p>
-          )}
           {goalGCI > 0 && ytdGCI >= goalGCI && (
             <p className="text-[11px] font-semibold shimmer-text leading-tight">
-              🎉 Goal reached — you crushed it!
+              🎉 Goal reached. You crushed it!
             </p>
           )}
         </CardContent>
@@ -2021,10 +2003,15 @@ export function DashboardContent({
     </Card>
   ) : null;
 
+  // The Checklist card and the briefing line above it read the same day.
+  const checklistDayISO = localISODate();
+  // The Daily Briefing states the outreach count when it's drawn (staleLeadCount
+  // alone is enough to draw it). The Checklist card says it only when the briefing
+  // is hidden, and with no tasks it has nothing else to say.
+  const outreachOnChecklist = staleLeadCount > 0 && hiddenCards.has("client_briefing");
   cardRenders["tasks"] = (() => {
-    if (localTasks.length === 0 && staleLeadCount === 0) return null;
-    const _now = new Date();
-    const todayStr = `${_now.getFullYear()}-${String(_now.getMonth() + 1).padStart(2, "0")}-${String(_now.getDate()).padStart(2, "0")}`;
+    if (localTasks.length === 0 && !outreachOnChecklist) return null;
+    const todayStr = checklistDayISO;
     const overdue  = localTasks.filter((t) => t.due_date < todayStr);
     const dueToday = localTasks.filter((t) => t.due_date === todayStr);
     const upcoming = localTasks.filter((t) => t.due_date > todayStr).slice(0, 3);
@@ -2041,18 +2028,18 @@ export function DashboardContent({
               Open checklist →
             </Link>
           </div>
-          {(overdue.length > 0 || staleLeadCount > 0) && (
-            <div className="flex items-center gap-2 mt-1">
+          {(overdue.length > 0 || outreachOnChecklist) && (
+            <div className="flex flex-wrap items-center gap-2 mt-1">
               {overdue.length > 0 && (
                 <span className="inline-flex items-center gap-1 rounded-full bg-red-100 text-red-700 text-[11px] font-semibold px-2.5 py-0.5 border border-red-200">
                   <AlertTriangle className="h-3 w-3" />
                   {overdue.length} overdue
                 </span>
               )}
-              {staleLeadCount > 0 && (
+              {outreachOnChecklist && (
                 <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 text-amber-700 text-[11px] font-semibold px-2.5 py-0.5 border border-amber-200">
                   <Building2 className="h-3 w-3" />
-                  {staleLeadCount} need outreach
+                  {outreachLabel(staleLeadCount)}
                 </span>
               )}
             </div>
@@ -2076,7 +2063,7 @@ export function DashboardContent({
                   <Square className="h-4 w-4" />
                 </button>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-foreground truncate">{task.title}</p>
+                  <p className="text-sm font-medium text-foreground line-clamp-2 break-words" title={task.title}>{task.title}</p>
                   <p className={cn("text-[11px]", isOverdue ? "text-red-600 font-semibold" : isToday ? "text-amber-700 font-medium" : "text-muted-foreground")}>
                     {dateLabel}
                   </p>
@@ -2092,15 +2079,15 @@ export function DashboardContent({
               </div>
             );
           })}
-          {localTasks.length > 5 && (
+          {localTasks.length > shown.length && (
             <p className="text-xs text-slate-500 text-center pt-1">
-              +{localTasks.length - 5} more.{" "}
+              +{localTasks.length - shown.length} more.{" "}
               <Link href="/checklist" className="underline font-medium text-slate-700">See your whole checklist</Link>
             </p>
           )}
-          {localTasks.length === 0 && staleLeadCount > 0 && (
+          {localTasks.length === 0 && outreachOnChecklist && (
             <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-center">
-              <p className="text-sm font-semibold text-amber-800">{staleLeadCount} contact{staleLeadCount !== 1 ? "s" : ""} need outreach</p>
+              <p className="text-sm font-semibold text-amber-800">{outreachLabel(staleLeadCount)}</p>
               <p className="text-xs text-amber-700 mt-0.5">No scheduled tasks. <Link href="/crm" className="underline font-medium">Review in CRM →</Link></p>
             </div>
           )}
@@ -2602,9 +2589,48 @@ export function DashboardContent({
   cardRenders["net_takehome"]     = null;
   cardRenders["cap_progress"]     = null;
 
+  // What Customize draws in a card's place, and the card itself otherwise.
+  function renderCardBody(id: CardId): React.ReactNode {
+    const cardDef = CARD_REGISTRY.find((c) => c.id === id);
+    if (hiddenCards.has(id)) {
+      return (
+        <div className="rounded-xl border-2 border-dashed border-border/50 bg-muted/20 px-4 py-3 flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium text-muted-foreground">{cardDef?.label}</p>
+            <p className="text-xs text-muted-foreground/70">{cardDef?.description}</p>
+          </div>
+          <button
+            onClick={() => toggleShow(id)}
+            className="flex items-center gap-1.5 text-xs font-medium text-primary border border-primary/30 rounded-lg px-2.5 py-1.5 hover:bg-primary/5"
+          >
+            <Eye className="h-3.5 w-3.5" />
+            Show
+          </button>
+        </div>
+      );
+    }
+    return cardRenders[id] ?? (
+      <div className="rounded-xl border border-dashed border-border/40 bg-muted/10 px-4 py-3 text-xs text-muted-foreground text-center">
+        {cardDef?.label}: no data yet
+      </div>
+    );
+  }
+
+  const quietLine = quietBriefingLine({
+    readFailed: briefingReadFailed,
+    ...taskDueCounts(localTasks, checklistDayISO),
+  });
+  const todayLayout = todayZoneLayout({
+    briefingHasContent,
+    tasksHasContent: cardRenders["tasks"] != null,
+    briefingHidden: hiddenCards.has("client_briefing"),
+    tasksHidden: hiddenCards.has("tasks"),
+    customizeMode,
+  });
+
   return (
     <div className="space-y-6">
-      {settings && (
+      {viewYear === "next" && settings && (
         <DashboardYearSwitch view={viewYear} onChange={setViewYear} currentYear={goalCurrentYear} />
       )}
 
@@ -2625,9 +2651,6 @@ export function DashboardContent({
         />
       ) : (
       <>
-      {settings && shouldPromptNextYearGoal(incomeGoals) && (
-        <NextYearGoalPrompt year={goalCurrentYear + 1} onOpen={() => setViewYear("next")} />
-      )}
       {/* Annual Review Modal */}
       {showAnnualReview && (
         <AnnualReview
@@ -2738,9 +2761,6 @@ export function DashboardContent({
           <h1 className="text-2xl font-semibold tracking-tight greet-fade text-foreground">
             {emoji} {greeting}{firstName ? `, ${firstName}` : ""}
           </h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            {motivationalTag}
-          </p>
           <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
             {streakLabel && (
               <p className="text-xs font-semibold text-amber-600">{streakLabel}</p>
@@ -2748,6 +2768,9 @@ export function DashboardContent({
             {dataAsOf && <FreshnessIndicator since={dataAsOf} />}
           </div>
         </div>
+        {settings && (
+          <DashboardYearSwitch view={viewYear} onChange={setViewYear} currentYear={goalCurrentYear} />
+        )}
       </div>
 
       {/* ── Top-bar utility buttons (portaled into the top nav bar) ── */}
@@ -2780,7 +2803,77 @@ export function DashboardContent({
         topBarTarget
       )}
 
-      {/* Runway Score Hero — the cockpit instrument panel. Always first.
+      {/* ── Customize bar ── */}
+      {customizeMode && (
+        <div className="rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 flex items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-semibold text-foreground">Customize your dashboard</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Drag to reorder the cards below your Runway Score. Daily Briefing and Checklist stay at the top; hide them here if you don&apos;t need them. Reset restores the default lean view.</p>
+          </div>
+          <button
+            onClick={resetLayout}
+            className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground border border-border rounded-lg px-2.5 py-1.5 shrink-0"
+          >
+            <RotateCcw className="h-3 w-3" />
+            Reset
+          </button>
+        </div>
+      )}
+
+      {/* ── Today: statements, the Daily Briefing and the Checklist ──
+          Pinned above the score, so a saved card order can't push it down. Each
+          part is left out when it has nothing to say (todayZoneLayout), so an
+          empty day is one line, never a blank box. */}
+      {(todayAlerts || todayLayout.showBriefingLine || todayLayout.cards.length > 0) && (
+        <section aria-label="Today" className="space-y-3">
+          {todayAlerts}
+          {todayLayout.showBriefingLine && (
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg border border-slate-200 bg-white px-4 py-2.5">
+              <p className="flex items-center gap-2 text-xs text-slate-600">
+                {quietLine.tone === "clear" ? (
+                  <CheckCircle className="h-3.5 w-3.5 shrink-0 text-green-500" />
+                ) : (
+                  <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-500" />
+                )}
+                {quietLine.text}
+              </p>
+              {pipelineChipNode}
+            </div>
+          )}
+          {todayLayout.cards.length > 0 && (
+            <div className={cn("grid items-start gap-3", todayLayout.cards.length === 2 && "xl:grid-cols-[3fr_2fr]")}>
+              {todayLayout.cards.map((id) => (
+                <PinnedCard
+                  key={id}
+                  id={id}
+                  label={CARD_REGISTRY.find((c) => c.id === id)?.label ?? id}
+                  customizeMode={customizeMode}
+                  isHidden={hiddenCards.has(id)}
+                  onHide={() => toggleHide(id)}
+                >
+                  {renderCardBody(id)}
+                </PinnedCard>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+
+      {settings && shouldPromptNextYearGoal(incomeGoals) && (
+        <NextYearGoalPrompt year={goalCurrentYear + 1} onOpen={() => setViewYear("next")} />
+      )}
+
+      {/* Quick tip: a slim row in the page flow, never over content */}
+      {settings?.user_id && (
+        <AiProfilePrompt
+          hasVoiceProfile={!!(communicationProfile?.completed)}
+          hasBusinessIdentity={!!(businessIdentity?.completed)}
+          lastDismissedAt={tipDismissedAt ?? aiProfilePromptDismissedAt}
+          onDismissed={setTipDismissedAt}
+        />
+      )}
+
+      {/* Runway Score Hero — the cockpit instrument panel, below Today.
           Hardcoded dark ("cockpit") by design — see item 3 of the rebuild
           spec: the hero leans into the instrument-panel identity rather than
           matching the light page chrome. */}
@@ -2790,7 +2883,7 @@ export function DashboardContent({
           the card and makes no assumption about what renders under it (the KPI
           row is a reorderable registry card), which is why this stitch is safe
           where a positional transition band was not. */}
-      <Card data-tour="dashboard-score" className="boot-hero rounded-xl border-0 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 shadow-[0_10px_24px_-14px_rgba(2,6,23,0.45),0_34px_60px_-30px_rgba(2,6,23,0.55)] overflow-hidden relative">
+      <Card data-tour="dashboard-score" className="boot-hero gap-0 py-0 rounded-xl border-0 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 shadow-[0_10px_24px_-14px_rgba(2,6,23,0.45),0_34px_60px_-30px_rgba(2,6,23,0.55)] overflow-hidden relative">
         {/* Top accent — a thin score-progress fill (replaces the old 4-stop
             rainbow that mapped to nothing). The filled portion uses the band
             color and runs to score%. On zero-data it stays a flat hairline. */}
@@ -2802,12 +2895,12 @@ export function DashboardContent({
             />
           )}
         </div>
-        <CardContent className="pt-5 pb-4">
-          {/* Gauge + Cash Runway co-hero. Equal visual weight, side by side at
-              sm+; stacked on mobile. */}
-          <div className="flex flex-col sm:flex-row sm:flex-nowrap sm:items-center gap-5 sm:gap-8">
+        <CardContent className="pt-4 pb-3">
+          {/* One row on a wide screen: gauge, sub-score bars, Cash Runway. Below
+              xl the bars take their own row; stacked on mobile. */}
+          <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-8 xl:flex-nowrap xl:gap-x-6">
             {/* Left: the single radial gauge (score + band word; no letter grade). */}
-            <div className="flex items-center gap-4 min-w-0">
+            <div className="flex items-center gap-4 min-w-0 xl:order-1 xl:shrink-0">
               {hasData && !isCalibrating ? (
                 <RunwayGauge
                   score={runwayScore.score}
@@ -2816,7 +2909,7 @@ export function DashboardContent({
                   isStrong={scoreIsStrong}
                 />
               ) : (
-                <div className="flex h-[132px] w-[132px] shrink-0 flex-col items-center justify-center gap-1 rounded-full border-2 border-dashed border-slate-700">
+                <div className="flex h-[112px] w-[112px] shrink-0 flex-col items-center justify-center gap-1 rounded-full border-2 border-dashed border-slate-700">
                   <span className="text-3xl font-black leading-none text-slate-600">—</span>
                   {isCalibrating && (
                     <span className="text-[9px] font-semibold uppercase tracking-wider text-slate-500">
@@ -2865,7 +2958,7 @@ export function DashboardContent({
                 text-2xl number) is the supporting read so attention flows
                 gauge → cash instead of ping-ponging between two equal anchors.
                 Still prominent: cash runway stays a large, band-coloured number. */}
-            <div className="boot-late sm:ml-auto rounded-xl border border-slate-700/50 bg-slate-800/40 px-5 py-3.5 shrink-0 min-w-[180px]" style={{ animationDelay: "0.7s" }}>
+            <div className="boot-late sm:ml-auto xl:order-3 xl:ml-0 rounded-xl border border-slate-700/50 bg-slate-800/40 px-4 py-2.5 shrink-0 min-w-[180px]" style={{ animationDelay: "0.7s" }}>
               <div className="flex items-center gap-1">
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Cash Runway</p>
                 <MetricInfo tip={cashPosition.source === "implied"
@@ -2894,7 +2987,7 @@ export function DashboardContent({
               {/* Derived calendar anchor — computed from survival.months, never
                   a hardcoded month (item 6 acceptance criterion). */}
               {cashRunwayAnchor && (
-                <p className="text-[11px] text-slate-400 mt-1.5 flex items-center gap-1">
+                <p className="text-[11px] text-slate-400 mt-1 flex items-center gap-1">
                   <Calendar className="h-3 w-3 shrink-0 text-slate-500" />
                   covers you into {cashRunwayAnchor}
                 </p>
@@ -2909,27 +3002,7 @@ export function DashboardContent({
                 )}
               </p>
             </div>
-          </div>
 
-          {/* ─── Captain's read strip ────────────────────────────────────────
-              The Flight Crew's presence in the hero (product_ai_first_principle).
-              Mounts in the reserved slot between the gauge/cash row and the
-              component row. The boot-late class + 0.85s delay matches the cash
-              co-hero's late fade so the strip joins the same staged boot moment.
-              This strip carries the hero's SINGLE actionable synthesis line. The
-              former standalone scoreNarrative <p> below was removed to avoid two
-              competing prose lines — the strip now derives its sentence (and its
-              askQuestion seed) from the same scoreNarrative weakest-component
-              logic. Suppressed on zero-data via the outer hasData guard. */}
-          {hasData && (
-            <div
-              data-captain-strip-slot
-              className="boot-late mt-3 empty:hidden"
-              style={{ animationDelay: "0.85s" }}
-            >
-              <CaptainReadStrip narrative={scoreNarrative} isPro={isPro} />
-            </div>
-          )}
           {/* Score components — hidden on zero-data; component scores are
               all 0 until transactions exist and would just look broken.
               Bar + value color follow the single §9.1 contract via
@@ -2938,7 +3011,7 @@ export function DashboardContent({
               never depends on color alone (colorblind/grayscale safety), and
               "/100" is appended so the number can't be misread as $ or %. */}
           {hasData && (
-            <div className="mt-3 grid grid-cols-5 gap-3 border-t border-slate-700 pt-3">
+            <div className="grid w-full grid-cols-5 gap-3 border-t border-slate-700 pt-3 xl:order-2 xl:w-auto xl:min-w-0 xl:flex-1 xl:border-t-0 xl:pt-0">
               {runwayScore.components.map((c, i) => {
                 const compHex = bandColorHexForScore(c.score);
                 // Direction-of-CHANGE vs the SAME component's score in the most
@@ -2972,6 +3045,26 @@ export function DashboardContent({
               })}
             </div>
           )}
+          </div>
+
+          {/* ─── Captain's read strip ────────────────────────────────────────
+              The Flight Crew's presence in the hero (product_ai_first_principle).
+              Mounts under the gauge, sub-score and cash row. The boot-late class + 0.85s delay matches the cash
+              co-hero's late fade so the strip joins the same staged boot moment.
+              This strip carries the hero's SINGLE actionable synthesis line. The
+              former standalone scoreNarrative <p> below was removed to avoid two
+              competing prose lines — the strip now derives its sentence (and its
+              askQuestion seed) from the same scoreNarrative weakest-component
+              logic. Suppressed on zero-data via the outer hasData guard. */}
+          {hasData && (
+            <div
+              data-captain-strip-slot
+              className="boot-late mt-3 empty:hidden"
+              style={{ animationDelay: "0.85s" }}
+            >
+              <CaptainReadStrip narrative={scoreNarrative} isPro={isPro} />
+            </div>
+          )}
           {/* Deviation insights — progressive disclosure: collapsed by default */}
           {/* Suppress before mid-Feb: annualization math unreliable with < 2 months YTD data */}
           {hasData && fraction * 12 >= 2 && deviationMessages.length > 0 && (
@@ -2992,23 +3085,6 @@ export function DashboardContent({
           )}
         </CardContent>
       </Card>
-
-      {/* ── Customize bar ── */}
-      {customizeMode && (
-        <div className="rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 flex items-center justify-between gap-3">
-          <div>
-            <p className="text-sm font-semibold text-foreground">Customize your dashboard</p>
-            <p className="text-xs text-muted-foreground mt-0.5">Drag to reorder. Show hidden cards or hide ones you don&apos;t need. Reset restores the default lean view.</p>
-          </div>
-          <button
-            onClick={resetLayout}
-            className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground border border-border rounded-lg px-2.5 py-1.5 shrink-0"
-          >
-            <RotateCcw className="h-3 w-3" />
-            Reset
-          </button>
-        </div>
-      )}
 
       {/* ── Sortable card area ── */}
       <DndContext
@@ -3054,25 +3130,7 @@ export function DashboardContent({
                       customizeMode={customizeMode}
                       onHide={() => toggleHide(id)}
                     >
-                      {isHidden ? (
-                        <div className="rounded-xl border-2 border-dashed border-border/50 bg-muted/20 px-4 py-3 flex items-center justify-between">
-                          <div>
-                            <p className="text-sm font-medium text-muted-foreground">{cardDef?.label}</p>
-                            <p className="text-xs text-muted-foreground/70">{cardDef?.description}</p>
-                          </div>
-                          <button
-                            onClick={() => toggleShow(id)}
-                            className="flex items-center gap-1.5 text-xs font-medium text-primary border border-primary/30 rounded-lg px-2.5 py-1.5 hover:bg-primary/5"
-                          >
-                            <Eye className="h-3.5 w-3.5" />
-                            Show
-                          </button>
-                        </div>
-                      ) : content ?? (
-                        <div className="rounded-xl border border-dashed border-border/40 bg-muted/10 px-4 py-3 text-xs text-muted-foreground text-center">
-                          {cardDef?.label}: no data yet
-                        </div>
-                      )}
+                      {renderCardBody(id)}
                     </SortableCard>
                   </div>
                 );
@@ -3168,16 +3226,6 @@ export function DashboardContent({
       />
 
       </>
-      )}
-
-      {/* AI Profile floating prompt */}
-      {settings?.user_id && (
-        <AiProfilePrompt
-          userId={settings.user_id}
-          hasVoiceProfile={!!(communicationProfile?.completed)}
-          hasBusinessIdentity={!!(businessIdentity?.completed)}
-          lastDismissedAt={aiProfilePromptDismissedAt}
-        />
       )}
     </div>
   );
@@ -3462,7 +3510,7 @@ function NarrativeSection({
 // memory/spec_runway_score_canonical_bands.md.
 const SCORE_COMPONENT_DESCRIPTIONS: Record<string, string> = {
   "Goal Pace":
-    "Measures how your YTD GCI tracks against your annual goal, adjusted for seasonal patterns. Full credit when you're at or ahead of expected pace.",
+    `Measures how your YTD GCI tracks against your annual goal, adjusted for seasonal patterns. It reads 50 at exactly expected pace, 100 at ${GOAL_PACE_SCORE_SPAN_PCT}% ahead and 0 at ${GOAL_PACE_SCORE_SPAN_PCT}% behind, so being a little ahead still leaves this bar near 50. With no goal set for the year, it stays at 50.`,
   Pipeline:
     "Your probability-weighted pipeline value relative to the remaining goal gap. A healthy pipeline provides a cushion for the months ahead.",
   Expenses:
@@ -3575,7 +3623,7 @@ function RunwayScoreInfoDialog({
           <div className="rounded-md border bg-muted/30 px-3 py-3">
             <p className="text-xs font-semibold">How to improve your score</p>
             <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
-              <li>• Close or advance pipeline deals to boost Goal Pace and Pipeline scores</li>
+              <li>• Close pipeline deals to lift Goal Pace, and add or advance deals to lift Pipeline</li>
               <li>• Keep expenses at {expenseRatioBandRange(EXPENSE_RATIO_BANDS[0])} of GCI to maximise the Expenses component</li>
               <li>• Reach {RISK_BAND_RANGE.strong} of cash runway (the {RISK_LEVEL_LABEL.strong} band) for the top Survival score</li>
               <li>• Complete all fields in Settings — each unlocks more accurate projections</li>
@@ -3653,13 +3701,15 @@ interface ScoreNarrative {
   weakestLabel: string | null;
   /** Weakest component score 0–100. null when no meaningful score yet. */
   weakestScore: number | null;
-  /** The "biggest opportunity" sentence rendered today. Backward-compatible. */
-  sentence: string;
   /** True when there are no pipeline deals AND no active listings — the same
    *  signal the hero's "Add your first prospect" empty state uses
    *  (pipelineCount === 0 && listingCount === 0). When set, the Captain's read
    *  must never advise closing or converting a deal that does not exist. */
   pipelineEmpty: boolean;
+  /** The state of the page's one pace statement. null without a goal. */
+  paceState: PaceState | null;
+  /** This year has a row saying $0: a deliberate no-goal year, never nudged. */
+  goalIsZero: boolean;
 }
 
 // ── Captain's read strip ──────────────────────────────────────────────────
@@ -3669,58 +3719,11 @@ interface ScoreNarrative {
 // Captain (Anchor / blue-600 per project_flight_crew_ui_design) reading the
 // panel back in one plain-language synthesis line, with one action.
 //
-// The synthesis sentence and the askQuestion() seed both derive from the SAME
-// weakest-component logic the score narrative already computes. Nothing here is
-// hardcoded. This strip carries the single actionable line in the hero; the
-// former standalone narrative <p> was removed so the hero shows ONE synthesis
-// line, not two competing ones.
-//
-// Copy obeys feedback_avoid_ai_tells_in_content: no em dashes, no rule-of-three
-// triads, no marketing adjectives.
-
-/** Captain's synthesis: weakest component framed as the current drag plus the
- *  fastest lever. Keyed off the same `weakestLabel` the engine produced.
- *
- *  State-aware: the read must never point at an action the data shows is
- *  impossible. When the pipeline is empty (no deals AND no active listings),
- *  "closing one pipeline deal" or "adding a deal or two" reads as advice for
- *  a deal that does not exist, so the read points at the real first move:
- *  adding a prospect. `pipelineEmpty` is the same signal the hero's
- *  "Add your first prospect" empty state uses. */
-function captainReadSentence(label: string | null, pipelineEmpty: boolean): string {
-  switch (label) {
-    case "Goal Pace":
-      return pipelineEmpty
-        ? "Goal pace is your biggest drag right now. Your pipeline is empty, so adding a prospect is the first move."
-        : "Goal pace is your biggest drag right now. Closing one pipeline deal moves your score the most.";
-    case "Pipeline":
-      return pipelineEmpty
-        ? "Pipeline is your biggest drag right now. Adding your first prospect is the fastest way to move your score."
-        : "Pipeline is your biggest drag right now. Adding a deal or two is the fastest way to move your score.";
-    case "Expenses":
-      return "Your expense ratio is the biggest drag on your score right now. Trimming overhead is the fastest lever.";
-    case "Benchmark":
-      return "Your benchmark ranking is the biggest drag right now. Lifting projected GCI is what moves it.";
-    case "Survival":
-      return "Cash runway is the biggest drag on your score right now. Extending coverage is the fastest lever.";
-    default:
-      return "Your score is holding steady. Ask the Captain where the next gain is.";
-  }
-}
-
-/** The question seeded into the Flight Crew chat. References the specific
- *  weakest component so the Captain opens on a relevant, narrow answer. When
- *  the pipeline is empty the seed states that fact so the Captain's opening
- *  answer cannot assume deals that do not exist. */
-function captainReadQuestion(narrative: ScoreNarrative): string {
-  if (narrative.weakestLabel && narrative.weakestScore !== null) {
-    const pipelineNote = narrative.pipelineEmpty
-      ? " My pipeline is empty right now."
-      : "";
-    return `My Runway Score's biggest drag is ${narrative.weakestLabel} at ${narrative.weakestScore} out of 100.${pipelineNote} What is the single fastest lever I can pull this month to move my score, and what would the impact be?`;
-  }
-  return "What is the single fastest lever I can pull this month to move my Runway Score?";
-}
+// The synthesis sentence and the askQuestion() seed (lib/dashboard/captain-read)
+// both derive from the SAME weakest-component logic the score narrative already
+// computes. Nothing here is hardcoded. This strip carries the single actionable
+// line in the hero; the former standalone narrative <p> was removed so the hero
+// shows ONE synthesis line, not two competing ones.
 
 function CaptainReadStrip({
   narrative,
@@ -3730,7 +3733,7 @@ function CaptainReadStrip({
   isPro: boolean;
 }) {
   const { askQuestion } = useAiChat();
-  const sentence = captainReadSentence(narrative.weakestLabel, narrative.pipelineEmpty);
+  const sentence = captainReadSentence(narrative.weakestLabel, narrative.pipelineEmpty, narrative.paceState, narrative.goalIsZero);
 
   return (
     <div className="flex flex-col gap-2 rounded-lg border border-slate-700/70 bg-slate-800/40 px-3.5 py-2.5 sm:flex-row sm:items-center sm:gap-3">
@@ -3774,53 +3777,17 @@ function CaptainReadStrip({
 
 function buildScoreNarrative(
   runwayScore: RunwayScoreResult,
-  survival: SurvivalResult,
-  paceStatus: string,
-  pacePercent: number,
-  _healthReport: BusinessHealthReport,
   pipelineEmpty: boolean,
-  expenseRatio: number,
+  paceState: PaceState | null,
+  goalIsZero: boolean,
 ): ScoreNarrative {
   if (!runwayScore.hasEnoughData) {
-    return {
-      weakestLabel: null,
-      weakestScore: null,
-      sentence: "Add transactions and complete your Settings to get a meaningful score.",
-      pipelineEmpty,
-    };
+    return { weakestLabel: null, weakestScore: null, pipelineEmpty, paceState, goalIsZero };
   }
   const weakest = runwayScore.components.reduce((a, b) =>
     a.score < b.score ? a : b,
   );
-  const paceAbs = Math.abs(Math.round(pacePercent));
-  // Copy obeys feedback_avoid_ai_tells_in_content: no em dashes, no
-  // rule-of-three triads, no marketing adjectives. The em dashes that used to
-  // join these clauses were purged in the cockpit hero rebuild.
-  const weakestPhrases: Record<string, string> = {
-    "Goal Pace":
-      paceStatus === "ahead"
-        ? `you're ${paceAbs}% ahead of pace, and momentum is building`
-        : `you're ${paceAbs}% behind your goal pace, and closing pipeline deals will move this`,
-    Pipeline: "your pipeline is thin relative to your remaining goal",
-    // Expenses can be the weakest component with a ratio that is within
-    // target, or with no expenses recorded: say which, from the bands.
-    Expenses: expenseRatioBand(expenseRatio)
-      ? `your expense ratio is ${expenseRatioVsTarget(expenseRatio)}`
-      : "no expenses are recorded yet, which holds this score down",
-    Benchmark: "your projected GCI is below your experience-group cohort median",
-    Survival:
-      survival.monthlyBurn > 0
-        ? `cash runway is ${formatSurvivalDisplay(survival)}`
-        : "configure monthly costs in Settings to enable runway tracking",
-  };
-  const phrase =
-    weakestPhrases[weakest.label] ?? "review your business inputs";
-  return {
-    weakestLabel: weakest.label,
-    weakestScore: weakest.score,
-    sentence: `Biggest opportunity: ${weakest.label} (${weakest.score}/100). ${phrase[0].toUpperCase()}${phrase.slice(1)}.`,
-    pipelineEmpty,
-  };
+  return { weakestLabel: weakest.label, weakestScore: weakest.score, pipelineEmpty, paceState, goalIsZero };
 }
 
 // ── Helper: Business Health Narrative ─────────────────────────────────────
@@ -3871,15 +3838,16 @@ function deriveStatus(
 function generateBusinessHealthNarrative({
   ytdGCI,
   goalGCI,
-  fraction,
+  goalIsZero,
   projectedGCI,
   pipelineWeightedGCI,
   pipelineCount,
+  pipelineEmpty,
   survival,
   ytdDealCount,
   avgDealSize,
   paceStatus,
-  paceGapAmount,
+  paceState,
   pacePercent,
   runwayScore,
   healthReport,
@@ -3888,22 +3856,25 @@ function generateBusinessHealthNarrative({
 }: {
   ytdGCI: number;
   goalGCI: number;
-  fraction: number;
+  /** This year has a row saying $0: state it, never push a goal. */
+  goalIsZero: boolean;
   projectedGCI: number;
   pipelineWeightedGCI: number;
   pipelineCount: number;
+  /** No deals and no listings, the page's one meaning of an empty pipeline. */
+  pipelineEmpty: boolean;
   survival: SurvivalResult;
   ytdDealCount: number;
   avgDealSize: number;
   paceStatus: string;
-  paceGapAmount: number;
+  /** The page's one pace statement. This card words pace nowhere itself. */
+  paceState: PaceState | null;
   pacePercent: number;
   runwayScore: RunwayScoreResult;
   healthReport: BusinessHealthReport;
   expenseRatio: number;
   benchmark: { percentile: number; cohortMedianGCI: number };
 }): HealthNarrativeResult {
-  const pctElapsed = Math.round(fraction * 100);
   const gciGap = Math.max(0, goalGCI - ytdGCI);
   const dealsNeeded = avgDealSize > 0 ? Math.ceil(gciGap / avgDealSize) : null;
   const status = deriveStatus(
@@ -3911,13 +3882,13 @@ function generateBusinessHealthNarrative({
   );
 
   // ── No data yet ──────────────────────────────────────────────────────────
-  if (ytdGCI === 0 && pipelineCount === 0) {
+  if (ytdGCI === 0 && pipelineEmpty) {
     return {
       status: "Watchlist",
       summary:
         "No business activity has been logged for this year yet. Add your first closed deal and pipeline prospects to unlock performance insights, pace tracking, and your Runway Score.",
       whatChanged:
-        "No YTD GCI or pipeline deals are on record — the dashboard is ready but waiting for data.",
+        "No YTD GCI or pipeline deals are on record yet.",
       why: "Projections, pace, and benchmarks all require at least one closed deal to generate meaningful signals.",
       nextMove:
         "Log your first transaction on the Transactions page, then add active pipeline deals to enable forecasting.",
@@ -3930,18 +3901,20 @@ function generateBusinessHealthNarrative({
   );
 
   // ── Summary (2–3 sentences) ───────────────────────────────────────────────
+  // Pace is the Today zone's to state (paceStatement): this card gives the deal
+  // count, the goal and percent of goal, and never a dollar gap against pace.
   const dealStr =
     ytdDealCount > 0
       ? `${ytdDealCount} deal${ytdDealCount !== 1 ? "s" : ""} closed for ${fmtCurrency(ytdGCI)} in YTD GCI`
-      : "no deals closed yet this year";
+      : "No deals closed yet this year";
 
-  let paceSentence: string;
-  if (goalGCI <= 0) {
-    paceSentence = `Projected year-end GCI is ${fmtCurrency(projectedGCI)}. Set a goal in Settings to unlock pace and gap analysis.`;
-  } else if (paceStatus === "ahead") {
-    paceSentence = `You're ${fmtCurrency(Math.abs(paceGapAmount))} ahead of the pace required to hit your ${fmtCurrency(goalGCI)} goal, with ${pctElapsed}% of the year elapsed.`;
+  let goalSentence: string;
+  if (goalGCI > 0) {
+    goalSentence = `${dealStr}, against a ${fmtCurrency(goalGCI)} goal.`;
+  } else if (goalIsZero) {
+    goalSentence = `${dealStr}. Projected year-end GCI is ${fmtCurrency(projectedGCI)}.`;
   } else {
-    paceSentence = `You're ${fmtCurrency(Math.abs(paceGapAmount))} behind the pace required to hit your ${fmtCurrency(goalGCI)} goal, with ${pctElapsed}% of the year elapsed.`;
+    goalSentence = `${dealStr}. Projected year-end GCI is ${fmtCurrency(projectedGCI)}. Set a goal in Settings to compare it with a target.`;
   }
 
   let pipelineSentence: string;
@@ -3950,53 +3923,65 @@ function generateBusinessHealthNarrative({
   } else if (pipelineCount > 0) {
     pipelineSentence = `Your pipeline carries ${fmtCurrency(pipelineWeightedGCI)} in probability-weighted income across ${pipelineCount} active deal${pipelineCount !== 1 ? "s" : ""}.`;
   } else {
-    pipelineSentence = "No active pipeline deals are on record — adding prospects will improve forecast accuracy and score.";
+    pipelineSentence = "No active pipeline deals are on record. Adding prospects will improve forecast accuracy and score.";
   }
 
-  const summary = `With ${dealStr}, ${paceSentence.charAt(0).toLowerCase()}${paceSentence.slice(1)} ${pipelineSentence}`;
+  const summary = `${goalSentence} ${pipelineSentence}`;
 
   // ── What changed (current vs expected) ───────────────────────────────────
   let whatChanged: string;
-  if (goalGCI > 0 && fraction > 0) {
-    const expectedYTD = goalGCI * fraction;
-    const direction = paceGapAmount >= 0 ? "ahead of" : "behind";
-    whatChanged = `YTD GCI of ${fmtCurrency(ytdGCI)} is ${fmtCurrency(Math.abs(paceGapAmount))} ${direction} the ${fmtCurrency(expectedYTD)} expected at this point in the year (${pctElapsed}% elapsed).`;
+  if (goalGCI > 0) {
+    whatChanged = `YTD GCI of ${fmtCurrency(ytdGCI)} is ${Math.round((ytdGCI / goalGCI) * 100)}% of your ${fmtCurrency(goalGCI)} goal.`;
   } else {
-    whatChanged = `${ytdDealCount} deal${ytdDealCount !== 1 ? "s" : ""} closed YTD averaging ${fmtCurrency(avgDealSize)}, projecting a ${fmtCurrency(projectedGCI)} year-end without a goal set.`;
+    whatChanged = ytdDealCount > 0
+      ? `${ytdDealCount} deal${ytdDealCount !== 1 ? "s" : ""} closed YTD averaging ${fmtCurrency(avgDealSize)}, projecting ${fmtCurrency(projectedGCI)} in GCI at year-end.`
+      : "No GCI has closed yet this year.";
   }
 
   // ── Why (root cause from weakest score component) ─────────────────────────
   // Null when there is no ratio to place: no GCI, or no expenses recorded.
   const expenseBand = expenseRatioBand(expenseRatio);
   const whyMap: Record<string, string> = {
-    "Goal Pace":
-      gciGap > 0
-        ? `Goal pace (score: ${healthReport.paceScore}/100) is the primary drag. With ${ytdDealCount} closed deal${ytdDealCount !== 1 ? "s" : ""} at an average of ${fmtCurrency(avgDealSize)}, current trajectory puts year-end ${fmtCurrency(Math.abs(projectedGCI - goalGCI))} ${projectedGCI >= goalGCI ? "above" : "below"} target.`
-        : `Goal pace is strong (${healthReport.paceScore}/100) — you've maintained above-expected velocity throughout the year.`,
+    "Goal Pace": goalPaceWhy({
+      paceState,
+      goalIsZero,
+      paceScore: healthReport.paceScore,
+      closedDeals: ytdDealCount,
+      avgDealSize,
+      projectedGCI,
+      goalGCI,
+    }),
     Pipeline:
-      pipelineCount === 0
+      pipelineEmpty
         ? `Pipeline is empty (score: ${healthReport.pipelineScore}/100). With no active deals in progress, the forecast relies entirely on closed deals and seasonal assumptions.`
+        : pipelineCount === 0
+        ? `No deals are open, only listings (score: ${healthReport.pipelineScore}/100). The forecast rests on closed deals, listings and seasonal assumptions.`
         : `Pipeline coverage is thin (score: ${healthReport.pipelineScore}/100). The ${pipelineCount} active deal${pipelineCount !== 1 ? "s" : ""} carrying ${fmtCurrency(pipelineWeightedGCI)} may not be sufficient to close a ${fmtCurrency(gciGap)} gap.`,
     Expenses:
       expenseBand
         ? `Expense ratio is ${formatExpenseRatio(expenseRatio)} of YTD GCI (score: ${healthReport.expenseScore}/100), ${expenseRatioVsTarget(expenseRatio)}. Monthly burn of ${fmtCurrency(survival.monthlyBurn)} is compressing net take-home.`
-        : `Expense tracking (score: ${healthReport.expenseScore}/100) — configure your costs in Settings to see expense ratio and burn analysis.`,
+        : `Expense tracking (score: ${healthReport.expenseScore}/100): configure your costs in Settings to see expense ratio and burn analysis.`,
     Benchmark: `Projected GCI of ${fmtCurrency(projectedGCI)} ranks at the ${benchmark.percentile}th percentile for your experience cohort, with a median of ${fmtCurrency(benchmark.cohortMedianGCI)} (industry-cohort estimate).`,
     Survival:
       survival.riskLevel !== "notConfigured" && survival.monthlyBurn > 0
         ? `${runwayPlacedSentence(survival)} ${runwayBasisSentence(survival)}`
         : "Cash runway cannot be calculated — configure your monthly brokerage fee and recurring expenses in Settings.",
   };
-  const why = whyMap[weakest.label] ?? `${weakest.label} scored ${weakest.score}/100 — review your business inputs to improve this component.`;
+  const why = whyMap[weakest.label] ?? `${weakest.label} scored ${weakest.score}/100. Review your business inputs to improve this component.`;
 
   // ── Next move (specific, data-backed) ─────────────────────────────────────
   let nextMove: string;
   if (survival.riskLevel === "critical") {
     nextMove = runwayNextMove(survival);
+  } else if (weakest.label === "Goal Pace" && goalIsZero) {
+    nextMove = "To lift your Runway Score this year, work on Pipeline, Expenses, Benchmark and Survival.";
+  } else if (weakest.label === "Goal Pace" && goalGCI <= 0) {
+    // Without a goal the bar sits still whatever closes, so a closing is no lever.
+    nextMove = "Set an annual goal in Settings. Goal Pace only moves once one is set.";
   } else if (weakest.label === "Goal Pace" && dealsNeeded && dealsNeeded > 0 && pipelineCount === 0) {
     // No pipeline to convert — point at the real first move, not a deal that
     // does not exist (mirrors the Captain read's empty-pipeline branch).
-    nextMove = `Reaching your ${fmtCurrency(goalGCI)} goal needs about ${dealsNeeded} more deal${dealsNeeded !== 1 ? "s" : ""} at your current average of ${fmtCurrency(avgDealSize)}. Your pipeline is empty, so adding prospects on the Pipeline page is the first step.`;
+    nextMove = `Reaching your ${fmtCurrency(goalGCI)} goal needs about ${dealsNeeded} more deal${dealsNeeded !== 1 ? "s" : ""} at your current average of ${fmtCurrency(avgDealSize)}. You have no open deals, so adding prospects on the Pipeline page is the first step.`;
   } else if (weakest.label === "Goal Pace" && dealsNeeded && dealsNeeded > 0) {
     nextMove = `Close ${dealsNeeded} more deal${dealsNeeded !== 1 ? "s" : ""} at your current average of ${fmtCurrency(avgDealSize)} to reach your ${fmtCurrency(goalGCI)} goal. Converting active pipeline deals is the fastest path.`;
   } else if (weakest.label === "Pipeline" && pipelineCount === 0) {
@@ -4017,9 +4002,9 @@ function generateBusinessHealthNarrative({
   } else if (pipelineCount > 0 && gciGap > 0) {
     nextMove = `Convert pipeline deals to close the ${fmtCurrency(gciGap)} remaining gap to your ${fmtCurrency(goalGCI)} goal.`;
   } else if (paceStatus === "ahead" && goalGCI > 0) {
-    nextMove = "You're on track — maintain deal velocity and consider increasing your annual goal if Q3 pipeline is strong.";
+    nextMove = "Keep your deals moving. If your pipeline supports more, your annual goal can go up in Settings.";
   } else {
-    nextMove = "Focus on building pipeline this month to protect your Q3 and Q4 forecast.";
+    nextMove = "Add deals to your pipeline this month to raise your projected year-end GCI.";
   }
 
   return { status, summary, whatChanged, why, nextMove };

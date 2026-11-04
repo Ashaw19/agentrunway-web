@@ -1,17 +1,15 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import Link from "next/link";
 import { X } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { dismissAiProfilePrompt } from "@/app/(app)/settings/actions";
-import { cn } from "@/lib/utils";
 
 interface AiProfilePromptProps {
-  userId: string;
   hasVoiceProfile: boolean;
   hasBusinessIdentity: boolean;
   lastDismissedAt: string | null;
+  /** Holds the dismissal in the parent: this row unmounts when the year view changes. */
+  onDismissed: (dismissedAt: string) => void;
 }
 
 function shouldShow(hasVoice: boolean, hasBiz: boolean, lastDismissed: string | null): boolean {
@@ -28,96 +26,54 @@ function shouldShow(hasVoice: boolean, hasBiz: boolean, lastDismissed: string | 
 
 function getPromptMessage(hasVoice: boolean, hasBiz: boolean): string {
   if (!hasVoice && !hasBiz) {
-    return "Your AI is flying blind. Give it 3 minutes and it'll sound exactly like you.";
+    return "Your AI drafts don't know your writing style or your business yet. The AI profile takes about 3 minutes.";
   }
   if (hasVoice && !hasBiz) {
-    return "One more step — tell us about your business and your AI gets a lot smarter.";
+    return "Your AI drafts don't know your business yet. You can add it to your AI profile.";
   }
-  if (!hasVoice && hasBiz) {
-    return "Your AI still doesn't know how you talk. The voice quiz takes 3 minutes.";
-  }
-  return "Almost there — finish your AI profile for smarter drafts.";
+  return "Your AI drafts don't know your writing style yet. The voice quiz in your AI profile takes about 3 minutes.";
 }
 
-function getPromptTitle(hasVoice: boolean, hasBiz: boolean): string {
-  if (!hasVoice && !hasBiz) return "Your AI is working with limited context.";
-  return "Almost there — finish your AI profile for smarter drafts.";
-}
-
+/**
+ * The Quick tip: a slim row in the page flow, below the Today zone. Until
+ * 2026-11-04 it was a card fixed to the corner of the screen, which covered the
+ * income cards at phone width. Dismissing hides it for 7 days.
+ */
 export function AiProfilePrompt({
-  userId: _userId,
   hasVoiceProfile,
   hasBusinessIdentity,
   lastDismissedAt,
+  onDismissed,
 }: AiProfilePromptProps) {
-  const [visible, setVisible] = useState(false);
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-    const show = shouldShow(hasVoiceProfile, hasBusinessIdentity, lastDismissedAt);
-    if (show) {
-      // Small delay so it doesn't immediately pop on page load
-      const t = setTimeout(() => setVisible(true), 1200);
-      return () => clearTimeout(t);
-    }
-  }, [hasVoiceProfile, hasBusinessIdentity, lastDismissedAt]);
-
   async function handleDismiss() {
-    setVisible(false);
+    onDismissed(new Date().toISOString());
     await dismissAiProfilePrompt();
   }
 
-  if (!mounted) return null;
+  if (!shouldShow(hasVoiceProfile, hasBusinessIdentity, lastDismissedAt)) return null;
 
   return (
-    <div
-      className={cn(
-        "fixed bottom-6 right-6 z-50 w-80 rounded-2xl border border-border/80 bg-card shadow-xl transition-all duration-500",
-        visible
-          ? "translate-y-0 opacity-100"
-          : "translate-y-8 opacity-0 pointer-events-none",
-      )}
-    >
-      {/* Gradient accent bar */}
-      <div className="h-1 rounded-t-2xl bg-gradient-to-r from-violet-500 to-amber-400" />
-
-      <div className="p-4">
-        {/* Header row */}
-        <div className="flex items-start justify-between gap-2 mb-2">
-          <div className="flex items-center gap-1.5">
-            <span className="text-sm">✨</span>
-            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-              Quick tip
-            </span>
-          </div>
-          <button
-            type="button"
-            onClick={handleDismiss}
-            className="text-muted-foreground hover:text-foreground transition-colors mt-0.5"
-            aria-label="Dismiss"
-          >
-            <X className="h-3.5 w-3.5" />
-          </button>
-        </div>
-
-        {/* Title */}
-        <p className="text-sm font-semibold leading-snug mb-1">
-          {getPromptTitle(hasVoiceProfile, hasBusinessIdentity)}
-        </p>
-
-        {/* Message */}
-        <p className="text-xs text-muted-foreground leading-relaxed mb-3">
+    <div className="flex items-start gap-2 rounded-lg border border-violet-200 bg-violet-50/60 px-3.5 py-2 dark:border-violet-800/40 dark:bg-violet-950/20">
+      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1">
+        <p className="min-w-0 text-xs text-slate-700 dark:text-slate-200">
+          <span className="font-semibold">Quick tip:</span>{" "}
           {getPromptMessage(hasVoiceProfile, hasBusinessIdentity)}
         </p>
-
-        {/* CTA */}
-        <Button asChild size="sm" className="w-full bg-violet-600 hover:bg-violet-700 text-white text-xs">
-          <Link href="/settings#ai-voice">
-            Complete your AI profile →
-          </Link>
-        </Button>
+        <Link
+          href="/settings#ai-voice"
+          className="shrink-0 text-xs font-semibold text-violet-700 hover:underline dark:text-violet-300"
+        >
+          Complete your AI profile →
+        </Link>
       </div>
+      <button
+        type="button"
+        onClick={handleDismiss}
+        className="mt-0.5 shrink-0 text-muted-foreground transition-colors hover:text-foreground"
+        aria-label="Dismiss"
+      >
+        <X className="h-3.5 w-3.5" />
+      </button>
     </div>
   );
 }
