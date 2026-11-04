@@ -42,9 +42,9 @@ export const CARD_REGISTRY: CardDef[] = [
   { id: "kpi_row",          label: "Performance KPIs",            description: "YTD GCI, Deals Closed, Pipeline, and Projected Year-End", section: "performance" },
   { id: "where_you_stand",  label: "Where You Stand",              description: "Competitive position, market diagnosis, and momentum", section: "performance" },
   { id: "probability",      label: "Projection Range & Benchmark",description: "Probability bands and cohort comparison", section: "performance" },
-  { id: "morning_brief",    label: "Captain's Morning Brief",      description: "Daily pattern synthesis: income pace, pipeline, and top priorities", section: "actions" },
-  { id: "client_briefing",  label: "Daily Briefing",               description: "Pipeline status, pace, market conditions, and priority actions", section: "actions" },
-  { id: "tasks",            label: "Follow-up Tasks",             description: "Open CRM tasks and stale leads", section: "actions" },
+  { id: "morning_brief",    label: "Captain's Morning Brief",      description: "Daily pattern synthesis: income, pipeline, and top priorities", section: "performance" },
+  { id: "client_briefing",  label: "Daily Briefing",               description: "Pipeline status, condition dates, and priority actions. Stays in the Today zone at the top of the page", section: "actions" },
+  { id: "tasks",            label: "Checklist",                   description: "Open checklist items and stale leads. Stays in the Today zone at the top of the page", section: "actions" },
   { id: "insights",         label: "Insights & Actions",          description: "AI-generated business observations (estimates only)", section: "actions" },
   { id: "business_brief",   label: "Weekly Business Brief",       description: "AI-generated health narrative and month recap", section: "financial" },
   { id: "corp_tax",         label: "Corporate Tax Estimate",      description: "PREC/corporation combined tax breakdown", section: "financial" },
@@ -60,7 +60,16 @@ export const CARD_REGISTRY: CardDef[] = [
   { id: "tax_planning",     label: "Tax Estimates",               description: "Tax estimate overview and goal progress", section: "financial" },
 ];
 
-// Cards shown by default on the dashboard.
+// The Today zone: pinned at the top of the page, above the Runway Score. A saved
+// order can't move these two (a layout saved before 2026-11-04 could have them
+// anywhere), but they can still be hidden from Customize mode.
+export const TODAY_CARD_IDS = ["client_briefing", "tasks"] as const;
+
+function isTodayCard(id: CardId): boolean {
+  return (TODAY_CARD_IDS as readonly CardId[]).includes(id);
+}
+
+// The sortable cards shown below the Runway Score, in default order.
 // NOTE: trends, commission_mix, personal_records, tax_planning, net_takehome, cap_progress
 // have been moved to Altimeter (/altimeter) and Overhead (/overhead) pages.
 // They are kept in CARD_REGISTRY for saved-layout backwards compatibility but
@@ -68,9 +77,7 @@ export const CARD_REGISTRY: CardDef[] = [
 export const DEFAULT_ORDER: CardId[] = [
   // ── Visible by default (the daily check-in) ──
   "kpi_row",           // hero KPIs — GCI, Deals, Pipeline, Projected Year-End
-  "morning_brief",     // Captain's synthesis — income pace, pipeline, watch items
-  "client_briefing",   // what to do today — priority actions, stale leads
-  "tasks",             // follow-up tasks — overdue items need attention
+  "morning_brief",     // Captain's synthesis — income, pipeline, watch items
   // ── Hidden by default (available via Customize) ──
   "where_you_stand",
   "probability",
@@ -84,8 +91,9 @@ export const DEFAULT_ORDER: CardId[] = [
 
 // Hidden by default — lean dashboard per "3-5-7 Rule" (3 hero zones, 5 sections
 // max above fold, 7 max interactive elements before scroll).  The daily view
-// answers two questions: "Am I on track?" (Runway Score + KPIs) and "What do I
-// do today?" (Briefing + Tasks).  Everything else is one click away via Customize.
+// answers two questions, in this order: "What do I do today?" (Briefing +
+// Checklist) and "Am I on track?" (Runway Score + KPIs).  Everything else is one
+// click away via Customize.
 export const DEFAULT_HIDDEN: CardId[] = [
   "where_you_stand",   // competitive positioning — weekly/monthly thinking, not daily
   "probability",       // projection range — detail available on Forecast page
@@ -100,4 +108,22 @@ export const DEFAULT_HIDDEN: CardId[] = [
 export interface DashboardLayout {
   order: CardId[];
   hidden: CardId[];
+}
+
+/**
+ * A saved user_settings.dashboard_layout as the page uses it. The order holds
+ * sortable cards only: Today cards and cards that moved to other pages drop
+ * out, cards added since the save join at the end. The hidden list is kept
+ * whole, so a Today card the agent hid stays hidden.
+ */
+export function resolveDashboardLayout(
+  saved: DashboardLayout | null | undefined,
+): { order: CardId[]; hidden: Set<CardId> } {
+  const savedOrder = Array.isArray(saved?.order) ? saved.order : [];
+  const kept = savedOrder.filter((id) => DEFAULT_ORDER.includes(id) && !isTodayCard(id));
+  const order = kept.length > 0
+    ? [...kept, ...DEFAULT_ORDER.filter((id) => !kept.includes(id))]
+    : DEFAULT_ORDER;
+  const hidden = new Set<CardId>(Array.isArray(saved?.hidden) ? saved.hidden : DEFAULT_HIDDEN);
+  return { order, hidden };
 }

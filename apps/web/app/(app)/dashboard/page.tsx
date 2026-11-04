@@ -323,7 +323,6 @@ export default async function DashboardPage({
       mileageKmTotal={mileageKmTotal}
       vehicleBusinessUsePct={expenseCtx.vehicleBusinessUsePct}
       ccaAssetCount={ccaAssetCount}
-      activeClientCount={activeClientCount}
       staleLeadCount={staleLeadCount}
       hasSeenTour={settingsRow?.has_seen_tour ?? true}
       briefingItems={topBriefingItems}

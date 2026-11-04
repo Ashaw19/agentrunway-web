@@ -20,13 +20,14 @@ import {
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
-import { SortableCard } from "./sortable-card";
+import { PinnedCard, SortableCard } from "./sortable-card";
 import {
   type CardId,
   CARD_REGISTRY,
   SECTIONS,
   DEFAULT_ORDER,
   DEFAULT_HIDDEN,
+  resolveDashboardLayout,
   type DashboardLayout,
 } from "./card-registry";
 import { CountUp } from "@/components/count-up";
@@ -205,6 +206,21 @@ const MonthlyChart = dynamic(() => import("@/components/monthly-chart").then(m =
 const WelcomeTour = dynamic(() => import("@/components/welcome-tour").then(m => m.WelcomeTour), { ssr: false });
 import { GuideLink } from "@/components/guide-link";
 import { AiProfilePrompt } from "./ai-profile-prompt";
+import {
+  dailyBriefingPipelineChip,
+  greetingTag,
+  noUrgentClientActionsLine,
+  paceStatement,
+  todayZoneLayout,
+} from "@/lib/dashboard/today-zone";
+import {
+  browserMilestoneStorage,
+  decideGoalMilestone,
+  goalMilestoneKey,
+  readGoalMilestone,
+  writeGoalMilestone,
+  type GoalMilestoneLevel,
+} from "@/lib/dashboard/goal-milestones";
 import { ClosingDayPrompt } from "./closing-day-prompt";
 import type { CommunicationProfile, BusinessIdentity } from "@/lib/types/database";
 import { atlanticYear, localISODate } from "@agent-runway/core/lib/local-date";
@@ -269,7 +285,6 @@ interface Props {
    */
   vehicleBusinessUsePct: number;
   ccaAssetCount?: number;
-  activeClientCount?: number;
   staleLeadCount?: number;
   hasSeenTour?: boolean;
   briefingItems?: BriefingItem[];
@@ -304,13 +319,6 @@ function getTimeGreeting(): { greeting: string; emoji: string } {
   if (hour < 12) return { greeting: "Good morning", emoji: "☀️" };
   if (hour < 17) return { greeting: "Good afternoon", emoji: "⚡" };
   return { greeting: "Good evening", emoji: "🌙" };
-}
-
-function getMotivationalTag(paceStatus: string, ytdDealCount: number): string {
-  if (ytdDealCount === 0) return "Zero on the board. The market has no idea what's coming. 🚀";
-  if (paceStatus === "ahead") return "Ahead of pace. Your accountant is cautiously optimistic.";
-  if (paceStatus === "behind") return "Behind pace. The market doesn't know that yet.";
-  return "Right on track. Quietly dangerous.";
 }
 
 function getStreakLabel(transactions: Transaction[]): string | null {
@@ -390,7 +398,6 @@ export function DashboardContent({
   mileageKmTotal = 0,
   vehicleBusinessUsePct,
   ccaAssetCount = 0,
-  activeClientCount: activeClients = 0,
   staleLeadCount = 0,
   hasSeenTour = true,
   briefingItems = [],
@@ -514,7 +521,7 @@ export function DashboardContent({
     }
   }
   const { fire: fireConfetti } = useConfetti();
-  const confettiFiredRef = useRef(false);
+  const celebratedMilestoneRef = useRef<GoalMilestoneLevel | null>(null);
   const historyWrittenRef = useRef(false);
   const now = new Date();
   const currentYear = now.getFullYear();
@@ -529,23 +536,10 @@ export function DashboardContent({
   const [narrativeOpen, setNarrativeOpen] = useState(false);
 
   // ── Custom card layout ────────────────────────────────────────────────
-  const [cardOrder, setCardOrder] = useState<CardId[]>(() => {
-    if (dashboardLayout?.order && dashboardLayout.order.length > 0) {
-      // Merge: include any new cards not in saved order at the end
-      const saved = dashboardLayout.order.filter((id): id is CardId =>
-        DEFAULT_ORDER.includes(id as CardId)
-      );
-      const missing = DEFAULT_ORDER.filter((id) => !saved.includes(id));
-      return [...saved, ...missing];
-    }
-    return DEFAULT_ORDER;
-  });
-  const [hiddenCards, setHiddenCards] = useState<Set<CardId>>(() => {
-    if (dashboardLayout?.hidden) {
-      return new Set(dashboardLayout.hidden as CardId[]);
-    }
-    return new Set(DEFAULT_HIDDEN);
-  });
+  // The sortable cards below the score. The Today zone's two cards are pinned
+  // above it and never in this order; their hidden state is in the same set.
+  const [cardOrder, setCardOrder] = useState<CardId[]>(() => resolveDashboardLayout(dashboardLayout).order);
+  const [hiddenCards, setHiddenCards] = useState<Set<CardId>>(() => resolveDashboardLayout(dashboardLayout).hidden);
   const [customizeMode, setCustomizeMode] = useState(false);
 
   // Portal target for top-bar action buttons
@@ -1129,10 +1123,10 @@ export function DashboardContent({
   const { greeting, emoji } = getTimeGreeting();
   const firstName = userName?.split(" ")[0] ?? null;
   const streakLabel = getStreakLabel(transactions);
-  const motivationalTag = getMotivationalTag(paceStatus, ytdDealCount);
+  const motivationalTag = greetingTag(paceStatus, ytdDealCount);
 
   // ── Smart alerts — only render when conditions are met ────────────────
-  const smartAlerts: Array<{ type: "warning" | "danger" | "info"; icon: string; title: string; body: string }> = [];
+  const smartAlerts: Array<{ type: "warning" | "danger" | "info" | "success"; icon: string; title: string; body: string }> = [];
 
   // Alert 1: a cash runway the survival engine flags (Critical or Warning),
   // in the engine's words. Red for Critical, amber for Warning: the colours
@@ -1148,15 +1142,15 @@ export function DashboardContent({
     });
   }
 
-  // Alert 2: Significantly behind pace
-  if (pacePercent < -30 && goalGCI > 0) {
-    const gap = goalGCI - ytdGCI;
-    const dealsNeededForAlert = ytdDealCount > 0 && ytdGCI > 0 ? Math.ceil(gap / (ytdGCI / ytdDealCount)) : null;
+  // Alert 2: the page's one statement of pace, in every state. Nothing else on
+  // the page words it (the Goal Pace bar is a score component, not a statement).
+  const paceAlert = paceStatement({ goalGCI, ytdGCI, ytdDealCount, pacePercent });
+  if (paceAlert) {
     smartAlerts.push({
-      type: "warning",
-      icon: "⚠️",
-      title: "Behind pace on your annual goal",
-      body: `You're at ${(100 + pacePercent).toFixed(0)}% of expected pace. ${fmtCurrency(gap)} to go${dealsNeededForAlert !== null ? `, about ${dealsNeededForAlert} more deals at your average size` : ""}.`,
+      type: paceAlert.state === "behind" ? "warning" : paceAlert.state === "ahead" ? "success" : "info",
+      icon: paceAlert.state === "behind" ? "⚠️" : "🎯",
+      title: paceAlert.title,
+      body: paceAlert.body,
     });
   }
 
@@ -1195,33 +1189,41 @@ export function DashboardContent({
   );
 
   // ── Confetti on goal milestone ────────────────────────────────────────
-  // Fires once per session when the agent crosses 50%, 75%, or 100% of goal
+  // Fires when the agent crosses 50%, 75% or 100% of the year's goal, once per
+  // milestone per year (goal-milestones.ts). The record lives in localStorage;
+  // the ref carries the session when storage is blocked, so a closing recorded
+  // now still celebrates and a reload never repeats it.
+  const milestoneUserId = settings?.user_id ?? null;
   useEffect(() => {
-    if (confettiFiredRef.current || goalGCI <= 0) return;
-    const pct = ytdGCI / goalGCI;
-    if (pct >= 1.0) {
-      confettiFiredRef.current = true;
+    if (!milestoneUserId) return;
+    const storage = browserMilestoneStorage();
+    const key = goalMilestoneKey(milestoneUserId, goalCurrentYear);
+    const known = readGoalMilestone(storage, key) ?? celebratedMilestoneRef.current;
+    const { celebrate, store } = decideGoalMilestone(known, ytdGCI, goalGCI);
+    if (store !== null) {
+      celebratedMilestoneRef.current = store;
+      writeGoalMilestone(storage, key, store);
+    }
+    if (celebrate === 100) {
       fireConfetti("goal");
-      toast.success("🎉 Number hit. Take five — then set a bigger one.", {
+      toast.success("🎉 Number hit. Take five, then set a bigger one.", {
         duration: 6000,
-        description: `${fmtCurrency(ytdGCI)} closed — incredible work.`,
+        description: `${fmtCurrency(ytdGCI)} closed. Incredible work.`,
       });
-    } else if (pct >= 0.75) {
-      confettiFiredRef.current = true;
+    } else if (celebrate === 75) {
       fireConfetti("milestone");
       toast("🏆 Three-quarters done. One good push and it's yours.", {
         duration: 5000,
         description: `${fmtCurrency(goalGCI - ytdGCI)} left to your target.`,
       });
-    } else if (pct >= 0.5) {
-      confettiFiredRef.current = true;
+    } else if (celebrate === 50) {
       fireConfetti("milestone");
       toast("⚡ Halfway. This is where reps become pros.", {
         duration: 4000,
       });
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ytdGCI, goalGCI]);
+  }, [ytdGCI, goalGCI, milestoneUserId, goalCurrentYear]);
 
   // ── Monthly chart data ────────────────────────────────────────────────
   const monthlyChartData: MonthlyDataPoint[] = buildMonthlyChartData(
@@ -1309,10 +1311,20 @@ export function DashboardContent({
   const cardRenders: Partial<Record<CardId, React.ReactNode>> = {};
 
   // ── Daily Briefing — comprehensive morning intelligence card ──────────
-  const dailyBriefingPipelineLabel =
-    activeClients === 0 ? "Empty" : activeClients <= 2 ? "Light" : `${activeClients} active`;
-  const dailyBriefingPaceLabel =
-    paceStatus === "ahead" ? "Ahead" : paceStatus === "behind" ? "Behind" : goalGCI > 0 ? "On track" : "";
+  const pipelineChip = dailyBriefingPipelineChip(livePipelineDeals, listingCount);
+  const pipelineChipNode = (
+    <span className={cn(
+      "inline-flex items-center gap-1 rounded-full text-[10px] font-semibold px-2 py-0.5 border",
+      pipelineChip.depth === "empty"
+        ? "bg-red-50 text-red-700 border-red-200"
+        : pipelineChip.depth === "light"
+          ? "bg-amber-50 text-amber-700 border-amber-200"
+          : "bg-green-50 text-green-700 border-green-200"
+    )}>
+      <Layers className="h-2.5 w-2.5" />
+      Pipeline: {pipelineChip.label}
+    </span>
+  );
 
   const _urgentBriefingItems = briefingItems.filter(i => i.severity === "urgent");
   const _attentionBriefingItems = briefingItems.filter(i => i.severity === "attention" || i.severity === "upcoming");
@@ -1348,17 +1360,6 @@ export function DashboardContent({
                     {fmtCurrency(ytdGCI)}
                   </span>
                   {" of "}{fmtCurrency(goalGCI)} goal. {pctOfGoal}% earned, {pctOfYear}% through the year.
-                  {paceStatus !== "no-goal" && paceGapAmount !== 0 && (
-                    // The hero already owns the pace headline. Below it, the
-                    // behind case reads as a neutral path ("$X to goal pace"),
-                    // not a second red/amber deficit restatement; only the
-                    // ahead case carries a positive emerald signal.
-                    <span className={cn("ml-1 font-medium", paceStatus === "ahead" ? "text-emerald-600" : "text-slate-500")}>
-                      ({paceStatus === "ahead"
-                        ? `${fmtCurrency(Math.abs(paceGapAmount))} ahead of pace`
-                        : `${fmtCurrency(Math.abs(paceGapAmount))} to goal pace`})
-                    </span>
-                  )}
                 </>
               ) : (
                 <span className="font-semibold text-slate-800">{fmtCurrency(ytdGCI)} GCI this year</span>
@@ -1409,28 +1410,41 @@ export function DashboardContent({
     );
   })();
 
-  cardRenders["client_briefing"] = (smartAlerts.length > 0 || briefingItems.length > 0 || upcomingConditions.length > 0) ? (
+  // Cash runway, pace and expense statements. They lead the Today zone on their
+  // own, so hiding the Daily Briefing card doesn't hide them.
+  const todayAlerts = smartAlerts.length > 0 ? (
     <div className="space-y-2">
-      {/* Smart alerts (cash runway, pace, expenses) */}
       {smartAlerts.map((alert, i) => (
         <div
           key={i}
-          className={`flex items-start gap-3 rounded-lg border px-4 py-3 text-sm ${
-            alert.type === "danger"
-              ? "border-red-300 bg-white text-slate-800"
-              : "border-amber-300 bg-white text-slate-800"
-          }`}
+          className={cn(
+            "flex items-start gap-3 rounded-lg border bg-white px-4 py-3 text-sm text-slate-800",
+            alert.type === "danger" ? "border-red-300"
+              : alert.type === "success" ? "border-emerald-300"
+              : alert.type === "info" ? "border-slate-300"
+              : "border-amber-300",
+          )}
         >
-          <AlertTriangle className={`h-4 w-4 shrink-0 mt-0.5 ${alert.type === "danger" ? "text-red-500" : "text-amber-500"}`} />
+          {alert.type === "success" ? (
+            <TrendingUp className="h-4 w-4 shrink-0 mt-0.5 text-emerald-500" />
+          ) : alert.type === "info" ? (
+            <Target className="h-4 w-4 shrink-0 mt-0.5 text-slate-500" />
+          ) : (
+            <AlertTriangle className={cn("h-4 w-4 shrink-0 mt-0.5", alert.type === "danger" ? "text-red-500" : "text-amber-500")} />
+          )}
           <div>
             <p className="font-medium">{alert.title}</p>
             <p className="text-xs mt-0.5 opacity-80">{alert.body}</p>
           </div>
         </div>
       ))}
+    </div>
+  ) : null;
 
-      {/* Daily Briefing card */}
-      <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+  const briefingHasContent = briefingItems.length > 0 || upcomingConditions.length > 0 || staleLeadCount > 0;
+
+  cardRenders["client_briefing"] = briefingHasContent ? (
+    <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
         {/* Header */}
         <div className="px-4 pt-3 pb-2 border-b border-slate-100">
           <div className="flex items-center justify-between">
@@ -1442,45 +1456,21 @@ export function DashboardContent({
           </div>
           {/* Status strip */}
           <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-            <span className={cn(
-              "inline-flex items-center gap-1 rounded-full text-[10px] font-semibold px-2 py-0.5 border",
-              activeClients === 0
-                ? "bg-red-50 text-red-700 border-red-200"
-                : activeClients <= 2
-                  ? "bg-amber-50 text-amber-700 border-amber-200"
-                  : "bg-green-50 text-green-700 border-green-200"
-            )}>
-              <Layers className="h-2.5 w-2.5" />
-              Pipeline: {dailyBriefingPipelineLabel}
-            </span>
-            {dailyBriefingPaceLabel && (
-              // The hero already owns the pace headline. Behind pace reads as a
-              // watch state (amber) here, not a second red restatement; red is
-              // reserved for genuine risk (e.g. cash runway alerts).
-              <span className={cn(
-                "inline-flex items-center gap-1 rounded-full text-[10px] font-semibold px-2 py-0.5 border",
-                paceStatus === "ahead"
-                  ? "bg-green-50 text-green-700 border-green-200"
-                  : paceStatus === "behind"
-                    ? "bg-amber-50 text-amber-700 border-amber-200"
-                    : "bg-slate-50 text-slate-600 border-slate-200"
-              )}>
-                {paceStatus === "ahead" ? <TrendingUp className="h-2.5 w-2.5" /> : paceStatus === "behind" ? <TrendingDown className="h-2.5 w-2.5" /> : <Target className="h-2.5 w-2.5" />}
-                Pace: {dailyBriefingPaceLabel}
-              </span>
-            )}
+            {pipelineChipNode}
           </div>
         </div>
 
-        {/* Start Here — primary action */}
+        {/* Start Here: the one action to take first */}
         {startHereItem && (
-          <div className="px-4 py-2.5 bg-slate-50/60 border-b border-slate-100">
-            <div className="flex items-start gap-2">
-              <Crosshair className="h-3.5 w-3.5 text-slate-600 shrink-0 mt-0.5" />
-              <div className="min-w-0">
-                <p className="text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-0.5">Start here</p>
-                <p className="text-xs font-medium text-slate-800 leading-snug">{startHereItem.title}</p>
-                <p className="text-[11px] text-slate-500 leading-snug">{startHereItem.detail}</p>
+          <div className="border-b border-blue-100 border-l-4 border-l-blue-600 bg-blue-50/70 px-4 py-3">
+            <div className="flex items-start gap-2.5">
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-600/10">
+                <Crosshair className="h-3.5 w-3.5 text-blue-600" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-[10px] font-bold text-blue-700 uppercase tracking-wider mb-0.5">Start here</p>
+                <p className="text-xs font-semibold text-slate-900 leading-snug">{startHereItem.title}</p>
+                <p className="text-[11px] text-slate-600 leading-snug">{startHereItem.detail}</p>
               </div>
             </div>
           </div>
@@ -1550,17 +1540,6 @@ export function DashboardContent({
             </div>
           </div>
         )}
-
-        {/* Empty state — no items at all */}
-        {briefingItems.length === 0 && upcomingConditions.length === 0 && staleLeadCount === 0 && (
-          <div className="px-4 py-3">
-            <div className="flex items-center gap-2">
-              <CheckCircle className="h-3.5 w-3.5 text-green-500" />
-              <p className="text-xs text-slate-500">All clear. No urgent actions today.</p>
-            </div>
-          </div>
-        )}
-      </div>
     </div>
   ) : null;
 
@@ -1643,21 +1622,6 @@ export function DashboardContent({
               <p className="text-[11px] text-slate-500 leading-tight">
                 {fmtPct(ytdGCI / goalGCI)} of {fmtCompact(goalGCI)} goal
               </p>
-              {/* Pace delta. "Ahead" keeps its positive emerald framing (genuine
-                  momentum). "Behind" is NEUTRALIZED to gray "path" framing — the
-                  hero narrative is the single pace surface, so the KPI card states
-                  the distance-to-goal as a path, not a red restatement of "behind"
-                  (item 5: negativity dedupe). */}
-              {fraction > 0 && paceStatus !== "no-goal" && (
-                <p className={cn(
-                  "text-[11px] font-semibold leading-tight",
-                  paceStatus === "ahead" ? "text-emerald-600" : "text-slate-500",
-                )}>
-                  {paceStatus === "ahead"
-                    ? `↑ ${fmtCurrency(paceGapAmount)} ahead of pace`
-                    : `${fmtCurrency(Math.abs(paceGapAmount))} to goal pace`}
-                </p>
-              )}
             </>
           ) : (
             <p className="text-[11px] text-slate-400 leading-tight">Set a goal in Settings</p>
@@ -1667,7 +1631,7 @@ export function DashboardContent({
             <p className={cn("text-[11px] font-medium leading-tight", vsLastYearGCI >= 0 ? "text-emerald-600" : "text-slate-500")}>
               {vsLastYearGCI >= 0
                 ? `↑ ${fmtCurrency(vsLastYearGCI)} vs last year`
-                : `${fmtCurrency(Math.abs(vsLastYearGCI))} behind last year's pace`}
+                : `${fmtCurrency(Math.abs(vsLastYearGCI))} behind last year at this point`}
             </p>
           )}
           {gciSparkData.length >= 2 && ytdGCI > 0 && (
@@ -1777,24 +1741,9 @@ export function DashboardContent({
             $<CountUp end={projectedGCI} duration={1100} />
           </div>
           <div className="flex items-center gap-1.5">
-            {/* Pace badge. "Ahead" keeps the positive default treatment. "Behind"
-                is NEUTRALIZED — no red destructive variant, no "% behind"
-                restatement (the hero narrative is the single pace surface). It
-                states the path: how many deals at average size close the gap.
-                Reserve true red strictly for a cash runway in the survival
-                engine's Critical band (item 5: negativity dedupe). */}
-            <Badge
-              className="text-[10px] px-1.5 py-0"
-              variant={paceStatus === "ahead" ? "default" : "secondary"}
-            >
-              {paceStatus === "ahead"
-                ? `+${Math.round(pacePercent)}% ahead`
-                : paceStatus === "behind"
-                  ? (goalGCI > 0 && avgDealSize > 0 && ytdGCI < goalGCI
-                      ? `${Math.ceil((goalGCI - ytdGCI) / avgDealSize)} deal${Math.ceil((goalGCI - ytdGCI) / avgDealSize) !== 1 ? "s" : ""} to goal`
-                      : "On the path")
-                  : "Set a goal"}
-            </Badge>
+            {goalGCI <= 0 && (
+              <Badge className="text-[10px] px-1.5 py-0" variant="secondary">Set a goal</Badge>
+            )}
             {trend !== "flat" && (
               <Badge variant="secondary" className="gap-0.5 text-[10px] px-1.5 py-0">
                 {trend === "up" ? (
@@ -1806,15 +1755,9 @@ export function DashboardContent({
               </Badge>
             )}
           </div>
-          {goalGCI > 0 && avgDealSize > 0 && ytdGCI < goalGCI && (
-            <p className="text-[11px] text-muted-foreground leading-tight">
-              ~{Math.ceil((goalGCI - ytdGCI) / avgDealSize)} more deal
-              {Math.ceil((goalGCI - ytdGCI) / avgDealSize) !== 1 ? "s" : ""} at avg size to hit goal
-            </p>
-          )}
           {goalGCI > 0 && ytdGCI >= goalGCI && (
             <p className="text-[11px] font-semibold shimmer-text leading-tight">
-              🎉 Goal reached — you crushed it!
+              🎉 Goal reached. You crushed it!
             </p>
           )}
         </CardContent>
@@ -2602,9 +2545,44 @@ export function DashboardContent({
   cardRenders["net_takehome"]     = null;
   cardRenders["cap_progress"]     = null;
 
+  // What Customize draws in a card's place, and the card itself otherwise.
+  function renderCardBody(id: CardId): React.ReactNode {
+    const cardDef = CARD_REGISTRY.find((c) => c.id === id);
+    if (hiddenCards.has(id)) {
+      return (
+        <div className="rounded-xl border-2 border-dashed border-border/50 bg-muted/20 px-4 py-3 flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium text-muted-foreground">{cardDef?.label}</p>
+            <p className="text-xs text-muted-foreground/70">{cardDef?.description}</p>
+          </div>
+          <button
+            onClick={() => toggleShow(id)}
+            className="flex items-center gap-1.5 text-xs font-medium text-primary border border-primary/30 rounded-lg px-2.5 py-1.5 hover:bg-primary/5"
+          >
+            <Eye className="h-3.5 w-3.5" />
+            Show
+          </button>
+        </div>
+      );
+    }
+    return cardRenders[id] ?? (
+      <div className="rounded-xl border border-dashed border-border/40 bg-muted/10 px-4 py-3 text-xs text-muted-foreground text-center">
+        {cardDef?.label}: no data yet
+      </div>
+    );
+  }
+
+  const todayLayout = todayZoneLayout({
+    briefingHasContent,
+    tasksHasContent: cardRenders["tasks"] != null,
+    briefingHidden: hiddenCards.has("client_briefing"),
+    tasksHidden: hiddenCards.has("tasks"),
+    customizeMode,
+  });
+
   return (
     <div className="space-y-6">
-      {settings && (
+      {viewYear === "next" && settings && (
         <DashboardYearSwitch view={viewYear} onChange={setViewYear} currentYear={goalCurrentYear} />
       )}
 
@@ -2625,9 +2603,6 @@ export function DashboardContent({
         />
       ) : (
       <>
-      {settings && shouldPromptNextYearGoal(incomeGoals) && (
-        <NextYearGoalPrompt year={goalCurrentYear + 1} onOpen={() => setViewYear("next")} />
-      )}
       {/* Annual Review Modal */}
       {showAnnualReview && (
         <AnnualReview
@@ -2748,6 +2723,9 @@ export function DashboardContent({
             {dataAsOf && <FreshnessIndicator since={dataAsOf} />}
           </div>
         </div>
+        {settings && (
+          <DashboardYearSwitch view={viewYear} onChange={setViewYear} currentYear={goalCurrentYear} />
+        )}
       </div>
 
       {/* ── Top-bar utility buttons (portaled into the top nav bar) ── */}
@@ -2780,7 +2758,72 @@ export function DashboardContent({
         topBarTarget
       )}
 
-      {/* Runway Score Hero — the cockpit instrument panel. Always first.
+      {/* ── Customize bar ── */}
+      {customizeMode && (
+        <div className="rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 flex items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-semibold text-foreground">Customize your dashboard</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Drag to reorder the cards below your Runway Score. Daily Briefing and Checklist stay at the top; hide them here if you don&apos;t need them. Reset restores the default lean view.</p>
+          </div>
+          <button
+            onClick={resetLayout}
+            className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground border border-border rounded-lg px-2.5 py-1.5 shrink-0"
+          >
+            <RotateCcw className="h-3 w-3" />
+            Reset
+          </button>
+        </div>
+      )}
+
+      {/* ── Today: statements, the Daily Briefing and the Checklist ──
+          Pinned above the score, so a saved card order can't push it down. Each
+          part is left out when it has nothing to say (todayZoneLayout), so an
+          empty day is one line, never a blank box. */}
+      {(todayAlerts || todayLayout.showNoUrgentLine || todayLayout.cards.length > 0) && (
+        <section aria-label="Today" className="space-y-3">
+          {todayAlerts}
+          {todayLayout.showNoUrgentLine && (
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg border border-slate-200 bg-white px-4 py-2.5">
+              <p className="flex items-center gap-2 text-xs text-slate-600">
+                <CheckCircle className="h-3.5 w-3.5 shrink-0 text-green-500" />
+                {noUrgentClientActionsLine()}
+              </p>
+              {pipelineChipNode}
+            </div>
+          )}
+          {todayLayout.cards.length > 0 && (
+            <div className={cn("grid items-start gap-3", todayLayout.cards.length === 2 && "lg:grid-cols-[3fr_2fr]")}>
+              {todayLayout.cards.map((id) => (
+                <PinnedCard
+                  key={id}
+                  id={id}
+                  label={CARD_REGISTRY.find((c) => c.id === id)?.label ?? id}
+                  customizeMode={customizeMode}
+                  isHidden={hiddenCards.has(id)}
+                  onHide={() => toggleHide(id)}
+                >
+                  {renderCardBody(id)}
+                </PinnedCard>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+
+      {settings && shouldPromptNextYearGoal(incomeGoals) && (
+        <NextYearGoalPrompt year={goalCurrentYear + 1} onOpen={() => setViewYear("next")} />
+      )}
+
+      {/* Quick tip: a slim row in the page flow, never over content */}
+      {settings?.user_id && (
+        <AiProfilePrompt
+          hasVoiceProfile={!!(communicationProfile?.completed)}
+          hasBusinessIdentity={!!(businessIdentity?.completed)}
+          lastDismissedAt={aiProfilePromptDismissedAt}
+        />
+      )}
+
+      {/* Runway Score Hero — the cockpit instrument panel, below Today.
           Hardcoded dark ("cockpit") by design — see item 3 of the rebuild
           spec: the hero leans into the instrument-panel identity rather than
           matching the light page chrome. */}
@@ -2790,7 +2833,7 @@ export function DashboardContent({
           the card and makes no assumption about what renders under it (the KPI
           row is a reorderable registry card), which is why this stitch is safe
           where a positional transition band was not. */}
-      <Card data-tour="dashboard-score" className="boot-hero rounded-xl border-0 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 shadow-[0_10px_24px_-14px_rgba(2,6,23,0.45),0_34px_60px_-30px_rgba(2,6,23,0.55)] overflow-hidden relative">
+      <Card data-tour="dashboard-score" className="boot-hero gap-0 py-0 rounded-xl border-0 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 shadow-[0_10px_24px_-14px_rgba(2,6,23,0.45),0_34px_60px_-30px_rgba(2,6,23,0.55)] overflow-hidden relative">
         {/* Top accent — a thin score-progress fill (replaces the old 4-stop
             rainbow that mapped to nothing). The filled portion uses the band
             color and runs to score%. On zero-data it stays a flat hairline. */}
@@ -2802,12 +2845,12 @@ export function DashboardContent({
             />
           )}
         </div>
-        <CardContent className="pt-5 pb-4">
-          {/* Gauge + Cash Runway co-hero. Equal visual weight, side by side at
-              sm+; stacked on mobile. */}
-          <div className="flex flex-col sm:flex-row sm:flex-nowrap sm:items-center gap-5 sm:gap-8">
+        <CardContent className="pt-4 pb-3">
+          {/* One row on a wide screen: gauge, sub-score bars, Cash Runway. Below
+              xl the bars take their own row; stacked on mobile. */}
+          <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-8 xl:flex-nowrap xl:gap-x-6">
             {/* Left: the single radial gauge (score + band word; no letter grade). */}
-            <div className="flex items-center gap-4 min-w-0">
+            <div className="flex items-center gap-4 min-w-0 xl:order-1 xl:shrink-0">
               {hasData && !isCalibrating ? (
                 <RunwayGauge
                   score={runwayScore.score}
@@ -2816,7 +2859,7 @@ export function DashboardContent({
                   isStrong={scoreIsStrong}
                 />
               ) : (
-                <div className="flex h-[132px] w-[132px] shrink-0 flex-col items-center justify-center gap-1 rounded-full border-2 border-dashed border-slate-700">
+                <div className="flex h-[112px] w-[112px] shrink-0 flex-col items-center justify-center gap-1 rounded-full border-2 border-dashed border-slate-700">
                   <span className="text-3xl font-black leading-none text-slate-600">—</span>
                   {isCalibrating && (
                     <span className="text-[9px] font-semibold uppercase tracking-wider text-slate-500">
@@ -2865,7 +2908,7 @@ export function DashboardContent({
                 text-2xl number) is the supporting read so attention flows
                 gauge → cash instead of ping-ponging between two equal anchors.
                 Still prominent: cash runway stays a large, band-coloured number. */}
-            <div className="boot-late sm:ml-auto rounded-xl border border-slate-700/50 bg-slate-800/40 px-5 py-3.5 shrink-0 min-w-[180px]" style={{ animationDelay: "0.7s" }}>
+            <div className="boot-late sm:ml-auto xl:order-3 xl:ml-0 rounded-xl border border-slate-700/50 bg-slate-800/40 px-4 py-2.5 shrink-0 min-w-[180px]" style={{ animationDelay: "0.7s" }}>
               <div className="flex items-center gap-1">
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Cash Runway</p>
                 <MetricInfo tip={cashPosition.source === "implied"
@@ -2894,7 +2937,7 @@ export function DashboardContent({
               {/* Derived calendar anchor — computed from survival.months, never
                   a hardcoded month (item 6 acceptance criterion). */}
               {cashRunwayAnchor && (
-                <p className="text-[11px] text-slate-400 mt-1.5 flex items-center gap-1">
+                <p className="text-[11px] text-slate-400 mt-1 flex items-center gap-1">
                   <Calendar className="h-3 w-3 shrink-0 text-slate-500" />
                   covers you into {cashRunwayAnchor}
                 </p>
@@ -2909,27 +2952,7 @@ export function DashboardContent({
                 )}
               </p>
             </div>
-          </div>
 
-          {/* ─── Captain's read strip ────────────────────────────────────────
-              The Flight Crew's presence in the hero (product_ai_first_principle).
-              Mounts in the reserved slot between the gauge/cash row and the
-              component row. The boot-late class + 0.85s delay matches the cash
-              co-hero's late fade so the strip joins the same staged boot moment.
-              This strip carries the hero's SINGLE actionable synthesis line. The
-              former standalone scoreNarrative <p> below was removed to avoid two
-              competing prose lines — the strip now derives its sentence (and its
-              askQuestion seed) from the same scoreNarrative weakest-component
-              logic. Suppressed on zero-data via the outer hasData guard. */}
-          {hasData && (
-            <div
-              data-captain-strip-slot
-              className="boot-late mt-3 empty:hidden"
-              style={{ animationDelay: "0.85s" }}
-            >
-              <CaptainReadStrip narrative={scoreNarrative} isPro={isPro} />
-            </div>
-          )}
           {/* Score components — hidden on zero-data; component scores are
               all 0 until transactions exist and would just look broken.
               Bar + value color follow the single §9.1 contract via
@@ -2938,7 +2961,7 @@ export function DashboardContent({
               never depends on color alone (colorblind/grayscale safety), and
               "/100" is appended so the number can't be misread as $ or %. */}
           {hasData && (
-            <div className="mt-3 grid grid-cols-5 gap-3 border-t border-slate-700 pt-3">
+            <div className="grid w-full grid-cols-5 gap-3 border-t border-slate-700 pt-3 xl:order-2 xl:w-auto xl:min-w-0 xl:flex-1 xl:border-t-0 xl:pt-0">
               {runwayScore.components.map((c, i) => {
                 const compHex = bandColorHexForScore(c.score);
                 // Direction-of-CHANGE vs the SAME component's score in the most
@@ -2972,6 +2995,26 @@ export function DashboardContent({
               })}
             </div>
           )}
+          </div>
+
+          {/* ─── Captain's read strip ────────────────────────────────────────
+              The Flight Crew's presence in the hero (product_ai_first_principle).
+              Mounts under the gauge, sub-score and cash row. The boot-late class + 0.85s delay matches the cash
+              co-hero's late fade so the strip joins the same staged boot moment.
+              This strip carries the hero's SINGLE actionable synthesis line. The
+              former standalone scoreNarrative <p> below was removed to avoid two
+              competing prose lines — the strip now derives its sentence (and its
+              askQuestion seed) from the same scoreNarrative weakest-component
+              logic. Suppressed on zero-data via the outer hasData guard. */}
+          {hasData && (
+            <div
+              data-captain-strip-slot
+              className="boot-late mt-3 empty:hidden"
+              style={{ animationDelay: "0.85s" }}
+            >
+              <CaptainReadStrip narrative={scoreNarrative} isPro={isPro} />
+            </div>
+          )}
           {/* Deviation insights — progressive disclosure: collapsed by default */}
           {/* Suppress before mid-Feb: annualization math unreliable with < 2 months YTD data */}
           {hasData && fraction * 12 >= 2 && deviationMessages.length > 0 && (
@@ -2992,23 +3035,6 @@ export function DashboardContent({
           )}
         </CardContent>
       </Card>
-
-      {/* ── Customize bar ── */}
-      {customizeMode && (
-        <div className="rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 flex items-center justify-between gap-3">
-          <div>
-            <p className="text-sm font-semibold text-foreground">Customize your dashboard</p>
-            <p className="text-xs text-muted-foreground mt-0.5">Drag to reorder. Show hidden cards or hide ones you don&apos;t need. Reset restores the default lean view.</p>
-          </div>
-          <button
-            onClick={resetLayout}
-            className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground border border-border rounded-lg px-2.5 py-1.5 shrink-0"
-          >
-            <RotateCcw className="h-3 w-3" />
-            Reset
-          </button>
-        </div>
-      )}
 
       {/* ── Sortable card area ── */}
       <DndContext
@@ -3054,25 +3080,7 @@ export function DashboardContent({
                       customizeMode={customizeMode}
                       onHide={() => toggleHide(id)}
                     >
-                      {isHidden ? (
-                        <div className="rounded-xl border-2 border-dashed border-border/50 bg-muted/20 px-4 py-3 flex items-center justify-between">
-                          <div>
-                            <p className="text-sm font-medium text-muted-foreground">{cardDef?.label}</p>
-                            <p className="text-xs text-muted-foreground/70">{cardDef?.description}</p>
-                          </div>
-                          <button
-                            onClick={() => toggleShow(id)}
-                            className="flex items-center gap-1.5 text-xs font-medium text-primary border border-primary/30 rounded-lg px-2.5 py-1.5 hover:bg-primary/5"
-                          >
-                            <Eye className="h-3.5 w-3.5" />
-                            Show
-                          </button>
-                        </div>
-                      ) : content ?? (
-                        <div className="rounded-xl border border-dashed border-border/40 bg-muted/10 px-4 py-3 text-xs text-muted-foreground text-center">
-                          {cardDef?.label}: no data yet
-                        </div>
-                      )}
+                      {renderCardBody(id)}
                     </SortableCard>
                   </div>
                 );
@@ -3168,16 +3176,6 @@ export function DashboardContent({
       />
 
       </>
-      )}
-
-      {/* AI Profile floating prompt */}
-      {settings?.user_id && (
-        <AiProfilePrompt
-          userId={settings.user_id}
-          hasVoiceProfile={!!(communicationProfile?.completed)}
-          hasBusinessIdentity={!!(businessIdentity?.completed)}
-          lastDismissedAt={aiProfilePromptDismissedAt}
-        />
       )}
     </div>
   );

@@ -1971,7 +1971,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
           }
 
           if (tasks.length === 0 && outreach.length === 0 && stale.length === 0) {
-            return "All clear — no overdue tasks, pending outreach, or stale clients. You're in good shape!";
+            return "No overdue tasks, pending outreach or stale clients today. This covers client follow-ups only, not how the year is tracking against the goal.";
           }
 
           return parts.join("\n");

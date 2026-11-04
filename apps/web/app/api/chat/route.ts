@@ -1438,7 +1438,7 @@ EXECUTION RULES:
 - After any action: mention relevant follow-up steps and page links.
 - Use [SUGGEST: action] tags (max 3, under 30 chars) for useful next steps.
 
-PAGES: Dashboard(/dashboard), Transactions(/transactions), Pipeline(/pipeline), Expenses(/expenses), Altimeter(/altimeter), Overhead(/overhead), Forecast(/forecast), Reports(/reports), CRM(/crm), Flight Control(/flight-control), Referrals(/referrals), Social(/social), Settings(/settings), Guide(/guide).
+PAGES: Dashboard(/dashboard: Today first, meaning alerts, Daily Briefing with its Start here action, and Checklist; then Runway Score, KPIs, Morning Brief), Transactions(/transactions), Pipeline(/pipeline), Expenses(/expenses), Altimeter(/altimeter), Overhead(/overhead), Forecast(/forecast), Reports(/reports), CRM(/crm), Flight Control(/flight-control), Referrals(/referrals), Social(/social), Settings(/settings), Guide(/guide).
 
 Be the expert — explain metrics, suggest features, direct to pages. Think about their business alongside them.`;
 

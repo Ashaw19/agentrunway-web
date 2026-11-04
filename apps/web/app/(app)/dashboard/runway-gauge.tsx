@@ -46,8 +46,8 @@ export function RunwayGauge({
 }: RunwayGaugeProps) {
   // Geometry. A 270° sweep arc (gauge-style, gap at the bottom) reads more
   // like an instrument than a full ring.
-  const size = 132;
-  const stroke = 11;
+  const size = 112;
+  const stroke = 10;
   const radius = (size - stroke) / 2;
   const cx = size / 2;
   const cy = size / 2;
