@@ -58,6 +58,7 @@ export async function GET(req: NextRequest) {
 
   if (tierError) {
     console.error("[precompute-briefings] Failed to fetch tier users:", tierError);
+    await writeHeartbeat("cron:precompute-briefings", "error", `user list: ${tierError.message}`);
     return NextResponse.json({ error: "Failed to fetch users" }, { status: 500 });
   }
 
@@ -97,6 +98,7 @@ export async function GET(req: NextRequest) {
   const users = [...(tierUsers ?? []), ...betaUsers];
 
   if (users.length === 0) {
+    await writeHeartbeat("cron:precompute-briefings", "ok", "no users");
     return NextResponse.json({ status: "no_users", processed: 0, errors: 0 });
   }
 

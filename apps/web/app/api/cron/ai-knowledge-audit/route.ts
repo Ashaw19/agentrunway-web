@@ -42,10 +42,13 @@ export async function GET(req: NextRequest) {
 
   if (error) {
     console.error("[ai-knowledge-audit] Failed to fetch analytics:", error);
+    await writeHeartbeat("cron:ai-knowledge-audit", "error", `analytics read: ${error.message}`);
     return NextResponse.json({ error: "Failed to fetch analytics" }, { status: 500 });
   }
 
   if (!analytics || analytics.length === 0) {
+    // A quiet day is a finished run, not silence (2026-11-04).
+    await writeHeartbeat("cron:ai-knowledge-audit", "ok", "no chat interactions in the last 24 hours");
     return NextResponse.json({
       status: "no_data",
       message: "No chat interactions in the last 24 hours",

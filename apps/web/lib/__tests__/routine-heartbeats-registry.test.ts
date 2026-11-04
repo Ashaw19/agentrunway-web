@@ -28,4 +28,20 @@ describe("routine registry covers vercel.json", () => {
       expect(src, c.path).toMatch(/writeHeartbeat\(/);
     }
   });
+
+  // 2026-11-04: the AI knowledge audit returned "no_data" before its beat on
+  // every quiet day, so the first routine check called it "never reported".
+  // Every exit from a cron route except the 401 must be preceded by a beat.
+  it("every return after the auth check follows a heartbeat", () => {
+    const vercel = JSON.parse(readFileSync(path.resolve(__dirname, "../../vercel.json"), "utf8"));
+    for (const c of vercel.crons as { path: string }[]) {
+      const lines = readFileSync(path.resolve(__dirname, "../../app", c.path.slice(1), "route.ts"), "utf8").split("\n");
+      lines.forEach((line, i) => {
+        if (!/^\s*return (NextResponse\.json|new Response)\(/.test(line)) return;
+        if (/Unauthorized/.test(line)) return;
+        const before = lines.slice(Math.max(0, i - 4), i).join("\n");
+        expect(before, `${c.path}:${i + 1} returns without a heartbeat`).toMatch(/writeHeartbeat\(/);
+      });
+    }
+  });
 });
