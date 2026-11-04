@@ -48,9 +48,12 @@ const ESTIMATED_ACCOUNTING_COST = 4_000;
 /** CRA: GST/HST small supplier threshold */
 const GST_REGISTRATION_THRESHOLD = 30_000;
 
-/** CRA prescribed interest rate on instalment shortfalls (7% for Q3 2026 — CRA adjusts quarterly).
- *  Source: canada.ca/en/revenue-agency/services/tax/prescribed-interest-rates/2026-q3.html (verified 2026-06-26) */
-const CRA_INSTALMENT_INTEREST_RATE = 0.07;
+/** CRA prescribed interest rate on instalment shortfalls (7% for Q4 2026 — CRA adjusts quarterly).
+ *  Source: canada.ca/en/revenue-agency/services/tax/prescribed-interest-rates/2026-q4.html (verified 2026-11-04) */
+export const CRA_INSTALMENT_INTEREST_RATE = 0.07;
+
+/** The calendar quarter CRA_INSTALMENT_INTEREST_RATE was checked for. Update the two together. */
+export const CRA_INSTALMENT_INTEREST_QUARTER = "Q4 2026";
 
 /** Minimum estimated savings to display a card */
 const MIN_SAVINGS_THRESHOLD = 100;
