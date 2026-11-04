@@ -195,7 +195,7 @@ const MONTHS_VS_NUMBER =
 
 const ALLOWED_COMPARISONS: Allowed = {
   "apps/web/app/(app)/dashboard/dashboard-content.tsx": {
-    count: 3,
+    count: 2,
     why: 'How a runway under one month is displayed ("< 1 month", no calendar anchor). Not a band edge: no colour, status or alert hangs on it.',
   },
   "apps/web/app/cockpit/page.tsx": {
@@ -256,8 +256,8 @@ const SCORE_ENGINE = "packages/core/engines/runway-score-engine.ts";
 
 const ALLOWED_TYPED_EDGES: Allowed = {
   "apps/web/app/(app)/dashboard/dashboard-content.tsx": {
-    count: 2,
-    why: 'How a runway under one month is displayed: "< 1 month" beside the score and "Less than 1 month" in the Daily Briefing. Not a band edge.',
+    count: 1,
+    why: 'How a runway under one month is displayed: "< 1 month", in the one helper the hero and the Morning Brief share. Not a band edge.',
   },
   [BLOG_POST]: {
     count: 4,

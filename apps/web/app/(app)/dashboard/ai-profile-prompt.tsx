@@ -26,12 +26,12 @@ function shouldShow(hasVoice: boolean, hasBiz: boolean, lastDismissed: string | 
 
 function getPromptMessage(hasVoice: boolean, hasBiz: boolean): string {
   if (!hasVoice && !hasBiz) {
-    return "Your AI is flying blind. Give it 3 minutes and it'll sound exactly like you.";
+    return "Your AI drafts don't know your writing style or your business yet. The AI profile takes about 3 minutes.";
   }
   if (hasVoice && !hasBiz) {
-    return "One more step. Tell us about your business and your AI gets a lot smarter.";
+    return "Your AI drafts don't know your business yet. You can add it to your AI profile.";
   }
-  return "Your AI still doesn't know how you talk. The voice quiz takes 3 minutes.";
+  return "Your AI drafts don't know your writing style yet. The voice quiz in your AI profile takes about 3 minutes.";
 }
 
 /**

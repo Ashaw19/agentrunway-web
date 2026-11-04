@@ -210,7 +210,6 @@ import { AiProfilePrompt } from "./ai-profile-prompt";
 import {
   briefingItemLink,
   dailyBriefingPipelineChip,
-  greetingTag,
   outreachLabel,
   pipelineCountLabel,
   quietBriefingLine,
@@ -438,6 +437,8 @@ export function DashboardContent({
   // in the prop doesn't change until the page next reloads.
   const [tipDismissedAt, setTipDismissedAt] = useState<string | null>(null);
   const [incomeGoals, setIncomeGoals] = useState<IncomeGoalRow[]>(initialIncomeGoals);
+  // The focus refresh below brings new rows, say a goal changed on the phone.
+  useEffect(() => setIncomeGoals(initialIncomeGoals), [initialIncomeGoals]);
 
   async function saveNextYearGoal(amount: number): Promise<boolean> {
     if (!settings?.user_id) return false;
@@ -1139,7 +1140,6 @@ export function DashboardContent({
   const { greeting, emoji } = getTimeGreeting();
   const firstName = userName?.split(" ")[0] ?? null;
   const streakLabel = getStreakLabel(transactions);
-  const motivationalTag = greetingTag(paceStatus, ytdDealCount);
 
   // ── Smart alerts — only render when conditions are met ────────────────
   const smartAlerts: Array<{ type: "warning" | "danger" | "info" | "success"; icon: string; title: string; body: string }> = [];
@@ -1223,19 +1223,19 @@ export function DashboardContent({
     });
     if (celebrate === 100) {
       fireConfetti("goal");
-      toast.success("🎉 Number hit. Take five, then set a bigger one.", {
+      toast.success("🎉 You reached your annual GCI goal.", {
         duration: 6000,
-        description: `${fmtCurrency(ytdGCI)} closed. Incredible work.`,
+        description: `${fmtCurrency(ytdGCI)} in GCI closed this year.`,
       });
     } else if (celebrate === 75) {
       fireConfetti("milestone");
-      toast("🏆 Three-quarters done. One good push and it's yours.", {
+      toast("🏆 You're 75% of the way to your annual GCI goal.", {
         duration: 5000,
-        description: `${fmtCurrency(goalGCI - ytdGCI)} left to your target.`,
+        description: `${fmtCurrency(goalGCI - ytdGCI)} left to your goal.`,
       });
     } else if (celebrate === 50) {
       fireConfetti("milestone");
-      toast("⚡ Halfway. This is where reps become pros.", {
+      toast("⚡ You're halfway to your annual GCI goal.", {
         duration: 4000,
       });
     }
@@ -2753,9 +2753,6 @@ export function DashboardContent({
           <h1 className="text-2xl font-semibold tracking-tight greet-fade text-foreground">
             {emoji} {greeting}{firstName ? `, ${firstName}` : ""}
           </h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            {motivationalTag}
-          </p>
           <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
             {streakLabel && (
               <p className="text-xs font-semibold text-amber-600">{streakLabel}</p>
@@ -3505,7 +3502,7 @@ function NarrativeSection({
 // memory/spec_runway_score_canonical_bands.md.
 const SCORE_COMPONENT_DESCRIPTIONS: Record<string, string> = {
   "Goal Pace":
-    `Measures how your YTD GCI tracks against your annual goal, adjusted for seasonal patterns. It reads 50 at exactly expected pace, 100 at ${GOAL_PACE_SCORE_SPAN_PCT}% ahead and 0 at ${GOAL_PACE_SCORE_SPAN_PCT}% behind, so being a little ahead still leaves this bar near 50.`,
+    `Measures how your YTD GCI tracks against your annual goal, adjusted for seasonal patterns. It reads 50 at exactly expected pace, 100 at ${GOAL_PACE_SCORE_SPAN_PCT}% ahead and 0 at ${GOAL_PACE_SCORE_SPAN_PCT}% behind, so being a little ahead still leaves this bar near 50. With no goal set for the year, it stays at 50.`,
   Pipeline:
     "Your probability-weighted pipeline value relative to the remaining goal gap. A healthy pipeline provides a cushion for the months ahead.",
   Expenses:
@@ -3618,7 +3615,7 @@ function RunwayScoreInfoDialog({
           <div className="rounded-md border bg-muted/30 px-3 py-3">
             <p className="text-xs font-semibold">How to improve your score</p>
             <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
-              <li>• Close or advance pipeline deals to boost Goal Pace and Pipeline scores</li>
+              <li>• Close pipeline deals to lift Goal Pace, and add or advance deals to lift Pipeline</li>
               <li>• Keep expenses at {expenseRatioBandRange(EXPENSE_RATIO_BANDS[0])} of GCI to maximise the Expenses component</li>
               <li>• Reach {RISK_BAND_RANGE.strong} of cash runway (the {RISK_LEVEL_LABEL.strong} band) for the top Survival score</li>
               <li>• Complete all fields in Settings — each unlocks more accurate projections</li>
@@ -3877,7 +3874,7 @@ function generateBusinessHealthNarrative({
   );
 
   // ── No data yet ──────────────────────────────────────────────────────────
-  if (ytdGCI === 0 && pipelineCount === 0) {
+  if (ytdGCI === 0 && pipelineEmpty) {
     return {
       status: "Watchlist",
       summary:
@@ -3928,7 +3925,9 @@ function generateBusinessHealthNarrative({
   if (goalGCI > 0) {
     whatChanged = `YTD GCI of ${fmtCurrency(ytdGCI)} is ${Math.round((ytdGCI / goalGCI) * 100)}% of your ${fmtCurrency(goalGCI)} goal.`;
   } else {
-    whatChanged = `${ytdDealCount} deal${ytdDealCount !== 1 ? "s" : ""} closed YTD averaging ${fmtCurrency(avgDealSize)}, projecting a ${fmtCurrency(projectedGCI)} year-end without a goal set.`;
+    whatChanged = ytdDealCount > 0
+      ? `${ytdDealCount} deal${ytdDealCount !== 1 ? "s" : ""} closed YTD averaging ${fmtCurrency(avgDealSize)}, projecting ${fmtCurrency(projectedGCI)} in GCI at year-end.`
+      : "No GCI has closed yet this year.";
   }
 
   // ── Why (root cause from weakest score component) ─────────────────────────
@@ -3967,7 +3966,7 @@ function generateBusinessHealthNarrative({
   if (survival.riskLevel === "critical") {
     nextMove = runwayNextMove(survival);
   } else if (weakest.label === "Goal Pace" && goalIsZero) {
-    nextMove = "This year's goal is set to $0, so Goal Pace stays where it is. The other score bars still move.";
+    nextMove = "To lift your Runway Score this year, work on the other bars: Pipeline, Expenses, Benchmark and Survival.";
   } else if (weakest.label === "Goal Pace" && goalGCI <= 0) {
     // Without a goal the bar sits still whatever closes, so a closing is no lever.
     nextMove = "Set an annual goal in Settings. Goal Pace only moves once one is set.";
@@ -3997,7 +3996,7 @@ function generateBusinessHealthNarrative({
   } else if (paceStatus === "ahead" && goalGCI > 0) {
     nextMove = "Keep your deals moving. If your pipeline supports more, your annual goal can go up in Settings.";
   } else {
-    nextMove = "Focus on building pipeline this month to protect your Q3 and Q4 forecast.";
+    nextMove = "Focus on building pipeline this month to protect your forecast for the rest of the year.";
   }
 
   return { status, summary, whatChanged, why, nextMove };

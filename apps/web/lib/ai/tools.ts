@@ -1870,7 +1870,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
           if (tasks.length > 0) {
             parts.push(`\nOpen Tasks (${tasks.length}):`);
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            tasks.forEach((t: any) => parts.push(`  "${t.title}" — due ${t.due_date}${t.priority === "high" ? " ⚡" : ""}`));
+            tasks.forEach((t: any) => parts.push(`  "${t.title}", due ${t.due_date}${t.priority === "high" ? " ⚡" : ""}`));
           }
 
           // Pipeline deals
@@ -1943,20 +1943,20 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
 
           if (overdue.length > 0) {
             parts.push(`\n⚠ OVERDUE TASKS (${overdue.length}):`);
-            overdue.slice(0, AGENDA_TASKS_LISTED).forEach(t => parts.push(`  "${t.title}" — was due ${t.due_date}${t.priority === "high" ? " ⚡" : ""}`));
+            overdue.slice(0, AGENDA_TASKS_LISTED).forEach(t => parts.push(`  "${t.title}", was due ${t.due_date}${t.priority === "high" ? " ⚡" : ""}`));
             moreOnChecklist(overdue);
           }
           if (thisWeek.length > 0) {
             parts.push(`\nThis Week (${thisWeek.length} tasks):`);
-            thisWeek.slice(0, AGENDA_TASKS_LISTED).forEach(t => parts.push(`  "${t.title}" — due ${t.due_date}${t.priority === "high" ? " ⚡" : ""}`));
+            thisWeek.slice(0, AGENDA_TASKS_LISTED).forEach(t => parts.push(`  "${t.title}", due ${t.due_date}${t.priority === "high" ? " ⚡" : ""}`));
             moreOnChecklist(thisWeek);
           }
           if (later.length > 0) {
             parts.push(`\nUpcoming (${later.length} tasks):`);
-            later.slice(0, AGENDA_TASKS_LISTED).forEach(t => parts.push(`  "${t.title}" — due ${t.due_date}`));
+            later.slice(0, AGENDA_TASKS_LISTED).forEach(t => parts.push(`  "${t.title}", due ${t.due_date}`));
             moreOnChecklist(later);
           }
-          if (tasks.length === 0) parts.push("\n✓ No open tasks.");
+          if (tasks.length === 0) parts.push(tasksRes.error ? "\nThe Checklist didn't load." : "\n✓ No open tasks.");
 
           // Outreach
           const outreach = (outreachRes.data ?? []) as { opportunity_type: string; status: string; ai_subject: string | null; trigger_date: string }[];

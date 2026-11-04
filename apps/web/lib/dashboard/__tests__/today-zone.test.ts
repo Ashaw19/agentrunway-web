@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   briefingItemLink,
   dailyBriefingPipelineChip,
-  greetingTag,
   outreachLabel,
   paceStatement,
   pipelineCountLabel,
@@ -18,20 +17,6 @@ import {
   resolveDashboardLayout,
   type CardId,
 } from "@/app/(app)/dashboard/card-registry";
-
-describe("greetingTag: keeps the voice, drops the pace claim", () => {
-  const statuses = ["ahead", "behind", "no-goal"];
-  it("never claims pace or track for any state", () => {
-    for (const status of statuses) {
-      for (const deals of [0, 4]) {
-        expect(greetingTag(status, deals)).not.toMatch(/pace|on track|behind|ahead/i);
-      }
-    }
-  });
-  it("keeps the zero-deals line", () => {
-    expect(greetingTag("behind", 0)).toContain("Zero on the board");
-  });
-});
 
 describe("dailyBriefingPipelineChip: counts pipeline deals, not clients", () => {
   const deal = (stage: string, extra: Record<string, unknown> = {}) => ({ stage, ...extra });
@@ -132,7 +117,7 @@ describe("paceStatement: the page's one statement of pace", () => {
     const s = paceStatement({ ...base, pacePercent: -34.2 })!;
     expect(s.state).toBe("behind");
     expect(s.title).toBe("Behind pace on your annual goal");
-    expect(s.body).toBe("You're at 66% of expected pace. $100,000 to go, about 4 more deals at your average size.");
+    expect(s.body).toBe("Your GCI is 66% of what your annual goal expects by today. $100,000 to go, about 4 more deals at your average deal size.");
   });
 
   it("states behind pace at any distance, not only past 30%", () => {
@@ -143,31 +128,33 @@ describe("paceStatement: the page's one statement of pace", () => {
     const s = paceStatement({ ...base, pacePercent: 12 })!;
     expect(s.state).toBe("ahead");
     expect(s.title).toBe("Ahead of pace on your annual goal");
-    expect(s.body).toBe("You're at 112% of expected pace. $100,000 to go, about 4 more deals at your average size.");
+    expect(s.body).toBe("Your GCI is 112% of what your annual goal expects by today. $100,000 to go, about 4 more deals at your average deal size.");
   });
 
   it("states on pace when the figure rounds to 100%", () => {
     const s = paceStatement({ ...base, pacePercent: 0.3 })!;
     expect(s.state).toBe("on-pace");
     expect(s.title).toBe("On pace for your annual goal");
-    expect(s.body).toContain("You're at 100% of expected pace.");
+    expect(s.body).toContain("Your GCI is 100% of what your annual goal expects by today.");
   });
 
   it("drops the deal count when there is no average deal size yet", () => {
     const s = paceStatement({ goalGCI: 200_000, ytdGCI: 0, ytdDealCount: 0, pacePercent: -100 })!;
-    expect(s.body).toBe("You're at 0% of expected pace. $200,000 to go.");
+    expect(s.body).toBe("Your GCI is 0% of what your annual goal expects by today. $200,000 to go.");
   });
 
   it("says one deal in the singular", () => {
     const s = paceStatement({ goalGCI: 200_000, ytdGCI: 150_000, ytdDealCount: 3, pacePercent: -5 })!;
-    expect(s.body).toContain("about 1 more deal at your average size");
+    expect(s.body).toContain("about 1 more deal at your average deal size");
   });
 
   it("states a reached goal instead of a distance", () => {
     const s = paceStatement({ goalGCI: 200_000, ytdGCI: 215_000, ytdDealCount: 9, pacePercent: 40 })!;
     expect(s.state).toBe("goal-reached");
     expect(s.title).toBe("Annual goal reached");
-    expect(s.body).toBe("You've closed $215,000, which is $15,000 over your goal.");
+    expect(s.body).toBe("You've closed $215,000 in GCI, $15,000 over your goal.");
+    const exact = paceStatement({ goalGCI: 200000, ytdGCI: 200000, ytdDealCount: 5, pacePercent: 10 })!;
+    expect(exact.body).toBe("You've closed $200,000 in GCI, which meets your goal.");
   });
 });
 
@@ -269,7 +256,7 @@ describe("pipelineCountLabel: the Morning Brief and the KPI card", () => {
   it("is null only with no deals and no listings, the rule the chip's Empty uses", () => {
     expect(pipelineCountLabel(0, 0)).toBeNull();
     expect(dailyBriefingPipelineChip([], 0).depth).toBe("empty");
-    expect(pipelineCountLabel(0, 2)).toBe("0 deals + 2 listings");
+    expect(pipelineCountLabel(0, 2)).toBe("2 listings");
     expect(dailyBriefingPipelineChip([], 2).depth).toBe("light");
   });
 

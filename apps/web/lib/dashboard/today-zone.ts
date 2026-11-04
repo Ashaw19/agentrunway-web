@@ -12,14 +12,6 @@ import {
 } from "@agent-runway/core/types/database";
 import { fmtCurrency } from "@/lib/formatters";
 
-/** The line under the greeting. Voice only: pace is stated once, in the Today zone. */
-export function greetingTag(paceStatus: string, ytdDealCount: number): string {
-  if (ytdDealCount === 0) return "Zero on the board. The market has no idea what's coming. 🚀";
-  if (paceStatus === "ahead") return "Your accountant is cautiously optimistic.";
-  if (paceStatus === "behind") return "The market hasn't read your numbers.";
-  return "Quietly dangerous.";
-}
-
 export interface PipelineChip {
   label: string;
   depth: PipelineDepth;
@@ -55,7 +47,9 @@ export function dailyBriefingPipelineChip(
 export function pipelineCountLabel(dealCount: number, listingCount: number): string | null {
   if (dealCount === 0 && listingCount === 0) return null;
   const deals = `${dealCount} deal${dealCount === 1 ? "" : "s"}`;
-  return listingCount > 0 ? `${deals} + ${listingCount} listing${listingCount === 1 ? "" : "s"}` : deals;
+  const listings = `${listingCount} listing${listingCount === 1 ? "" : "s"}`;
+  if (dealCount === 0) return listings;
+  return listingCount > 0 ? `${deals} + ${listings}` : deals;
 }
 
 /** Clients in Boarding or In-Flight with no contact logged in the last 14 days. */
@@ -149,16 +143,18 @@ export function paceStatement({ goalGCI, ytdGCI, ytdDealCount, pacePercent }: Pa
     return {
       state: "goal-reached",
       title: "Annual goal reached",
-      body: `You've closed ${fmtCurrency(ytdGCI)}, which is ${fmtCurrency(ytdGCI - goalGCI)} over your goal.`,
+      body: ytdGCI > goalGCI
+        ? `You've closed ${fmtCurrency(ytdGCI)} in GCI, ${fmtCurrency(ytdGCI - goalGCI)} over your goal.`
+        : `You've closed ${fmtCurrency(ytdGCI)} in GCI, which meets your goal.`,
     };
   }
   const gap = goalGCI - ytdGCI;
   const dealsNeeded = ytdDealCount > 0 && ytdGCI > 0 ? Math.ceil(gap / (ytdGCI / ytdDealCount)) : null;
   const toGo = dealsNeeded !== null
-    ? `${fmtCurrency(gap)} to go, about ${dealsNeeded} more deal${dealsNeeded === 1 ? "" : "s"} at your average size.`
+    ? `${fmtCurrency(gap)} to go, about ${dealsNeeded} more deal${dealsNeeded === 1 ? "" : "s"} at your average deal size.`
     : `${fmtCurrency(gap)} to go.`;
   const shownPercent = (100 + pacePercent).toFixed(0);
-  const body = `You're at ${shownPercent}% of expected pace. ${toGo}`;
+  const body = `Your GCI is ${shownPercent}% of what your annual goal expects by today. ${toGo}`;
   if (shownPercent === "100") return { state: "on-pace", title: "On pace for your annual goal", body };
   return pacePercent > 0
     ? { state: "ahead", title: "Ahead of pace on your annual goal", body }

@@ -104,7 +104,7 @@ export function captainReadQuestion({ weakestLabel, weakestScore, pipelineEmpty,
     const ask = "What is the single fastest lever I can pull this month to move my score, and what would the impact be?";
     if (weakestLabel === "Goal Pace") {
       if (paceState === null && goalIsZero) {
-        return `Goal Pace is my lowest Runway Score bar at ${weakestScore} out of 100. I set this year's goal to $0 on purpose, so that bar stays where it is.${pipelineNote} Leaving the goal as it is, what is the single fastest lever I can pull this month to move my score, and what would the impact be?`;
+        return `Goal Pace is my lowest Runway Score bar at ${weakestScore} out of 100. This year's goal is set to $0, so that bar stays where it is.${pipelineNote} Leaving the goal as it is, what is the single fastest lever I can pull this month to move my score, and what would the impact be?`;
       }
       if (paceState === null) {
         return `Goal Pace is my lowest Runway Score bar at ${weakestScore} out of 100. I have no annual goal set for this year, and the bar can't move until I set one. What goal would fit my numbers, and how do I set it?`;
@@ -144,11 +144,11 @@ export function goalPaceWhy({ paceState, goalIsZero, paceScore, closedDeals, avg
   if (paceState === "goal-reached") {
     return `Goal Pace ${score} is your lowest score bar, with your annual goal already reached. Each deal you close past it still lifts the bar.`;
   }
-  const projection = `projected year-end GCI is ${fmtCurrency(Math.abs(projectedGCI - goalGCI))} ${projectedGCI >= goalGCI ? "above" : "below"} your ${fmtCurrency(goalGCI)} goal.`;
+  const projection = `projected year-end GCI, which counts your pipeline, is ${fmtCurrency(Math.abs(projectedGCI - goalGCI))} ${projectedGCI >= goalGCI ? "above" : "below"} your ${fmtCurrency(goalGCI)} goal.`;
   const facts = closedDeals > 0
     ? `With ${closedDeals} closed deal${closedDeals === 1 ? "" : "s"} at an average of ${fmtCurrency(avgDealSize)}, ${projection}`
     : `${projection[0].toUpperCase()}${projection.slice(1)}`;
   return paceState === "behind"
-    ? `Goal pace ${score} is the primary drag. ${facts}`
+    ? `Goal Pace ${score} is your lowest score bar because your closed GCI is behind what your annual goal expects by today. ${facts}`
     : `Goal Pace ${score} is your lowest score bar. ${facts}`;
 }

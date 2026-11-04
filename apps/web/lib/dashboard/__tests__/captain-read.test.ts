@@ -138,7 +138,9 @@ describe("a year deliberately set to $0", () => {
     expect(line).toContain("set to $0");
     expect(line).not.toMatch(/set an annual goal|in Settings/i);
     const question = captainReadQuestion({ weakestLabel: "Goal Pace", weakestScore: 50, pipelineEmpty: false, paceState: null, goalIsZero: true });
-    expect(question).toContain("on purpose");
+    expect(question).toContain("This year's goal is set to $0");
+    // A blank Settings field also saves 0, so the question never claims intent.
+    expect(question).not.toContain("on purpose");
     expect(question).not.toMatch(/what goal|how do i set/i);
     expect(goalPaceOpportunityLine("no-goal", true)).toContain("set to $0");
     expect(goalPaceOpportunityLine("no-goal", true)).not.toMatch(/set an annual goal/i);
@@ -156,9 +158,9 @@ describe("goalPaceWhy: the Weekly Business Brief's reason", () => {
     projectedGCI: 90_000, goalGCI: 100_000,
   };
 
-  it("calls it a drag only when the page says behind", () => {
-    expect(goalPaceWhy(base)).toMatch(/primary drag/);
-    for (const paceState of NOT_BEHIND) expect(goalPaceWhy({ ...base, paceState })).not.toMatch(/drag/);
+  it("says closed GCI is behind only when the page says behind", () => {
+    expect(goalPaceWhy(base)).toMatch(/your closed GCI is behind/);
+    for (const paceState of NOT_BEHIND) expect(goalPaceWhy({ ...base, paceState })).not.toMatch(/behind/);
   });
 
   it("is true of the figures that showed the contradiction: slightly ahead, projection above goal", () => {
