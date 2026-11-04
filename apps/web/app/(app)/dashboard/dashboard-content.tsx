@@ -212,7 +212,9 @@ import {
   noUrgentClientActionsLine,
   paceStatement,
   todayZoneLayout,
+  type PaceState,
 } from "@/lib/dashboard/today-zone";
+import { captainReadQuestion, captainReadSentence } from "@/lib/dashboard/captain-read";
 import {
   browserMilestoneStorage,
   decideGoalMilestone,
@@ -423,6 +425,10 @@ export function DashboardContent({
   // next-year-plan.tsx from core/engines/year-plan-engine.
   const goalCurrentYear = incomeGoalCurrentYear();
   const [viewYear, setViewYear] = useState<DashboardYearView>("current");
+  // The Quick tip's dismissal this session. Held here because the tip sits inside
+  // the current-year view and unmounts on the year switch, and the saved value
+  // in the prop doesn't change until the page next reloads.
+  const [tipDismissedAt, setTipDismissedAt] = useState<string | null>(null);
   const [incomeGoals, setIncomeGoals] = useState<IncomeGoalRow[]>(initialIncomeGoals);
 
   async function saveNextYearGoal(amount: number): Promise<boolean> {
@@ -1094,9 +1100,13 @@ export function DashboardContent({
   // state uses (Pipeline Weighted card: pipelineCount === 0 && listingCount === 0).
   // The Captain's read must not advise closing a deal that does not exist.
   const pipelineEmpty = pipelineCount === 0 && listingCount === 0;
+  // The page's one statement of pace, in every state (Alert 2 below). The
+  // Captain's read takes its state from here so the two can't disagree.
+  const paceAlert = paceStatement({ goalGCI, ytdGCI, ytdDealCount, pacePercent });
   const scoreNarrative = buildScoreNarrative(
     runwayScore, survival, paceStatus, pacePercent, healthReport, pipelineEmpty,
     ytdGCI > 0 ? expensesYTD / ytdGCI : 0,
+    paceAlert?.state ?? null,
   );
   const narrative = settings
     ? generateBusinessHealthNarrative({
@@ -1144,10 +1154,9 @@ export function DashboardContent({
 
   // Alert 2: the page's one statement of pace, in every state. Nothing else on
   // the page words it (the Goal Pace bar is a score component, not a statement).
-  const paceAlert = paceStatement({ goalGCI, ytdGCI, ytdDealCount, pacePercent });
   if (paceAlert) {
     smartAlerts.push({
-      type: paceAlert.state === "behind" ? "warning" : paceAlert.state === "ahead" ? "success" : "info",
+      type: paceAlert.state === "behind" ? "warning" : paceAlert.state === "on-pace" ? "info" : "success",
       icon: paceAlert.state === "behind" ? "⚠️" : "🎯",
       title: paceAlert.title,
       body: paceAlert.body,
@@ -2019,7 +2028,7 @@ export function DashboardContent({
                   <Square className="h-4 w-4" />
                 </button>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-foreground truncate">{task.title}</p>
+                  <p className="text-sm font-medium text-foreground truncate" title={task.title}>{task.title}</p>
                   <p className={cn("text-[11px]", isOverdue ? "text-red-600 font-semibold" : isToday ? "text-amber-700 font-medium" : "text-muted-foreground")}>
                     {dateLabel}
                   </p>
@@ -2792,7 +2801,7 @@ export function DashboardContent({
             </div>
           )}
           {todayLayout.cards.length > 0 && (
-            <div className={cn("grid items-start gap-3", todayLayout.cards.length === 2 && "lg:grid-cols-[3fr_2fr]")}>
+            <div className={cn("grid items-start gap-3", todayLayout.cards.length === 2 && "xl:grid-cols-[3fr_2fr]")}>
               {todayLayout.cards.map((id) => (
                 <PinnedCard
                   key={id}
@@ -2819,7 +2828,8 @@ export function DashboardContent({
         <AiProfilePrompt
           hasVoiceProfile={!!(communicationProfile?.completed)}
           hasBusinessIdentity={!!(businessIdentity?.completed)}
-          lastDismissedAt={aiProfilePromptDismissedAt}
+          lastDismissedAt={tipDismissedAt ?? aiProfilePromptDismissedAt}
+          onDismissed={setTipDismissedAt}
         />
       )}
 
@@ -3658,6 +3668,8 @@ interface ScoreNarrative {
    *  (pipelineCount === 0 && listingCount === 0). When set, the Captain's read
    *  must never advise closing or converting a deal that does not exist. */
   pipelineEmpty: boolean;
+  /** The state of the page's one pace statement. null without a goal. */
+  paceState: PaceState | null;
 }
 
 // ── Captain's read strip ──────────────────────────────────────────────────
@@ -3667,58 +3679,11 @@ interface ScoreNarrative {
 // Captain (Anchor / blue-600 per project_flight_crew_ui_design) reading the
 // panel back in one plain-language synthesis line, with one action.
 //
-// The synthesis sentence and the askQuestion() seed both derive from the SAME
-// weakest-component logic the score narrative already computes. Nothing here is
-// hardcoded. This strip carries the single actionable line in the hero; the
-// former standalone narrative <p> was removed so the hero shows ONE synthesis
-// line, not two competing ones.
-//
-// Copy obeys feedback_avoid_ai_tells_in_content: no em dashes, no rule-of-three
-// triads, no marketing adjectives.
-
-/** Captain's synthesis: weakest component framed as the current drag plus the
- *  fastest lever. Keyed off the same `weakestLabel` the engine produced.
- *
- *  State-aware: the read must never point at an action the data shows is
- *  impossible. When the pipeline is empty (no deals AND no active listings),
- *  "closing one pipeline deal" or "adding a deal or two" reads as advice for
- *  a deal that does not exist, so the read points at the real first move:
- *  adding a prospect. `pipelineEmpty` is the same signal the hero's
- *  "Add your first prospect" empty state uses. */
-function captainReadSentence(label: string | null, pipelineEmpty: boolean): string {
-  switch (label) {
-    case "Goal Pace":
-      return pipelineEmpty
-        ? "Goal pace is your biggest drag right now. Your pipeline is empty, so adding a prospect is the first move."
-        : "Goal pace is your biggest drag right now. Closing one pipeline deal moves your score the most.";
-    case "Pipeline":
-      return pipelineEmpty
-        ? "Pipeline is your biggest drag right now. Adding your first prospect is the fastest way to move your score."
-        : "Pipeline is your biggest drag right now. Adding a deal or two is the fastest way to move your score.";
-    case "Expenses":
-      return "Your expense ratio is the biggest drag on your score right now. Trimming overhead is the fastest lever.";
-    case "Benchmark":
-      return "Your benchmark ranking is the biggest drag right now. Lifting projected GCI is what moves it.";
-    case "Survival":
-      return "Cash runway is the biggest drag on your score right now. Extending coverage is the fastest lever.";
-    default:
-      return "Your score is holding steady. Ask the Captain where the next gain is.";
-  }
-}
-
-/** The question seeded into the Flight Crew chat. References the specific
- *  weakest component so the Captain opens on a relevant, narrow answer. When
- *  the pipeline is empty the seed states that fact so the Captain's opening
- *  answer cannot assume deals that do not exist. */
-function captainReadQuestion(narrative: ScoreNarrative): string {
-  if (narrative.weakestLabel && narrative.weakestScore !== null) {
-    const pipelineNote = narrative.pipelineEmpty
-      ? " My pipeline is empty right now."
-      : "";
-    return `My Runway Score's biggest drag is ${narrative.weakestLabel} at ${narrative.weakestScore} out of 100.${pipelineNote} What is the single fastest lever I can pull this month to move my score, and what would the impact be?`;
-  }
-  return "What is the single fastest lever I can pull this month to move my Runway Score?";
-}
+// The synthesis sentence and the askQuestion() seed (lib/dashboard/captain-read)
+// both derive from the SAME weakest-component logic the score narrative already
+// computes. Nothing here is hardcoded. This strip carries the single actionable
+// line in the hero; the former standalone narrative <p> was removed so the hero
+// shows ONE synthesis line, not two competing ones.
 
 function CaptainReadStrip({
   narrative,
@@ -3728,7 +3693,7 @@ function CaptainReadStrip({
   isPro: boolean;
 }) {
   const { askQuestion } = useAiChat();
-  const sentence = captainReadSentence(narrative.weakestLabel, narrative.pipelineEmpty);
+  const sentence = captainReadSentence(narrative.weakestLabel, narrative.pipelineEmpty, narrative.paceState);
 
   return (
     <div className="flex flex-col gap-2 rounded-lg border border-slate-700/70 bg-slate-800/40 px-3.5 py-2.5 sm:flex-row sm:items-center sm:gap-3">
@@ -3778,6 +3743,7 @@ function buildScoreNarrative(
   _healthReport: BusinessHealthReport,
   pipelineEmpty: boolean,
   expenseRatio: number,
+  paceState: PaceState | null,
 ): ScoreNarrative {
   if (!runwayScore.hasEnoughData) {
     return {
@@ -3785,6 +3751,7 @@ function buildScoreNarrative(
       weakestScore: null,
       sentence: "Add transactions and complete your Settings to get a meaningful score.",
       pipelineEmpty,
+      paceState,
     };
   }
   const weakest = runwayScore.components.reduce((a, b) =>
@@ -3818,6 +3785,7 @@ function buildScoreNarrative(
     weakestScore: weakest.score,
     sentence: `Biggest opportunity: ${weakest.label} (${weakest.score}/100). ${phrase[0].toUpperCase()}${phrase.slice(1)}.`,
     pipelineEmpty,
+    paceState,
   };
 }
 

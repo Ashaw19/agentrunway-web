@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
 import { X } from "lucide-react";
 import { dismissAiProfilePrompt } from "@/app/(app)/settings/actions";
@@ -9,6 +8,8 @@ interface AiProfilePromptProps {
   hasVoiceProfile: boolean;
   hasBusinessIdentity: boolean;
   lastDismissedAt: string | null;
+  /** Holds the dismissal in the parent: this row unmounts when the year view changes. */
+  onDismissed: (dismissedAt: string) => void;
 }
 
 function shouldShow(hasVoice: boolean, hasBiz: boolean, lastDismissed: string | null): boolean {
@@ -42,15 +43,14 @@ export function AiProfilePrompt({
   hasVoiceProfile,
   hasBusinessIdentity,
   lastDismissedAt,
+  onDismissed,
 }: AiProfilePromptProps) {
-  const [visible, setVisible] = useState(() => shouldShow(hasVoiceProfile, hasBusinessIdentity, lastDismissedAt));
-
   async function handleDismiss() {
-    setVisible(false);
+    onDismissed(new Date().toISOString());
     await dismissAiProfilePrompt();
   }
 
-  if (!visible) return null;
+  if (!shouldShow(hasVoiceProfile, hasBusinessIdentity, lastDismissedAt)) return null;
 
   return (
     <div className="flex items-start gap-2 rounded-lg border border-violet-200 bg-violet-50/60 px-3.5 py-2 dark:border-violet-800/40 dark:bg-violet-950/20">

@@ -6,6 +6,7 @@ import {
   paceStatement,
   todayZoneLayout,
 } from "../today-zone";
+import { pipelineDepthStatus } from "@agent-runway/core/types/database";
 import {
   DEFAULT_HIDDEN,
   DEFAULT_ORDER,
@@ -60,6 +61,22 @@ describe("dailyBriefingPipelineChip: counts pipeline deals, not clients", () => 
   });
 });
 
+describe("pipelineDepthStatus: the one rule behind the chip and the opportunity read", () => {
+  it("is empty only with no deals and no listings", () => {
+    expect(pipelineDepthStatus(0)).toBe("empty");
+    expect(pipelineDepthStatus(0, 0)).toBe("empty");
+    expect(pipelineDepthStatus(0, 1)).toBe("light");
+  });
+  it("doesn't let listings lift the deal thresholds", () => {
+    expect(pipelineDepthStatus(2, 5)).toBe("light");
+    expect(pipelineDepthStatus(3)).toBe("healthy");
+  });
+  it("can't read as empty after a failed read", () => {
+    expect(pipelineDepthStatus(Number.POSITIVE_INFINITY)).toBe("healthy");
+    expect(pipelineDepthStatus(0, Number.POSITIVE_INFINITY)).toBe("light");
+  });
+});
+
 describe("noUrgentClientActionsLine", () => {
   it("says what is empty and does not read as all clear", () => {
     expect(noUrgentClientActionsLine()).toMatch(/no urgent client actions/i);
@@ -111,7 +128,7 @@ describe("paceStatement: the page's one statement of pace", () => {
 
   it("states a reached goal instead of a distance", () => {
     const s = paceStatement({ goalGCI: 200_000, ytdGCI: 215_000, ytdDealCount: 9, pacePercent: 40 })!;
-    expect(s.state).toBe("ahead");
+    expect(s.state).toBe("goal-reached");
     expect(s.title).toBe("Annual goal reached");
     expect(s.body).toBe("You've closed $215,000, which is $15,000 over your goal.");
   });

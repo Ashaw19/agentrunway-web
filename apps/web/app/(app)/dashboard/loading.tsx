@@ -19,7 +19,7 @@ export default function DashboardLoading() {
       </div>
 
       {/* Today: Daily Briefing + Checklist */}
-      <div className="grid items-start gap-3 lg:grid-cols-[3fr_2fr]">
+      <div className="grid items-start gap-3 xl:grid-cols-[3fr_2fr]">
         {Array.from({ length: 2 }).map((_, i) => (
           <div
             key={i}

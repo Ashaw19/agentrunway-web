@@ -32,18 +32,17 @@ export interface PipelineChip {
  *
  * A deal counts unless it is Collapsed; an undated deal counts. Listings don't
  * add to the deal thresholds, but with no deals they keep the chip from saying
- * Empty beside a KPI card that shows them (the same "empty" the hero uses).
+ * Empty beside a KPI card that shows them (pipelineDepthStatus holds the rule,
+ * for the opportunity read too).
  */
 export function dailyBriefingPipelineChip(
   deals: readonly { stage: string; condition_status?: string | null }[],
   listingCount: number,
 ): PipelineChip {
   const count = excludeCollapsedDeals(activePipelineDeals(deals)).length;
-  if (count === 0 && listingCount > 0) {
-    return { label: `Light (${listingCount} listing${listingCount === 1 ? "" : "s"})`, depth: "light" };
-  }
-  const depth = pipelineDepthStatus(count);
+  const depth = pipelineDepthStatus(count, listingCount);
   if (depth === "empty") return { label: "Empty", depth };
+  if (count === 0) return { label: `Light (${listingCount} listing${listingCount === 1 ? "" : "s"})`, depth };
   const dealCount = `${count} deal${count === 1 ? "" : "s"}`;
   return { label: depth === "light" ? `Light (${dealCount})` : dealCount, depth };
 }
@@ -61,8 +60,10 @@ export interface PaceStatementInput {
   pacePercent: number;
 }
 
+export type PaceState = "behind" | "on-pace" | "ahead" | "goal-reached";
+
 export interface PaceStatement {
-  state: "behind" | "on-pace" | "ahead";
+  state: PaceState;
   title: string;
   body: string;
 }
@@ -77,7 +78,7 @@ export function paceStatement({ goalGCI, ytdGCI, ytdDealCount, pacePercent }: Pa
   if (goalGCI <= 0) return null;
   if (ytdGCI >= goalGCI) {
     return {
-      state: "ahead",
+      state: "goal-reached",
       title: "Annual goal reached",
       body: `You've closed ${fmtCurrency(ytdGCI)}, which is ${fmtCurrency(ytdGCI - goalGCI)} over your goal.`,
     };

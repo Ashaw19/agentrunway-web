@@ -3,9 +3,15 @@
  * pace is stated once, confetti fires only on a real crossing, the Pipeline
  * chip counts deals, and the Quick tip stays in the page flow.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { readFileSync } from "node:fs";
 import path from "node:path";
+
+vi.mock("@/app/(app)/settings/actions", () => ({ dismissAiProfilePrompt: vi.fn() }));
+
+import { AiProfilePrompt } from "@/app/(app)/dashboard/ai-profile-prompt";
 
 const WEB = path.resolve(__dirname, "../..");
 const REPO = path.resolve(WEB, "../..");
@@ -30,6 +36,15 @@ describe("the page's order", () => {
       "<SortableContext",
     ].map(at);
     expect(steps).toEqual([...steps].sort((a, b) => a - b));
+  });
+
+  it("splits Today into two columns only where the Checklist has room", () => {
+    // At lg (1024) the sidebar still shows and the Checklist gets 277px: titles cut to fragments.
+    for (const source of [code, read("app/(app)/dashboard/loading.tsx")]) {
+      expect(source).toContain("xl:grid-cols-[3fr_2fr]");
+      expect(source).not.toContain("lg:grid-cols-[3fr_2fr]");
+    }
+    expect(code).toContain('truncate" title={task.title}');
   });
 
   it("does not keep a Today card in the sortable list", () => {
@@ -109,10 +124,41 @@ describe("the Quick tip", () => {
     expect(tip).toContain("dismissAiProfilePrompt");
   });
 
+  describe("stays dismissed", () => {
+    const render = (lastDismissedAt: string | null) => renderToStaticMarkup(createElement(AiProfilePrompt, {
+      hasVoiceProfile: false,
+      hasBusinessIdentity: false,
+      lastDismissedAt,
+      onDismissed: () => {},
+    }));
+    const daysAgo = (d: number) => new Date(Date.now() - d * 86_400_000).toISOString();
+
+    it("for 7 days, reading only what it is handed, so a remount can't bring it back", () => {
+      expect(render(null)).toContain("Quick tip");
+      expect(render(daysAgo(1))).toBe("");
+      expect(render(daysAgo(8))).toContain("Quick tip");
+      expect(tipCode).not.toContain("useState");
+    });
+
+    it("with the dismissal held above the year switch, which unmounts the tip", () => {
+      expect(code.indexOf("useState<string | null>(null)")).toBeLessThan(code.indexOf('viewYear === "next"'));
+      expect(code).toContain("lastDismissedAt={tipDismissedAt ?? aiProfilePromptDismissedAt}");
+      expect(code).toContain("onDismissed={setTipDismissedAt}");
+    });
+  });
+
   it("is gone in the next-year view", () => {
     const nextYearBranch = code.slice(code.indexOf('viewYear === "next"'), code.indexOf("<NextYearGoalPrompt"));
     expect(nextYearBranch).not.toContain("<AiProfilePrompt");
     expect(code.indexOf("<AiProfilePrompt")).toBeLessThan(code.lastIndexOf("</>"));
+  });
+});
+
+describe("the Captain's read in the hero", () => {
+  it("takes its state from the page's one pace statement", () => {
+    expect(code.indexOf("const paceAlert = paceStatement(")).toBeLessThan(code.indexOf("const scoreNarrative = buildScoreNarrative("));
+    expect(code).toContain("paceAlert?.state ?? null");
+    expect(code).toContain("captainReadSentence(narrative.weakestLabel, narrative.pipelineEmpty, narrative.paceState)");
   });
 });
 
@@ -127,5 +173,7 @@ describe("the Captain knows the layout", () => {
     expect(line).toMatch(/pace/i);
     expect(line).toMatch(/Quick tip/);
     expect(line).toMatch(/50%, 75% or 100%/);
+    expect(line).toMatch(/calls Goal Pace a drag only when the pace alert says behind/);
+    expect(line).toMatch(/listings and no deals/);
   });
 });
