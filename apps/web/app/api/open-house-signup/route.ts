@@ -2,6 +2,7 @@ import { NextResponse, NextRequest } from "next/server";
 import { createClient }              from "@supabase/supabase-js";
 import { resend, FROM_ADDRESS }      from "@/lib/resend";
 import { FIELD_LIMITS }              from "@agent-runway/core/validation/input-guards";
+import { toNameSearch } from "@agent-runway/core/lib/client-identity";
 
 /**
  * POST /api/open-house-signup
@@ -213,7 +214,7 @@ export async function POST(request: NextRequest) {
   // Cap to the clients.name DB constraint (chk_cl_name_length <= 200) so an
   // overlong public-form submission never aborts the insert.
   const cappedName = name.slice(0, FIELD_LIMITS.clientName);
-  const nameSearch = cappedName.toLowerCase().trim();
+  const nameSearch = toNameSearch(cappedName);
 
   const { data: existingClient } = await supabase
     .from("clients")

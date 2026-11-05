@@ -24,6 +24,15 @@ export interface ClientNameValue {
 
 export const NO_CLIENT: ClientNameValue = { id: null, name: "" };
 
+/**
+ * For a dialog's onEscapeKeyDown. Radix hears Escape before the box does and would
+ * close the whole dialog, so while a client list shows, Escape closes only the list.
+ */
+export function keepEscapeForClientList(event: { target: EventTarget | null; preventDefault: () => void }) {
+  const box = event.target instanceof Element ? event.target.closest('[role="combobox"]') : null;
+  if (box?.getAttribute("aria-expanded") === "true") event.preventDefault();
+}
+
 const SEARCH_DELAY_MS = 150;
 
 async function searchMyClients(typed: string): Promise<ClientSuggestion[]> {
@@ -53,7 +62,11 @@ export function ClientNameField({
   const listId = `${baseId}-list`;
   const [suggestions, setSuggestions] = useState<ClientSuggestion[]>([]);
   const [open, setOpen] = useState(false);
-  const [active, setActive] = useState(0);
+  // With free text allowed nothing starts highlighted: Enter must not swap the name typed for a client's.
+  const noHighlight = freeTextHint ? -1 : 0;
+  const [active, setActive] = useState(noHighlight);
+  // The text the list was found for. Enter never picks from a list older than what's in the box.
+  const [listFor, setListFor] = useState("");
   const [status, setStatus] = useState<"idle" | "done" | "failed">("idle");
   const latest = useRef(0);
   const blurTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -74,7 +87,8 @@ export function ClientNameField({
         const found = await search(typed);
         if (request !== latest.current) return;
         setSuggestions(found);
-        setActive(0);
+        setListFor(typed);
+        setActive(noHighlight);
         setStatus("done");
         const exact = exactClientMatch(typed, found);
         if (exact && current.current.value.name === typed && !current.current.value.id) {
@@ -87,7 +101,7 @@ export function ClientNameField({
       }
     }, SEARCH_DELAY_MS);
     return () => clearTimeout(timer);
-  }, [typed, search]);
+  }, [typed, search, noHighlight]);
 
   useEffect(() => () => {
     if (blurTimer.current) clearTimeout(blurTimer.current);
@@ -112,7 +126,7 @@ export function ClientNameField({
           aria-expanded={showList}
           aria-controls={listId}
           aria-autocomplete="list"
-          aria-activedescendant={showList ? `${baseId}-option-${active}` : undefined}
+          aria-activedescendant={showList && active >= 0 ? `${baseId}-option-${active}` : undefined}
           autoComplete="off"
           placeholder={placeholder}
           value={value.name}
@@ -126,9 +140,8 @@ export function ClientNameField({
             blurTimer.current = setTimeout(() => setOpen(false), 120);
           }}
           onKeyDown={(e) => {
-            if (e.key === "Escape" && open) {
-              e.preventDefault();
-              e.stopPropagation();
+            // The dialog leaves Escape to this box while the list shows (keepEscapeForClientList).
+            if (e.key === "Escape" && showList) {
               setOpen(false);
               return;
             }
@@ -138,13 +151,10 @@ export function ClientNameField({
               setActive((i) => (i + 1) % suggestions.length);
             } else if (e.key === "ArrowUp") {
               e.preventDefault();
-              setActive((i) => (i - 1 + suggestions.length) % suggestions.length);
+              setActive((i) => (i <= 0 ? suggestions.length - 1 : i - 1));
             } else if (e.key === "Enter") {
               e.preventDefault();
-              pick(suggestions[active]);
-            } else if (e.key === "Tab") {
-              // Takes the highlighted client and still moves on to the next box.
-              pick(suggestions[active]);
+              if (listFor === typed && suggestions[active]) pick(suggestions[active]);
             }
           }}
         />
@@ -154,34 +164,34 @@ export function ClientNameField({
             className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-600"
           />
         )}
+        {/* Floats over the boxes below, so opening and closing it never moves the Save button. */}
+        {showList && (
+          <ul
+            id={listId}
+            role="listbox"
+            className="absolute z-50 mt-1 max-h-56 w-full overflow-auto rounded-md border bg-popover p-1 shadow-md"
+          >
+            {suggestions.map((client, i) => (
+              <li
+                key={client.id}
+                id={`${baseId}-option-${i}`}
+                role="option"
+                aria-selected={i === active}
+                className={cn(
+                  "cursor-pointer rounded-sm px-2 py-2 text-sm",
+                  i === active && "bg-accent text-accent-foreground",
+                  client.id === value.id && "font-medium",
+                )}
+                onMouseEnter={() => setActive(i)}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => pick(client)}
+              >
+                {client.name}
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
-      {/* In the page flow, not floating: a dialog's scroll area would cut a floating list off. */}
-      {showList && (
-        <ul
-          id={listId}
-          role="listbox"
-          className="max-h-56 overflow-auto rounded-md border bg-popover p-1 shadow-sm"
-        >
-          {suggestions.map((client, i) => (
-            <li
-              key={client.id}
-              id={`${baseId}-option-${i}`}
-              role="option"
-              aria-selected={i === active}
-              className={cn(
-                "cursor-pointer rounded-sm px-2 py-2 text-sm",
-                i === active && "bg-accent text-accent-foreground",
-                client.id === value.id && "font-medium",
-              )}
-              onMouseEnter={() => setActive(i)}
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => pick(client)}
-            >
-              {client.name}
-            </li>
-          ))}
-        </ul>
-      )}
       {showNoMatch && (
         <p className="text-xs text-muted-foreground">
           {freeTextHint ?? "No client has that name. Add them in the CRM first."}

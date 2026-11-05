@@ -16,16 +16,16 @@ export const MAX_SUGGESTIONS = 6;
 /** Rows read per search, most recently contacted first. More typing narrows it. */
 const SUGGESTION_READ_LIMIT = 25;
 
-/** The words typed, as name_search stores them, with only letters, digits and apostrophes kept. */
+/** Anything but letters, their combining marks, digits and apostrophes separates words: Jean-Luc, J.P. */
+const WORD_BREAK = /[^\p{L}\p{M}\p{N}']+/u;
+const words = (text: string) => toNameSearch(text).replace(/\u2019/g, "'").split(WORD_BREAK).filter(Boolean);
+
+/** The words typed, as name_search stores them. Only safe characters survive, for the filter below. */
 export function suggestionTerms(typed: string): string[] {
-  return toNameSearch(typed)
-    .split(" ")
-    .map((w) => w.replace(/[^\p{L}\p{N}']/gu, ""))
-    .filter(Boolean)
-    .slice(0, 4);
+  return words(typed).slice(0, 4);
 }
 
-const nameWords = (name: string) => toNameSearch(name).split(/[\s-]+/).filter(Boolean);
+const nameWords = words;
 
 /** Clients with a word starting with every word typed: name start first, then most recently contacted. */
 export function rankClientSuggestions(typed: string, rows: readonly ClientSuggestion[]): ClientSuggestion[] {
@@ -44,8 +44,12 @@ export function rankClientSuggestions(typed: string, rows: readonly ClientSugges
     .slice(0, MAX_SUGGESTIONS);
 }
 
-/** The one client whose whole name was typed. Null when there's none, or two share that name. */
+/**
+ * The one client whose whole name was typed. Null when there's none, when two share
+ * that name, or while the text ends in a space: "Mike " is on its way to Mike Brown.
+ */
 export function exactClientMatch(typed: string, rows: readonly ClientSuggestion[]): ClientSuggestion | null {
+  if (typed !== typed.trimEnd()) return null;
   const said = toNameSearch(typed);
   const same = rows.filter((r) => toNameSearch(r.name) === said);
   return same.length === 1 ? same[0] : null;
@@ -65,7 +69,7 @@ export async function fetchClientSuggestions(
     .eq("user_id", userId)
     .is("archived_at", null);
   for (const t of terms) {
-    query = query.or(`name_search.ilike."${t}%",name_search.ilike."% ${t}%",name_search.ilike."%-${t}%"`);
+    query = query.or(`name_search.ilike."${t}%",name_search.ilike."% ${t}%",name_search.ilike."%-${t}%",name_search.ilike."%.${t}%"`);
   }
   const { data, error } = await query
     .order("last_contact_at", { ascending: false, nullsFirst: false })

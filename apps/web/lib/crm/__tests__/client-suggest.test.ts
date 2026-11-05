@@ -22,7 +22,17 @@ describe("suggestionTerms", () => {
 
   it("keeps a word's apostrophe and drops what could break the filter", () => {
     expect(suggestionTerms("O'Brien")).toEqual(["o'brien"]);
-    expect(suggestionTerms('ka%th_y,"(')).toEqual(["kathy"]);
+    expect(suggestionTerms('ka%th,"(')).toEqual(["ka", "th"]);
+    expect(suggestionTerms("O\u2019Brien")).toEqual(["o'brien"]);
+  });
+
+  it("splits at hyphens and periods, so Jean-Luc and J.P. find their clients", () => {
+    expect(suggestionTerms("Jean-Luc")).toEqual(["jean", "luc"]);
+    expect(suggestionTerms("J.P. Roy")).toEqual(["j", "p", "roy"]);
+  });
+
+  it("keeps the combining marks some alphabets need", () => {
+    expect(suggestionTerms("\u092a\u094d\u0930\u093f\u092f\u093e")).toEqual(["\u092a\u094d\u0930\u093f\u092f\u093e"]);
   });
 
   it("has no terms for blank or punctuation-only text", () => {
@@ -57,6 +67,11 @@ describe("rankClientSuggestions", () => {
     expect(rankClientSuggestions("rene", [row("René Roy")])).toHaveLength(1);
   });
 
+  it("finds a hyphenated or dotted name typed the same way", () => {
+    expect(rankClientSuggestions("Jean-Luc", [row("Jean-Luc Roy")])).toHaveLength(1);
+    expect(rankClientSuggestions("J.P.", [row("J.P. Roy")])).toHaveLength(1);
+  });
+
   it("doesn't match the middle of a word", () => {
     expect(rankClientSuggestions("thy", [row("Kathy Stefanides")])).toEqual([]);
   });
@@ -69,7 +84,13 @@ describe("rankClientSuggestions", () => {
 
 describe("exactClientMatch", () => {
   it("links a full name typed without picking from the list", () => {
-    expect(exactClientMatch(" kathy  STEFANIDES ", [row("Kathy Stefanides")])?.id).toBe("id-Kathy Stefanides");
+    expect(exactClientMatch(" kathy  STEFANIDES", [row("Kathy Stefanides")])?.id).toBe("id-Kathy Stefanides");
+  });
+
+  it("waits while the text ends in a space, so Mike can become Mike Brown", () => {
+    const rows = [row("Mike"), row("Mike Brown")];
+    expect(exactClientMatch("Mike ", rows)).toBeNull();
+    expect(exactClientMatch("Mike", rows)?.name).toBe("Mike");
   });
 
   it("never guesses between two clients with the same name, or from part of a name", () => {
@@ -103,6 +124,7 @@ describe("fetchClientSuggestions", () => {
     expect(calls.or[0][0]).toContain('name_search.ilike."kathy%"');
     expect(calls.or[0][0]).toContain('name_search.ilike."% kathy%"');
     expect(calls.or[0][0]).toContain('name_search.ilike."%-kathy%"');
+    expect(calls.or[0][0]).toContain('name_search.ilike."%.kathy%"');
   });
 
   it("makes no request for blank text", async () => {
@@ -131,7 +153,24 @@ describe("the Add Opportunity dialog", () => {
     expect(code.match(/<ClientNameField/g)).toHaveLength(3);
   });
 
+  it("leaves Escape to an open client list instead of closing the dialog", () => {
+    expect(code).toContain("onEscapeKeyDown={keepEscapeForClientList}");
+  });
+
   it("stores the picked name on a buyer prospect", () => {
     expect(code).toMatch(/client_name:\s*bp\.client\.name\.trim\(\)/);
+  });
+});
+
+describe("keepEscapeForClientList and the box", () => {
+  const field = readFileSync(path.resolve(__dirname, "../../../components/client-name-field.tsx"), "utf8");
+
+  it("never lets Tab pick a client, and Enter only from a list found for this text", () => {
+    expect(field).not.toMatch(/"Tab"/);
+    expect(field).toContain("listFor === typed && suggestions[active]");
+  });
+
+  it("starts with nothing highlighted where free text is allowed", () => {
+    expect(field).toContain("freeTextHint ? -1 : 0");
   });
 });

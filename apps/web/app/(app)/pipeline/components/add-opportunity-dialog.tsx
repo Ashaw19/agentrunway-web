@@ -35,7 +35,7 @@ import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { fmtCurrency } from "@/lib/formatters";
 import { supabaseErrorMessage } from "@/lib/crm/opportunity-form";
-import { ClientNameField, NO_CLIENT } from "@/components/client-name-field";
+import { ClientNameField, NO_CLIENT, keepEscapeForClientList } from "@/components/client-name-field";
 import type { ReferralType } from "@/lib/types/database";
 
 type Tab = "listing_appointment" | "buyer_prospect" | "referral";
@@ -288,7 +288,7 @@ export function AddOpportunityDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[95vw] max-w-lg">
+      <DialogContent className="w-[95vw] max-w-lg" onEscapeKeyDown={keepEscapeForClientList}>
         <DialogHeader>
           <DialogTitle>Add Opportunity</DialogTitle>
         </DialogHeader>

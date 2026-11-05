@@ -31,6 +31,7 @@
  */
 
 import { z } from "zod";
+import { toNameSearch } from "@agent-runway/core/lib/client-identity";
 
 export const CONSENT_KINDS = ["alerts", "market_letter", "home_report", "open_house", "guide", "other"] as const;
 export type ConsentKind = (typeof CONSENT_KINDS)[number];
@@ -301,7 +302,7 @@ export function planWebsiteEvent(e: WebsiteEvent, match: MatchedClient | null, n
         name:        n.name,
         first_name:  n.first,
         last_name:   n.last,
-        name_search: n.name.toLowerCase().trim(),
+        name_search: toNameSearch(n.name),
         email:       email ?? null,
         phone:       phone ?? null,
         status:      WARM.has(e.source) ? "boarding" : "scheduled",
