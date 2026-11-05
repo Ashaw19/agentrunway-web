@@ -174,3 +174,15 @@ describe("keepEscapeForClientList and the box", () => {
     expect(field).toContain("freeTextHint ? -1 : 0");
   });
 });
+
+describe("a prospect's row on the Pipeline page", () => {
+  const table = readFileSync(path.resolve(__dirname, "../../../app/(app)/pipeline/pipeline-content.tsx"), "utf8");
+
+  it("titles a prospect with no target address by the client's name", () => {
+    expect(table).toContain("{item.name || item.clientName}");
+  });
+
+  it("shows the client under the address, without repeating a name already in the title", () => {
+    expect(table).toContain('{item.name && item.clientName && item.clientName !== item.name && item.source !== "buyer" && (');
+  });
+});
