@@ -8,8 +8,8 @@
  *   - buyer_prospect      → pipeline_deals (side 'buyer', stage 'lead')
  *   - referral            → referral_opportunities (status 'open')
  *
- * Buyer-prospect client picker is a v1 raw UUID/text input — a combobox is a
- * noted follow-up. user_id is always set from supabase.auth.getUser().
+ * Clients are chosen by name (ClientNameField). user_id is always set from
+ * supabase.auth.getUser().
  */
 
 import { useCallback, useState } from "react";
@@ -34,7 +34,8 @@ import {
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { fmtCurrency } from "@/lib/formatters";
-import { isUuid, supabaseErrorMessage } from "@/lib/crm/opportunity-form";
+import { supabaseErrorMessage } from "@/lib/crm/opportunity-form";
+import { ClientNameField, NO_CLIENT } from "@/components/client-name-field";
 import type { ReferralType } from "@/lib/types/database";
 
 type Tab = "listing_appointment" | "buyer_prospect" | "referral";
@@ -67,7 +68,7 @@ export function AddOpportunityDialog({
 
   // ── Listing Appointment form ───────────────────────────────────────────
   const [la, setLa] = useState({
-    client_id: "",
+    client: NO_CLIENT,
     property_address: "",
     appointment_date: todayLocal(),
     estimated_list_price: "",
@@ -79,7 +80,7 @@ export function AddOpportunityDialog({
 
   // ── Buyer Prospect form ────────────────────────────────────────────────
   const [bp, setBp] = useState({
-    client_id: "",
+    client: NO_CLIENT,
     address: "",
     estimated_price: "",
     estimated_commission_pct: "2.5",
@@ -91,8 +92,7 @@ export function AddOpportunityDialog({
   // ── Referral form ──────────────────────────────────────────────────────
   const [rf, setRf] = useState({
     referred_person_name: "",
-    referrer_name: "",
-    referrer_client_id: "",
+    referrer: NO_CLIENT,
     referral_type: "unknown" as ReferralType,
     referral_date: todayLocal(),
     estimated_price: "",
@@ -104,7 +104,7 @@ export function AddOpportunityDialog({
 
   const resetForms = useCallback(() => {
     setLa({
-      client_id: "",
+      client: NO_CLIENT,
       property_address: "",
       appointment_date: todayLocal(),
       estimated_list_price: "",
@@ -114,7 +114,7 @@ export function AddOpportunityDialog({
       notes: "",
     });
     setBp({
-      client_id: "",
+      client: NO_CLIENT,
       address: "",
       estimated_price: "",
       estimated_commission_pct: "2.5",
@@ -124,8 +124,7 @@ export function AddOpportunityDialog({
     });
     setRf({
       referred_person_name: "",
-      referrer_name: "",
-      referrer_client_id: "",
+      referrer: NO_CLIENT,
       referral_type: "unknown",
       referral_date: todayLocal(),
       estimated_price: "",
@@ -174,14 +173,13 @@ export function AddOpportunityDialog({
           toast.error("Commission must be between 0% and 50%.");
           return;
         }
-        const laClientId = la.client_id.trim();
-        if (laClientId && !isUuid(laClientId)) {
-          toast.error("Client ID must be a valid client UUID, not a name — find it on the Clients tab.");
+        if (la.client.name.trim() && !la.client.id) {
+          toast.error("Pick the client from the list, or clear the Client box.");
           return;
         }
         const { error } = await supabase.from("listing_appointments").insert({
           user_id: user.id,
-          client_id: laClientId || null,
+          client_id: la.client.id,
           property_address: la.property_address.trim(),
           appointment_date: la.appointment_date || todayLocal(),
           estimated_list_price: num(la.estimated_list_price),
@@ -194,8 +192,12 @@ export function AddOpportunityDialog({
         if (error) throw error;
         toast.success("Listing appointment logged.");
       } else if (tab === "buyer_prospect") {
-        if (!bp.client_id.trim()) {
+        if (!bp.client.name.trim()) {
           toast.error("A client is required for a buyer prospect.");
+          return;
+        }
+        if (!bp.client.id) {
+          toast.error("Pick the client from the list.");
           return;
         }
         const odds = oddsFraction(bp.close_odds_pct);
@@ -208,18 +210,13 @@ export function AddOpportunityDialog({
           toast.error("Commission must be between 0% and 50%.");
           return;
         }
-        const bpClientId = bp.client_id.trim();
-        if (!isUuid(bpClientId)) {
-          toast.error("Client ID must be a valid client UUID, not a name — find it on the Clients tab.");
-          return;
-        }
         const { error } = await supabase.from("pipeline_deals").insert({
           user_id: user.id,
-          client_id: bpClientId,
+          client_id: bp.client.id,
           side: "buyer",
           stage: "lead",
           address: bp.address.trim() || "",
-          client_name: "",
+          client_name: bp.client.name.trim(),
           estimated_price: num(bp.estimated_price) ?? 0,
           estimated_commission_pct: comm ?? 0.025,
           probability_override: odds,
@@ -243,16 +240,11 @@ export function AddOpportunityDialog({
           toast.error("Commission must be between 0% and 50%.");
           return;
         }
-        const rfReferrerClientId = rf.referrer_client_id.trim();
-        if (rfReferrerClientId && !isUuid(rfReferrerClientId)) {
-          toast.error("Referrer Client ID must be a valid client UUID, not a name — find it on the Clients tab.");
-          return;
-        }
         const { error } = await supabase.from("referral_opportunities").insert({
           user_id: user.id,
           referred_person_name: rf.referred_person_name.trim(),
-          referrer_name: rf.referrer_name.trim() || null,
-          referrer_client_id: rfReferrerClientId || null,
+          referrer_name: rf.referrer.name.trim() || null,
+          referrer_client_id: rf.referrer.id,
           referral_type: rf.referral_type,
           referral_date: rf.referral_date || todayLocal(),
           estimated_price: num(rf.estimated_price),
@@ -318,14 +310,11 @@ export function AddOpportunityDialog({
                 onChange={(e) => setLa({ ...la, property_address: e.target.value })}
               />
             </div>
-            <div className="grid gap-1.5">
-              <Label>Client ID (optional)</Label>
-              <Input
-                placeholder="UUID from the Clients tab (optional)"
-                value={la.client_id}
-                onChange={(e) => setLa({ ...la, client_id: e.target.value })}
-              />
-            </div>
+            <ClientNameField
+              label="Client (optional)"
+              value={la.client}
+              onChange={(client) => setLa((f) => ({ ...f, client }))}
+            />
             <div className="grid grid-cols-2 gap-3">
               <div className="grid gap-1.5">
                 <Label>Estimated List Price ($)</Label>
@@ -385,14 +374,11 @@ export function AddOpportunityDialog({
 
           {/* ── Buyer Prospect ──────────────────────────────────────── */}
           <TabsContent value="buyer_prospect" className="mt-3 grid gap-4">
-            <div className="grid gap-1.5">
-              <Label>Client ID *</Label>
-              <Input
-                placeholder="UUID from the Clients tab — required, buyers are a client record"
-                value={bp.client_id}
-                onChange={(e) => setBp({ ...bp, client_id: e.target.value })}
-              />
-            </div>
+            <ClientNameField
+              label="Client *"
+              value={bp.client}
+              onChange={(client) => setBp((f) => ({ ...f, client }))}
+            />
             <div className="grid gap-1.5">
               <Label>Target Address (optional)</Label>
               <Input
@@ -460,23 +446,13 @@ export function AddOpportunityDialog({
                 onChange={(e) => setRf({ ...rf, referred_person_name: e.target.value })}
               />
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="grid gap-1.5">
-                <Label>Referrer Name (optional)</Label>
-                <Input
-                  value={rf.referrer_name}
-                  onChange={(e) => setRf({ ...rf, referrer_name: e.target.value })}
-                />
-              </div>
-              <div className="grid gap-1.5">
-                <Label>Referrer Client ID (optional)</Label>
-                <Input
-                  placeholder="UUID from the Clients tab (optional)"
-                  value={rf.referrer_client_id}
-                  onChange={(e) => setRf({ ...rf, referrer_client_id: e.target.value })}
-                />
-              </div>
-            </div>
+            <ClientNameField
+              label="Referred by (optional)"
+              value={rf.referrer}
+              onChange={(referrer) => setRf((f) => ({ ...f, referrer }))}
+              placeholder="Start typing a name, client or not"
+              freeTextHint="Not one of your clients. The name will be saved as typed."
+            />
             <div className="grid grid-cols-2 gap-3">
               <div className="grid gap-1.5">
                 <Label>Referral Type</Label>

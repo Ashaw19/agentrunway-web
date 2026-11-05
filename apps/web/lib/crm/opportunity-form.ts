@@ -2,13 +2,6 @@
  * Pure helpers for the Add Opportunity dialog's submit path.
  */
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-/** Client ID fields are raw UUID text inputs — validate the shape before it reaches Postgres as a 22P02. */
-export function isUuid(v: string): boolean {
-  return UUID_RE.test(v);
-}
-
 /**
  * postgrest-js only wraps query errors in its `PostgrestError` class (which
  * extends `Error`) when `.throwOnError()` is used. The default destructure
