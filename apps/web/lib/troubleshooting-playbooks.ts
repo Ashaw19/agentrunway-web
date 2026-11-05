@@ -398,12 +398,11 @@ The pipeline tracks how accurate past price estimates were once deals close:
 - If agent always overestimates: overEstimateCount > underEstimateCount → suggests pricing high
 - If agent always underestimates: underEstimateCount > overEstimateCount → suggests pricing conservative
 
-### Pipeline Coverage Alert (anomaly-engine.ts)
-The system flags when your pipeline is too thin to cover your remaining annual goal:
+### Pipeline Coverage Ratio (chat diagnostics)
+The [PIPELINE DIAGNOSTIC] block prints how many times the pipeline covers the GCI still needed for the annual goal:
 - **Coverage ratio** = Pipeline Weighted GCI ÷ Remaining Goal
-- **Warning**: Coverage < 1.5x remaining goal
-- **Alert**: Coverage < 1.0x remaining goal (pipeline can't cover target even at 100%)
-- No alert if remaining goal ≤ 0 (goal already met, or no goal set)
+- The ratio reads "Goal met" when Remaining Goal is $0. With no goal set it reads "Goal met" too, and there "Goal met" doesn't mean a goal was reached.
+- No screen shows an alert from this ratio. detectPipelineCoverageIssue in anomaly-engine.ts holds cut-offs (a warning below 1.5x, an alert below 1.0x), but no screen calls that function.
 
 ### Stale Deal Flags (pipeline-forecast-engine.ts)
 The engine flags pipeline deals that may be inflating the headline Total Weighted GCI:
@@ -605,16 +604,8 @@ Camera capture → image uploaded to Supabase Storage → /api/receipts/process 
 4. **Advisor Cards**: "Trim Expenses to Target" appears when the year's projected expense ratio is above Agent Runway's target (${EXPENSE_RATIO_COPY.target})
 5. **T2125 Report**: Expenses map to CRA lines for tax filing
 
-### Smart Alerts — Expense Anomaly Detection (anomaly-engine.ts)
-The Dashboard smart alerts section uses statistical anomaly detection to flag unusual spending:
-- **Method**: IQR (Interquartile Range) — compares each month's category spend against your own history
-- **Requires**: ≥4 months of data per expense category before thresholds are computed
-- **Warning**: Amount > Q3 + 1.5×IQR (above your typical high end)
-- **Alert**: Amount > Q3 + 3×IQR (extreme outlier)
-- Triggered per CRA category (e.g., Marketing spike, Vehicle spike)
-
-This means alerts are relative to the agent's own spending history — not industry averages.
-If a user has <4 months of data in a category, no alert will fire for that category.
+### Spending spike check (anomaly-engine.ts)
+The app shows no alert for one unusual month of spending in a category, and the dashboard has no "smart alerts" section. detectExpenseAnomalies in anomaly-engine.ts holds this check, which compares a category's month with the agent's own history, but no screen calls that function. The dashboard's expense alert is "Expense ratio is above target", which uses the Bands table at the top of this playbook.
 
 ### Tax IQ Tips (tax-iq-engine.ts)
 The Expenses page shows an amber-bordered "Tax IQ" card — CRA-referenced education tips selected based on the agent's context:
@@ -879,7 +870,7 @@ Clients are ranked by a composite value score:
 
 ### Stale Lead Detection
 
-- **Dashboard alert**: Active client with no contact in 14+ days
+- **Dashboard**: the Daily Briefing's "N clients need outreach" line counts active clients with no contact in 14+ days (the Checklist card shows this count instead when the Daily Briefing is hidden)
 - **CRM Insights**: Active client with no contact in 30+ days
 - Active = Boarding or In-Flight status only
 - Scheduled clients are NOT flagged (intentionally parked with a future date)
@@ -973,7 +964,7 @@ Each contact has a decayed engagement score based on recent activity history.
 
 1. Daily cron job scans all active clients
 2. Detects relationship opportunities based on rules
-3. Generates personalized draft messages via AI (Groq Llama 3.3)
+3. Generates personalized draft messages with Claude
 4. Places drafts in Outreach Queue for agent review
 5. Agent reads, optionally edits, then sends or dismisses
 
@@ -1735,25 +1726,14 @@ If duplicates slip through, the match was below 70. Manually delete extras from 
   voice: `## TROUBLESHOOTING: VOICE INPUT
 
 ### How Voice Input Works
-1. User taps microphone in Quick Actions FAB (floating action button, bottom-right)
-2. Browser requests microphone permission
-3. Audio recorded → sent to Groq Whisper for transcription
-4. Transcript → Groq Llama 3.3 70B for intent classification
-5. Classified into one of 5 intents:
-   - new_client: Add a new contact
-   - new_expense: Log an expense
-   - new_transaction: Record a deal
-   - note: Log a contact activity
-   - unknown: Could not determine intent
-6. Route to correct page with fields pre-filled (amber-tinted to indicate voice-filled)
-7. User reviews, corrects if needed, and saves
+1. Web: the + button (Quick Actions, bottom right) → Voice Input. iPhone app: on Today, Clients, Deals or Money, the + button → Voice note; on a client's profile, "Voice note".
+2. The browser or phone asks for microphone permission the first time.
+3. The agent holds the record button and talks, or taps to start and taps again to stop, for up to 3 minutes. Groq Whisper transcribes the recording (English only for now), and the audio is deleted.
+4. Claude turns the transcript into proposed items on a confirm card: an activity on a client, a note, a Checklist item, a deal stage change, a deal's expected close date, a trip, an expense, a new client or a closed deal.
+5. The agent edits or removes items on the card. Confirm saves them; Cancel saves nothing.
+6. On the web, a voice note that yields one item (a new client, an expense or a closed deal) also offers "Open in the full form". That form opens with the voice-filled fields tinted amber.
 
-### Intent Classification Details
-- Confidence levels: high, medium, low
-- If low confidence, system asks for clarification
-- Amounts parsed from natural language ("twelve hundred" → $1,200)
-- Addresses parsed from spoken format
-- Client names extracted for matching against CRM
+The VOICE NOTES section of the knowledge base has the full rules for each item, name matching and dates.
 
 ### Common Problems & Diagnostics
 
@@ -1766,14 +1746,14 @@ If duplicates slip through, the match was below 70. Manually delete extras from 
 **"Transcription was wrong"**
 → Whisper works best with clear speech, minimal background noise. Try speaking more slowly and clearly. Proper nouns (addresses, names) may need manual correction.
 
-**"Wrong intent detected"**
-→ If "add a client named John" is classified as a note, try rephrasing: "new client John Smith, phone 555-1234". Using explicit keywords helps: "new client", "expense", "sold", "deal closed".
+**"The card proposed the wrong item" / "Claude read my note wrong"**
+→ Nothing is saved until Confirm. Edit the item's fields, remove the item, or Cancel and record the note again. Saying the type of record helps Claude pick the right item: "new client John Smith, phone 555-1234", "expense", "closed the deal on".
 
 **"Voice-filled fields are incorrect"**
-→ Fields are pre-filled as best-effort extraction. The amber tint indicates AI-filled content that should be reviewed. Users ALWAYS review and correct before saving.
+→ The confirm card's fields are best-effort readings of the voice note, and every field can be edited before Confirm. In the full form, the amber tint marks the fields filled from the voice note.
 
-**"FAB button isn't showing"**
-→ Quick Actions FAB appears on every app page. If not visible:
+**"The + button isn't showing"**
+→ On the web the + button (Quick Actions, also called the FAB) appears on every app page, at the bottom right. If it isn't visible:
 1. Check if scrolled down (may be behind content on small screens)
 2. Check if a modal is blocking it
 3. Try refreshing the page
