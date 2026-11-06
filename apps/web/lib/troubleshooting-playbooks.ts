@@ -17,6 +17,7 @@ import { EXPENSE_RATIO_COPY, expenseRatioBandsList } from "@agent-runway/core/en
 import { TAX_YEAR } from "@agent-runway/core/engines/canadian-tax-engine";
 import { PAID_DATE_TRACKING_SINCE, RECEIVABLE_GRACE_DAYS } from "@agent-runway/core/engines/commission-receivables";
 import { ITC_DOCUMENT_SUPPLIER_THRESHOLD } from "@agent-runway/core/engines/gst34-prefiling-check";
+import { MAX_SUGGESTIONS } from "./crm/client-suggest";
 import {
   ALLOWANCE_RATE_NOTE,
   GST_HST_COMMISSION_TIMING_SETTING,
@@ -413,6 +414,17 @@ The engine flags pipeline deals that may be inflating the headline Total Weighte
 
 ### Manual Probability Override Pill
 When a deal's probability_override is set, the unified pipeline item carries manualOverride = true. The Pipeline table renders a "MANUAL" pill next to the % column with a tooltip noting that the override bypasses the stage default. A 0% or 100% override no longer silently zeros or maxes a row in the weighted total without a visual signal.
+
+### Adding an Opportunity (Pipeline → Add Opportunity; since 2026-11-05)
+Three tabs: Listing Appointment, Buyer Prospect and Referral. Each client box takes a name (client-name-field.tsx, client-suggest.ts):
+- Suggestions appear from the first letter. A typed word matches the start of any word in a client's name, so "jo" and "tren" both find a client named Jordan Trenholm. Names that start with the typed word come first, then the most recently contacted. At most ${MAX_SUGGESTIONS} show.
+- Only this agent's clients that are not in the Hangar (archived) are suggested.
+- Pick by click, or arrow keys and Enter. Typing a client's whole name links them with no click, and a green check confirms the link. When two clients share that name, neither is linked until one is picked from the list.
+- Listing Appointment: Property Address is required; "Client (optional)" links a client only when one is picked. A name typed and not picked stops the save: "Pick the client from the list, or clear the Client box."
+- Buyer Prospect: "Client *" is required and has to be picked from the list ("Pick the client from the list."). The client's name is stored on the deal. Target Address is optional; with none, the Pipeline row is titled by the client's name.
+- Referral: "Referred Person Name *" is free text. "Referred by (optional)" takes any name; it links a client only when one is picked, and otherwise saves the name as typed.
+- "No client has that name. Add them in the CRM first." means no active client matched. "Your clients didn't load. Keep typing to try again." means the search failed, not that there's no match.
+- Known gap: a name typed without its apostrophe doesn't find it ("obrien" misses O'Brien). A pipeline deal keeps the old client name after the client is renamed in the CRM.
 
 Note: Activity decay alerts also exist — clients whose days-since-last-contact exceed 2–3× their personal average contact rhythm get flagged as going cold (separate from the fixed 14/30-day stale thresholds).
 
