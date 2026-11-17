@@ -142,7 +142,10 @@ jobs:
         run: bash scripts/db/check-functions.sh
 
   e2e:
-    runs-on: ubuntu-latest
+    # Pinned: ubuntu-latest moved to 26.04 (~2026-11-13) and Playwright
+    # 1.59.x can't install Chromium there (26.04 support landed in 1.61).
+    # Unpin when @playwright/test is upgraded to >=1.61.
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     needs: build
 
