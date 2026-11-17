@@ -14,6 +14,7 @@ import { addDaysISO, atlanticISODate, atlanticNoon } from "@agent-runway/core/li
 import { loadVehicleLogbook, loadYearBusinessKm } from "@/lib/vehicle-logbook/load";
 import { loadCapYearCarryOver } from "@/lib/cap-year-carry-over";
 import { loadTaxYearCarryIn } from "@/lib/tax-year-carry-in";
+import { loadBriefingDismissKeys } from "@agent-runway/core/lib/record-writers";
 
 
 export default async function DashboardPage({
@@ -48,6 +49,8 @@ export default async function DashboardPage({
   // A cash-method agent's commissions paid this year on deals closed before
   // January 1 (tax-year-carry-in.ts). Tax figures only; empty for accrual.
   const taxYearCarryInPromise = loadTaxYearCarryIn(supabase, user.id, settingsRow, dashYear);
+  // Briefing items the agent dismissed (✕ on the CRM tab), left out here too.
+  const briefingDismissPromise = loadBriefingDismissKeys(supabase, user.id);
 
   // ── Live Supabase queries ──────────────────────────────────────────────
   // Use Promise.allSettled so one failed query doesn't crash the entire dashboard
@@ -230,6 +233,7 @@ export default async function DashboardPage({
   const mileageKmTotal = Number(mileageResult.data ?? 0);
   const ccaAssetCount = (ccaResult.data ?? []).length;
 
+  const { keys: briefingDismissedKeys } = await briefingDismissPromise;
   const briefingResult = briefingClientsResult.data && briefingActivitiesResult.data && briefingRecordsResult.data
     ? computeIntelligenceBriefing(
         briefingClientsResult.data as Client[],
@@ -237,6 +241,7 @@ export default async function DashboardPage({
         briefingRecordsResult.data as ClientRecord[],
         (listingResult.data ?? []) as ListingAppointment[],
         atlanticNoon(), // birthdays and anniversaries count from the Atlantic day
+        { dismissedKeys: briefingDismissedKeys },
       )
     : null;
   const topBriefingItems: BriefingItem[] = briefingResult

@@ -29,6 +29,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 import { computeIntelligenceBriefing } from "@/lib/engines/crm-analytics-engine";
 import { atlanticNoon } from "@agent-runway/core/lib/local-date";
+import { loadBriefingDismissKeys } from "@agent-runway/core/lib/record-writers";
 import type {
   Client,
   ContactActivity,
@@ -110,12 +111,15 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     }
 
     // ── 4. Compute briefing via canonical engine ───────────────────────────
+    // Items dismissed with the ✕ on the web are left out here too.
+    const { keys: dismissedKeys } = await loadBriefingDismissKeys(admin, user.id);
     const result = computeIntelligenceBriefing(
       (clientsResult.data ?? []) as Client[],
       (activitiesResult.data ?? []) as ContactActivity[],
       (recordsResult.data ?? []) as ClientRecord[],
       (listingsResult.data ?? []) as ListingAppointment[],
       atlanticNoon(), // birthdays and anniversaries count from the Atlantic day
+      { dismissedKeys },
     );
 
     // Sort items by severity (urgent → attention → upcoming), then return.

@@ -45,6 +45,51 @@ export interface BriefingItem {
   title: string;
   detail: string;
   daysValue?: number;
+  /**
+   * What a dismissal of this item is saved under (briefing_dismissals, 00192).
+   * Set by computeIntelligenceBriefing; see briefingDismissKey.
+   */
+  dismissKey: string;
+}
+
+/**
+ * Briefing items about how long since the client was last contacted. A
+ * dismissal of one lasts until a newer contact is logged: the key carries the
+ * last contact's day, so once the client goes quiet again after that contact
+ * the item is a new one and can come back.
+ */
+const CONTACT_RECENCY_TYPES: ReadonlySet<BriefingItemType> = new Set<BriefingItemType>([
+  "vip_overdue",
+  "uncontacted_lead",
+  "in_flight_stale",
+  "relationship_decay",
+  "past_client_check_in",
+]);
+
+/**
+ * The key a dismissed briefing item is saved under.
+ *   Contact-recency items: the item id plus the last contact's day ("none"
+ *   when no contact is logged), so logging a contact ends the dismissal.
+ *   Timeframe items: the id plus the client's timeframe, so changing the
+ *   timeframe ends it.
+ *   Everything else: the id, which already names the occurrence (the birthday's
+ *   year, the anniversary or renewal's closing month, the listing appointment).
+ */
+export function briefingDismissKey(
+  item: Pick<BriefingItem, "id" | "type">,
+  context: { lastContactDay?: string | null; timeframe?: string | null } = {},
+): string {
+  if (CONTACT_RECENCY_TYPES.has(item.type)) return `${item.id}@${context.lastContactDay ?? "none"}`;
+  if (item.type === "timeframe_approaching") return `${item.id}@${context.timeframe ?? "none"}`;
+  return item.id;
+}
+
+export interface IntelligenceBriefingOptions {
+  /**
+   * Keys of the items the agent dismissed (briefing_dismissals). They're left
+   * out before the per-type caps, so the next check-in or lead moves up.
+   */
+  dismissedKeys?: ReadonlySet<string>;
 }
 
 export interface IntelligenceBriefingResult {
@@ -506,10 +551,12 @@ export function computeIntelligenceBriefing(
   records: ClientRecord[],
   listingAppointments?: ListingAppointment[],
   today: Date = new Date(),
+  options: IntelligenceBriefingOptions = {},
 ): IntelligenceBriefingResult {
   const now = new Date();
   const todayNoon = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 12);
-  const items: BriefingItem[] = [];
+  // Items are built without their dismissKey; it's added once all are built.
+  const items: Omit<BriefingItem, "dismissKey">[] = [];
 
   // ── Pre-compute last activity date per client ──────────────────────────────
   const lastActByClient = new Map<string, Date>();
@@ -942,9 +989,29 @@ export function computeIntelligenceBriefing(
     }
   }
 
+  // Each item's dismissal key, then the items the agent dismissed come out.
+  // This runs before the caps below so a dismissed check-in or lead makes
+  // room for the next one (Andrew, 2026-11-17: the ✕ used to be page state
+  // only, so a refresh brought everything back).
+  const timeframeByClient = new Map(activeClients.map((c) => [c.id, c.timeframe ?? null]));
+  const keyed: BriefingItem[] = items.map((item) => {
+    const last = lastActByClient.get(item.clientId);
+    return {
+      ...item,
+      dismissKey: briefingDismissKey(item, {
+        lastContactDay: last && !Number.isNaN(last.getTime()) ? last.toISOString().slice(0, 10) : null,
+        timeframe:      timeframeByClient.get(item.clientId) ?? null,
+      }),
+    };
+  });
+  const dismissed = options.dismissedKeys;
+  const kept = dismissed && dismissed.size > 0
+    ? keyed.filter((item) => !dismissed.has(item.dismissKey))
+    : keyed;
+
   // Sort: urgent first, then attention, then upcoming; ties broken by daysValue
   const sevOrder: Record<string, number> = { urgent: 0, attention: 1, upcoming: 2 };
-  items.sort((a, b) => {
+  kept.sort((a, b) => {
     const s = sevOrder[a.severity] - sevOrder[b.severity];
     if (s !== 0) return s;
     return (a.daysValue ?? 999) - (b.daysValue ?? 999);
@@ -962,7 +1029,7 @@ export function computeIntelligenceBriefing(
   let checkinSeen = 0;
   const anniversarySeen = new Map<string, number>();
   const milestoneSeen = new Map<string, number>();
-  const cappedItems = items.filter((item) => {
+  const cappedItems = kept.filter((item) => {
     if (item.type === "uncontacted_lead") {
       if (uncontactedSeen >= UNCONTACTED_CAP) return false;
       uncontactedSeen++;

@@ -92,6 +92,11 @@ import type { PipelineDeal } from "@/lib/types/database";
 // Draft button eligibility: which briefing rows can draft, and as what type.
 import { BRIEFING_TO_OUTREACH_TYPE } from "@/lib/crm/outreach-draft-actions";
 import { clientLifetimeGci } from "@/lib/crm/top-opportunity-selection";
+import {
+  loadBriefingDismissKeys,
+  removeBriefingDismissal,
+  writeBriefingDismissal,
+} from "@agent-runway/core/lib/record-writers";
 
 // ── Props ───────────────────────────────────────────────────────────────────
 
@@ -219,18 +224,84 @@ export function CrmDashboardTab({
   useEffect(() => setMounted(true), []);
 
   // ── Intelligence Briefing ────────────────────────────────────────────────
-  const briefing = useMemo(
-    () => computeIntelligenceBriefing(clients, activities, records),
-    [clients, activities, records],
-  );
-  const [briefingExpanded, setBriefingExpanded] = useState(true);
-  const [dismissedIds,     setDismissedIds]     = useState<Set<string>>(new Set());
-  const [draftingId,       setDraftingId]       = useState<string | null>(null);
-  const visibleItems = briefing.items.filter((i) => !dismissedIds.has(i.id));
+  // The ✕ is saved (briefing_dismissals, 00192): a refresh used to bring every
+  // dismissed item back (Andrew, 2026-11-17). The engine leaves dismissed keys
+  // out before its caps, so the next check-in moves up. Until the saved keys
+  // load the card waits, so dismissed items don't flash back in.
+  const [dismissedKeys, setDismissedKeys] = useState<Set<string> | null>(null);
+  const [briefingUserId, setBriefingUserId] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        if (!cancelled) setDismissedKeys(new Set());
+        return;
+      }
+      const { keys } = await loadBriefingDismissKeys(supabase, user.id);
+      if (cancelled) return;
+      setBriefingUserId(user.id);
+      setDismissedKeys(keys);
+    })().catch((err) => {
+      console.error("[briefing] dismissals load failed:", err);
+      if (!cancelled) setDismissedKeys(new Set());
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
-  function dismissItem(id: string) {
-    setDismissedIds((prev) => new Set([...prev, id]));
-  }
+  const briefing = useMemo(
+    () => computeIntelligenceBriefing(clients, activities, records, undefined, new Date(), {
+      dismissedKeys: dismissedKeys ?? undefined,
+    }),
+    [clients, activities, records, dismissedKeys],
+  );
+  const briefingReady = dismissedKeys !== null;
+  const [briefingExpanded, setBriefingExpanded] = useState(true);
+  const [draftingId,       setDraftingId]       = useState<string | null>(null);
+  const visibleItems = briefing.items;
+
+  const setKeyDismissed = useCallback((key: string, dismissed: boolean) => {
+    setDismissedKeys((prev) => {
+      const next = new Set(prev ?? []);
+      if (dismissed) next.add(key);
+      else next.delete(key);
+      return next;
+    });
+  }, []);
+
+  const undoDismiss = useCallback(async (item: BriefingItem) => {
+    if (!briefingUserId) return;
+    setKeyDismissed(item.dismissKey, false);
+    const out = await removeBriefingDismissal(createClient(), briefingUserId, item.dismissKey);
+    if (!out.ok) {
+      setKeyDismissed(item.dismissKey, true);
+      toast.error(out.message);
+    }
+  }, [briefingUserId, setKeyDismissed]);
+
+  const dismissItem = useCallback(async (item: BriefingItem) => {
+    if (!briefingUserId) {
+      toast.error("Sign in again to dismiss that.");
+      return;
+    }
+    setKeyDismissed(item.dismissKey, true);
+    const out = await writeBriefingDismissal(createClient(), briefingUserId, {
+      dismissKey: item.dismissKey,
+      clientId:   item.clientId,
+    });
+    if (!out.ok) {
+      setKeyDismissed(item.dismissKey, false);
+      toast.error(out.message);
+      return;
+    }
+    toast.success("Dismissed", {
+      description: item.title,
+      action: { label: "Undo", onClick: () => { void undoDismiss(item); } },
+    });
+  }, [briefingUserId, setKeyDismissed, undoDismiss]);
 
   const handleDraft = useCallback(async (item: BriefingItem) => {
     const outreachType = BRIEFING_TO_OUTREACH_TYPE[item.type];
@@ -339,14 +410,14 @@ export function CrmDashboardTab({
   );
 
   const todaysActions = useMemo<TodayAction[]>(() => {
-    const items = briefing.items.filter((i) => !dismissedIds.has(i.id));
     return computeTodaysActions({
-      briefingItems: items,
+      // Held back until the saved dismissals load, like the briefing card.
+      briefingItems: briefingReady ? briefing.items : [],
       opportunities: oppRows,
       deals: dealInputs,
       clientGciById,
     }).slice(0, 3);
-  }, [briefing, dismissedIds, oppRows, dealInputs, clientGciById]);
+  }, [briefing, briefingReady, oppRows, dealInputs, clientGciById]);
 
   // ── CRM Dashboard engine ────────────────────────────────────────────────
   const dashboard = useMemo(
@@ -492,7 +563,7 @@ export function CrmDashboardTab({
       )}
 
       {/* ── Intelligence Briefing ─────────────────────────────────────── */}
-      {briefing.totalCount > 0 && (
+      {briefingReady && briefing.totalCount > 0 && (
         <Card className="rounded-2xl border shadow-sm">
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
@@ -541,7 +612,7 @@ export function CrmDashboardTab({
                     key={item.id}
                     item={item}
                     onView={() => onOpenDetailPanel(item.clientId)}
-                    onDismiss={() => dismissItem(item.id)}
+                    onDismiss={() => { void dismissItem(item); }}
                     onDraft={BRIEFING_TO_OUTREACH_TYPE[item.type] ? () => handleDraft(item) : undefined}
                     drafting={draftingId === item.id}
                   />
