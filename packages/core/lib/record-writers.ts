@@ -1058,3 +1058,98 @@ export function applyCaptureWrite(
     case "recordTransaction": return writeTransaction(db, userId, call.args, options);
   }
 }
+
+// ── Briefing: dismiss (✕) ─────────────────────────────────────────────────────
+//
+// briefing_dismissals (00192) holds one row per dismissed briefing item, under
+// the item's dismissKey (crm-analytics-engine.ts, briefingDismissKey). Row-level
+// security refuses a client that isn't the user's.
+
+const BRIEFING_DISMISSALS = "briefing_dismissals";
+
+export interface BriefingDismissalArgs {
+  /** The item's dismissKey, as computeIntelligenceBriefing set it. */
+  dismissKey: string;
+  /** The item's client; empty for an item with no client. */
+  clientId: string;
+}
+
+/**
+ * Dismiss a briefing item. Dismissing the same item twice is saved once: a
+ * clash on (user, key) counts as saved.
+ */
+export async function writeBriefingDismissal(
+  db: DbClient,
+  userId: string,
+  args: BriefingDismissalArgs,
+): Promise<WriteOutcome> {
+  const key = typeof args?.dismissKey === "string" ? args.dismissKey.trim() : "";
+  if (!key) return fail("The briefing item has no key to save.");
+  if (key.length > 300) return fail("The briefing item's key is too long to save.");
+  try {
+    const { error } = await db.from(BRIEFING_DISMISSALS).insert({
+      user_id:     userId,
+      client_id:   args.clientId || null,
+      dismiss_key: key,
+    });
+    if (!error) return { ok: true, message: "Dismissed." };
+    if (error.code === "23505") return { ok: true, message: "Dismissed.", alreadySaved: true };
+    return refused("dismiss the briefing item", error);
+  } catch (err) {
+    return thrown("dismiss the briefing item", err);
+  }
+}
+
+/** Undo a briefing dismissal: the item can show again. */
+export async function removeBriefingDismissal(
+  db: DbClient,
+  userId: string,
+  dismissKey: string,
+): Promise<WriteOutcome> {
+  if (!dismissKey) return fail("The briefing item has no key.");
+  try {
+    const { error } = await db
+      .from(BRIEFING_DISMISSALS)
+      .delete()
+      .eq("user_id", userId)
+      .eq("dismiss_key", dismissKey);
+    if (error) return refused("bring the briefing item back", error);
+    return { ok: true, message: "Brought back." };
+  } catch (err) {
+    return thrown("bring the briefing item back", err);
+  }
+}
+
+/**
+ * The keys of the user's dismissed briefing items, for
+ * computeIntelligenceBriefing's dismissedKeys. Reads in pages (one request
+ * stops at 1,000 rows). On a failed read it returns `ok: false` with what it
+ * has; the caller shows the briefing unfiltered rather than not at all.
+ */
+export async function loadBriefingDismissKeys(
+  db: DbClient,
+  userId: string,
+): Promise<{ ok: boolean; keys: Set<string> }> {
+  const keys = new Set<string>();
+  const PAGE = 1000;
+  try {
+    for (let from = 0; ; from += PAGE) {
+      const { data, error } = await db
+        .from(BRIEFING_DISMISSALS)
+        .select("dismiss_key")
+        .eq("user_id", userId)
+        .order("id")
+        .range(from, from + PAGE - 1);
+      if (error) {
+        console.error("[briefing] dismissals read failed:", error.message ?? error);
+        return { ok: false, keys };
+      }
+      const rows = (data ?? []) as { dismiss_key?: unknown }[];
+      for (const r of rows) if (typeof r.dismiss_key === "string") keys.add(r.dismiss_key);
+      if (rows.length < PAGE) return { ok: true, keys };
+    }
+  } catch (err) {
+    console.error("[briefing] dismissals read failed:", err);
+    return { ok: false, keys };
+  }
+}
