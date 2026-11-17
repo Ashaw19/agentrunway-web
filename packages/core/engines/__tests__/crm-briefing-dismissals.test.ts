@@ -170,3 +170,29 @@ describe("dismissed briefing items stay dismissed", () => {
     expect(checkIns(later.items)).toHaveLength(1);
   });
 });
+
+describe("Dismiss all check-ins", () => {
+  it("checkInsDue lists every check-in due, past the ten shown", () => {
+    const clients = longTermContacts(15);
+    const r = computeIntelligenceBriefing(clients, [], []);
+    expect(checkIns(r.items)).toHaveLength(10);
+    expect(r.checkInsDue).toHaveLength(15);
+    expect(new Set(r.checkInsDue.map((t) => t.clientId)).size).toBe(15);
+  });
+
+  it("dismissing every key in checkInsDue leaves no check-ins", () => {
+    const clients = longTermContacts(15);
+    const keys = new Set(computeIntelligenceBriefing(clients, [], []).checkInsDue.map((t) => t.dismissKey));
+    const after = computeIntelligenceBriefing(clients, [], [], undefined, new Date(), { dismissedKeys: keys });
+    expect(checkIns(after.items)).toHaveLength(0);
+    expect(after.checkInsDue).toHaveLength(0);
+  });
+
+  it("checkInsDue holds only check-ins", () => {
+    const vip = makeClient({ id: "v1", name: "VIP", tags: ["VIP"], status: "boarding" });
+    const r = computeIntelligenceBriefing([vip, ...longTermContacts(2)], [], []);
+    expect(r.items.some((i) => i.type === "vip_overdue")).toBe(true);
+    expect(r.checkInsDue.map((t) => t.clientId).sort()).toEqual(["c01", "c02"]);
+  });
+});
+

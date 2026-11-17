@@ -1120,6 +1120,68 @@ export async function removeBriefingDismissal(
   }
 }
 
+/** Rows per insert, and keys per delete (a delete's keys go in the URL). */
+const BRIEFING_INSERT_BATCH = 500;
+const BRIEFING_DELETE_BATCH = 100;
+
+/**
+ * Dismiss many briefing items at once ("Dismiss all check-ins"). Saves in
+ * batches; an item already dismissed is skipped, not an error. On a refused
+ * batch it stops and says how many were saved, so the caller can undo those.
+ */
+export async function writeBriefingDismissals(
+  db: DbClient,
+  userId: string,
+  items: readonly BriefingDismissalArgs[],
+): Promise<WriteOutcome & { saved: string[] }> {
+  const seen = new Set<string>();
+  const rows: { user_id: string; client_id: string | null; dismiss_key: string }[] = [];
+  for (const it of items ?? []) {
+    const key = typeof it?.dismissKey === "string" ? it.dismissKey.trim() : "";
+    if (!key || key.length > 300 || seen.has(key)) continue;
+    seen.add(key);
+    rows.push({ user_id: userId, client_id: it.clientId || null, dismiss_key: key });
+  }
+  if (rows.length === 0) return { ...fail("There is nothing to dismiss."), saved: [] };
+  const saved: string[] = [];
+  for (let i = 0; i < rows.length; i += BRIEFING_INSERT_BATCH) {
+    const batch = rows.slice(i, i + BRIEFING_INSERT_BATCH);
+    try {
+      const { error } = await db
+        .from(BRIEFING_DISMISSALS)
+        .upsert(batch, { onConflict: "user_id,dismiss_key", ignoreDuplicates: true });
+      if (error) return { ...refused("dismiss them all", error), saved };
+    } catch (err) {
+      return { ...thrown("dismiss them all", err), saved };
+    }
+    saved.push(...batch.map((r) => r.dismiss_key));
+  }
+  return { ok: true, message: `Dismissed ${saved.length}.`, saved };
+}
+
+/** Undo for writeBriefingDismissals: removes the user's rows for these keys. */
+export async function removeBriefingDismissals(
+  db: DbClient,
+  userId: string,
+  dismissKeys: readonly string[],
+): Promise<WriteOutcome> {
+  const keys = [...new Set((dismissKeys ?? []).filter((k) => typeof k === "string" && k))];
+  if (keys.length === 0) return { ok: true, message: "Nothing to bring back." };
+  for (let i = 0; i < keys.length; i += BRIEFING_DELETE_BATCH) {
+    try {
+      const { error } = await db
+        .from(BRIEFING_DISMISSALS)
+        .delete()
+        .eq("user_id", userId)
+        .in("dismiss_key", keys.slice(i, i + BRIEFING_DELETE_BATCH));
+      if (error) return refused("bring them back", error);
+    } catch (err) {
+      return thrown("bring them back", err);
+    }
+  }
+  return { ok: true, message: `Brought back ${keys.length}.` };
+}
+
 /**
  * The keys of the user's dismissed briefing items, for
  * computeIntelligenceBriefing's dismissedKeys. Reads in pages (one request

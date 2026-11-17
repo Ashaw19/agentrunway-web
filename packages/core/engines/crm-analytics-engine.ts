@@ -98,6 +98,17 @@ export interface IntelligenceBriefingResult {
   attentionCount: number;
   upcomingCount: number;
   totalCount: number;
+  /**
+   * Every contact check-in due and not dismissed, including those past the
+   * 10-item cap: what "Dismiss all check-ins" dismisses.
+   */
+  checkInsDue: BriefingDismissTarget[];
+}
+
+/** What a dismissal saves: the item's key and its client. */
+export interface BriefingDismissTarget {
+  dismissKey: string;
+  clientId: string;
 }
 
 // ── Input / Output Types ────────────────────────────────────────────────────
@@ -1053,6 +1064,9 @@ export function computeIntelligenceBriefing(
 
   return {
     items: cappedItems,
+    checkInsDue: kept
+      .filter((i) => i.type === "past_client_check_in")
+      .map((i) => ({ dismissKey: i.dismissKey, clientId: i.clientId })),
     urgentCount: cappedItems.filter((i) => i.severity === "urgent").length,
     attentionCount: cappedItems.filter((i) => i.severity === "attention").length,
     upcomingCount: cappedItems.filter((i) => i.severity === "upcoming").length,
