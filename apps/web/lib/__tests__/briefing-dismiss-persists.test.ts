@@ -47,6 +47,13 @@ describe("briefing dismissals", () => {
     expect(src).not.toMatch(/dismissedIds/);
   });
 
+  it("Dismiss all check-ins covers every check-in due, not only the ten shown", () => {
+    const src = read("app/(app)/crm/tabs/crm-dashboard-tab.tsx");
+    expect(src).toMatch(/writeBriefingDismissals\(createClient\(\), briefingUserId, targets\)/);
+    expect(src).toMatch(/const targets = checkInsDue;/);
+    expect(src).toMatch(/briefing\.checkInsDue/);
+  });
+
   it("no other file builds the briefing without going through this list", () => {
     // A new caller has to be added to CALLERS (and pass dismissedKeys).
     const out = execSync(

@@ -7,7 +7,9 @@ import { describe, it, expect, vi } from "vitest";
 import {
   loadBriefingDismissKeys,
   removeBriefingDismissal,
+  removeBriefingDismissals,
   writeBriefingDismissal,
+  writeBriefingDismissals,
 } from "../record-writers";
 
 type Result = { data?: unknown; error: { code?: string; message?: string } | null };
@@ -21,6 +23,8 @@ function fakeDb(results: Result[]) {
       calls.push(call);
       const chain = {
         insert(payload: unknown) { call.op = "insert"; call.payload = payload; return Promise.resolve(queue.shift() ?? { error: null }); },
+        upsert(payload: unknown, opts: unknown) { call.op = "upsert"; call.payload = payload; call.filters.push(["options", opts]); return Promise.resolve(queue.shift() ?? { error: null }); },
+        in(col: string, v: unknown) { call.filters.push([col, v]); return Promise.resolve(queue.shift() ?? { error: null }); },
         delete() { call.op = "delete"; return chain; },
         select() { call.op = "select"; return chain; },
         eq(col: string, v: unknown) { call.filters.push([col, v]); return chain; },
@@ -99,3 +103,50 @@ describe("loadBriefingDismissKeys", () => {
     spy.mockRestore();
   });
 });
+
+const targets = (n: number) => Array.from({ length: n }, (_, i) => ({ dismissKey: `checkin_c${i}@none`, clientId: `c${i}` }));
+
+describe("writeBriefingDismissals", () => {
+  it("saves in batches of 500, skipping ones already dismissed", async () => {
+    const { db, calls } = fakeDb([{ error: null }, { error: null }]);
+    const out = await writeBriefingDismissals(db, "u1", targets(600));
+    expect(out.ok).toBe(true);
+    expect(out.saved).toHaveLength(600);
+    expect(calls.map((c) => (c.payload as unknown[]).length)).toEqual([500, 100]);
+    expect(calls[0].filters).toContainEqual(["options", { onConflict: "user_id,dismiss_key", ignoreDuplicates: true }]);
+  });
+
+  it("drops repeats and empty keys", async () => {
+    const { db, calls } = fakeDb([{ error: null }]);
+    const out = await writeBriefingDismissals(db, "u1", [
+      { dismissKey: "a", clientId: "c1" }, { dismissKey: "a", clientId: "c1" }, { dismissKey: " ", clientId: "c2" },
+    ]);
+    expect(out.saved).toEqual(["a"]);
+    expect((calls[0].payload as unknown[]).length).toBe(1);
+  });
+
+  it("stops at a refused batch and reports what was saved", async () => {
+    const { db } = fakeDb([{ error: null }, { error: { code: "42501", message: "rls" } }]);
+    const out = await writeBriefingDismissals(db, "u1", targets(600));
+    expect(out.ok).toBe(false);
+    expect(out.saved).toHaveLength(500);
+  });
+
+  it("refuses an empty list without writing", async () => {
+    const { db, calls } = fakeDb([]);
+    const out = await writeBriefingDismissals(db, "u1", []);
+    expect(out.ok).toBe(false);
+    expect(calls).toHaveLength(0);
+  });
+});
+
+describe("removeBriefingDismissals", () => {
+  it("deletes in batches of 100 keys", async () => {
+    const { db, calls } = fakeDb([{ error: null }, { error: null }, { error: null }]);
+    const out = await removeBriefingDismissals(db, "u1", targets(263).map((t) => t.dismissKey));
+    expect(out.ok).toBe(true);
+    expect(calls.map((c) => (c.filters.find((f) => f[0] === "dismiss_key")?.[1] as unknown[]).length)).toEqual([100, 100, 63]);
+    expect(calls.every((c) => c.filters.some((f) => f[0] === "user_id" && f[1] === "u1"))).toBe(true);
+  });
+});
+

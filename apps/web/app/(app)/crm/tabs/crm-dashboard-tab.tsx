@@ -95,8 +95,14 @@ import { clientLifetimeGci } from "@/lib/crm/top-opportunity-selection";
 import {
   loadBriefingDismissKeys,
   removeBriefingDismissal,
+  removeBriefingDismissals,
   writeBriefingDismissal,
+  writeBriefingDismissals,
 } from "@agent-runway/core/lib/record-writers";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 // ── Props ───────────────────────────────────────────────────────────────────
 
@@ -201,6 +207,11 @@ function BriefingRow({
   );
 }
 
+/** "1 check-in", "263 check-ins". */
+function checkInLabel(n: number): string {
+  return `${n.toLocaleString("en-CA")} check-in${n === 1 ? "" : "s"}`;
+}
+
 // ── Pie colors ──────────────────────────────────────────────────────────────
 
 const PIE_COLORS = ["#3b82f6", "#8b5cf6", "#10b981", "#f59e0b", "#ef4444", "#06b6d4", "#f97316"];
@@ -281,6 +292,61 @@ export function CrmDashboardTab({
       toast.error(out.message);
     }
   }, [briefingUserId, setKeyDismissed]);
+
+  // "Dismiss all check-ins": every check-in due, including those past the
+  // 10 shown (Andrew, 2026-11-17: 263 were due on his account).
+  const [confirmAllOpen, setConfirmAllOpen] = useState(false);
+  const [dismissingAll,  setDismissingAll]  = useState(false);
+  const checkInsDue = briefing.checkInsDue;
+
+  const setKeysDismissed = useCallback((keys: readonly string[], dismissed: boolean) => {
+    setDismissedKeys((prev) => {
+      const next = new Set(prev ?? []);
+      for (const k of keys) {
+        if (dismissed) next.add(k);
+        else next.delete(k);
+      }
+      return next;
+    });
+  }, []);
+
+  const dismissAllCheckIns = useCallback(async () => {
+    if (!briefingUserId) {
+      toast.error("Sign in again to dismiss those.");
+      return;
+    }
+    const targets = checkInsDue;
+    if (targets.length === 0) return;
+    const keys = targets.map((t) => t.dismissKey);
+    setDismissingAll(true);
+    setKeysDismissed(keys, true);
+    const out = await writeBriefingDismissals(createClient(), briefingUserId, targets);
+    setDismissingAll(false);
+    if (!out.ok) {
+      const saved = new Set(out.saved);
+      setKeysDismissed(keys.filter((k) => !saved.has(k)), false);
+      toast.error(out.message);
+      return;
+    }
+    const undoKeys = out.saved;
+    toast.success(`Dismissed ${checkInLabel(undoKeys.length)}`, {
+      description: "Each one comes back after you log a contact and they go quiet again.",
+      duration: 10000,
+      action: {
+        label: "Undo",
+        onClick: () => {
+          void (async () => {
+            setKeysDismissed(undoKeys, false);
+            const back = await removeBriefingDismissals(createClient(), briefingUserId, undoKeys);
+            if (!back.ok) {
+              setKeysDismissed(undoKeys, true);
+              toast.error(back.message);
+            }
+          })();
+        },
+      },
+    });
+  }, [briefingUserId, checkInsDue, setKeysDismissed]);
 
   const dismissItem = useCallback(async (item: BriefingItem) => {
     if (!briefingUserId) {
@@ -606,6 +672,24 @@ export function CrmDashboardTab({
           </CardHeader>
           {briefingExpanded && visibleItems.length > 0 && (
             <CardContent className="pt-0 pb-3">
+              {checkInsDue.length > 0 && (
+                <div className="flex justify-end mb-1.5">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 text-xs px-2 text-muted-foreground hover:text-foreground"
+                    onClick={() => setConfirmAllOpen(true)}
+                    disabled={dismissingAll}
+                  >
+                    {dismissingAll ? (
+                      <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                    ) : (
+                      <X className="h-3 w-3 mr-1" />
+                    )}
+                    Dismiss all {checkInLabel(checkInsDue.length)}
+                  </Button>
+                </div>
+              )}
               <div className="space-y-1.5">
                 {visibleItems.map((item) => (
                   <BriefingRow
@@ -620,6 +704,24 @@ export function CrmDashboardTab({
               </div>
             </CardContent>
           )}
+          <AlertDialog open={confirmAllOpen} onOpenChange={setConfirmAllOpen}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Dismiss all {checkInLabel(checkInsDue.length)}?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  They come off Today&apos;s briefing here, on the dashboard and on your phone.
+                  Each person comes back only after you log a contact with them and they go
+                  quiet again. You can undo this right after.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Keep them</AlertDialogCancel>
+                <AlertDialogAction onClick={() => { void dismissAllCheckIns(); }}>
+                  Dismiss all
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
           {briefingExpanded && visibleItems.length === 0 && (
             <CardContent className="pt-0 pb-4">
               <p className="text-sm text-violet-700/70 text-center py-2">
