@@ -81,8 +81,8 @@ export const ROUTINE_REGISTRY: readonly RoutineSpec[] = [
   { id: "routine:owen",   name: "Owen, AI knowledge audit (weekdays)",  expectedEveryHours: 4 * 24,  watchFrom: "2026-11-02" },
   { id: "routine:marcus", name: "Marcus, SR&ED daily log",             expectedEveryHours: 30,      watchFrom: "2026-11-04" },
   { id: "routine:hugo",   name: "Hugo, weekly bookkeeping scan (Mon)", expectedEveryHours: 8 * 24,  watchFrom: "2026-11-04" },
-  // Vera runs on the 1st: first run 2026-12-01.
-  { id: "routine:vera",   name: "Vera, monthly cash and deadlines",    expectedEveryHours: 33 * 24, watchFrom: "2026-11-04" },
+  // Vera (monthly cash and deadlines) was shut down 2026-11-25 at Andrew's
+  // request; her schedule is deleted, so she isn't listed.
   { id: "routine:iris",   name: "Iris, daily QA stress test",          expectedEveryHours: 30,      watchFrom: "2026-11-02", paused: true },
 ];
 

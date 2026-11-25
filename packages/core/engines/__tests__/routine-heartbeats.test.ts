@@ -45,8 +45,8 @@ describe("states", () => {
 });
 
 describe("a routine whose first run isn't due yet", () => {
-  // Vera: monthly (33-day window), registered 2026-11-04, first run 2026-12-01.
-  const VERA = { id: "routine:vera", name: "Vera", expectedEveryHours: 33 * 24, watchFrom: "2026-11-04" };
+  // A monthly routine (33-day window) registered 2026-11-04, first run 2026-12-01.
+  const VERA = { id: "routine:monthly", name: "Monthly job", expectedEveryHours: 33 * 24, watchFrom: "2026-11-04" };
 
   it("is waiting, not never, and isn't an alert", () => {
     const r = heartbeatReport([VERA], [], new Date("2026-11-25T11:00:00Z"));
@@ -57,12 +57,12 @@ describe("a routine whose first run isn't due yet", () => {
   it("becomes never once a full cadence has passed with no heartbeat", () => {
     const r = heartbeatReport([VERA], [], new Date("2026-12-08T11:00:00Z"));
     expect(r.statuses[0].state).toBe("never");
-    expect(r.attention.map((s) => s.id)).toEqual(["routine:vera"]);
+    expect(r.attention.map((s) => s.id)).toEqual(["routine:monthly"]);
   });
 
-  it("the live registry raises nothing on 2026-11-25 when everything but Vera has reported", () => {
+  it("the live registry raises nothing when every routine reported an hour ago", () => {
     const now = new Date("2026-11-25T11:00:00Z");
-    const beats = ROUTINE_REGISTRY.filter((r) => r.id !== "routine:vera").map((r) => ({
+    const beats = ROUTINE_REGISTRY.map((r) => ({
       routine_id: r.id, finished_at: new Date(now.getTime() - 3_600_000).toISOString(), outcome: "ok",
     }));
     expect(heartbeatReport(ROUTINE_REGISTRY, beats, now).attention).toEqual([]);
