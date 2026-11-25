@@ -146,7 +146,7 @@ describe("dismissed briefing items stay dismissed", () => {
     expect(checkIns(first.items)).toHaveLength(10);
     const shown = new Set(first.items.map((i) => i.dismissKey));
     const after = computeIntelligenceBriefing(clients, [], [], undefined, new Date(), { dismissedKeys: shown });
-    const next = checkIns(after.items) as { dismissKey: string }[];
+    const next = checkIns(after.items) as unknown as { dismissKey: string }[];
     expect(next).toHaveLength(5);
     expect(next.some((i) => shown.has(i.dismissKey))).toBe(false);
   });

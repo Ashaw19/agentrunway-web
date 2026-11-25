@@ -30,6 +30,7 @@ function makeBriefingItem(overrides: Partial<BriefingItem> & { id: string; clien
     title: "title",
     detail: "detail",
     ...overrides,
+    dismissKey: overrides.dismissKey ?? overrides.id,
   };
 }
 
