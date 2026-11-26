@@ -36,19 +36,11 @@ export interface UnifiedPipelineItem {
   id: string;
   source: "deal" | "listing" | "buyer" | "referral";
   /**
-   * What the row is called: the client's name when known (2026-11-26, Andrew:
-   * "I should see the client's name rather than the address"), else the
-   * address. A buyer is shown many houses, so an address only names a buyer
-   * deal once an offer is accepted.
+   * What the row is called: the client's name (2026-11-26, Andrew: "Just show
+   * the client's name in the list rather than the address of the subject
+   * home"). The address is only a fallback for a row with no client linked.
    */
   name: string;
-  /**
-   * The address under the name: a listing's property, a sell-side deal's
-   * property, or a buyer deal's house from conditional (offer accepted) on.
-   * Null when the name already is the address, or a buyer hasn't an
-   * accepted offer.
-   */
-  detail: string | null;
   stage: string;             // original stage from the source
   unifiedStage: UnifiedStage;
   side: "buy" | "sell" | "both";
@@ -153,9 +145,6 @@ export interface PipelineForecastInput {
   clientNamesById?: Readonly<Record<string, string>>;
 }
 
-/** Deal stages at which a buyer's offer has been accepted: the address is now the deal's. */
-const BUYER_ADDRESS_STAGES: ReadonlySet<string> = new Set(["conditional", "firm", "closed"]);
-
 /** The client's current name (from clients), else the name stored on the row. */
 function linkedClientName(
   names: Readonly<Record<string, string>> | undefined,
@@ -244,13 +233,10 @@ export function computePipelineForecast(
     const prob = computeProbability(deal);
     const gci = computeEstimatedGCI(deal);
     const client = linkedClientName(input.clientNamesById, deal.client_id, deal.client_name);
-    const address = deal.address?.trim() || null;
-    const addressIsTheDeal = deal.side !== "buyer" || BUYER_ADDRESS_STAGES.has(deal.stage);
     items.push({
       id: deal.id,
       source: "deal",
-      name: client || address || "Unnamed deal",
-      detail: client && addressIsTheDeal ? address : null,
+      name: client || deal.address?.trim() || "Unnamed deal",
       stage: deal.stage,
       unifiedStage: DEAL_STAGE_TO_UNIFIED[deal.stage] ?? "pre_qualifying",
       side: normalizeSide(deal.side),
@@ -281,12 +267,10 @@ export function computePipelineForecast(
     const prob = listing.close_odds_pct ?? LISTING_PROBABILITIES[listing.status] ?? 0.15;
     const gci = value * commPct;
     const client = linkedClientName(input.clientNamesById, listing.client_id);
-    const address = listing.property_address?.trim() || null;
     items.push({
       id: listing.id,
       source: "listing",
-      name: client || address || "Listing appointment",
-      detail: client ? address : null,
+      name: client || listing.property_address?.trim() || "Listing appointment",
       stage: listing.status,
       unifiedStage: LISTING_STATUS_TO_UNIFIED[listing.status] ?? "pre_qualifying",
       side: "sell",
@@ -310,7 +294,6 @@ export function computePipelineForecast(
       id: buyer.id,
       source: "buyer",
       name: buyer.name,
-      detail: null,
       stage: buyer.status,
       unifiedStage: BUYER_STATUS_TO_UNIFIED[buyer.status] ?? "pre_qualifying",
       side: "buy",
@@ -340,7 +323,6 @@ export function computePipelineForecast(
       id: ref.id,
       source: "referral",
       name: ref.referred_person_name,
-      detail: null,
       stage: ref.referral_type,
       unifiedStage: "pre_qualifying",
       side:
