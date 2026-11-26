@@ -133,6 +133,7 @@ export function PipelineContent({ seed }: { seed: PipelineSeedData }) {
         defaultCommissionPct: seed.defaultCommissionPct,
         // Referrals roll into the unified Pipeline Weighted total (spec §2.2).
         referralOpportunities: seed.referralOpportunities,
+        clientNamesById: seed.clientNamesById,
       }),
     [seed],
   );
@@ -681,16 +682,17 @@ function PipelineRow({
       <TableCell>
         <div className="flex flex-col">
           <div className="flex items-center gap-1.5">
-            <span className="font-medium text-foreground">{item.name || item.clientName}</span>
+            <span className="font-medium text-foreground">{item.name}</span>
             {item.source === "buyer" && !item.estimatedValue && (
               <span className="inline-flex items-center rounded-md border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[11px] font-medium text-amber-600">
                 No budget
               </span>
             )}
           </div>
-          {item.name && item.clientName && item.clientName !== item.name && item.source !== "buyer" && (
+          {/* The client's name leads; an address shows under it only when it is the deal's (a listing, or a buyer's accepted offer). */}
+          {item.detail && (
             <span className="text-xs text-muted-foreground">
-              {item.clientName}
+              {item.detail}
             </span>
           )}
         </div>

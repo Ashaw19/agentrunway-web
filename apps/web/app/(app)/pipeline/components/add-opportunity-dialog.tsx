@@ -10,9 +10,15 @@
  *
  * Clients are chosen by name (ClientNameField). user_id is always set from
  * supabase.auth.getUser().
+ *
+ * Edit mode (`editing` set, 2026-11-26): Andrew couldn't change an open
+ * opportunity from the Pipeline page. The same form opens on that row's tab,
+ * filled from its own table, and saves with an UPDATE by id + user_id. Status,
+ * stage and conversion links are never touched here (Promote / Advance / Lost
+ * own those).
  */
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -36,13 +42,24 @@ import { createClient } from "@/lib/supabase/client";
 import { fmtCurrency } from "@/lib/formatters";
 import { supabaseErrorMessage } from "@/lib/crm/opportunity-form";
 import { ClientNameField, NO_CLIENT, keepEscapeForClientList } from "@/components/client-name-field";
-import type { ReferralType } from "@/lib/types/database";
+import type { OpportunityV, ReferralType } from "@/lib/types/database";
 
 type Tab = "listing_appointment" | "buyer_prospect" | "referral";
 
 function todayLocal(): string {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+/** A stored fraction (0.25) as the form's percent text ("25"); null → "". */
+function pctText(v: number | null | undefined): string {
+  if (v == null || !Number.isFinite(Number(v))) return "";
+  return String(Math.round(Number(v) * 10000) / 100);
+}
+
+/** A stored number as form text; null → "". */
+function numText(v: number | null | undefined): string {
+  return v == null || !Number.isFinite(Number(v)) ? "" : String(v);
 }
 
 /** Parse a numeric form field; empty / non-finite → null. */
@@ -57,14 +74,19 @@ export function AddOpportunityDialog({
   open,
   onOpenChange,
   onSaved,
+  editing = null,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Called after a successful insert — caller does router.refresh(). */
+  /** Called after a successful insert or update — caller does router.refresh(). */
   onSaved: () => void;
+  /** An open opportunity to edit. Null (the default) adds a new one. */
+  editing?: OpportunityV | null;
 }) {
   const [tab, setTab] = useState<Tab>("listing_appointment");
   const [saving, setSaving] = useState(false);
+  /** Edit mode: true until the row's own fields have loaded into the form. */
+  const [loadingRow, setLoadingRow] = useState(false);
 
   // ── Listing Appointment form ───────────────────────────────────────────
   const [la, setLa] = useState({
@@ -135,6 +157,81 @@ export function AddOpportunityDialog({
     });
   }, []);
 
+  // Edit mode: read the row from its own table (the view lacks the address,
+  // referrer and referral type) and fill that tab's form.
+  useEffect(() => {
+    if (!open || !editing) return;
+    let cancelled = false;
+    setTab(editing.opportunity_type);
+    setLoadingRow(true);
+    (async () => {
+      try {
+        const supabase = createClient();
+        const clientName = async (id: string | null): Promise<string> => {
+          if (!id) return "";
+          const { data, error } = await supabase.from("clients").select("name").eq("id", id).maybeSingle();
+          if (error) throw error;
+          return (data?.name as string | undefined) ?? "";
+        };
+        if (editing.opportunity_type === "listing_appointment") {
+          const { data: r, error } = await supabase.from("listing_appointments").select("*").eq("id", editing.id).single();
+          if (error) throw error;
+          const name = await clientName(r.client_id);
+          if (cancelled) return;
+          setLa({
+            client: r.client_id ? { id: r.client_id, name } : NO_CLIENT,
+            property_address: r.property_address ?? "",
+            appointment_date: r.appointment_date ?? todayLocal(),
+            estimated_list_price: numText(r.estimated_list_price),
+            estimated_commission_pct: pctText(r.estimated_commission_pct ?? 0.025),
+            close_odds_pct: pctText(r.close_odds_pct),
+            expected_close_date: r.expected_close_date ?? "",
+            notes: r.notes ?? "",
+          });
+        } else if (editing.opportunity_type === "buyer_prospect") {
+          const { data: r, error } = await supabase.from("pipeline_deals").select("*").eq("id", editing.id).single();
+          if (error) throw error;
+          const name = r.client_id ? (await clientName(r.client_id)) || r.client_name || "" : r.client_name || "";
+          if (cancelled) return;
+          setBp({
+            client: { id: r.client_id ?? null, name },
+            address: r.address ?? "",
+            estimated_price: numText(r.estimated_price),
+            estimated_commission_pct: pctText(r.estimated_commission_pct ?? 0.025),
+            close_odds_pct: pctText(r.probability_override),
+            expected_close_date: r.expected_close_date ?? "",
+            notes: r.notes ?? "",
+          });
+        } else {
+          const { data: r, error } = await supabase.from("referral_opportunities").select("*").eq("id", editing.id).single();
+          if (error) throw error;
+          const name = r.referrer_client_id ? (await clientName(r.referrer_client_id)) || r.referrer_name || "" : r.referrer_name || "";
+          if (cancelled) return;
+          setRf({
+            referred_person_name: r.referred_person_name ?? "",
+            referrer: { id: r.referrer_client_id ?? null, name },
+            referral_type: (r.referral_type ?? "unknown") as ReferralType,
+            referral_date: r.referral_date ?? todayLocal(),
+            estimated_price: numText(r.estimated_price),
+            estimated_commission_pct: pctText(r.estimated_commission_pct ?? 0.025),
+            close_odds_pct: pctText(r.close_odds_pct),
+            expected_close_date: r.expected_close_date ?? "",
+            notes: r.notes ?? "",
+          });
+        }
+        if (!cancelled) setLoadingRow(false);
+      } catch (err) {
+        if (cancelled) return;
+        toast.error(supabaseErrorMessage(err, "Couldn't load this opportunity."));
+        console.error(err);
+        onOpenChange(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, editing, onOpenChange]);
+
   function oddsFraction(v: string): number | null {
     const n = num(v);
     if (n == null) return null;
@@ -177,8 +274,7 @@ export function AddOpportunityDialog({
           toast.error("Pick the client from the list, or clear the Client box.");
           return;
         }
-        const { error } = await supabase.from("listing_appointments").insert({
-          user_id: user.id,
+        const fields = {
           client_id: la.client.id,
           property_address: la.property_address.trim(),
           appointment_date: la.appointment_date || todayLocal(),
@@ -186,11 +282,13 @@ export function AddOpportunityDialog({
           estimated_commission_pct: comm ?? 0.025,
           close_odds_pct: odds,
           expected_close_date: la.expected_close_date || null,
-          status: "scheduled",
           notes: la.notes.trim() || null,
-        });
+        };
+        const { error } = editing
+          ? await supabase.from("listing_appointments").update(fields).eq("id", editing.id).eq("user_id", user.id)
+          : await supabase.from("listing_appointments").insert({ ...fields, user_id: user.id, status: "scheduled" });
         if (error) throw error;
-        toast.success("Listing appointment logged.");
+        toast.success(editing ? "Listing appointment updated." : "Listing appointment logged.");
       } else if (tab === "buyer_prospect") {
         if (!bp.client.name.trim()) {
           toast.error("A client is required for a buyer prospect.");
@@ -210,11 +308,8 @@ export function AddOpportunityDialog({
           toast.error("Commission must be between 0% and 50%.");
           return;
         }
-        const { error } = await supabase.from("pipeline_deals").insert({
-          user_id: user.id,
+        const fields = {
           client_id: bp.client.id,
-          side: "buyer",
-          stage: "lead",
           address: bp.address.trim() || "",
           client_name: bp.client.name.trim(),
           estimated_price: num(bp.estimated_price) ?? 0,
@@ -222,9 +317,12 @@ export function AddOpportunityDialog({
           probability_override: odds,
           expected_close_date: bp.expected_close_date || null,
           notes: bp.notes.trim() || "",
-        });
+        };
+        const { error } = editing
+          ? await supabase.from("pipeline_deals").update(fields).eq("id", editing.id).eq("user_id", user.id)
+          : await supabase.from("pipeline_deals").insert({ ...fields, user_id: user.id, side: "buyer", stage: "lead" });
         if (error) throw error;
-        toast.success("Buyer prospect logged.");
+        toast.success(editing ? "Buyer prospect updated." : "Buyer prospect logged.");
       } else {
         if (!rf.referred_person_name.trim()) {
           toast.error("Referred person name is required.");
@@ -240,8 +338,7 @@ export function AddOpportunityDialog({
           toast.error("Commission must be between 0% and 50%.");
           return;
         }
-        const { error } = await supabase.from("referral_opportunities").insert({
-          user_id: user.id,
+        const fields = {
           referred_person_name: rf.referred_person_name.trim(),
           referrer_name: rf.referrer.name.trim() || null,
           referrer_client_id: rf.referrer.id,
@@ -251,11 +348,13 @@ export function AddOpportunityDialog({
           estimated_commission_pct: comm ?? 0.025,
           close_odds_pct: odds ?? 0.2,
           expected_close_date: rf.expected_close_date || null,
-          status: "open",
           notes: rf.notes.trim() || null,
-        });
+        };
+        const { error } = editing
+          ? await supabase.from("referral_opportunities").update(fields).eq("id", editing.id).eq("user_id", user.id)
+          : await supabase.from("referral_opportunities").insert({ ...fields, user_id: user.id, status: "open" });
         if (error) throw error;
-        toast.success("Referral logged.");
+        toast.success(editing ? "Referral updated." : "Referral logged.");
       }
 
       resetForms();
@@ -267,7 +366,7 @@ export function AddOpportunityDialog({
     } finally {
       setSaving(false);
     }
-  }, [tab, la, bp, rf, onOpenChange, onSaved, resetForms]);
+  }, [tab, la, bp, rf, editing, onOpenChange, onSaved, resetForms]);
 
   // GCI preview helper per active tab.
   const previewGci = (() => {
@@ -290,15 +389,18 @@ export function AddOpportunityDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-[95vw] max-w-lg" onEscapeKeyDown={keepEscapeForClientList}>
         <DialogHeader>
-          <DialogTitle>Add Opportunity</DialogTitle>
+          <DialogTitle>{editing ? "Edit Opportunity" : "Add Opportunity"}</DialogTitle>
         </DialogHeader>
 
         <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)}>
-          <TabsList className="w-full">
-            <TabsTrigger value="listing_appointment">Listing Appt</TabsTrigger>
-            <TabsTrigger value="buyer_prospect">Buyer Prospect</TabsTrigger>
-            <TabsTrigger value="referral">Referral</TabsTrigger>
-          </TabsList>
+          {/* An opportunity's type can't change: editing shows only its own tab. */}
+          {!editing && (
+            <TabsList className="w-full">
+              <TabsTrigger value="listing_appointment">Listing Appt</TabsTrigger>
+              <TabsTrigger value="buyer_prospect">Buyer Prospect</TabsTrigger>
+              <TabsTrigger value="referral">Referral</TabsTrigger>
+            </TabsList>
+          )}
 
           {/* ── Listing Appointment ─────────────────────────────────── */}
           <TabsContent value="listing_appointment" className="mt-3 grid gap-4">
@@ -535,8 +637,8 @@ export function AddOpportunityDialog({
           </p>
         )}
 
-        <Button onClick={handleSubmit} disabled={saving}>
-          {saving ? "Saving…" : "Add Opportunity"}
+        <Button onClick={handleSubmit} disabled={saving || loadingRow}>
+          {saving ? "Saving…" : loadingRow ? "Loading…" : editing ? "Save Changes" : "Add Opportunity"}
         </Button>
       </DialogContent>
     </Dialog>

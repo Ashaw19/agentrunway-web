@@ -35,7 +35,20 @@ export type UnifiedStage =
 export interface UnifiedPipelineItem {
   id: string;
   source: "deal" | "listing" | "buyer" | "referral";
-  name: string;              // address or client name
+  /**
+   * What the row is called: the client's name when known (2026-11-26, Andrew:
+   * "I should see the client's name rather than the address"), else the
+   * address. A buyer is shown many houses, so an address only names a buyer
+   * deal once an offer is accepted.
+   */
+  name: string;
+  /**
+   * The address under the name: a listing's property, a sell-side deal's
+   * property, or a buyer deal's house from conditional (offer accepted) on.
+   * Null when the name already is the address, or a buyer hasn't an
+   * accepted offer.
+   */
+  detail: string | null;
   stage: string;             // original stage from the source
   unifiedStage: UnifiedStage;
   side: "buy" | "sell" | "both";
@@ -136,6 +149,21 @@ export interface PipelineForecastInput {
    * status='open' rows contribute to weighted GCI. Caller passes the
    * full list; engine filters internally. */
   referralOpportunities?: ReferralOpportunity[];
+  /** Client names by id, for deals and listings that link a client. */
+  clientNamesById?: Readonly<Record<string, string>>;
+}
+
+/** Deal stages at which a buyer's offer has been accepted: the address is now the deal's. */
+const BUYER_ADDRESS_STAGES: ReadonlySet<string> = new Set(["conditional", "firm", "closed"]);
+
+/** The client's current name (from clients), else the name stored on the row. */
+function linkedClientName(
+  names: Readonly<Record<string, string>> | undefined,
+  clientId: string | null | undefined,
+  stored?: string | null,
+): string | null {
+  const fromClient = clientId ? names?.[clientId]?.trim() : "";
+  return fromClient || stored?.trim() || null;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────
@@ -215,10 +243,14 @@ export function computePipelineForecast(
   for (const deal of activeDeals) {
     const prob = computeProbability(deal);
     const gci = computeEstimatedGCI(deal);
+    const client = linkedClientName(input.clientNamesById, deal.client_id, deal.client_name);
+    const address = deal.address?.trim() || null;
+    const addressIsTheDeal = deal.side !== "buyer" || BUYER_ADDRESS_STAGES.has(deal.stage);
     items.push({
       id: deal.id,
       source: "deal",
-      name: deal.address,
+      name: client || address || "Unnamed deal",
+      detail: client && addressIsTheDeal ? address : null,
       stage: deal.stage,
       unifiedStage: DEAL_STAGE_TO_UNIFIED[deal.stage] ?? "pre_qualifying",
       side: normalizeSide(deal.side),
@@ -228,7 +260,7 @@ export function computePipelineForecast(
       probability: prob,
       weightedGCI: gci * prob,
       expectedCloseDate: deal.expected_close_date,
-      clientName: deal.client_name || null,
+      clientName: client,
       daysInStage: daysBetween(deal.updated_at, now),
       manualOverride: deal.probability_override != null,
     });
@@ -248,10 +280,13 @@ export function computePipelineForecast(
     // listing.status] ?? 0.15. See spec §2.2 binding guardrail.
     const prob = listing.close_odds_pct ?? LISTING_PROBABILITIES[listing.status] ?? 0.15;
     const gci = value * commPct;
+    const client = linkedClientName(input.clientNamesById, listing.client_id);
+    const address = listing.property_address?.trim() || null;
     items.push({
       id: listing.id,
       source: "listing",
-      name: listing.property_address ?? "Listing appointment",
+      name: client || address || "Listing appointment",
+      detail: client ? address : null,
       stage: listing.status,
       unifiedStage: LISTING_STATUS_TO_UNIFIED[listing.status] ?? "pre_qualifying",
       side: "sell",
@@ -261,7 +296,7 @@ export function computePipelineForecast(
       probability: prob,
       weightedGCI: gci * prob,
       expectedCloseDate: listing.expected_close_date ?? null,
-      clientName: null,
+      clientName: client,
       daysInStage: daysBetween(listing.updated_at, now),
       manualOverride: false,
     });
@@ -275,6 +310,7 @@ export function computePipelineForecast(
       id: buyer.id,
       source: "buyer",
       name: buyer.name,
+      detail: null,
       stage: buyer.status,
       unifiedStage: BUYER_STATUS_TO_UNIFIED[buyer.status] ?? "pre_qualifying",
       side: "buy",
@@ -304,6 +340,7 @@ export function computePipelineForecast(
       id: ref.id,
       source: "referral",
       name: ref.referred_person_name,
+      detail: null,
       stage: ref.referral_type,
       unifiedStage: "pre_qualifying",
       side:

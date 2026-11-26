@@ -8,7 +8,9 @@
  *  - the 4-KPI cockpit strip (engine-computed)
  *  - the list of open-opportunity cards (sorted expected_close ASC NULLS LAST,
  *    then opportunity_date DESC), rendering ONLY status='open' rows
- *  - the Add / Promote / Advance / Lost dialogs and their selected-row state
+ *  - the Add / Edit / Delete / Promote / Advance / Lost dialogs and their
+ *    selected-row state (Edit and Delete added 2026-11-26: Andrew couldn't
+ *    change or remove an open opportunity from this page)
  *  - the inline close-odds UPDATE (single-table, by type — no RPC)
  *
  * Data flow follows the page's server-fetch + router.refresh() pattern: every
@@ -30,6 +32,23 @@ import { AddOpportunityDialog } from "./add-opportunity-dialog";
 import { PromoteOpportunityDialog } from "./promote-opportunity-dialog";
 import { AdvanceStageDialog } from "./advance-stage-dialog";
 import { LostOpportunityDialog } from "./lost-opportunity-dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+
+/** The table each opportunity type lives in. */
+const SOURCE_TABLE: Record<OpportunityV["opportunity_type"], string> = {
+  listing_appointment: "listing_appointments",
+  buyer_prospect: "pipeline_deals",
+  referral: "referral_opportunities",
+};
 
 export function OpportunitiesSection({
   opportunities,
@@ -64,6 +83,39 @@ export function OpportunitiesSection({
   const [promoteOpp, setPromoteOpp] = useState<OpportunityV | null>(null);
   const [advanceOpp, setAdvanceOpp] = useState<OpportunityV | null>(null);
   const [lostOpp, setLostOpp] = useState<OpportunityV | null>(null);
+  const [editOpp, setEditOpp] = useState<OpportunityV | null>(null);
+  const [deleteOpp, setDeleteOpp] = useState<OpportunityV | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  // ── Delete: removes the row for good. Only open opportunities show here, so
+  // nothing has been promoted from it; any link to it is ON DELETE SET NULL.
+  // It isn't counted as lost: Lost is the button for a client who went elsewhere.
+  const handleDelete = async () => {
+    const o = deleteOpp;
+    if (!o || deleting) return;
+    setDeleting(true);
+    try {
+      const supabase = createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+      const { error } = await supabase
+        .from(SOURCE_TABLE[o.opportunity_type])
+        .delete()
+        .eq("id", o.id)
+        .eq("user_id", user.id);
+      if (error) throw error;
+      toast.success("Opportunity deleted.");
+      setDeleteOpp(null);
+      router.refresh();
+    } catch (err) {
+      toast.error(supabaseErrorMessage(err, "Couldn't delete the opportunity."));
+      console.error(err);
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   // ── Inline close-odds UPDATE — single-table, by opportunity type ────────
   const handleCloseOddsChange = async (o: OpportunityV, oddsFraction: number) => {
@@ -144,6 +196,8 @@ export function OpportunitiesSection({
               onPromote={setPromoteOpp}
               onAdvance={setAdvanceOpp}
               onLost={setLostOpp}
+              onEdit={setEditOpp}
+              onDelete={setDeleteOpp}
               onCloseOddsChange={handleCloseOddsChange}
             />
           ))}
@@ -156,6 +210,41 @@ export function OpportunitiesSection({
         onOpenChange={setAddOpen}
         onSaved={() => router.refresh()}
       />
+      {/* Its own instance, keyed by row, so editing never leaves values in the Add form. */}
+      <AddOpportunityDialog
+        key={editOpp ? `${editOpp.opportunity_type}:${editOpp.id}` : "none"}
+        editing={editOpp}
+        open={editOpp !== null}
+        onOpenChange={(o) => !o && setEditOpp(null)}
+        onSaved={() => {
+          setEditOpp(null);
+          router.refresh();
+        }}
+      />
+      <AlertDialog open={deleteOpp !== null} onOpenChange={(o) => !o && !deleting && setDeleteOpp(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this opportunity?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteOpp?.title ? `"${deleteOpp.title}" is` : "It's"} removed for good and won&apos;t count as lost.
+              If the client went with someone else, use Lost instead.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Keep it</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                void handleDelete();
+              }}
+              disabled={deleting}
+              className="bg-red-600 text-white hover:bg-red-700"
+            >
+              {deleting ? "Deleting…" : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <PromoteOpportunityDialog
         opportunity={promoteOpp}
         open={promoteOpp !== null}
