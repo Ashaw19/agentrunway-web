@@ -679,9 +679,8 @@ describe("pipeline-forecast-engine — referrals as a fourth input source", () =
 });
 
 // ── Row names: the client, not the address (2026-11-26) ─────────────────────
-// Andrew: "I should see the client's name rather than the address. For a buyer
-// client, the address would be as many as I showed them. Once it becomes an
-// accepted offer, we can show the address."
+// Andrew: "Just show the client's name in the list rather than the address of
+// the subject home."
 describe("row names", () => {
   const run = (
     deals: PipelineDeal[] = [],
@@ -697,42 +696,29 @@ describe("row names", () => {
       clientNamesById,
     }).items;
 
-  it("a listing is named by its client, with the property under it", () => {
+  it("a listing is named by its client, not the property", () => {
     const [row] = run([], [makeListing({ id: "l1", status: "scheduled", client_id: "c1", property_address: "67 Sunset Dr" })], { c1: "Pat Seller" });
     expect(row.name).toBe("Pat Seller");
-    expect(row.detail).toBe("67 Sunset Dr");
     expect(row.clientName).toBe("Pat Seller");
   });
 
-  it("a listing with no client keeps its address as the name", () => {
+  it("a listing with no client falls back to its address", () => {
     const [row] = run([], [makeListing({ id: "l1", status: "scheduled", property_address: "67 Sunset Dr" })]);
     expect(row.name).toBe("67 Sunset Dr");
-    expect(row.detail).toBeNull();
   });
 
-  it("a buyer deal hides the address until the offer is accepted", () => {
+  it("a deal is named by its client at every stage and side", () => {
     const rows = run(
-      (["lead", "showing", "offer", "conditional", "firm"] as const).map((stage) =>
-        makeDeal({ id: stage, stage, estimated_price: 400_000, side: "buyer", client_id: "c1", address: "12 Elm St" }),
-      ),
+      [
+        ...(["lead", "showing", "offer", "conditional", "firm"] as const).map((stage) =>
+          makeDeal({ id: stage, stage, estimated_price: 400_000, side: "buyer", client_id: "c1", address: "12 Elm St" }),
+        ),
+        makeDeal({ id: "sell", stage: "firm", estimated_price: 400_000, side: "seller", client_id: "c1", address: "9 Bay Rd" }),
+      ],
       [],
-      { c1: "Kim Buyer" },
+      { c1: "Kim Client" },
     );
-    const byId = Object.fromEntries(rows.map((r) => [r.id, r]));
-    for (const id of ["lead", "showing", "offer"]) {
-      expect(byId[id].name).toBe("Kim Buyer");
-      expect(byId[id].detail).toBeNull();
-    }
-    for (const id of ["conditional", "firm"]) {
-      expect(byId[id].name).toBe("Kim Buyer");
-      expect(byId[id].detail).toBe("12 Elm St");
-    }
-  });
-
-  it("a sell-side deal shows its property at every stage", () => {
-    const [row] = run([makeDeal({ id: "d1", stage: "lead", estimated_price: 400_000, side: "seller", client_name: "Lee Owner", address: "9 Bay Rd" })]);
-    expect(row.name).toBe("Lee Owner");
-    expect(row.detail).toBe("9 Bay Rd");
+    expect(rows.map((r) => r.name)).toEqual(Array(6).fill("Kim Client"));
   });
 
   it("the client's current name beats the name stored on the deal", () => {
@@ -747,7 +733,6 @@ describe("row names", () => {
     ]);
     const byId = Object.fromEntries(rows.map((r) => [r.id, r]));
     expect(byId.a.name).toBe("5 Pine St");
-    expect(byId.a.detail).toBeNull();
     expect(byId.b.name).toBe("Unnamed deal");
   });
 });

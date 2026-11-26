@@ -413,7 +413,7 @@ export function PipelineContent({ seed }: { seed: PipelineSeedData }) {
             <TableHeader>
               <TableRow className="border-border hover:bg-transparent">
                 <TableHead className="w-10">Source</TableHead>
-                <TableHead>Name / Address</TableHead>
+                <TableHead>Client</TableHead>
                 <TableHead>Stage</TableHead>
                 <TableHead>Side</TableHead>
                 <TableHead className="text-right">Est. Value</TableHead>
@@ -689,12 +689,7 @@ function PipelineRow({
               </span>
             )}
           </div>
-          {/* The client's name leads; an address shows under it only when it is the deal's (a listing, or a buyer's accepted offer). */}
-          {item.detail && (
-            <span className="text-xs text-muted-foreground">
-              {item.detail}
-            </span>
-          )}
+          {/* Client's name only, no address line (Andrew, 2026-11-26). */}
         </div>
       </TableCell>
       <TableCell>
