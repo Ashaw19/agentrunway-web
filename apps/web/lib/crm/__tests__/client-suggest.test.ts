@@ -175,14 +175,22 @@ describe("keepEscapeForClientList and the box", () => {
   });
 });
 
-describe("a prospect's row on the Pipeline page", () => {
+describe("a row on the Pipeline page", () => {
+  // 2026-11-26: rows are named by the client (the engine's item.name); the
+  // address shows under it only when it is the deal's (item.detail). The
+  // naming rules are tested in core pipeline-forecast-engine.test.ts.
   const table = readFileSync(path.resolve(__dirname, "../../../app/(app)/pipeline/pipeline-content.tsx"), "utf8");
 
-  it("titles a prospect with no target address by the client's name", () => {
-    expect(table).toContain("{item.name || item.clientName}");
+  it("titles every row with the engine's name", () => {
+    expect(table).toContain('<span className="font-medium text-foreground">{item.name}</span>');
   });
 
-  it("shows the client under the address, without repeating a name already in the title", () => {
-    expect(table).toContain('{item.name && item.clientName && item.clientName !== item.name && item.source !== "buyer" && (');
+  it("puts the address under the name only through item.detail", () => {
+    expect(table).toContain("{item.detail && (");
+    expect(table).not.toContain("item.name || item.clientName");
+  });
+
+  it("passes the linked clients' names to the engine", () => {
+    expect(table).toContain("clientNamesById: seed.clientNamesById");
   });
 });

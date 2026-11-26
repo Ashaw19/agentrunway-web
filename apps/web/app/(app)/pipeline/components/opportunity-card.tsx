@@ -6,13 +6,14 @@
  * Type-driven action buttons:
  *  - listing_appointment / referral → [Promote] + [Lost]
  *  - buyer_prospect                 → [Advance Stage] + [Lost]
+ *  - every type                     → [Edit] + [Delete] (2026-11-26)
  *
  * Close odds are inline-editable (single-table UPDATE on blur, then
  * router.refresh()). Display default uses the engine's `effectiveOdds`.
  */
 
 import { useState } from "react";
-import { Home, Users, Share2, Loader2 } from "lucide-react";
+import { Home, Users, Share2, Loader2, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -71,12 +72,16 @@ export function OpportunityCard({
   onPromote,
   onAdvance,
   onLost,
+  onEdit,
+  onDelete,
   onCloseOddsChange,
 }: {
   opportunity: OpportunityV;
   onPromote: (o: OpportunityV) => void;
   onAdvance: (o: OpportunityV) => void;
   onLost: (o: OpportunityV) => void;
+  onEdit: (o: OpportunityV) => void;
+  onDelete: (o: OpportunityV) => void;
   /** Persists a single-table close-odds UPDATE (0..1). Resolves when written. */
   onCloseOddsChange: (o: OpportunityV, oddsFraction: number) => Promise<void>;
 }) {
@@ -223,6 +228,27 @@ export function OpportunityCard({
         >
           Lost
         </Button>
+        <div className="ml-auto flex items-center gap-1">
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => onEdit(opportunity)}
+            className="gap-1.5 text-muted-foreground"
+          >
+            <Pencil className="h-3.5 w-3.5" />
+            Edit
+          </Button>
+          <Button
+            size="icon"
+            variant="ghost"
+            onClick={() => onDelete(opportunity)}
+            className="h-8 w-8 text-muted-foreground hover:text-red-600"
+            aria-label="Delete opportunity"
+            title="Delete"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </Button>
+        </div>
       </div>
     </div>
   );

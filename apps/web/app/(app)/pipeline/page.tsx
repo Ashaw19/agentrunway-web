@@ -22,6 +22,8 @@ export interface PipelineSeedData {
   // total via the forecast engine (spec §2.2).
   opportunities: import("@/lib/types/database").OpportunityV[];
   referralOpportunities: import("@/lib/types/database").ReferralOpportunity[];
+  /** Names of the clients linked to open deals and listings: the table names rows by client. */
+  clientNamesById: Record<string, string>;
 }
 
 // ── Page ───────────────────────────────────────────────────────────────────
@@ -122,6 +124,31 @@ export default async function PipelinePage() {
       statusChangedAt: c.updated_at ?? null,
     }));
 
+  // The table names each deal and listing by its client (2026-11-26). Only the
+  // clients those rows link, read in batches so a long id list stays short.
+  const linkedIds = [
+    ...new Set(
+      [
+        ...(dealsResult.data ?? []).filter((d) => d.stage !== "closed" && d.stage !== "lost").map((d) => d.client_id),
+        ...(listingsResult.data ?? []).map((l) => l.client_id),
+      ].filter((id): id is string => typeof id === "string" && id.length > 0),
+    ),
+  ];
+  const clientNamesById: Record<string, string> = {};
+  for (let i = 0; i < linkedIds.length; i += 200) {
+    const { data, error } = await supabase
+      .from("clients")
+      .select("id, name")
+      .eq("user_id", user.id)
+      .in("id", linkedIds.slice(i, i + 200));
+    if (error) {
+      // Rows fall back to the name stored on the deal, or the address.
+      console.error("[pipeline] client names read failed:", error.code ?? "", error.message);
+      break;
+    }
+    for (const c of data ?? []) if (c.name) clientNamesById[c.id] = c.name;
+  }
+
   // Map transactions to ClosedTransaction shape
   const closedTransactions: ClosedTransaction[] = (txResult.data ?? []).map(
     (t) => ({
@@ -139,6 +166,7 @@ export default async function PipelinePage() {
     defaultCommissionPct: 0.025,
     opportunities: opportunitiesResult.data ?? [],
     referralOpportunities: referralsResult.data ?? [],
+    clientNamesById,
   };
 
   return <PipelineContent seed={seed} />;
