@@ -340,6 +340,8 @@ const TOPIC_RULES: TopicRule[] = [
       // mobile "Today's Focus"
       "briefing",
       "today's focus",
+      // "Dismiss all N check-ins" button above Today's briefing (#399)
+      "dismiss all check-ins",
       "closing anniversary",
       "home anniversary",
       // Clients page totals (Lifetime GCI, Total Deals, repeat rate, badges,
