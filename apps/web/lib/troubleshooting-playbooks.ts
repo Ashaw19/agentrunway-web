@@ -421,10 +421,21 @@ Three tabs: Listing Appointment, Buyer Prospect and Referral. Each client box ta
 - Only this agent's clients that are not in the Hangar (archived) are suggested.
 - Pick by click, or arrow keys and Enter. Typing a client's whole name links them with no click, and a green check confirms the link. When two clients share that name, neither is linked until one is picked from the list.
 - Listing Appointment: Property Address is required; "Client (optional)" links a client only when one is picked. A name typed and not picked stops the save: "Pick the client from the list, or clear the Client box."
-- Buyer Prospect: "Client *" is required and has to be picked from the list ("Pick the client from the list."). The client's name is stored on the deal. Target Address is optional; with none, the Pipeline row is titled by the client's name.
+- Buyer Prospect: "Client *" is required and has to be picked from the list ("Pick the client from the list."). The client's name is stored on the deal. Target Address is optional.
 - Referral: "Referred Person Name *" is free text. "Referred by (optional)" takes any name; it links a client only when one is picked, and otherwise saves the name as typed.
 - "No client has that name. Add them in the CRM first." means no active client matched. "Your clients didn't load. Keep typing to try again." means the search failed, not that there's no match.
-- Known gap: a name typed without its apostrophe doesn't find it ("obrien" misses O'Brien). A pipeline deal keeps the old client name after the client is renamed in the CRM.
+- Known gap: a name typed without its apostrophe doesn't find it ("obrien" misses O'Brien).
+
+### Pipeline rows are named by the client (since 2026-11-26)
+- The Pipeline table's first column is "Client". A deal or listing appointment linked to a client shows the client's current name from the CRM, so renaming the client renames the row. No address line shows under the name.
+- With no client linked, the row falls back to the name stored on the deal, then the property address, then "Unnamed deal" (or "Listing appointment").
+- If the client names don't load, rows fall back the same way; a refresh tries again.
+
+### Editing or deleting an opportunity (Pipeline → opportunity cards; since 2026-11-26)
+- Every open opportunity card has Edit and Delete beside close odds and Promote / Advance / Lost.
+- Edit opens the Add Opportunity form on that card's own tab (the type can't change), filled in from the saved row. Saving shows "Listing appointment updated.", "Buyer prospect updated." or "Referral updated." Edit changes the details only: status, stage and Promote / Advance links stay as they were.
+- Delete asks first ("Delete this opportunity?") and removes the row for good. A deleted opportunity doesn't count as lost; Lost is the button for a client who went with someone else.
+- "Couldn't load this opportunity." means the saved row didn't load into the form; close it and try Edit again.
 
 Note: Activity decay alerts also exist — clients whose days-since-last-contact exceed 2–3× their personal average contact rhythm get flagged as going cold (separate from the fixed 14/30-day stale thresholds).
 
